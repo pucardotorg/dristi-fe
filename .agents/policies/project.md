@@ -1,0 +1,63 @@
+# Pucar Dristi 2.0
+
+DRISTI is PUCAR's platform for running cheque-dishonour (NI Act §138) cases through
+Indian courts. One shared core is deployed per state with local rules and languages.
+
+All paths in agent instructions are relative to the repository root unless explicitly
+described as skill-relative. Start with `docs/README.md` for the docs map.
+
+## Working safely
+
+- Design work starts on `feature/<kebab-case>` from `origin/design` and returns by PR
+  into `design`, with the design owner's approval. Never commit directly to `main`,
+  `design`, or `develop`. DS upgrades also use a dedicated PR branch from `origin/design`;
+  never fold a pin upgrade into an unrelated feature.
+- Inspect branch, worktrees, and uncommitted changes before editing. If another tool
+  is building in this checkout, use an isolated worktree. Do not switch its branch,
+  overwrite its files, share build output, or stop its server.
+- Before using a running app, follow `.agents/policies/dev-server.md`.
+
+## Route the task
+
+The coordinating agent owns completion and follows `.agents/policies/orchestration.md`.
+Use the smallest workflow justified by consequence, uncertainty, and scope:
+
+| Work | Role / skill |
+|---|---|
+| Understand a product problem, brainstorm, choose a direction | `ux-designer` / `design-ui` |
+| Implement agreed behavior | `ui-designer` / `pull-ui-from-ds` + `ui-craft` |
+| Independently review behavior, DS consistency, accessibility | `ui-reviewer` / `review-ui-ds` |
+| Record decisions and results for the owner | coordinator / `document-ui-feature` |
+
+Explanations need no agent team. Clear, small corrections can start with the builder.
+Substantial features and consequential behavior changes require independent review.
+When subagents are available, delegate those stages as bounded tasks; when unavailable,
+perform separate passes and disclose that review was not independent.
+
+## Sources and context
+
+- Product meaning comes from the current request and relevant `docs/product/` sources.
+  Never invent product users, Jobs, legal claims, or system capabilities. Consult
+  `docs/product/open-questions.md` when a missing fact affects the task.
+- Before UI work, follow `.agents/policies/pucar-design-system.md`. The pinned DS is
+  authoritative for UI rules; sync primitives, never hand-write or locally modify them.
+  Load the compact `ui-craft` checklist and judge changed UI on the render.
+- `docs/design/proposals/`, `docs/design/features/`, and past feature research and
+  explorations are the owner's history, not routine planning context. Exclude them from
+  broad searches for implementation guidance. Retrieve history only on explicit request.
+  The documentation workflow may read the single target record to maintain it, without
+  promoting its contents into current requirements.
+- Reuse relevant material already read in this task while its version remains current.
+  Load detailed references only when their subject applies.
+
+## Completion and maintenance
+
+Follow `.agents/policies/verification.md`. Report implemented, verified, and unverified
+work separately. The coordinator records meaningful decisions and results with
+`document-ui-feature`; do not give this writing duty to the read-only reviewer.
+
+Canonical skills: `.agents/skills/`. Shared roles and policies: `.agents/roles/` and
+`.agents/policies/`. `npm run sync:rails` generates native Codex, Claude, and Cursor
+files from `.agents/rails.json`; edit sources, not generated copies. After changing
+the agent layer, run `npm run verify:agents`. Tool differences are explicit adapters.
+Update `docs/README.md` when adding a new top-level folder; do not create a second DS.

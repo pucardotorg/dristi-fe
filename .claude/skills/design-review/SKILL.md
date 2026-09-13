@@ -1,37 +1,25 @@
 ---
 name: design-review
-description: >-
-  Start a live design-review session on the running Dristi app: turn on the
-  point-and-edit overlay (tweak type/color/spacing, edit copy in place, delete
-  or duplicate elements, make auto-layout stacks, pin comments), hand the owner
-  the link, then implement their pasted report. Also runs the Pencil lane:
-  import a running screen into the Pencil desktop app as an editable artboard,
-  then diff the owner's Pencil edits, anchor every value to the design system,
-  and audit each change before implementing. Use when the user says "start
-  review", "start critique", "design review", "design mode", "import to
-  pencil", "review my pencil changes", or asks to annotate/tweak the running
-  app and have the changes applied.
+description: "Start an in-app Dristi annotation session or apply the owner's design feedback. For explicit Pencil requests, import and compare editable artboards before applying authorized changes."
 ---
 
-# Design review — point, edit, comment, then Claude implements
+# Design review — point, edit, comment, then implement the agreed changes
 
 The overlay is `apps/dristi-app/public/design-mode.js` (invoke-only review
 tooling, zero deps, never bundled); `src/components/design-mode-loader.tsx`
 loads it in dev when the URL carries `?design=1`. Full usage:
-[docs/design-mode.md](../../../docs/design-mode.md).
+`docs/design-mode.md` (repository root).
 
 ## Starting a session
 
-1. **Server**: check `http://127.0.0.1:3000` responds. If not, ask the user to
+1. **Server**: check `http://localhost:3000` responds. If not, ask the user to
    run `npm run dev` in their own terminal (never start it yourself — see
-   `.claude/rules/dev-server.md`).
-2. **Tool present on this branch?** Both `apps/dristi-app/public/design-mode.js`
-   and the loader wired in `src/app/layout.tsx` must exist. If the branch
-   predates them, restore from `design`:
-   `git checkout design -- apps/dristi-app/public/design-mode.js apps/dristi-app/src/components/design-mode-loader.tsx`
-   (and wire the loader into layout if missing). If only the loader is missing,
-   give the user the console fallback from docs/design-mode.md instead.
-3. **Hand over the link**: `http://127.0.0.1:3000/<route>?design=1` — the route
+   `.agents/policies/dev-server.md`).
+2. **Tool present on this branch?** Check the design-mode script and loader wiring.
+   Do not overwrite files from another branch to start a review. If missing, use the
+   documented console fallback where available, or propose a scoped tooling change in
+   this checkout. Confirm the running server serves this checkout before relying on it.
+3. **Hand over the link**: `http://localhost:3000/<route>?design=1` — the route
    the user named, else the screen under discussion, else `/advocate`. Tell
    them: annotate (Select to tweak/delete/duplicate/auto-layout, double-click
    to edit copy, Comment to pin notes), then **Copy for Claude** and paste the
@@ -39,7 +27,7 @@ loads it in dev when the URL carries `?design=1`. Full usage:
 
 ## Implementing a pasted DESIGN MODE REPORT
 
-The report is owner intent, not literal CSS. Before editing, load
+The report is owner intent, not literal CSS. Apply only changes the user authorized. Before editing, load
 `pull-ui-from-ds` and `ui-craft` (mandatory), and run `npm run check:ds-fresh`.
 
 - **Style edits** (`[font-size] 24px → 18px`, `[padding] …`): map the target
@@ -69,8 +57,8 @@ The report is owner intent, not literal CSS. Before editing, load
 - **Auto-layout edits** (`[display] flex`, `[flex-direction]`, `[gap]`,
   `[align-items]`): restructure with the codebase's layout idioms (flex + gap
   on the ladder), not inline styles.
-- **Comments**: feedback to adjudicate with staff-designer judgment (the eight
-  passes apply). If a comment conflicts with a DS law, do what the law allows
+- **Comments**: feedback to evaluate against the active task agreement and relevant
+  design reasoning. If a comment conflicts with a DS law, do what the law allows
   and flag the tension rather than silently ignoring the note.
 - **Box comments** (`[box W×H at x,y] region near …`): the note is about a
   region, not one element — read the area's composition, not just the selector
@@ -82,84 +70,12 @@ The report is owner intent, not literal CSS. Before editing, load
   you have the right one. Selectors are brittle across edits — resolve them
   against source components, don't grep for the selector string.
 
-After implementing: gates (`check:tokens`, `check:typography`, `check:ui-sync`,
-`check:spacing`),
-`npm test`, verify on the live render, and summarise what was applied
+After implementing: follow `.agents/policies/verification.md` for UI checks,
+relevant behavior tests and live-render verification, and summarise what was applied
 as-asked, what was translated (and to which token), and what was declined and
 why. Offer another round.
 
-## The Pencil lane — heavier edits in a real design tool
+## Pencil work
 
-The overlay above is the light lane (comments, copy, quick tweaks). When the
-owner wants to redesign — move things, restyle broadly, add/remove elements —
-import the screen into the Pencil desktop app and audit the edits back.
-Everything made in Pencil is a **review artifact, never the design of record**
-(the `docs/design/explorations/` rule applies; artifacts live untracked in
-`docs/design/explorations/pencil/<route-slug>-<date>/`).
-
-### Import ("import this screen to pencil")
-
-1. Preconditions: dev server responding; the Pencil desktop app is
-   **`Pen.app`** — `open -a Pen`. The MCP additionally needs a .pen file OPEN
-   in the editor ("A file needs to be open" error otherwise) and cannot create
-   one: ask the owner to hit ⌘N in the app (or open an existing artifact),
-   ideally saved to the artifact folder. Then, MANDATORY before any other
-   pencil call: `get_app_state({include_schema:true, include_canvas_design:
-   true, include_scripts_and_shaders:false})` and the relevant
-   `get_guidelines`.
-2. Extract the rendered screen: open the route in the Browser pane and run
-   `/design-export.js` (inject the script, call `window.__dmExtract()`), which
-   returns a JSON tree — bounds, flex facts, fills, borders, radius, font
-   facts, text, `data-slot`, and a `cssPath` selector per node. Save it as
-   `baseline.json` in the artifact folder.
-3. Import natively — Pencil's integrated browser does the conversion:
-   `browser({action:"load-page", url:"http://127.0.0.1:3000/<route>"})`, then
-   `browser({action:"import-to-canvas", target:"query",
-   querySelector:"main"})` (import `aside` separately if the rail matters).
-   The result names the imported top-level frame id; each node's `context`
-   carries the source tag/component. Only fall back to hand-building frames
-   from `baseline.json` via `execute` if native import fails.
-4. **Create the pair BEFORE handing over — this is the step that makes the
-   whole lane work, and skipping it silently destroys the diff.** Duplicate the
-   imported frame via `execute` into `BASELINE — <route> — <date>` (reference;
-   tell the owner not to touch it) and `EDIT — <route>`, side by side.
-   Screenshot the EDIT frame next to the live screen and get the owner's
-   fidelity nod. **Never tell the owner to start editing until both frames
-   exist and `baseline.json` is saved.** If an import has to be redone (wrong
-   width, wrong selector), redo the pair too — deleting the frames leaves the
-   owner editing against nothing, and the review degrades to guesswork over
-   screenshots. If you find yourself with edits and no baseline, say so plainly,
-   import a fresh baseline beside the edited frame, and flag every finding that
-   import differences could explain as ambiguous rather than asserting it.
-   `baseline.json` (step 2) stays the value ground truth for the diff: Pencil's
-   import may normalise values, so BASELINE-vs-EDIT gives *what changed* and
-   baseline.json + live computed styles give *from what*.
-5. Hand over: the owner edits the EDIT frame only, then says
-   "review my pencil changes".
-
-### Review ("review my pencil changes")
-
-1. Read both frames via `execute` Get-visitors; align nodes by selector-name
-   (fall back to geometry for renamed nodes; report unmatched as "unmapped",
-   never guess). Classify: property change / text change / deleted / added /
-   moved.
-2. **Anchor every value to the DS** — this is the contract: colors snap to the
-   nearest token in `apps/dristi-app/src/app/globals.css` (channel distance),
-   spacing/radius/size to the nearest ladder step or type role. Log every
-   rounding in the audit line (`13px → 12px · gap-3`). Raw values never enter
-   the code.
-3. Audit each change with the same rules as the report lane (and ui-craft +
-   the nine passes), verdict per item:
-   - `healthy-local` — screen-level composition change, DS-legal
-   - `use-variant` — an existing DS variant/size already expresses it
-   - `upstream-DS` — targets a `[ds:*]` primitive's internals or a token value:
-     a proposal for the owner, never a local override
-   - `declined` — conflicts with a DS law or craft rule (state which)
-4. Post the audit as a NUMBERED list in chat and stop. The owner picks
-   ("apply 1, 3, 5"). Implement only the picked items, at the owning layer
-   (component / content file / data — one instance edited means the owner layer
-   changes once and every instance follows; copy is bilingual). `upstream-DS`
-   items go to the feature brief's upstream-feedback section, not into code.
-5. Finish exactly like the report lane: `check:ds-fresh` before edits, then
-   gates, `npm test`, live-render verification, and the applied / translated /
-   declined summary.
+For an explicit Pencil import or review request, read the skill-relative
+[Pencil workflow](references/pencil.md). Do not load it for an ordinary overlay session.

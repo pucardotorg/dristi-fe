@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "project": ".agents/policies/project.md",
+  "roles": [
+    {
+      "name": "ux-designer",
+      "description": "Product and UX thinking partner for Dristi. Read relevant current sources, brainstorm with the owner, and recommend behavior and acceptance criteria. No application or archive edits.",
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Skill"
+      ],
+      "codexSandbox": "read-only",
+      "source": ".agents/roles/ux-designer.md",
+      "claudeModel": "opus"
+    },
+    {
+      "name": "ui-designer",
+      "description": "Build agreed Dristi behavior using the pinned Pucar DS. Own assigned implementation, relevant states, and validation; report evidence to the coordinator.",
+      "claudeTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob",
+        "Skill"
+      ],
+      "source": ".agents/roles/ui-designer.md",
+      "claudeModel": "opus"
+    },
+    {
+      "name": "ui-reviewer",
+      "description": "Independently review agreed Dristi behavior, DS consistency, accessibility, and responsive usability. Report required fixes, suggestions, and missing evidence without modifying files.",
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Skill"
+      ],
+      "codexSandbox": "read-only",
+      "source": ".agents/roles/ui-reviewer.md",
+      "claudeModel": "opus"
+    }
+  ],
+  "rules": [
+    {
+      "name": "pucar-design-system",
+      "description": "Before Dristi UI planning, building, or review, use the pinned Pucar DS and the applicable checks.",
+      "source": ".agents/policies/pucar-design-system.md"
+    },
+    {
+      "name": "dev-server",
+      "description": "Protect the owner’s running server and other checkouts; use localhost only for the verified checkout.",
+      "source": ".agents/policies/dev-server.md"
+    }
+  ],
+  "requiredSkills": [
+    "design-ui",
+    "document-ui-feature",
+    "propose-ui-brief",
+    "pull-ui-from-ds",
+    "review-ui-ds",
+    "ui-craft",
+    "design-review"
+  ]
+}
