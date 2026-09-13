@@ -87,13 +87,13 @@ describe("assembleItems", () => {
 
   it("numbers the items by position — item two is paragraph two", () => {
     const block = assembleItems([
-      createOrderItem(hearing, "summons", "a"),
-      createOrderItem(hearing, "cost", "b"),
+      createOrderItem("issue-of-summons", "a"),
+      createOrderItem("cost", "b"),
     ]);
     assert.deepEqual(
       block.items?.map((entry) => [entry.number, entry.heading]),
       [
-        [1, "Summons"],
+        [1, "Issue of summons"],
         [2, "Cost"],
       ],
     );
@@ -114,7 +114,7 @@ describe("assembleItems", () => {
     /* The court passed it — the typist said so by adding it. An order that dropped the
        paragraph would be the screen deciding which items are worth printing. */
     const block = assembleItems([
-      createOrderItem(hearing, "summons", "a"),
+      createOrderItem("issue-of-summons", "a"),
       { id: "b", type: "others", text: { html: "", text: "" } },
     ]);
     assert.equal(block.items?.length, 2);
@@ -125,7 +125,7 @@ describe("assembleItems", () => {
     const block = assembleItems([
       {
         id: "a",
-        type: "notice",
+        type: "issue-of-notice",
         text: {
           html: "<ol><li>Notice to the accused.</li></ol>",
           text: "Notice to the accused.",
@@ -151,7 +151,7 @@ describe("assembleOrder", () => {
       items: [
         {
           id: "a",
-          type: "notice",
+          type: "issue-of-notice",
           text: {
             html: "<p>Notice to the accused.</p>",
             text: "Notice to the accused.",

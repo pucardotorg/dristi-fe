@@ -91,11 +91,14 @@ const ITEM_TYPES: Record<CourtHearingPurposeId, OrderItemTypeId[]> = {
   appearance: ["others"],
   arguments: ["others"],
   bail: ["bail"],
-  cognizance: ["order-for-taking-cognizance", "summons"],
+  cognizance: ["cognizance", "issue-of-summons"],
   "delay-condonation": ["others"],
   "evidence-of-complainant": ["others"],
   "examination-of-accused-351": ["others"],
-  "for-reports": ["miscellaneous-process"],
+  /* The old catalogue had a "miscellaneous process" of this app's own invention; the
+     court's twenty-seven have no such type, so a report that has not arrived is an order
+     the catalogue cannot name — which is what `others` is for. */
+  "for-reports": ["others"],
   judgement: ["judgement"],
   plea: ["others"],
 };
@@ -173,7 +176,7 @@ function decisionsOf(hearing: CourtHearing): OrderDraft["applications"] {
  */
 function itemsOf(hearing: CourtHearing): OrderItemDraft[] {
   return ITEM_TYPES[hearing.purpose].map((type, index) => {
-    const item = createOrderItem(hearing, type, `${hearing.id}-item-${index + 1}`);
+    const item = createOrderItem(type, `${hearing.id}-item-${index + 1}`);
     if (index > 0) return item;
     return { ...item, text: richTextFromPlain(ITEM_TEXT[hearing.purpose]) };
   });

@@ -21,6 +21,7 @@ Snapshot date for these prose docs: **2026-07-30**.
 | Shared vocabulary | [terminology.md](terminology.md) |
 | Domain actors & roles (not product users) | [domain/actors.md](domain/actors.md) |
 | National §138 case stages | [domain/journey.md](domain/journey.md) |
+| Order templates, variables & hearing-purpose actions | [order-templates.md](order-templates.md) |
 | Field observations (provisional) | [domain/practice-notes.md](domain/practice-notes.md) |
 | Normative system musts | [standards/requirements.md](standards/requirements.md) |
 | Accessibility, security, DPDP, etc. | [standards/adherence.md](standards/adherence.md) |

@@ -58,10 +58,15 @@ describe("initialOrderDraft", () => {
     const draft = initialOrderDraft(cognizance, "completed", today);
     assert.deepEqual(
       draft.items.map((item) => item.type),
-      ["order-for-taking-cognizance", "summons"],
+      ["cognizance", "issue-of-summons"],
     );
-    assert.match(draft.items[1].text.text, /Issue summons to /);
-    assert.match(draft.items[1].text.text, new RegExp(cognizance.parties.accused));
+    assert.match(draft.items[1].text.text, /^Issue summons to /);
+    /* The party is a slot, not a name. Which party is summoned is a choice the source
+       says the system cannot make — a §138 case can have more than one accused, and a
+       summons at an evidence listing goes to a witness. The old build wrote the accused's
+       name in and read as finished while nobody had chosen. */
+    assert.match(draft.items[1].text.text, /\[Party Name\]/);
+    assert.ok(!draft.items[1].text.text.includes(cognizance.parties.accused));
   });
 
   it("keeps an item's id stable, so the editor is not remounted under the typist", () => {

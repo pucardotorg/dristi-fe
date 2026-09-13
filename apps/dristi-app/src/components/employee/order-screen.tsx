@@ -3,16 +3,23 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarX2Icon } from "lucide-react";
+import {
+  CalendarDaysIcon,
+  ChevronDownIcon,
+  CalendarX2Icon,
+  InboxIcon,
+  ScrollTextIcon,
+  UsersIcon,
+} from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
-import { DocumentPreview } from "@/components/cases/document-preview";
 import {
   RichTextField,
-  RichTextValueView,
   type RichTextValue,
 } from "@/components/cases/rich-text-field";
 import { ListingApplicationDialog } from "@/components/employee/listing-application-dialog";
+import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { SignMethodDialog } from "@/components/employee/sign-method-dialog";
+import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { useHearingSession } from "@/components/employee/use-hearing-session";
 import { useOrderDraft } from "@/components/employee/use-order-draft";
@@ -21,23 +28,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-} from "@/components/ui/combobox";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Dialog,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Empty,
   EmptyContent,
@@ -55,8 +50,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   markHearingEnded,
@@ -70,7 +63,11 @@ import {
 } from "@/lib/employee/listing-applications";
 import {
   causeTitle,
+  counselFor,
   COURT_HEARING_PURPOSES,
+  courtCaseStageLabel,
+  courtHearingPurposeLabel,
+  formatListingDate,
   hearingById,
   isoDay,
   parseIsoDay,
@@ -81,9 +78,7 @@ import {
 import { initialOrderDraft } from "@/lib/employee/order-demo";
 import {
   appearancesFor,
-  assembleAttendance,
   assembleItems,
-  assembleNextListing,
   buildOrderDocument,
   nextUnhandledListing,
   type Appearance,
@@ -96,26 +91,109 @@ import {
 import {
   createOrderItem,
   orderItemLabel,
-  ORDER_ITEM_GROUPS,
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "@/lib/employee/order-items";
+import {
+  likelyTemplatesFor,
+  ORDER_GROUPS,
+  ORDER_TEMPLATES,
+  unavailableReason,
+  type OrderCatalogueContext,
+  type OrderGroupId,
+} from "@/lib/employee/order-templates";
 
 /**
  * Compose the order of one listing.
  *
- * Built to the court's reference screen, region for region: the applications standing in
- * the matter at the head of the left column, the present and absent rolls under them,
- * the next hearing's details below that — and the order itself in the column beside,
- * which is an attendance line the screen writes and an item the bench dictates. A bar
- * across the top carries the cause and the way on to the next matter; a bar across the
- * bottom carries the draft and the paper.
+ * Two regions under a band that names the matter. The left panel holds the sitting —
+ * the applications standing in it, the present and absent rolls, when it is next listed
+ * — and, behind the second tab, the catalogue of what the court passed. The right column
+ * is the order itself, on paper: the court's own furniture around one ruled band that the
+ * typist writes. A bar across the top carries the cause and the way on to the next
+ * matter; a bar across the bottom carries the signature.
  *
  * **This build issues nothing.** The draft is held for this sitting and dies on a
- * reload. Preview is a look at the paper. Next hearing ends this listing and calls the
- * next one on the board — the same screen marks the cause list already makes. Nothing
- * files, notifies, or signs, and answering an application draws no order.
+ * reload. The paper on the page is the order as it will read. Sign order opens the
+ * same Add-signature overlay the signing queues already run — e-sign or upload —
+ * and Submit records that choice here only. Next hearing ends this listing and
+ * calls the next one on the board — the same screen marks the cause list already
+ * makes. Nothing files, notifies, or signs, and answering an application draws no
+ * order.
  */
+/**
+ * Which half of the left panel is showing.
+ *
+ * The two clusters the owner separated: **sitting** is what happened at this listing —
+ * the applications standing in it, who appeared, when it is next listed — and **orders**
+ * is what the court passed. They are tabs rather than one scroll because the first is
+ * finished in a single pass and the second wants the whole panel under it. Both keep
+ * their count on the strip, so putting one away does not hide that it has something in
+ * it.
+ */
+type SectionId = "applications" | "attendance" | "next" | "orders";
+
+type SectionEntry = {
+  id: SectionId;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+/**
+ * The panel's sections, in the order the bench works them.
+ *
+ * The applications standing in the matter are disposed of before the roll is called, the
+ * roll is called before the matter is posted on, and what the court passed is set down
+ * last. Each one carries its own mark in the rail, because filing four sections under two
+ * headings — a "sitting" and an "orders" — put a seam through work that does not have
+ * one, and made the order catalogue look like a different mode rather than the last thing
+ * you do in this one.
+ *
+ * **No section gates the next.** An application can stand over, a roll can go unmarked, a
+ * date can be left unset; all three genuinely happen, and the page says so in its muted
+ * voice rather than the panel refusing to move. What a court record must not do is
+ * quietly imply a fact nobody entered.
+ */
+/**
+ * What a closed section says it got to.
+ *
+ * This is the part that makes one-at-a-time bearable. A section you cannot see is a
+ * question you cannot answer, so every row states its own answer — and states it as the
+ * fact, never as a tick. "Not marked" and "Not set" are real answers about a sitting;
+ * a green check would claim the typist agreed to something they never touched.
+ */
+function sectionSummary(
+  id: SectionId,
+  draft: OrderDraft,
+  pendingCount: number,
+): string {
+  if (id === "applications") {
+    return pendingCount > 0 ? `${pendingCount} pending` : "None pending";
+  }
+  if (id === "attendance") {
+    const marks = Object.values(draft.marks);
+    const present = marks.filter((mark) => mark === "present").length;
+    const absent = marks.filter((mark) => mark === "absent").length;
+    if (present + absent === 0) return "Not marked";
+    const parts: string[] = [];
+    if (present > 0) parts.push(`${present} present`);
+    if (absent > 0) parts.push(`${absent} absent`);
+    return parts.join(", ");
+  }
+  if (id === "next") {
+    if (draft.next === "none") return "Not being listed";
+    return draft.nextDate ? formatListingDate(draft.nextDate) : "Not set";
+  }
+  return draft.items.length > 0 ? `${draft.items.length} added` : "None yet";
+}
+
+const SECTIONS: SectionEntry[] = [
+  { id: "applications", title: "Applications", icon: InboxIcon },
+  { id: "attendance", title: "Attendance", icon: UsersIcon },
+  { id: "next", title: "Next hearing", icon: CalendarDaysIcon },
+  { id: "orders", title: "Orders", icon: ScrollTextIcon },
+];
+
 export function OrderScreen({ hearingId }: { hearingId: string }) {
   const hearing = hearingById(hearingId);
   if (!hearing) return <OrderMissing />;
@@ -168,16 +246,37 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     [hearing, status, today],
   );
   const [draft, setDraft] = useOrderDraft(hearing.id, initial);
-  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [signOpen, setSignOpen] = React.useState(false);
+  /* Opens on the applications when one is standing in the matter, because that is the
+     thing on this screen with a party waiting on the answer. With none pending there is
+     nothing to answer, and the panel opens where the sitting actually starts. */
+  const [section, setSection] = React.useState<SectionId | null>(() =>
+    applicationsForListing(hearing.id).length > 0
+      ? "applications"
+      : "attendance",
+  );
   const [announcement, setAnnouncement] = React.useState("");
   const [openApplication, setOpenApplication] =
     React.useState<ListingApplication | null>(null);
+  const signRef = React.useRef<HTMLButtonElement>(null);
+  const signature = useSignatureChoice("order");
 
   const appearances = React.useMemo(() => appearancesFor(hearing), [hearing]);
-  const attendance = assembleAttendance(appearances, draft.marks);
   const items = assembleItems(draft.items);
-  const next = assembleNextListing(draft);
   const upNext = nextUnhandledListing(hearing, session);
+  /* One document for the page and the preview. They print the same artefact, so they
+     read it off the same object rather than each building their own. */
+  const orderDocument = buildOrderDocument(hearing, draft, today);
+  /* What the catalogue's own gates are read against. `longPending` is hard-coded false
+     because `CourtHearing` does not carry the flag yet — `CaseRecord.longPending` exists
+     on the advocate side and has never been threaded across. Recorded as a build gap in
+     §11 of the brief: until it is, the two long-pending register orders answer to a
+     matter that always says "not long pending". */
+  const catalogue: OrderCatalogueContext = {
+    cognizanceDue: hearing.stage === "cognizance",
+    longPending: false,
+    hearingOngoing: true,
+  };
 
   /* Only what is still pending. The reference labels every row "Pending — …", so a row
      that has been answered has left the strip; the answer is in the order, which is
@@ -215,7 +314,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
    * dies on a reload (`order-drafts.ts`).
    */
   function addItem(type: OrderItemTypeId) {
-    const item = createOrderItem(hearing, type);
+    const item = createOrderItem(type);
     const number = draft.items.length + 1;
     setDraft((current) => ({ ...current, items: [...current.items, item] }));
     setAnnouncement(
@@ -297,10 +396,17 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
       {/* The cause, and the way on. `top-14` rather than `top-0`: the chrome's own bar
           is `sticky top-0` and 3.5rem tall, so this comes to rest directly under it
           instead of sliding beneath its fill. */}
-      <header className="sticky top-14 z-20 flex flex-col gap-3 border-b border-hairline bg-card px-6 py-4 sm:flex-row sm:items-center sm:justify-between md:px-8">
-        <h1 className="text-title min-w-0 text-balance font-semibold">
-          Order : {causeTitle(hearing)}
-        </h1>
+      {/* The cause, the matter it belongs to, and the way on — one header, not a title
+          with a second band ruled off beneath it. The facts *are* the subtitle: they say
+          which listing this is, and a rule between them and the name they qualify made
+          them read as a separate region with its own business. */}
+      <header className="sticky top-14 z-20 flex flex-col gap-3 border-b border-hairline bg-card px-6 py-4 sm:flex-row sm:items-start sm:justify-between md:px-8">
+        <div className="flex min-w-0 flex-col gap-2">
+          <h1 className="text-title min-w-0 text-balance font-semibold">
+            Order : {causeTitle(hearing)}
+          </h1>
+          <MatterFacts hearing={hearing} />
+        </div>
         <Button
           type="button"
           className="w-full shrink-0 sm:w-fit"
@@ -310,100 +416,167 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         </Button>
       </header>
 
-      {/* Two lifted panels — the facts of this listing, and the order those entries
-          make. Gap, not a vertical rule, separates them (grouped content gets a Card).
-          The column between the white header and footer is the scoped work canvas:
-          `bg-muted` in light so the cards read against the same tone as the rail;
-          dark stays `bg-background` because muted sits *above* card there (FilingMain). */}
-      <div className="grid min-w-0 flex-1 items-start gap-8 bg-muted p-6 md:p-8 lg:grid-cols-2 dark:bg-background">
-        <Card className={cn(PANEL_CLASS, "min-w-0 gap-8 p-6")}>
-          {pending.length > 0 ? (
-            <>
-              <PendingApplications
-                applications={pending}
-                onOpen={setOpenApplication}
-                onDecide={decide}
-              />
-              <Separator decorative={false} className="bg-hairline" />
-            </>
-          ) : null}
+      {/* The split the owner drew. Left: what the court did at this sitting, and what it
+          passed — one at a time behind a tab strip, because the sitting's facts are
+          finished in one pass and the catalogue is the region that wants the whole panel
+          under it. Right: the order those entries make, on paper.
 
-          {/* One attendance cluster: present and absent are related rolls, not
-              separate card sections, so they take gap-4 rather than the panel's
-              gap-8. */}
-          <div className="flex min-w-0 flex-col gap-4">
-            <MarkGroup
-              heading="Mark who is present"
-              mark="present"
-              appearances={appearances}
-              marks={draft.marks}
-              onMark={setMark}
-            />
-            <MarkGroup
-              heading="Mark who is absent"
-              mark="absent"
-              appearances={appearances}
-              marks={draft.marks}
-              onMark={setMark}
-            />
+          The column between the white header and footer is the scoped work canvas:
+          `bg-muted` in light so the panels read against the same tone as the rail; dark
+          stays `bg-background` because muted sits *above* card there (FilingMain). */}
+      <div className="flex min-w-0 flex-1 bg-muted p-6 md:p-8 dark:bg-background">
+        {/* One panel, two columns inside it. The sitting's controls and the order they
+            write are one piece of work, so they take one container and a seam — not two
+            cards with a gutter between them, which said they were separate things. */}
+        <Card
+          className={cn(
+            PANEL_CLASS,
+            "grid min-w-0 flex-1 gap-0 overflow-hidden p-0 lg:grid-cols-3",
+          )}
+        >
+          {/* No seam: the well beside it changes fill, and a fill change already
+              separates two regions. A rule here would be a stroke doing work the
+              surface has done. */}
+          <div className="flex min-w-0 flex-col gap-6 p-6">
+            {/* Four sections, one open at a time, and **the closed ones say where they
+                got to**. That is the whole reason this beat an icon rail: a rail can
+                show you four marks but not one fact, so the panel had nothing in it and
+                the way on ended up below the fold. A row that reads "Attendance — not
+                marked" is the state and the way back to it in the same line.
+
+                `Collapsible` and not `Accordion`: the DS `Accordion` renders its header
+                as a fixed `h3`, which would skip a level under this page's `h1` (D16 on
+                this screen made the same call for the same reason).
+
+                Not D16's mechanism, which was reversed. That folded the roll *for you*
+                once every appearance was marked, and bought nothing on arrival because
+                the screen opens unmarked. This is the navigation itself: it moves when
+                you move, never on its own.
+
+                **The rows are the only way through, and they are enough.** A "Next"
+                inside each open section was a second control doing what the row below it
+                already did, on a panel where all four rows are always in view. Nothing
+                gates the move either way: an application can stand over, a roll can go
+                unmarked, a date can be left unset, and the page prints the gap rather
+                than the panel refusing to move on. */}
+            <div className="flex min-w-0 flex-col divide-y divide-hairline">
+              {SECTIONS.map((entry) => {
+                const Icon = entry.icon;
+                const open = entry.id === section;
+                const headingId = `order-section-${entry.id}`;
+                return (
+                  <Collapsible
+                    key={entry.id}
+                    open={open}
+                    /* Opening one closes the others; closing the open one closes
+                       everything. **All four shut is a real state and a useful one** —
+                       every row carries its own answer, so the collapsed panel is the
+                       whole sitting at a glance rather than an empty screen. An earlier
+                       revision refused the last close on the grounds that it showed
+                       nothing; that was true of a rail with no summaries on it and has
+                       not been true since the rows started carrying them (owner,
+                       2026-09-13). */
+                    onOpenChange={(next) => setSection(next ? entry.id : null)}
+                    className="min-w-0 py-1"
+                  >
+                    <h2 id={headingId} tabIndex={-1} className="min-w-0">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex min-h-10 w-full min-w-0 items-center gap-3 rounded-lg px-2 text-start transition-colors hover:bg-surface-sunken focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring"
+                        >
+                          <Icon
+                            aria-hidden
+                            className="size-4 shrink-0 text-muted-foreground"
+                          />
+                          <span
+                            className={cn(
+                              "text-body min-w-0 flex-1",
+                              open ? "font-semibold" : "font-medium",
+                            )}
+                          >
+                            {entry.title}
+                          </span>
+                          {/* The fact, not a second name for the section. Closed, this
+                              is the only thing the row is for. */}
+                          <span className="text-caption shrink-0 text-muted-foreground">
+                            {sectionSummary(entry.id, draft, pending.length)}
+                          </span>
+                          <ChevronDownIcon
+                            aria-hidden
+                            className={cn(
+                              "size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
+                              open && "rotate-180",
+                            )}
+                          />
+                        </button>
+                      </CollapsibleTrigger>
+                    </h2>
+
+                    <CollapsibleContent className="min-w-0">
+                      <div className="flex min-w-0 flex-col gap-4 px-2 pt-4 pb-2">
+                        <SectionBody
+                          entry={entry}
+                          draft={draft}
+                          pending={pending}
+                          appearances={appearances}
+                          items={draft.items}
+                          headingId={headingId}
+                          purpose={hearing.purpose}
+                          catalogue={catalogue}
+                          onOpen={setOpenApplication}
+                          onDecide={decide}
+                          onMark={setMark}
+                          onAdd={addItem}
+                          onRemove={removeItem}
+                          onSkip={(skip) =>
+                            setDraft((current) => ({
+                              ...current,
+                              next: skip ? "none" : "list",
+                            }))
+                          }
+                          onPurpose={(nextPurpose) =>
+                            setDraft((current) => ({ ...current, nextPurpose }))
+                          }
+                          onDate={(nextDate) =>
+                            setDraft((current) => ({ ...current, nextDate }))
+                          }
+                        />
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
+            </div>
           </div>
 
-          <Separator decorative={false} className="bg-hairline" />
-
-          <NextHearingDetails
-            draft={draft}
-            onSkip={(skip) =>
-              setDraft((current) => ({
-                ...current,
-                next: skip ? "none" : "list",
-              }))
-            }
-            onPurpose={(nextPurpose) =>
-              setDraft((current) => ({ ...current, nextPurpose }))
-            }
-            onDate={(nextDate) =>
-              setDraft((current) => ({ ...current, nextDate }))
-            }
-          />
-
-          <Separator decorative={false} className="bg-hairline" />
-
-          <OrderItems
-            items={draft.items}
-            onAdd={addItem}
-            onRemove={removeItem}
-          />
+          {/* The document's surround. A well is where a sunken fill belongs — inside a
+              panel — and it is what makes the sheet read as a sheet: the page is not the
+              container, it is a thing lying on one. */}
+          <div className="flex min-w-0 bg-surface-sunken p-6 lg:col-span-2 md:p-8">
+            <OrderPaper
+              document={orderDocument}
+              hearing={hearing}
+              items={draft.items}
+              entries={items.items ?? []}
+              onItemText={setItemText}
+            />
+          </div>
         </Card>
-
-        <OrderTextPanel
-          attendanceBody={attendance.body}
-          items={draft.items}
-          entries={items.items ?? []}
-          nextBody={next.body}
-          onItemText={setItemText}
-        />
       </div>
 
       <footer className="sticky bottom-0 z-30 border-t border-hairline bg-card px-6 py-3 md:px-8 md:py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <Button
+            ref={signRef}
             type="button"
-            variant="outline"
             className="w-full sm:w-fit"
             onClick={() => {
-              setAnnouncement(
-                "Draft held for this sitting. Nothing has been filed or signed.",
-              );
+              signature.reset();
+              setSignOpen(true);
             }}
           >
-            Save as draft
-          </Button>
-          <Button
-            type="button"
-            className="w-full sm:w-fit"
-            onClick={() => setPreviewOpen(true)}
-          >
-            Preview PDF
+            Sign order
           </Button>
         </div>
       </footer>
@@ -422,15 +595,129 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
            takes it out of the strip — so focus goes to the heading the strip sits
            under rather than to a control that no longer exists. */
         onReturnFocus={() => {
-          document.getElementById("order-applications")?.focus();
+          document.getElementById("order-section-applications")?.focus();
         }}
       />
 
-      <PreviewDialog
-        document={buildOrderDocument(hearing, draft, today)}
-        open={previewOpen}
-        onOpenChange={setPreviewOpen}
+      <SignMethodDialog
+        open={signOpen}
+        onOpenChange={setSignOpen}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          signRef.current?.focus();
+        }}
+        noun="order"
+        subject={`You are adding your signature to the order in ${hearing.caseNumber}.`}
+        warning="Signing publishes this order and cannot be reversed."
+        choice={signature}
+        onSubmit={() => {
+          setSignOpen(false);
+          setAnnouncement(
+            "Signature recorded for this sitting. Nothing has been filed or published.",
+          );
+        }}
       />
+    </div>
+  );
+}
+
+/**
+ * The controls of one section. Its name and its state are on the row that opens it, so
+ * nothing here repeats them.
+ */
+function SectionBody({
+  entry,
+  draft,
+  pending,
+  appearances,
+  items,
+  headingId,
+  purpose,
+  catalogue,
+  onOpen,
+  onDecide,
+  onMark,
+  onAdd,
+  onRemove,
+  onSkip,
+  onPurpose,
+  onDate,
+}: {
+  entry: SectionEntry;
+  /** Where focus goes when an answered or removed row leaves a list in here. */
+  headingId: string;
+  purpose: CourtHearingPurposeId;
+  catalogue: OrderCatalogueContext;
+  draft: OrderDraft;
+  pending: ListingApplication[];
+  appearances: Appearance[];
+  items: readonly OrderItemDraft[];
+  onOpen: (application: ListingApplication) => void;
+  onDecide: (
+    application: ListingApplication,
+    decision: ListingApplicationDecision,
+  ) => void;
+  onMark: (id: string, mark: AttendanceMark | undefined) => void;
+  onAdd: (type: OrderItemTypeId) => void;
+  onRemove: (item: OrderItemDraft, number: number) => void;
+  onSkip: (skip: boolean) => void;
+  onPurpose: (purpose: CourtHearingPurposeId | "") => void;
+  onDate: (day: string | null) => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      {entry.id === "applications" ? (
+        pending.length > 0 ? (
+          <PendingApplications
+            applications={pending}
+            onOpen={onOpen}
+            onDecide={onDecide}
+          />
+        ) : (
+          <p className="text-body text-muted-foreground">
+            No application is standing in this matter.
+          </p>
+        )
+      ) : null}
+
+      {entry.id === "attendance" ? (
+        <div className="flex min-w-0 flex-col gap-6">
+          <MarkGroup
+            heading="Who is present"
+            mark="present"
+            appearances={appearances}
+            marks={draft.marks}
+            onMark={onMark}
+          />
+          <MarkGroup
+            heading="Who is absent"
+            mark="absent"
+            appearances={appearances}
+            marks={draft.marks}
+            onMark={onMark}
+          />
+        </div>
+      ) : null}
+
+      {entry.id === "next" ? (
+        <NextHearingDetails
+          draft={draft}
+          onSkip={onSkip}
+          onPurpose={onPurpose}
+          onDate={onDate}
+        />
+      ) : null}
+
+      {entry.id === "orders" ? (
+        <OrderItems
+          items={items}
+          onAdd={onAdd}
+          onRemove={onRemove}
+          headingId={headingId}
+          purpose={purpose}
+          catalogue={catalogue}
+        />
+      ) : null}
     </div>
   );
 }
@@ -447,6 +734,10 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
  * The tint is the reference's cream: waiting on this bench is a status, so it takes the
  * warning pair rather than a neutral well, and the row says "Pending" as well as wearing
  * the fill — status is never colour alone (ACCESSIBILITY §3).
+ *
+ * *A quieter row — no tint, no decisions, one Review, with the filer and the filing date
+ * in their place — was built on 2026-09-13 and reverted the same day on the owner's
+ * verdict. §5 D44 keeps the argument and the outcome; this is the shape that stands.*
  */
 function PendingApplications({
   applications,
@@ -461,56 +752,50 @@ function PendingApplications({
   ) => void;
 }) {
   return (
-    <section className="flex min-w-0 flex-col gap-2" aria-labelledby="order-applications">
-      {/* `tabIndex={-1}`: focus comes back here when an answered row leaves the strip. */}
-      <h2
-        id="order-applications"
-        tabIndex={-1}
-        className="text-body font-semibold"
-      >
-        Applications
-      </h2>
-      <ul className="flex flex-col gap-2">
-        {applications.map((application) => (
-          <li
-            key={application.id}
-            className="flex flex-col gap-3 rounded-lg bg-warning-muted p-4 text-warning-muted-foreground sm:flex-row sm:items-center sm:justify-between"
-          >
-            <p className="text-body min-w-0 font-medium">
-              {`Pending - ${listingApplicationLabel(application)} - `}
-              <span className="tabular-nums">{application.number}</span>
+    <ul className="flex min-w-0 flex-col gap-2">
+      {applications.map((application) => (
+        <li
+          key={application.id}
+          className="flex min-w-0 flex-col gap-3 rounded-lg bg-warning-muted p-4 text-warning-muted-foreground"
+        >
+          {/* The column is a third of the panel, so the title takes its own line and the
+              controls sit under it. Sitting them beside a wrapping title is what broke
+              this row once: `sm:` is the viewport's width, not this column's. */}
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="text-body-compact min-w-0 font-medium">
+              Pending &mdash; {listingApplicationLabel(application)}
             </p>
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
-              {/* `text-foreground` on the two outline-weight controls: each brings its
-                  own fill, so their labels sit on that fill and not on the amber, and
-                  without it they would inherit the tint's ink and jump to neutral on
-                  hover. */}
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-foreground"
-                onClick={() => onOpen(application)}
-              >
-                View
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => onDecide(application, "dismissed")}
-              >
-                Reject
-              </Button>
-              <Button
-                type="button"
-                onClick={() => onDecide(application, "allowed")}
-              >
-                Accept
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
+            <p className="text-caption tabular-nums">{application.number}</p>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* `text-foreground` on the ghost control: the two filled ones bring their
+                own fill, so their labels sit on that and not on the amber, and without it
+                this one would inherit the tint's ink and jump to neutral on hover. */}
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-foreground"
+              onClick={() => onOpen(application)}
+            >
+              View
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => onDecide(application, "dismissed")}
+            >
+              Reject
+            </Button>
+            <Button
+              type="button"
+              onClick={() => onDecide(application, "allowed")}
+            >
+              Accept
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -542,7 +827,10 @@ function MarkGroup({
   return (
     <fieldset className="flex min-w-0 flex-col">
       <legend className="text-body mb-3 w-full font-semibold">{heading}</legend>
-      <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+      {/* One per line. `sm:` measures the viewport, and this column is a third of the
+          panel at every width above it — two-up here is what wrapped "Advocate for the
+          complainant" across three lines. */}
+      <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-3">
         {appearances.map((appearance) => {
           const id = `${group}-${appearance.id}`;
           /* A side may have two counsel on record, and two controls with the same
@@ -599,11 +887,7 @@ function NextHearingDetails({
   const skipId = React.useId();
   const skipped = draft.next === "none";
   return (
-    <section className="flex min-w-0 flex-col gap-4" aria-labelledby="order-next">
-      <h2 id="order-next" className="text-body font-semibold">
-        Next hearing details
-      </h2>
-
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 items-start gap-2">
         <Checkbox
           id={skipId}
@@ -658,239 +942,415 @@ function NextHearingDetails({
           />
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
 /**
- * What the court passed today — the reference's fourth region, and the one the typist
- * actually works.
+ * What the court passed today, chosen from the court's own catalogue.
  *
- * **Choosing the item is what writes the order.** A typist is not composing a direction
- * from nothing; they are setting down an order the court has already made, from the
- * court's own standing form. So the catalogue is the instrument: pick "Summons" and the
- * paragraph appears in the column beside, with this listing's accused named in it, ready
- * to be corrected. A blank editor asks the wrong question of this seat.
+ * **Choosing the order is what writes it.** A typist is not composing a direction from
+ * nothing; they are setting down one the court has already made, from the court's
+ * standing form. So the catalogue is the instrument, and since 2026-09-13 it is the real
+ * one — the twenty-seven templates of `order-templates.ts`.
  *
- * Membership lives here and the words live in the order (`OrderTextPanel`), which is the
- * reference's own division and the one thing about its layout that was right: the left
- * column is what the court decided, the right column is the order those decisions make.
- * Neither restates the other — this row carries a name and a number, not a sentence.
+ * Built to the owner's reference screen, which arranges it in three parts:
  *
- * A `Combobox` rather than the reference's plain select: seventeen items in one unsorted
- * list is a list you read, and this one is grouped as the case register groups it and
- * takes type-ahead, so a typist who knows the word never opens the menu at all.
+ * 1. **Likely at this hearing.** The source maps every hearing purpose to the orders it
+ *    usually produces, so a matter listed for evidence offers witness batta and a witness
+ *    summons first, each captioned with the workflow it sets in motion — which is what
+ *    the reference's tiles were showing. One per line rather than the reference's 2-up:
+ *    its rail is wider than this column, and "Moving case out of long pending register"
+ *    does not survive a 145px tile.
+ * 2. **A search field over four groups**, which is the reference's own browse and
+ *    replaces the `Combobox` an earlier revision used. The trade is deliberate: a
+ *    combobox is faster for a typist who knows the word and shows *nothing* to one who
+ *    does not, because its list only exists while the menu is open. Four standing rows
+ *    say how much catalogue there is before anyone types.
+ * 3. **Every order in its group, including the ones this matter cannot take**, each with
+ *    the reason under it. The source gates several types on the state of the case, and a
+ *    silently shorter list is the worse failure on a screen where the missing order is
+ *    the one that mattered.
  *
- * Remove is neutral, not the reference's red Delete. Nothing here is issued, so taking a
- * paragraph out of a draft is not a destructive act, and a red control on every row of a
- * list the typist builds is the alarm fatigue the Laws ration colour to avoid.
+ * **A note on the counts, because they will not match the reference.** The reference
+ * shows 5 / 7 / 10 / 6 — twenty-eight, one more than the catalogue holds — and its
+ * **Accept / Reject** group is offered as something to browse. Under the source, every
+ * accept/reject order is marked *not in dropdown*: they are reached from the application
+ * that produces them and never chosen from a list. So that group stands here with its
+ * five rows all reading "Comes from an application". Nothing is hidden and nothing lies
+ * about being available. The source itself lists grouping as one of two things it has yet
+ * to supply, so this is provisional either way.
  */
 function OrderItems({
   items,
   onAdd,
   onRemove,
+  headingId,
+  purpose,
+  catalogue,
 }: {
   items: readonly OrderItemDraft[];
   onAdd: (type: OrderItemTypeId) => void;
   onRemove: (item: OrderItemDraft, number: number) => void;
+  /** Where focus goes when a removed row leaves the list. */
+  headingId: string;
+  purpose: CourtHearingPurposeId;
+  catalogue: OrderCatalogueContext;
 }) {
-  const [choice, setChoice] = React.useState<{
-    id: OrderItemTypeId;
-    label: string;
-  } | null>(null);
+  const [query, setQuery] = React.useState("");
+  const [openGroup, setOpenGroup] = React.useState<OrderGroupId | null>(null);
 
-  function add() {
-    if (!choice) return;
-    onAdd(choice.id);
-    /* The box empties on add: it is the way in to the catalogue, not a record of what
-       was chosen last. What is in the order is the list below it. */
-    setChoice(null);
+  const likely = likelyTemplatesFor(purpose, catalogue);
+  const needle = query.trim().toLowerCase();
+  const searching = needle.length > 0;
+
+  const groups = ORDER_GROUPS.map((group) => {
+    const all = ORDER_TEMPLATES.filter((entry) => entry.group === group.id);
+    return {
+      ...group,
+      rows: searching
+        ? all.filter((entry) => entry.label.toLowerCase().includes(needle))
+        : all,
+    };
+  });
+
+  function add(type: OrderItemTypeId) {
+    onAdd(type);
+    setQuery("");
   }
 
   return (
-    <section className="flex min-w-0 flex-col gap-4" aria-labelledby="order-items">
-      {/* `tabIndex={-1}`: focus comes back here when a removed row leaves the list. */}
-      <h2 id="order-items" tabIndex={-1} className="text-body font-semibold">
-        Order items
-      </h2>
+    <div className="flex min-w-0 flex-col gap-6">
+      {likely.length > 0 ? (
+        <div className="flex min-w-0 flex-col gap-2">
+          <p className="text-caption font-semibold text-muted-foreground">
+            Likely at this hearing
+          </p>
+          <ul className="flex min-w-0 flex-col gap-2">
+            {likely.map((template) => (
+              <li key={template.id} className="min-w-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full flex-col items-start gap-0.5 px-3 py-2 text-start whitespace-normal"
+                  onClick={() => add(template.id)}
+                >
+                  <span className="text-body-compact font-medium">
+                    {template.label}
+                  </span>
+                  {template.workflow ? (
+                    <span className="text-caption text-muted-foreground">
+                      {template.workflow}
+                    </span>
+                  ) : null}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
-        <Field className="min-w-0 flex-1">
-          <FieldLabel
-            htmlFor="order-item-choice"
-            className="text-body font-medium"
-          >
-            Choose item
-          </FieldLabel>
-          <Combobox
-            items={ORDER_ITEM_GROUPS}
-            value={choice}
-            onValueChange={(next) => setChoice(next)}
-            isItemEqualToValue={(a, b) => a.id === b.id}
-            itemToStringLabel={(item) => item.label}
-            filter={(item, query) => {
-              const q = query.trim().toLowerCase();
-              if (!q) return true;
-              return item.label.toLowerCase().includes(q);
-            }}
-            autoComplete="off"
-          >
-            <ComboboxInput
-              id="order-item-choice"
-              placeholder="Search the catalogue"
-              className="w-full"
-            />
-            <ComboboxContent>
-              <ComboboxEmpty>No item found.</ComboboxEmpty>
-              <ComboboxList>
-                {(group: (typeof ORDER_ITEM_GROUPS)[number]) => (
-                  <ComboboxGroup key={group.id} items={group.items}>
-                    <ComboboxLabel className="text-caption font-medium">
-                      {group.label}
-                    </ComboboxLabel>
-                    <ComboboxCollection>
-                      {(item: { id: OrderItemTypeId; label: string }) => (
-                        <ComboboxItem key={item.id} value={item}>
-                          <span className="text-body whitespace-normal">
-                            {item.label}
-                          </span>
-                        </ComboboxItem>
+      <div className="flex min-w-0 flex-col gap-3">
+        <QueueSearchField
+          label="Search orders"
+          value={query}
+          onChange={setQuery}
+          placeholder="Search the catalogue"
+          className="w-full"
+        />
+
+        <div className="flex min-w-0 flex-col divide-y divide-hairline">
+          {groups.map((group) => {
+            /* A search opens whatever it found and leaves the rest shut, so the result
+               is on screen without the typist opening four groups to look for it. */
+            const open = searching
+              ? group.rows.length > 0
+              : openGroup === group.id;
+            return (
+              <Collapsible
+                key={group.id}
+                open={open}
+                onOpenChange={(next) =>
+                  setOpenGroup(next ? group.id : null)
+                }
+                className="min-w-0 py-1"
+              >
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={searching && group.rows.length === 0}
+                    className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-start transition-colors hover:bg-surface-sunken focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:opacity-50"
+                  >
+                    <ChevronDownIcon
+                      aria-hidden
+                      className={cn(
+                        "size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
+                        open && "rotate-180",
                       )}
-                    </ComboboxCollection>
-                  </ComboboxGroup>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
-        </Field>
+                    />
+                    <span className="text-body-compact min-w-0 flex-1 font-medium">
+                      {group.label}
+                    </span>
+                    <span className="text-caption shrink-0 text-muted-foreground tabular-nums">
+                      {group.rows.length}
+                    </span>
+                  </button>
+                </CollapsibleTrigger>
 
-        {/* Outline, not teal: the view already rations its one primary to the advance in
-            the header, and adding a paragraph to a draft is not the act of the screen. */}
+                <CollapsibleContent className="min-w-0">
+                  <ul className="flex min-w-0 flex-col gap-0.5 ps-8 pt-1 pb-2">
+                    {group.rows.map((template) => {
+                      const reason = unavailableReason(template, catalogue);
+                      if (reason) {
+                        return (
+                          <li
+                            key={template.id}
+                            className="flex min-w-0 flex-col px-2 py-1.5"
+                          >
+                            <span className="text-body-compact text-muted-foreground">
+                              {template.label}
+                            </span>
+                            <span className="text-caption text-muted-foreground">
+                              {reason}
+                            </span>
+                          </li>
+                        );
+                      }
+                      return (
+                        <li key={template.id} className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => add(template.id)}
+                            className="flex min-h-10 w-full min-w-0 flex-col items-start justify-center gap-0.5 rounded-lg px-2 py-1.5 text-start transition-colors hover:bg-surface-sunken focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring"
+                          >
+                            <span className="text-body-compact">
+                              {template.label}
+                            </span>
+                            {template.workflow ? (
+                              <span className="text-caption text-muted-foreground">
+                                {template.workflow}
+                              </span>
+                            ) : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
+        </div>
+
+        {/* The escape from the catalogue, kept deliberately quiet. It is not one of the
+            court's twenty-seven and must not look like one. */}
         <Button
           type="button"
-          variant="outline"
-          className="w-full shrink-0 sm:w-fit"
-          disabled={!choice}
-          onClick={add}
+          variant="ghost"
+          className="w-fit"
+          onClick={() => add("others")}
         >
-          Add item
+          Something else
         </Button>
       </div>
 
-      {items.length === 0 ? (
-        <p className="text-body text-muted-foreground">
-          No item has been added yet. Choose one and its text is written for you.
+      <div className="flex min-w-0 flex-col gap-2">
+        <p className="text-caption font-semibold text-muted-foreground">
+          In this order
         </p>
-      ) : (
-        <ol className="flex min-w-0 flex-col gap-2">
-          {items.map((item, index) => (
-            <li
-              key={item.id}
-              className="flex min-h-10 min-w-0 items-center justify-between gap-3 rounded-lg bg-surface-sunken px-3 py-2"
-            >
-              <p className="text-body min-w-0">
-                <span className="tabular-nums">{index + 1}.</span>{" "}
-                {orderItemLabel(item.type)}
-              </p>
-              <Button
-                type="button"
-                variant="ghost"
-                className="shrink-0"
-                onClick={() => {
-                  onRemove(item, index + 1);
-                  document.getElementById("order-items")?.focus();
-                }}
+        {items.length === 0 ? (
+          <p className="text-body text-muted-foreground">
+            Nothing has been added yet. Choose an order and its words are written
+            into the page beside you.
+          </p>
+        ) : (
+          <ol className="flex min-w-0 flex-col gap-2">
+            {items.map((item, index) => (
+              <li
+                key={item.id}
+                className="flex min-h-10 min-w-0 items-center justify-between gap-3 rounded-lg bg-surface-sunken px-3 py-2"
               >
-                Remove
-                {/* The visible word is the same for every row, so the name a voice user
-                    says is prefixed by it and finished by the item it belongs to. */}
-                <span className="sr-only"> {orderItemLabel(item.type)}</span>
-              </Button>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
+                <p className="text-body-compact min-w-0">
+                  <span className="tabular-nums">{index + 1}.</span>{" "}
+                  {orderItemLabel(item.type)}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="shrink-0"
+                  onClick={() => {
+                    onRemove(item, index + 1);
+                    document.getElementById(headingId)?.focus();
+                  }}
+                >
+                  Remove
+                  {/* The visible word is the same for every row, so the name a voice user
+                      says is prefixed by it and finished by the order it belongs to. */}
+                  <span className="sr-only"> {orderItemLabel(item.type)}</span>
+                </Button>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
   );
 }
 
 /**
- * The order, as the reference composes it: the three regions of its Order Text column,
- * in the sequence an order reads.
+ * Which listing this is — the line under the cause name.
  *
- * **Attendance** is read-only because it is not typed — it is the two checkbox rolls
- * beside it, in the words the order will use, and editing it here would let the sentence
- * and the marks disagree. **The items** are the part that is written, and they are the
- * only part: each one is paragraph *n* of the order, headed by the catalogue's name for
- * it and holding the standing words it opened on. **Next hearing** closes the order and
- * is read-only for the same reason attendance is — the purpose and the date are two
- * controls in the column beside.
+ * The screen used to open on a cause title and nothing else: no serial, no case number,
+ * no stage, no purpose. A typist just handed the file needs those four before they can
+ * set anything down, and the stage in particular is not decoration — the court's
+ * catalogue makes several orders available only once the case is on file and others only
+ * on a long-pending one, so hiding it leaves the typist unable to see why a form is
+ * offered here and not on the matter before it.
  *
- * `readOnly` rather than `disabled` on both: the DS primitive gives a read-only field the
- * muted fill the reference shows, and it stays in the tab order and is still read out,
- * which a disabled field is not.
+ * It sits **inside** the header, under the name it qualifies (owner, 2026-09-13). It was
+ * a band of its own with a rule above and below it, and that gave a subtitle the weight
+ * of a region — two horizontal rules stacked four rows apart, for one line of text that
+ * belongs to the heading.
  *
- * Numbering is not decoration. `sign-order-dialog.tsx` already prints an order as
- * numbered paragraphs, and for one revision this composer printed unnumbered prose — two
- * screens in one flow disagreeing about the shape of the same artefact. The number here,
- * in the well's heading, is the same number the paper prints.
- *
- * Each item takes the app's one editor — `RichTextField`, the same one the applications
- * forms use, DS chrome around the one part the design system cannot supply. Its list
- * controls are what carry (a), (b), (c) *inside* a single item. The markup is the
- * editor's own and nothing else's: it blocks pasted HTML, so the order can only hold what
- * this toolbar produced.
+ * No fill and no stroke of its own: the header it lives in is already chrome.
  */
-function OrderTextPanel({
-  attendanceBody,
+function MatterFacts({ hearing }: { hearing: CourtHearing }) {
+  /* `figures` is not styling for its own sake: the serial and the case number sit in a
+     row the eye runs along, and a stage or a purpose is a word. Lining figures on a word
+     buys nothing and costs the shape of it. */
+  const rows: { label: string; value: string; figures: boolean }[] = [
+    { label: "Item", value: String(hearing.item), figures: true },
+    { label: "Case", value: hearing.caseNumber, figures: true },
+    {
+      label: "Stage",
+      value: courtCaseStageLabel(hearing.stage),
+      figures: false,
+    },
+    {
+      label: "Today for",
+      value: courtHearingPurposeLabel(hearing.purpose),
+      figures: false,
+    },
+  ];
+  return (
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-6 gap-y-1">
+      {rows.map((row) => (
+        <p key={row.label} className="flex min-w-0 items-baseline gap-2">
+          <span className="text-caption font-medium text-muted-foreground">
+            {row.label}
+          </span>
+          <span
+            className={cn("text-body-compact", row.figures && "tabular-nums")}
+          >
+            {row.value}
+          </span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The order, on paper, as the thing the typist is actually making.
+ *
+ * This replaces a panel of three labelled boxes — an attendance box, an item box and a
+ * next-hearing box — that described an order without ever being one. The owner's
+ * reference puts the document itself in this column and it is right to: the typist is
+ * setting down a page a court will read, and a page is the only honest preview of a
+ * page. The furniture around the writing is the court's own — the cause heading, the
+ * roll of parties and their counsel, the offence, attendance, the next posting, the
+ * signature — and none of it is typed, because every one of those facts is already
+ * known to the listing.
+ *
+ * `paper` is the DS family for exactly this and for nothing else: a fixed facsimile that
+ * does not invert in dark, because a printed page does not change colour with the
+ * product palette. It is the same treatment the signing queue uses on the same artefact,
+ * so what the bench reads back here is what it will see when it comes to sign.
+ *
+ * **The writable band is ruled off.** Between the attendance line and the next posting
+ * sits the one region that is composed rather than known, and it carries the editors.
+ * The rules above and below it are the reference's own, and they earn their place: they
+ * say where the court's standing furniture stops and the typist's work begins.
+ */
+function OrderPaper({
+  className,
+  document: order,
+  hearing,
   items,
   entries,
-  nextBody,
   onItemText,
 }: {
-  attendanceBody: string;
+  className?: string;
+  document: OrderDocument;
+  hearing: CourtHearing;
   items: readonly OrderItemDraft[];
   entries: OrderItemEntry[];
-  nextBody: string;
   onItemText: (id: string, value: RichTextValue) => void;
 }) {
   return (
-    <Card
-      className={cn(PANEL_CLASS, "min-w-0 gap-6 p-6")}
-      role="region"
-      aria-labelledby="order-text"
+    <article
+      className={cn(
+        "flex min-w-0 flex-1 flex-col gap-6 rounded-lg bg-paper p-8 text-paper-foreground md:p-12",
+        className,
+      )}
+      aria-labelledby="order-paper"
     >
-      <h2 id="order-text" className="text-body font-semibold">
-        Order text
+      <header className="flex flex-col gap-4">
+        <p className="text-body text-center font-semibold text-balance">
+          {order.court}
+        </p>
+        <dl className="flex flex-col gap-1">
+          <PaperFact label="Case no." value={order.caseNumber} />
+          <PaperFact label="In the matter of" value={order.matter} />
+          <PaperFact label="Dated" value={order.dated} />
+        </dl>
+      </header>
+
+      <PartyRoll hearing={hearing} />
+
+      {/* Every case on this platform is a cheque-dishonour prosecution, so the offence
+          is a fact about the page rather than something the typist chooses. An order
+          sheet names it above the operative part. */}
+      <p className="text-caption text-center text-paper-muted-foreground">
+        Offence under S. 138 of the Negotiable Instruments Act, 1881
+      </p>
+
+      {/* Set as an order sheet sets it: the word alone, centred, spaced. Uppercase
+          tracking is opened rather than tightened, which is the one direction small
+          text may be letterspaced. */}
+      <h2
+        id="order-paper"
+        className="text-body-compact text-center font-semibold uppercase tracking-wide"
+      >
+        {order.title}
       </h2>
 
-      <Field className="min-w-0">
-        <FieldLabel htmlFor="order-attendance-text" className="text-body font-medium">
-          Attendance
-        </FieldLabel>
-        <Textarea
-          id="order-attendance-text"
-          readOnly
-          value={attendanceBody}
-          className="min-h-24"
-        />
-      </Field>
+      <p className="text-body-compact">{order.opening}</p>
 
-      {/* A group rather than a heading: the two fields on either side of it are field
-          labels, and a heading here would out-weigh them for the same rank of thing. */}
-      <div
-        role="group"
-        aria-labelledby="order-item-text"
-        className="flex min-w-0 flex-col gap-4"
-      >
-        <span id="order-item-text" className="text-body w-fit font-medium">
-          Item text
-        </span>
+      {order.applications.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {order.applications.map((sentence) => (
+            <p
+              key={sentence.text}
+              className={cn(
+                "text-body-compact",
+                sentence.pending && "text-paper-muted-foreground",
+              )}
+            >
+              {sentence.text}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
+      {/* The composed region. Ruled top and bottom so the page says where the court's
+          own furniture stops and the typing starts. */}
+      <div className="flex min-w-0 flex-col gap-4 border-y border-paper-border py-6">
         {items.length === 0 ? (
-          <p className="text-body text-muted-foreground">
-            The order has no item yet. Choose one under Order items and its text is
-            written here.
+          <p className="text-body-compact text-paper-muted-foreground">
+            Nothing has been passed yet. Add what the court ordered under
+            <span className="font-medium"> Orders</span> and its words are written
+            here for you to correct.
           </p>
         ) : (
           items.map((item, index) => (
@@ -905,18 +1365,93 @@ function OrderTextPanel({
         )}
       </div>
 
-      <Field className="min-w-0">
-        <FieldLabel htmlFor="order-next-text" className="text-body font-medium">
-          Next hearing
-        </FieldLabel>
-        <Textarea
-          id="order-next-text"
-          readOnly
-          value={nextBody}
-          className="min-h-16"
-        />
-      </Field>
-    </Card>
+      <p className="text-body-compact">{order.closing}</p>
+
+      {/* The page is a page: what is written stops where it stops, and the signature
+          sits at the foot of the sheet rather than crowding up under the last line.
+          `aria-hidden` because it is space, not content. */}
+      <div aria-hidden className="min-h-8 flex-1" />
+
+      <p className="text-body-compact text-end text-paper-muted-foreground">
+        {order.signature}
+      </p>
+    </article>
+  );
+}
+
+/** One label-and-value line of the page's heading block. */
+function PaperFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+      <dt className="text-body-compact font-semibold">{label}</dt>
+      <dd className="text-body-compact min-w-0">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * Who is on the cause, and who appears for them.
+ *
+ * The reference prints this roll and an order does carry it, but the reason to build it
+ * is narrower: the composer names parties in the words it writes, and a typist correcting
+ * "Issue summons to Anand Traders" should be able to see, on the same page, that Anand
+ * Traders is the accused and that Adv. Rekha Pillai is on record for them.
+ *
+ * A side with no vakalat prints a dash rather than an empty cell — the absence is a fact
+ * about the matter, and a blank reads as a rendering fault.
+ */
+function PartyRoll({ hearing }: { hearing: CourtHearing }) {
+  /* Capitalised here rather than through `partySideLabel`, which returns the word as it
+     reads mid-sentence ("the complainant is present"). A table cell is a heading for the
+     row, not a clause. */
+  const sides = [
+    {
+      side: "complainant" as const,
+      label: "Complainant",
+      name: hearing.parties.complainant,
+    },
+    {
+      side: "accused" as const,
+      label: "Accused",
+      name: hearing.parties.accused,
+    },
+  ];
+  return (
+    <table className="w-full border-collapse text-start">
+      <thead>
+        <tr className="border-b border-paper-border">
+          {["Party", "Name", "Advocate"].map((head) => (
+            <th
+              key={head}
+              scope="col"
+              className="text-caption px-0 py-2 text-start font-semibold text-paper-muted-foreground"
+            >
+              {head}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {sides.map((entry) => {
+          const counsel = counselFor(hearing, entry.side);
+          return (
+            <tr key={entry.side} className="border-b border-paper-border">
+              <td className="text-body-compact py-2 pe-4 align-top">
+                {entry.label}
+              </td>
+              <td className="text-body-compact py-2 pe-4 align-top">
+                {entry.name}
+              </td>
+              <td className="text-body-compact py-2 align-top">
+                {counsel.length > 0
+                  ? counsel.map((lawyer) => lawyer.name).join(", ")
+                  : "—"}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -941,7 +1476,7 @@ function OrderItemWell({
   const labelId = React.useId();
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <span id={labelId} className="text-body w-fit font-medium">
+      <span id={labelId} className="text-body-compact w-fit font-semibold">
         <span className="tabular-nums">{number}.</span> {heading}
       </span>
       <RichTextField
@@ -951,116 +1486,5 @@ function OrderItemWell({
         className="[&_[data-slot=input-group-control]]:min-h-32"
       />
     </div>
-  );
-}
-
-/**
- * The order as paper — the one place it appears with no controls in it.
- *
- * The same facsimile treatment the signing queue uses on the same artefact, so the order
- * a bench reads back here is the order it will see when it comes to sign. Paper is fixed
- * in both themes by design and is never app chrome, which is why it lives in this dialog
- * and not under the fields.
- *
- * No download. There is no court record to download — the order has not been issued, and
- * offering a file would claim one.
- */
-function PreviewDialog({
-  document,
-  open,
-  onOpenChange,
-}: {
-  document: OrderDocument;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl md:h-[85dvh]">
-        <DialogHeader className="shrink-0 gap-2 p-6 pr-16">
-          <DialogTitle className="text-title-s font-semibold">
-            Preview
-          </DialogTitle>
-          <DialogDescription className="text-body-compact text-muted-foreground">
-            {document.matter} · {document.caseNumber} — the order as it will read.
-            It has not been issued.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex min-h-0 flex-1 flex-col px-6 pb-6">
-          <DocumentPreview
-            className="min-h-96 md:min-h-0"
-            height="fill"
-            title={document.title}
-            source={{
-              kind: "composed",
-              content: <OrderFacsimile document={document} />,
-            }}
-          />
-        </div>
-      </ChromeDialogContent>
-    </Dialog>
-  );
-}
-
-function OrderFacsimile({ document }: { document: OrderDocument }) {
-  return (
-    <article className="flex flex-col gap-6 rounded-md bg-paper p-6 text-paper-foreground">
-      <header className="flex flex-col gap-2 text-center">
-        <p className="text-body font-semibold">{document.court}</p>
-        <p className="text-body font-semibold">Case no. {document.caseNumber}</p>
-        <p className="text-body font-semibold">{document.matter}</p>
-      </header>
-
-      <h3 className="text-body text-center font-semibold">{document.title}</h3>
-
-      <p className="text-body">{document.opening}</p>
-
-      {document.applications.length > 0 ? (
-        <div className="flex flex-col gap-3">
-          {document.applications.map((sentence) => (
-            <p
-              key={sentence.text}
-              className={
-                sentence.pending
-                  ? "text-body text-paper-muted-foreground"
-                  : "text-body"
-              }
-            >
-              {sentence.text}
-            </p>
-          ))}
-        </div>
-      ) : null}
-
-      {document.items.length === 0 ? (
-        /* Nothing added: the paper says so in the muted voice the rest of the document
-           uses, rather than printing an empty list. */
-        <p className="text-body text-paper-muted-foreground">
-          No item has been added.
-        </p>
-      ) : (
-        /* `ps-6` and `list-decimal`, the same as the signing queue's facsimile: the two
-           screens print the same artefact and must not disagree about its shape. */
-        <ol className="flex list-decimal flex-col gap-3 ps-6">
-          {document.items.map((entry) => (
-            <li key={entry.id} className="text-body">
-              {entry.pending ? (
-                <span className="text-paper-muted-foreground">{entry.body}</span>
-              ) : (
-                <RichTextValueView value={{ html: entry.html, text: entry.body }} />
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-
-      <p className="text-body">{document.closing}</p>
-
-      <p className="text-body">Dated {document.dated}.</p>
-
-      <p className="text-body text-paper-muted-foreground">
-        {document.signature}
-      </p>
-    </article>
   );
 }

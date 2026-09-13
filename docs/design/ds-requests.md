@@ -598,3 +598,48 @@ trigger and leaves the popover alone, or a footer slot on the popover for a **Cl
 beside the calendar. The second is better — a range picker's clear belongs next to the
 days it is undoing — and it would also give the presets row (`Next 7 days`, `This week`)
 somewhere to live if the courts ask for one.
+
+---
+
+## 20. `Tabs` and `ToggleGroup` accept `orientation` and forward it nowhere
+
+Both components take an `orientation` prop, destructure it out of `props`, and then
+never pass it to the Radix primitive underneath:
+
+```tsx
+function Tabs({ className, orientation = "horizontal", ...props }) {
+  return <TabsPrimitive.Root data-slot="tabs" data-orientation={orientation} {...props} />
+}
+```
+
+`orientation` is consumed by the destructure, so `TabsPrimitive.Root` renders with its
+own default. Two consequences, and the second is the one that matters:
+
+**The styling never fires.** `TabsList` carries `group-data-vertical/tabs:flex-col` and
+`TabsTrigger` carries `group-data-vertical/tabs:w-full`, both keyed on a
+`data-orientation="vertical"` that does not survive to the DOM — Radix writes its own.
+Rendered from Dristi at `/employee/hearings/[hearingId]/order`, `<Tabs
+orientation="vertical">` produced a root with no `data-orientation` attribute at all and
+a list that stayed `inline-flex` in a row. A vertical rail of four icons laid itself out
+horizontally.
+
+**The keyboard contract is wrong.** Radix uses `orientation` to decide whether a tablist
+roves with Left/Right or Up/Down. A visually vertical tablist that answers to Left/Right
+is worse than no vertical mode at all, because it looks reachable and is not — and
+nothing a consumer passes can correct it.
+
+`ToggleGroup` has the same swallow. It is less visible there because the component sets
+`data-orientation` itself *and* styles off `data-vertical:flex-col` in its own class
+string, so the layout works; the Radix roving-focus orientation is still wrong.
+
+**Request:** forward the prop — `<TabsPrimitive.Root orientation={orientation} …>` — and
+the same for `ToggleGroupPrimitive.Root`. The data attributes and the variant classes can
+then come off Radix's own output rather than being written twice. If vertical `Tabs` is
+not meant to be supported, the prop should be removed rather than accepted and dropped;
+the vertical variant classes in `tabsListVariants` currently advertise a mode that cannot
+be switched on.
+
+**Meanwhile, in Dristi:** the order composer's section rail is composed from `Button` in
+a `nav` with `aria-current`, not from `Tabs`. Switching a section of a panel is closer to
+navigation than to tab panels, so nothing is lost — but it is a workaround, and the
+moment a screen genuinely needs a vertical tablist there is no way to build one.

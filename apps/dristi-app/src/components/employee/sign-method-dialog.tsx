@@ -23,8 +23,10 @@ import {
  * method choice, and jumping between those sizes in one already-open box is what
  * made the step feel like it snapped into place.
  *
- * Back closes this overlay and re-opens the document; Submit is the act. Neither
- * is invented here — each queue passes its own noun, subject, download and warning.
+ * Back closes this overlay and re-opens the document on the two-step queues;
+ * the composer omits it because this overlay is already the first step. Submit
+ * is the act. Neither is invented here — each queue passes its own noun,
+ * subject, download and warning.
  */
 export function SignMethodDialog({
   open,
@@ -49,9 +51,20 @@ export function SignMethodDialog({
    * already said it on the document overlay.
    */
   warning?: string;
-  download: { prompt: string; onDownload: () => void };
+  /**
+   * Offered where the paper is off-screen and there is one document to offer.
+   * Optional when the caller already has the paper on screen — the composer
+   * does, and offering a file of an unissued order would claim a court
+   * record. The queues still pass it.
+   */
+  download?: { prompt: string; onDownload: () => void };
   choice: SignatureChoice;
-  onBack: () => void;
+  /**
+   * Returns to the document overlay on the two-step queues. Omitted when this
+   * overlay is the first step — there is nothing to go back to, and a Back
+   * that only closes would compete with the close button for the same job.
+   */
+  onBack?: () => void;
   onSubmit: () => void;
 }) {
   return (
@@ -81,9 +94,11 @@ export function SignMethodDialog({
         ) : null}
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onBack}>
-            Back
-          </Button>
+          {onBack ? (
+            <Button type="button" variant="outline" onClick={onBack}>
+              Back
+            </Button>
+          ) : null}
           <Button
             type="button"
             disabled={!choice.canSubmit}
