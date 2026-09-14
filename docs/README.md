@@ -12,8 +12,10 @@ Orientation for this repo. Docs describe the product and how we design; they are
 |---|---|---|
 | **Product** | What DRISTI is — domain, journey, standards, open questions | [product/README.md](product/README.md) |
 | **Design** | How Dristi UI is built — always pull from pucar-design-system | [design/design-system.md](design/design-system.md) |
-| **Design → research** | Research memos that feed a brief (per feature: the verbatim ask, domain findings, UX findings). Inputs, not decisions — the brief in `design/proposals/` decides | [design/research/](design/research/) |
-| **Design → explorations** | Standalone interactive HTML prototypes for trying a direction before it is app code. **Untracked on purpose** — working material, not product; the decisions they settle go into the brief | [design/explorations/README.md](design/explorations/README.md) |
+| **Feature history** | Owner-facing decisions, reasons, and implementation/verification status; not routine agent input | [design/features/README.md](design/features/README.md) |
+| **Agent maintenance** | Canonical instructions, generated adapters, validation, rollout, and rollback | [agent-orchestration.md](agent-orchestration.md) |
+| **Design → research** | Historical feature research for the owner; retrieve only on explicit request | [design/research/](design/research/) |
+| **Design → explorations** | Standalone interactive HTML prototypes for trying a direction before it is app code. **Untracked on purpose** — working material, not product; accepted decisions are recorded in the owner’s feature history | [design/explorations/README.md](design/explorations/README.md) |
 | **Principles** | Cross-cutting PUCAR design principles — convictions that resolve conflicts between good outcomes. Org-wide, not DRISTI-specific | [principles/](principles/) |
 | **Feedback** | How reviewers comment on the running app; feedback → GitHub issues | [feedback-widget.md](feedback-widget.md) |
 | **Design mode** | Invoke-only design review, two lanes: the in-app overlay (tweak live, pin comments, report to the agent) and the Pencil lane (edit screens in the Pencil app; the agent anchors every change to the DS and audits it back). Off by default | [design-mode.md](design-mode.md) |
@@ -23,11 +25,14 @@ Orientation for this repo. Docs describe the product and how we design; they are
 | Path | Role |
 |---|---|
 | `apps/dristi-app` | Dristi App (main product) |
-| `.cursor/rules/`, `.claude/rules/` | Always-on guardrails (Cursor / Claude Code) |
-| `.cursor/skills/`, `.claude/skills/` | On-demand skills (add when a real workflow exists) |
-| `.claude/agents/`, `.cursor/rules/role-*.mdc` | Principal-level design roles: UX Designer (proposes) → UI Designer (builds) → UI Reviewer (audits). Subagents in Claude, role rules in Cursor |
-| `ds.lock.json` | The one design-system commit this repo builds against. `npm install` checks it out; `npm run ds:bump` moves it (on `design`, never a feature branch) |
-| `scripts/` | Repo-level gates that aren't app code — `check-rails.mjs` (`npm run check:rails`) fails if the Claude and Cursor agent rails drift apart |
+| `.agents/skills/` | Canonical skills, with conditional references; Codex discovers these directly |
+| `.agents/roles/`, `.agents/policies/`, `.agents/rails.json` | Shared role bodies, policies, and explicit tool adapters |
+| `.codex/agents/` | Generated Codex roles; model selection inherits the session |
+| `.cursor/rules/`, `.claude/rules/`, `.claude/agents/` | Generated tool-native policy and role adapters |
+| `.cursor/skills/`, `.claude/skills/` | Generated complete mirrors of canonical skills |
+| `ds.lock.json` | Pinned DS commit; upgrades use a dedicated branch and PR into `design` |
+| `scripts/` | Rails generation, consistency checks, regression tests, and verification profiles |
+| `.github/workflows/agent-rails.yml` | Dependency-free agent configuration checks on PRs and long-lived branch pushes |
 
 ## Intentionally not here
 
@@ -35,8 +40,7 @@ Orientation for this repo. Docs describe the product and how we design; they are
 - The design-system **code** (tokens, components) — lives in
   [pucar-design-system](https://github.com/pucardotorg/dristi-design-system);
   this repo **consumes** it (agents always pull from there into Dristi App).
-- A bespoke docs-only `agents/` folder for orchestration prose — tool-native paths
-  above (`.claude/agents/`, `.claude/rules/`, `.claude/skills/`) are the agent layer;
-  agent roles get a real frontmatter file there, not a description in `docs/`.
+- A second agent policy source in docs: operational sources live in `.agents/`; native
+  files are generated. The maintenance guide explains those files but does not replace them.
 
 - [docs/design/ds-diagnosis.md](design/ds-diagnosis.md) — measured diagnosis of why the built UI reads dull (neutrals, type stack, surfaces) with DS token proposals and an A/B.

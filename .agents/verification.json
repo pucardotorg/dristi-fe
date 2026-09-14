@@ -1,0 +1,4 @@
+{
+  "agents": ["check:rails", "test:rails"],
+  "ui": ["check:ds-fresh", "lint", "check:rails"]
+}

@@ -1,75 +1,41 @@
 ---
 name: review-ui-ds
-description: >-
-  Review Dristi UI against the Pucar design system — tokens, component sync,
-  accessibility, Laws, and invent-risk. Use when reviewing screens, UI diffs,
-  PRs, design adherence, accessibility, or when the user asks for a UI / DS
-  review.
+description: "Independently review Dristi UI against agreed behavior, the pinned DS, accessibility, responsive usability, and affected sibling patterns. Report evidence and fixes without modifying the implementation."
 ---
 
-# Review UI against Pucar DS
+# Review behavior and UI quality
 
-Run this after building or changing UI. Catch inventing before it ships.
+Inputs: current task agreement, stable diff, relevant current product sources, and
+verification evidence. Never require an archived proposal or its attributes table.
 
-## 1. Resolve and read DS (exact files)
+1. Follow `.agents/policies/pucar-design-system.md`. Establish the DS version and read
+   applicable rules and affected primitives. Reuse material already read for this state.
+2. Map acceptance criteria to the actual implementation. Look for missing behavior,
+   incorrect action scope, unsupported system claims, and relevant failure/recovery states.
+3. Review semantic tokens, typography, composition, labels, focus, keyboard access, touch,
+   language/long-label behavior, and affected sibling consistency. Load the compact
+   `ui-craft` checklist; select detailed references only when their subject applies.
+4. Follow `.agents/policies/verification.md` for check evidence and render coverage.
+   Reuse valid evidence for the exact state, but inspect independently. If checks or
+   screenshots need tools or writes unavailable to this role, have the coordinator
+   obtain them. Do not sync, edit, install, or change fixtures during review.
 
-DS root (first match): `vendor/pucar-design-system`, then `PUCAR_DS_ROOT` if set.
-Verify origin contains `pucardotorg/dristi-design-system` (or `.pucar-ds-id`).
-If missing or wrong org: stop and ask the user to run `npm install`. Never search
-Desktop/home for other clones by name.
+For a structural UX concern, selectively consult
+`.agents/skills/design-ui/references/staff-ux-thinking.md`; do not impose a full redesign
+audit on a small correction.
 
-Read:
+## Findings and decision
 
-- `{DS}/AGENTS.md`
-- `{DS}/ACCESSIBILITY.md`
-- `{DS}/RESPONSIVE.md` (if layout / breakpoints involved)
-- `{DS}/src/app/(docs)/foundations/laws/page.tsx` (Laws)
-- `{DS}/src/app/(docs)/foundations/typography/page.tsx`
-- Changed files under `apps/dristi-app/`
+- **Required fix:** unmet acceptance criterion, DS requirement, accessibility floor,
+  behavior regression, or misleading product claim. Explain consequence and evidence.
+- **Suggestion:** supported improvement that does not block the agreed outcome. Label
+  visual judgment as judgment; subjective flatness is not automatically critical.
+- **Unverified:** missing evidence or unavailable environment. State what is needed.
 
-## 2. Mechanical gates (must run)
+Each finding includes file/location, observed issue, affected criterion or sourced rule,
+consequence, and concrete correction. Group repeated causes; do not invent findings or
+require removing a decoration. Return **ready**, **needs fixes**, or **verification
+pending**. Missing required render evidence prevents a ready verdict.
 
-From repo root:
-
-```bash
-npm run check:tokens
-npm run check:typography
-npm run check:ui-sync
-npm run check:spacing
-```
-
-Or `npm run lint -w @pucar/dristi-app` (includes both). Failures are **Critical**.
-
-## 3. Checklist
-
-```
-Review:
-- [ ] check:tokens passed
-- [ ] check:typography passed
-- [ ] check:ui-sync passed (primitives match DS; globals.css matches)
-- [ ] check:spacing passed (no NEW off-ladder value; baseline not grown to hide one)
-- [ ] No hand-written / invented controls — synced via `npm run sync:ui -- <name>`
-- [ ] Semantic tokens only (no hex, oklch arbitrary, raw neutral-N, white/black)
-- [ ] Status uses solid / muted / ink — no alpha fakes (`bg-destructive/10`)
-- [ ] Light and dark both work (token roles from AGENTS.md)
-- [ ] Product copy uses named DS roles (`text-body`; `text-title-* font-semibold`)
-- [ ] Primitive-internal `text-sm` has not leaked into citizen-facing screen copy
-- [ ] Laws: sentence case; one primary teal action per view; 40px controls; 40×40 touch
-- [ ] ACCESSIBILITY.md: labels, keyboard, focus, errors via aria-describedby / Field
-- [ ] Product meaning from docs/product — no invented personas
-- [ ] Every fact on screen is a row in the brief's §5a Attributes table, with a source
-- [ ] Statuses render from a closed enum through one slot — no per-case prose; no constant-on-every-record value shown as a fact
-```
-
-## 4. Report format
-
-- Critical — must fix (gate fail, hardcoded colour, invented primitive, a11y floor break)
-- Suggestion — Laws / composition polish
-- Nice to have — optional
-
-For each finding: file path, what DS rule it breaks, how to fix
-(usually `npm run sync:ui -- <component>` or use a token utility).
-
-## 5. Done means
-
-Do not approve UI that invents look-and-feel or drifts from DS component source.
+Send required findings to the coordinator for the builder, then recheck affected criteria
+after changes. Do not reopen settled choices without a demonstrated conflict.

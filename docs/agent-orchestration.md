@@ -1,0 +1,80 @@
+# Maintaining Dristi's agent team
+
+The owner’s intent is a thinking partner, a DS-based builder, and an independent reviewer.
+Current task decisions travel in a concise agreement; historical feature documents are
+maintained for the owner and are not automatically loaded as build instructions.
+
+## Sources and generated files
+
+| Edit here | Generated or consumed there |
+|---|---|
+| `.agents/policies/project.md` | `AGENTS.md`, `CLAUDE.md`, Cursor project rule |
+| `.agents/roles/*.md` and `.agents/rails.json` | Codex TOML, Claude agents, Cursor role rules |
+| DS/server policies declared in `.agents/rails.json` | Claude and Cursor rules |
+| `.agents/skills/` | Codex discovery; complete Claude/Cursor mirrors including references |
+| `.agents/verification.json` | Executable verification profiles |
+
+All instruction paths are repository-relative unless marked skill-relative. Skill-relative
+Markdown links work in all mirrors. The old `propose-ui-brief` name is retained as a short
+compatibility route to `design-ui` or `document-ui-feature`.
+
+```bash
+npm run sync:rails
+npm run verify:agents
+```
+
+Generation is explicit: no install hook, background watcher, or automatic edits to another
+checkout. Unmatched managed files cause a failure rather than being silently deleted.
+The Agent rails GitHub workflow runs verification on PRs and pushes to long-lived
+branches, without installing dependencies or starting the app. Making this check required
+for merging remains a repository branch-protection setting; this change does not alter it.
+When adding a skill, create its `SKILL.md` under `.agents/skills/` and regenerate. When
+adding a role, declare its metadata/adapters in `.agents/rails.json` and its body under
+`.agents/roles/`. Canonical skill frontmatter uses `name` and a one-line JSON-quoted
+`description` (a valid YAML subset); the checker rejects unsupported metadata instead
+of silently stripping it. Extend the parser deliberately if more metadata becomes needed.
+
+The checker validates all expected files, unexpected files, resource mirrors, local
+references, root command names, and adapter boundaries. Its regression suite changes
+fixtures in temporary directories only. Byte equality proves configuration consistency,
+not reasoning quality. Human review of source changes remains necessary.
+
+## Runtime boundaries
+
+- Codex UX/reviewer adapters request `sandbox_mode = "read-only"`; live permission
+  overrides may change effective behavior. This migration validates configuration, not
+  a running session's sandbox. The builder inherits existing session permissions.
+- Claude UX/reviewer adapters omit Bash, Write, and Edit. Commands and new render evidence
+  are obtained by the coordinator where necessary. Do not treat a skill as authorization
+  to bypass the role's non-writing responsibility.
+- Cursor role rules are advisory and do not enforce filesystem isolation.
+- Existing model choices are preserved: Claude roles use their previous `opus` choice;
+  Codex roles inherit the session. No model or global permission settings are changed.
+
+See [verification](../.agents/policies/verification.md) for criteria, evidence reuse, and
+pending status when an environment is unavailable.
+
+## Rollout and rollback
+
+Land the cleanup through a PR into `design` with owner approval. Existing Cursor work
+continues on its own branch until the owner chooses to integrate the change. Do not
+switch an active checkout or restart its server to adopt the new configuration.
+
+After integration, start a fresh task in the intended checkout and confirm the tool
+lists the three roles and canonical skills. Reload the tool if discovery is stale; do
+not interrupt an ongoing task. Configuration checks do not prove live discovery.
+
+Rollback is a revert of the cleanup commit through a PR. Product code, the DS pin,
+dependency versions, launch configuration, and historical feature records are unchanged.
+No performance percentage is claimed: extended feature/latency trials were intentionally
+excluded; validation covers configuration, generation, and regression detection.
+
+## Decisions behind this change — owner, 2026-09-13
+
+- Preserve the three roles, but separate brainstorming from archive writing.
+- Keep owner-facing history without automatically adding it to future agent context.
+- Use concise handoffs and independent review for substantial/consequential changes;
+  avoid compulsory three-agent execution for small, fully specified corrections.
+- Centralize shared instructions while preserving tool-specific capability differences.
+- Implement in an isolated worktree so ongoing Cursor work and the server are unaffected.
+- Skip an extended benchmark pilot; retain quick configuration/regression checks.
