@@ -3,6 +3,11 @@ import { describe, it } from "node:test";
 
 import { COURT_ROLE_LABEL, COURT_SEATS, CURRENT_STAFF } from "./content";
 import {
+  accountFor,
+  COURT_ACCOUNTS,
+  COURT_SIGN_IN_ROLES,
+} from "./sign-in";
+import {
   readCourtRole,
   seatHasBenchControls,
   setCourtRole,
@@ -10,10 +15,33 @@ import {
 import { canDraftOrder, canTypeOrder } from "./hearings";
 
 describe("court seats", () => {
-  it("offers the bench clerk and the typist, and starts in the first", () => {
-    assert.deepEqual(COURT_SEATS, ["bench-clerk", "typist"]);
+  /* Every seat `/employee/login` signs in to has to be a seat the rail can name, or a
+     signed-in magistrate opens the settings menu onto a radio group with nothing
+     selected. The two lists are the same list, in the same order. */
+  it("offers every seat the sign-in offers, and starts signed out in the fixture's", () => {
+    assert.deepEqual(COURT_SEATS, COURT_SIGN_IN_ROLES);
     assert.equal(CURRENT_STAFF.role, "bench-clerk");
     assert.equal(readCourtRole(), CURRENT_STAFF.role);
+  });
+
+  it("holds a demo account for every seat it offers, one username each", () => {
+    const usernames = new Set<string>();
+    for (const seat of COURT_SEATS) {
+      const account = COURT_ACCOUNTS[seat];
+      assert.equal(account.role, seat);
+      assert.ok(account.username, `${seat} has no username`);
+      assert.ok(account.name, `${seat} has no name`);
+      usernames.add(account.username.toLowerCase());
+    }
+    assert.equal(usernames.size, COURT_SEATS.length);
+  });
+
+  it("finds an account by username whatever its case, and nothing else", () => {
+    assert.equal(accountFor("michaelGeorgeJudge")?.role, "magistrate");
+    assert.equal(accountFor("MICHAELGEORGEJUDGE")?.role, "magistrate");
+    assert.equal(accountFor("  michaelGeorgeJudge  ")?.role, "magistrate");
+    assert.equal(accountFor("nobody"), undefined);
+    assert.equal(accountFor(""), undefined);
   });
 
   it("names every seat it offers", () => {

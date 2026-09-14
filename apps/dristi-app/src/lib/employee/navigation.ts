@@ -111,19 +111,68 @@ export type CourtNavGroup = {
   items: CourtNavItem[];
 };
 
-/** The two rows that stand on their own, above the grouped work. Both leave the app. */
+/**
+ * The dashboard — this court's health check.
+ *
+ * It replaces `COURT_HOME`, which was an empty placeholder nothing linked to: it was not
+ * a rail row and could not be one, so the top bar's trail was the only path to it, and
+ * the trail no longer has a root (see `courtTrail`). The screen and the rail row both
+ * take their label from here, so a row and the screen it opens cannot end up calling one
+ * destination two things.
+ *
+ * **It is not where signing in lands.** The day's cause list is (`court-sign-in-block`),
+ * on the owner's call that a dashboard is not the common thing court staff open the
+ * product to see.
+ */
+export const COURT_DASHBOARD = { href: "/employee", label: "Dashboard" } as const;
+
+/**
+ * The register — every case on this court's file, searchable.
+ *
+ * **A separate screen from the dashboard, on the owner's second look** (2026-09-14).
+ * The two were briefly one: the priority tiles filtered a register below them, which was
+ * the owner's own first suggestion and which they rejected once built — *"the dashboard
+ * is more of a health check, that is the intent of a dashboard, and it should look like
+ * one; by mixing these two we are complicating things for ourselves."* Which is right.
+ * A health check answers "how is this court doing"; a register answers "where is that
+ * file". One screen answering both had to compromise on the form of each.
+ *
+ * The two are still joined, by a link rather than by a filter: a dashboard tile opens
+ * this screen already narrowed to its category (`?priority=`). Navigation is also the
+ * strongest feedback a press can give — the whole screen changes — which is the problem
+ * the filtering version never solved.
+ */
+export const COURT_CASES_PAGE = {
+  href: "/employee/cases",
+  label: "All cases",
+} as const;
+
+/**
+ * The two rows that stand on their own, above the grouped work.
+ *
+ * They were transcribed from the reference as `Dashboards` and `All cases` and both
+ * marked `external` — real, focusable rows that said plainly they went nowhere. Both are
+ * built now and both are internal. They stay two rows, and not one: a health check and a
+ * register are two questions, and the owner's ruling on 2026-09-14 was that answering
+ * both on one screen compromised the form of each.
+ *
+ * **Neither carries a count.** Every other number in this rail is work waiting on the
+ * bench, and the rail prints them in the destructive red its badge is painted in. Forty
+ * cases on the file is not a backlog — a red 40 beside "All cases" reads as forty
+ * problems — so these rows stay bare and each screen's own line says its number.
+ */
 export const COURT_NAV_LINKS: CourtNavItem[] = [
   {
-    id: "dashboards",
-    label: "Dashboards",
+    id: "dashboard",
+    label: COURT_DASHBOARD.label,
+    href: COURT_DASHBOARD.href,
     icon: LayoutDashboardIcon,
-    external: true,
   },
   {
     id: "all-cases",
-    label: "All cases",
+    label: COURT_CASES_PAGE.label,
+    href: COURT_CASES_PAGE.href,
     icon: FolderIcon,
-    external: true,
   },
 ];
 
@@ -301,17 +350,6 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
 ];
 
 /**
- * The court's home, and the head of every trail.
- *
- * It is not a rail row and cannot be one — the two rows that stand above the groups both
- * leave DRISTI — so the top bar's trail is the only path back to it anywhere in the
- * court's chrome. `app/employee/page.tsx` takes its heading from here rather than
- * spelling it again, so a crumb and the screen it leads to cannot end up calling one
- * destination two things.
- */
-export const COURT_HOME = { href: "/employee", label: "Court home" } as const;
-
-/**
  * The queues that own routes nested under them, and how each one tells a real child
  * from a sibling that merely looks like one.
  *
@@ -449,34 +487,33 @@ export type CourtCrumb = {
  * It reads the rail's own data, so a section renamed in `COURT_NAV_GROUPS` is renamed in
  * the trail by the same edit. Nothing below names a section, a queue or a record.
  *
+ * **There is no root crumb** (owner, 2026-09-14). Every trail used to open with
+ * `Court home`, which was a placeholder screen nothing else linked to; when that screen
+ * became the dashboard, rooting every trail at it would have put a page nobody routinely
+ * opens at the head of every other page, and rooting them at the landing — the day's
+ * cause list — would have read as if signing orders happened underneath today's hearings.
+ * Neither is true, so the trail starts where the work is. The rail is what gets you
+ * anywhere; the trail says where you are and lets you climb one step.
+ *
  * Three shapes come out of it:
  *
- * - `/employee` — still empty, and this is the one place the old argument survives
- *   intact. There is nothing above the court home, so a trail there could only be the
- *   single crumb `Court home`, restating the heading 40-odd pixels below it and offering
- *   no way anywhere. The bar keeps its fill and its seam and carries no trail, which is
- *   what chrome looks like at the origin.
- * - `/employee/sign-orders` — root, `Sign`, then **`Sign orders`** as the current page.
- *   The section between them is still text: it has no page of its own.
+ * - `/employee` and any other route with no section — no trail at all. The bar keeps its
+ *   fill and its seam and carries nothing, which is what chrome looks like at a
+ *   destination with nothing above it. A route this file does not know gets the same
+ *   answer: the current step is omitted rather than guessed, because a crumb naming a
+ *   page this file cannot identify would be an invented label.
+ * - `/employee/sign-orders` — `Sign`, then **`Sign orders`** as the current page. The
+ *   section is still text: it has no page of its own.
  * - `/employee/hearings/<id>`, `/employee/hearings/<id>/order`,
- *   `/employee/scrutiny/<filing no.>`, `/employee/register-cases/<id>` — root, the
- *   section, the queue, then the record: `ST/241/2026`, `F/AHM/2026/00341`,
- *   `CMP/1840/2025`. Both of the middle steps link back to the queue, which is where the
- *   record came from and, on a complaint's file, the whole of the way back — which is why
- *   that screen carries no back control of its own.
+ *   `/employee/scrutiny/<filing no.>`, `/employee/register-cases/<id>` — the section, the
+ *   queue, then the record: `ST/241/2026`, `F/AHM/2026/00341`, `CMP/1840/2025`. Both of
+ *   the middle steps link back to the queue, which is where the record came from and, on
+ *   a complaint's file, the whole of the way back — which is why that screen carries no
+ *   back control of its own.
  *
- * A route this file does not know gets the root as a link and stops. That is the whole of
- * what can be said honestly about it, and it is still the way home — the current step is
- * omitted rather than guessed, because a crumb naming a page this file cannot identify
- * would be an invented label. The two standalone links are absent from every trail
- * because both leave DRISTI; a route nested under one of them would need its own step, on
- * the day one exists.
+ * The standalone Dashboard row is absent from every trail because nothing nests under it.
  */
 export function courtTrail(pathname: string): CourtCrumb[] {
-  if (pathname === COURT_HOME.href) return [];
-
-  const home: CourtCrumb = { label: COURT_HOME.label, href: COURT_HOME.href };
-
   for (const group of COURT_NAV_GROUPS) {
     for (const item of group.items) {
       if (!item.href || !isCourtNavActive(pathname, item.href)) continue;
@@ -484,10 +521,9 @@ export function courtTrail(pathname: string): CourtCrumb[] {
       // row is above this page rather than being it, and so becomes a link.
       const record = nestedRecordOf(pathname, item.href);
       if (record === undefined) {
-        return [home, { label: group.label }, { label: item.label }];
+        return [{ label: group.label }, { label: item.label }];
       }
       return [
-        home,
         { label: group.label, href: item.href },
         { label: item.label, href: item.href },
         { label: record },
@@ -495,5 +531,61 @@ export function courtTrail(pathname: string): CourtCrumb[] {
     }
   }
 
-  return [home];
+  return [];
+}
+
+
+/** One queue with work waiting in it. */
+export type CourtWaitingItem = {
+  id: string;
+  label: string;
+  href: string;
+  count: number;
+};
+
+/** A rail group and the built, non-empty queues under it. */
+export type CourtWaitingGroup = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  /** Everything waiting in this group, so the dashboard can print a sub-total. */
+  total: number;
+  items: CourtWaitingItem[];
+};
+
+/**
+ * What is waiting on this court, kept in the rail's own four groups.
+ *
+ * The dashboard's "Waiting on this court" panel reads this rather than importing sixteen
+ * count constants of its own, so the panel and the rail can never disagree about how much
+ * is in a queue. It keeps the grouping — Hearings, Actions, Review, Sign — because that
+ * is how the bench already thinks about its work, and because the rail's groups are
+ * collapsed by default, so laying the four out at once is the whole reason the panel earns
+ * its place. The group's mark rides along so the panel and the rail wear the same icon.
+ *
+ * Only rows that are **built and populated** survive: a row with no `href` goes nowhere,
+ * a row at zero is waiting on nobody, and a group with nothing left in it is dropped
+ * whole rather than printed as an empty heading.
+ */
+export function courtWaitingGroups(): CourtWaitingGroup[] {
+  return COURT_NAV_GROUPS.map((group) => {
+    const items = group.items
+      .filter(
+        (item): item is CourtNavItem & { href: string; count: number } =>
+          Boolean(item.href) && typeof item.count === "number" && item.count > 0,
+      )
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        href: item.href,
+        count: item.count,
+      }));
+    return {
+      id: group.id,
+      label: group.label,
+      icon: group.icon,
+      total: items.reduce((sum, item) => sum + item.count, 0),
+      items,
+    };
+  }).filter((group) => group.items.length > 0);
 }
