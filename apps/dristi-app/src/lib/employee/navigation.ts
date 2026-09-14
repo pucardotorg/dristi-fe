@@ -1,7 +1,6 @@
 import {
   CalendarDaysIcon,
   FileSearchIcon,
-  FolderIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
   SignatureIcon,
@@ -106,19 +105,43 @@ export type CourtNavGroup = {
   items: CourtNavItem[];
 };
 
-/** The two rows that stand on their own, above the grouped work. Both leave the app. */
+/**
+ * The dashboard — the bench's priority tiles over this court's whole register.
+ *
+ * It replaces `COURT_HOME`, which was an empty placeholder nothing linked to: it was not
+ * a rail row and could not be one, so the top bar's trail was the only path to it, and
+ * the trail no longer has a root (see `courtTrail`). `app/employee/(court)/page.tsx` and
+ * the rail row both take their label from here, so a row and the screen it opens cannot
+ * end up calling one destination two things.
+ *
+ * **It is not where signing in lands.** The day's cause list is (`court-sign-in-block`),
+ * on the owner's call that a dashboard is not the common thing court staff open the
+ * product to see.
+ */
+export const COURT_DASHBOARD = { href: "/employee", label: "Dashboard" } as const;
+
+/**
+ * The row that stands on its own, above the grouped work.
+ *
+ * **One, where there were two, and it goes somewhere.** `Dashboards` and `All cases`
+ * were both transcribed from the reference and both marked `external` — real, focusable
+ * rows that said plainly they went nowhere. The owner collapsed them into a single
+ * destination on 2026-09-14 (*"I think we can combine the dashboard and all cases
+ * list"*), which is the right read of them: the bench's priority tiles are saved filters
+ * over the register, not a separate analytic, so a dashboard and a case list are one
+ * screen. `/employee` is now that screen, and this row is the way to it.
+ *
+ * **It carries no count.** Every other number in this rail is work waiting on the bench,
+ * and the rail prints them in the destructive red its badge is painted in. The register's
+ * length is not a backlog — a red 40 beside "Dashboard" reads as forty problems — so the
+ * row stays bare and the screen's own line says how many cases the court holds.
+ */
 export const COURT_NAV_LINKS: CourtNavItem[] = [
   {
-    id: "dashboards",
-    label: "Dashboards",
+    id: "dashboard",
+    label: "Dashboard",
+    href: COURT_DASHBOARD.href,
     icon: LayoutDashboardIcon,
-    external: true,
-  },
-  {
-    id: "all-cases",
-    label: "All cases",
-    icon: FolderIcon,
-    external: true,
   },
 ];
 
@@ -280,17 +303,6 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
 ];
 
 /**
- * The court's home, and the head of every trail.
- *
- * It is not a rail row and cannot be one — the two rows that stand above the groups both
- * leave DRISTI — so the top bar's trail is the only path back to it anywhere in the
- * court's chrome. `app/employee/page.tsx` takes its heading from here rather than
- * spelling it again, so a crumb and the screen it leads to cannot end up calling one
- * destination two things.
- */
-export const COURT_HOME = { href: "/employee", label: "Court home" } as const;
-
-/**
  * The queues that own routes nested under them, and how each one tells a real child
  * from a sibling that merely looks like one.
  *
@@ -423,34 +435,33 @@ export type CourtCrumb = {
  * It reads the rail's own data, so a section renamed in `COURT_NAV_GROUPS` is renamed in
  * the trail by the same edit. Nothing below names a section, a queue or a record.
  *
+ * **There is no root crumb** (owner, 2026-09-14). Every trail used to open with
+ * `Court home`, which was a placeholder screen nothing else linked to; when that screen
+ * became the dashboard, rooting every trail at it would have put a page nobody routinely
+ * opens at the head of every other page, and rooting them at the landing — the day's
+ * cause list — would have read as if signing orders happened underneath today's hearings.
+ * Neither is true, so the trail starts where the work is. The rail is what gets you
+ * anywhere; the trail says where you are and lets you climb one step.
+ *
  * Three shapes come out of it:
  *
- * - `/employee` — still empty, and this is the one place the old argument survives
- *   intact. There is nothing above the court home, so a trail there could only be the
- *   single crumb `Court home`, restating the heading 40-odd pixels below it and offering
- *   no way anywhere. The bar keeps its fill and its seam and carries no trail, which is
- *   what chrome looks like at the origin.
- * - `/employee/sign-orders` — root, `Sign`, then **`Sign orders`** as the current page.
- *   The section between them is still text: it has no page of its own.
+ * - `/employee` and any other route with no section — no trail at all. The bar keeps its
+ *   fill and its seam and carries nothing, which is what chrome looks like at a
+ *   destination with nothing above it. A route this file does not know gets the same
+ *   answer: the current step is omitted rather than guessed, because a crumb naming a
+ *   page this file cannot identify would be an invented label.
+ * - `/employee/sign-orders` — `Sign`, then **`Sign orders`** as the current page. The
+ *   section is still text: it has no page of its own.
  * - `/employee/hearings/<id>`, `/employee/hearings/<id>/order`,
- *   `/employee/scrutiny/<filing no.>`, `/employee/register-cases/<id>` — root, the
- *   section, the queue, then the record: `ST/241/2026`, `F/AHM/2026/00341`,
- *   `CMP/1840/2025`. Both of the middle steps link back to the queue, which is where the
- *   record came from and, on a complaint's file, the whole of the way back — which is why
- *   that screen carries no back control of its own.
+ *   `/employee/scrutiny/<filing no.>`, `/employee/register-cases/<id>` — the section, the
+ *   queue, then the record: `ST/241/2026`, `F/AHM/2026/00341`, `CMP/1840/2025`. Both of
+ *   the middle steps link back to the queue, which is where the record came from and, on
+ *   a complaint's file, the whole of the way back — which is why that screen carries no
+ *   back control of its own.
  *
- * A route this file does not know gets the root as a link and stops. That is the whole of
- * what can be said honestly about it, and it is still the way home — the current step is
- * omitted rather than guessed, because a crumb naming a page this file cannot identify
- * would be an invented label. The two standalone links are absent from every trail
- * because both leave DRISTI; a route nested under one of them would need its own step, on
- * the day one exists.
+ * The standalone Dashboard row is absent from every trail because nothing nests under it.
  */
 export function courtTrail(pathname: string): CourtCrumb[] {
-  if (pathname === COURT_HOME.href) return [];
-
-  const home: CourtCrumb = { label: COURT_HOME.label, href: COURT_HOME.href };
-
   for (const group of COURT_NAV_GROUPS) {
     for (const item of group.items) {
       if (!item.href || !isCourtNavActive(pathname, item.href)) continue;
@@ -458,10 +469,9 @@ export function courtTrail(pathname: string): CourtCrumb[] {
       // row is above this page rather than being it, and so becomes a link.
       const record = nestedRecordOf(pathname, item.href);
       if (record === undefined) {
-        return [home, { label: group.label }, { label: item.label }];
+        return [{ label: group.label }, { label: item.label }];
       }
       return [
-        home,
         { label: group.label, href: item.href },
         { label: item.label, href: item.href },
         { label: record },
@@ -469,5 +479,5 @@ export function courtTrail(pathname: string): CourtCrumb[] {
     }
   }
 
-  return [home];
+  return [];
 }
