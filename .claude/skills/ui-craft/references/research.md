@@ -1,7 +1,8 @@
-# ui-craft — extended rationale and measurements
+# Historical craft research — optional diagnostic context
 
-Why each SKILL.md rule exists, with the sources and the numbers measured against this
-repo's actual tokens (light mode, `apps/dristi-app/src/app/globals.css`).
+These are past measurements and design influences, not current requirements. Read only
+when explicitly investigating this history. Re-measure against the pinned DS and current
+theme before using any number or rule in a decision.
 
 ## Measured ground truth
 
@@ -82,4 +83,4 @@ The Laws that look like they conflict with the border canon do not:
 
 When the tension is real — e.g. `--border` at neutral-8 makes even the sanctioned
 panel edge the loudest mark on a quiet screen — the resolution is upstream retuning
-(SKILL.md §6), never a local workaround.
+(the current DS policy), never a local workaround.

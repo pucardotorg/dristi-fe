@@ -19,6 +19,11 @@
     "check:spacing": "npm run check:spacing -w @pucar/dristi-app --",
     "check:table-rows": "npm run check:table-rows -w @pucar/dristi-app",
     "check:rails": "node scripts/check-rails.mjs",
-    "sync:ui": "npm run sync:ui -w @pucar/dristi-app --"
+    "sync:ui": "npm run sync:ui -w @pucar/dristi-app --",
+    "sync:rails": "node scripts/sync-rails.mjs",
+    "test:rails": "node --test scripts/agent-rails.test.mjs",
+    "verify:agents": "node scripts/verify-agent-work.mjs agents",
+    "verify:ui": "node scripts/verify-agent-work.mjs ui",
+    "test:app": "npm test -w @pucar/dristi-app"
   }
 }
