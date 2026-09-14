@@ -118,30 +118,48 @@ export function CourtSignInBlock() {
   }
 
   return (
-    <div className="grid min-h-dvh grid-cols-1 grid-rows-[1fr_auto] lg:h-dvh lg:min-h-0 lg:grid-cols-[1fr_2fr] lg:overflow-hidden">
-      {/* The bench's own charcoal, taken whole from the rail's plate rather than mixed
-          again here — a literal set of inks that survives the app's dark mode unchanged
-          (see `rail-plate.ts`). Desktop only, like the citizen plate. */}
+    <div className="grid min-h-dvh grid-cols-1 grid-rows-[1fr_auto] lg:h-dvh lg:min-h-0 lg:grid-cols-[4fr_5fr] lg:overflow-hidden">
+      {/* The bench's own charcoal, taken whole from the rail's plate (`rail-plate.ts`) so
+          the door is the same material as the room behind it — and, because court staff
+          meet this screen every day, composed to be worth meeting: a soft teal aurora
+          drawn from the plate's own brand ink in one corner, and the ON Courts mark set
+          oversized and near-silent as texture behind the words. It stays charcoal, not
+          the citizen side's teal, on purpose. Desktop only, like the citizen plate. */}
       <aside
-        style={CHARCOAL_PLATE.vars as React.CSSProperties}
-        className="hidden bg-(--sidebar) px-12 py-8 text-(--sidebar-foreground) lg:row-span-2 lg:flex lg:flex-col"
+        style={{
+          ...(CHARCOAL_PLATE.vars as React.CSSProperties),
+          background:
+            "radial-gradient(115% 90% at 8% 6%, color-mix(in srgb, var(--rail-avatar) 20%, transparent), transparent 55%), var(--sidebar)",
+        }}
+        className="relative hidden overflow-hidden px-12 py-12 text-(--sidebar-foreground) lg:row-span-2 lg:flex lg:flex-col"
       >
-        <BrandLockup onDark className="h-12" />
+        {/* Brand as texture, not decoration — light-ink glyph, near-silent, clipped by
+            the aside so only the shoulder of the mark shows. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/on-courts-glyph-dark.svg"
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute -right-20 -bottom-16 w-auto select-none"
+          style={{ height: "78%", opacity: 0.06 }}
+        />
 
-        {/* Three parts to the citizen plate's two — mark, then the promise, then who
-            runs it. A different composition as well as a different colour, which is what
-            keeps the two doors from reading as one screen recoloured. */}
-        <div className="flex flex-1 flex-col justify-center gap-4">
-          <h2 className="text-title-l text-balance font-semibold">
+        <BrandLockup onDark className="relative h-12" />
+
+        {/* Mark, then the promise, then who runs it — a different composition as well as a
+            different colour from the citizen plate. The hero steps up to display scale
+            because this plate is now the front of house, not a side note. */}
+        <div className="relative flex flex-1 flex-col justify-center gap-4">
+          <h2 className="text-title-l font-semibold tracking-tight text-balance sm:text-display-s">
             Every stage of a case, on one bench.
           </h2>
-          <p className="text-body text-(--rail-muted)">
+          <p className="max-w-md text-body text-(--rail-muted)">
             Secure access for the magistrates, bench clerks, scrutiny officers and
             typists of the Kerala district courts.
           </p>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="relative flex flex-col gap-4">
           {/* The plate stays charcoal in both modes, so the global `hairline` token is
               not suitable here: it becomes a black tint in light mode. The plate's own
               seam is the rule this surface owns. */}
@@ -180,6 +198,7 @@ export function CourtSignInBlock() {
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
+                  autoFocus
                   placeholder="Enter your username"
                   value={username}
                   onChange={(event) => {
