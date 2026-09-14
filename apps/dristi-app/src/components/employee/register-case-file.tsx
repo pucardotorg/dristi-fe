@@ -2,16 +2,13 @@
 
 import * as React from "react";
 import {
-  ArrowLeftIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   EyeIcon,
   FilesIcon,
   SearchXIcon,
 } from "lucide-react";
 
-import { DocumentPreviewActions } from "@/components/cases/document-preview";
-import { PageFacsimile, PageSheet } from "@/components/employee/page-facsimile";
+import { DocumentScroller } from "@/components/employee/document-scroller";
+import { zoneFor, type ZoneRect } from "@/lib/employee/document-zones";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -75,7 +72,11 @@ import { cn } from "@/lib/utils";
 export function CaseFileView({ review }: { review: CaseReview }) {
   const bundle = React.useMemo(() => caseBundleFor(review), [review]);
   const [query, setQuery] = React.useState("");
-  const [selected, setSelected] = React.useState<{ key: string; rowId?: string } | null>(
+  const [selected, setSelected] = React.useState<{
+    key: string;
+    rowId?: string;
+    zone?: ZoneRect | null;
+  } | null>(
     null,
   );
   const [sheetOpen, setSheetOpen] = React.useState(false);
@@ -103,24 +104,21 @@ export function CaseFileView({ review }: { review: CaseReview }) {
     ? [...bundle.docs, ...bundle.absent].filter((doc) => hit(doc.title, needle)).length
     : 0;
 
-  const readFrom = React.useCallback(
-    (key: string) => factsReadFrom(review, key),
-    [review],
-  );
-
-  const show = (key: string | null, rowId?: string) => {
-    setSelected(key ? { key, rowId } : null);
-    if (key && !wide) setSheetOpen(true);
+  const show = (key: string | null, rowId?: string, term?: string) => {
+    if (!key) {
+      setSelected(null);
+      return;
+    }
+    /* The region the scroller marks: where this fact's term sits on that document's kind
+       of page. A term with no fitting zone rings the whole page (`zoneFor` returns null). */
+    const kind = bundle.docs.find((doc) => doc.key === key)?.kind;
+    const zone = term && kind ? zoneFor(kind, term) : null;
+    setSelected({ key, rowId, zone });
+    if (!wide) setSheetOpen(true);
   };
 
   const panel = (
-    <DocumentPanel
-      bundle={bundle}
-      selected={selected}
-      query={needle}
-      readFrom={readFrom}
-      onShow={show}
-    />
+    <DocumentPanel bundle={bundle} selected={selected} query={needle} />
   );
 
   const visibleGroups = groups.map((view) => view.group);
@@ -290,24 +288,6 @@ function groupView(group: CaseGroup, needle: string): GroupView | null {
   return { group, records, facts };
 }
 
-/** Every particular in the file that was read from one document, with its row id. */
-function factsReadFrom(review: CaseReview, key: string): FactItem[] {
-  const out: FactItem[] = [];
-  for (const section of review.sections) {
-    for (const group of section.groups) {
-      for (const record of group.records ?? []) {
-        record.facts.forEach((fact, index) => {
-          if (fact.source === key) out.push({ id: `${group.id}-${record.id}-${index}`, fact });
-        });
-      }
-      (group.facts ?? []).forEach((fact, index) => {
-        if (fact.source === key) out.push({ id: `${group.id}-${index}`, fact });
-      });
-    }
-  }
-  return out;
-}
-
 /** The text with every occurrence of the search marked. */
 function Marked({ text, needle }: { text: string; needle: string }) {
   if (!needle) return <>{text}</>;
@@ -361,7 +341,7 @@ function GroupCard({
   needle: string;
   bundle: CaseBundle;
   selected: { key: string; rowId?: string } | null;
-  onShow: (key: string | null, rowId?: string) => void;
+  onShow: (key: string | null, rowId?: string, term?: string) => void;
 }) {
   const { group } = view;
   const Icon = group.icon;
@@ -511,7 +491,7 @@ type RowProps = {
   needle: string;
   docNo: (key: string) => CaseBundleDoc | undefined;
   selected: { key: string; rowId?: string } | null;
-  onShow: (key: string | null, rowId?: string) => void;
+  onShow: (key: string | null, rowId?: string, term?: string) => void;
 };
 
 /**
@@ -546,7 +526,7 @@ function FactRow({
         source && "cursor-pointer hover:bg-surface-sunken",
         current && "bg-accent hover:bg-accent",
       )}
-      onClick={source ? () => onShow(source.key, id) : undefined}
+      onClick={source ? () => onShow(source.key, id, fact.term) : undefined}
     >
       <DescriptionTerm className="text-body-compact">
         <Marked text={label ?? fact.term} needle={needle} />
@@ -558,7 +538,7 @@ function FactRow({
             title={source.title}
             no={source.no}
             shown={current}
-            onClick={() => onShow(source.key, id)}
+            onClick={() => onShow(source.key, id, fact.term)}
           />
         ) : null}
       </DescriptionDetails>
@@ -718,7 +698,7 @@ function MatrixCell({
         source && "cursor-pointer pr-8 hover:bg-surface-sunken",
         current && "bg-accent hover:bg-accent",
       )}
-      onClick={source && cell ? () => onShow(source.key, cell.id) : undefined}
+      onClick={source && cell ? () => onShow(source.key, cell.id, cell.fact.term) : undefined}
     >
       <span className="w-28 shrink-0 text-muted-foreground @lg:sr-only">{column}</span>
       {cell ? (
@@ -732,7 +712,7 @@ function MatrixCell({
           title={source.title}
           no={source.no}
           shown={current}
-          onClick={() => onShow(source.key, cell.id)}
+          onClick={() => onShow(source.key, cell.id, cell.fact.term)}
         />
       ) : null}
     </DescriptionDetails>
@@ -842,172 +822,55 @@ function ContentsRail({ groups }: { groups: CaseGroup[] }) {
  * place and the panel scrolls, rather than a card below the page being cut off (owner,
  * design review).
  */
+/**
+ * The documents panel — one long scroll of the whole bundle, the scrutiny bundle's
+ * grammar (`document-scroller.tsx`).
+ *
+ * It replaced the thumbnail-list-then-single-page viewer: every filed document is stacked
+ * in the file's order on its own paper sheet, the slots left empty listed as "Not filed"
+ * at the foot, and the column scrolls through all of them (owner, 2026-09-14). A
+ * particular clicked on the file still sets `selected`; the scroller brings that document
+ * to the top and rings it, and the facts read from each page sit under it as captions —
+ * so "which document is this value from" is answered by the page itself lighting up.
+ *
+ * The search narrows the stack to the documents whose title matches, the same box that
+ * narrows the file beside it.
+ */
 function DocumentPanel({
   bundle,
   selected,
   query,
-  readFrom,
-  onShow,
 }: {
   bundle: CaseBundle;
-  selected: { key: string; rowId?: string } | null;
+  selected: { key: string; rowId?: string; zone?: ZoneRect | null } | null;
   query: string;
-  readFrom: (key: string) => FactItem[];
-  onShow: (key: string | null, rowId?: string) => void;
 }) {
-  const doc = selected ? bundle.docs.find((candidate) => candidate.key === selected.key) : undefined;
-
-  if (!doc) {
-    const docs = bundle.docs.filter((candidate) => !query || hit(candidate.title, query));
-    const absent = bundle.absent.filter((candidate) => !query || hit(candidate.title, query));
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-hairline px-6 py-4">
-          <h2 className="text-body font-semibold">Documents</h2>
-          <span className="text-body-compact tabular-nums text-muted-foreground">
-            {bundle.docs.length} filed
-          </span>
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-3">
-          {docs.map((candidate) => (
-            <button
-              key={candidate.key}
-              type="button"
-              onClick={() => onShow(candidate.key)}
-              className="flex min-h-12 items-center gap-3 rounded-lg px-3 py-2 text-start transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-            >
-              <span className="h-8 w-6 shrink-0 overflow-hidden rounded-sm bg-paper ring-1 ring-hairline">
-                <PageFacsimile kind={candidate.kind} />
-              </span>
-              <span className="min-w-0 flex-1 text-body-compact font-medium">
-                <Marked text={candidate.title} needle={query} />
-              </span>
-              <span className="shrink-0 text-body-compact tabular-nums text-muted-foreground">
-                {candidate.no}
-              </span>
-            </button>
-          ))}
-          {docs.length === 0 && absent.length === 0 ? (
-            <p className="px-3 py-3 text-body-compact text-muted-foreground">
-              No document matches.
-            </p>
-          ) : null}
-          {absent.length > 0 ? (
-            <>
-              <p className="px-3 pt-4 pb-1 text-body-compact font-semibold text-muted-foreground">
-                Not filed
-              </p>
-              {absent.map((candidate) => (
-                <p
-                  key={candidate.key}
-                  className="flex min-h-12 items-center gap-3 px-3 text-body-compact text-muted-foreground"
-                >
-                  <span
-                    aria-hidden
-                    className="h-8 w-6 shrink-0 rounded-sm border border-dashed border-input"
-                  />
-                  <Marked text={candidate.title} needle={query} />
-                </p>
-              ))}
-            </>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  const index = bundle.docs.indexOf(doc);
-  const previous = bundle.docs[index - 1];
-  const next = bundle.docs[index + 1];
-  const facts = readFrom(doc.key);
-  const page = (
-    <div className="mx-auto aspect-[3/4] w-full max-w-sm overflow-hidden rounded-md bg-paper ring-1 ring-hairline">
-      <PageSheet kind={doc.kind} />
-    </div>
+  const docs = bundle.docs.filter((candidate) => !query || hit(candidate.title, query));
+  const absent = bundle.absent.filter(
+    (candidate) => !query || hit(candidate.title, query),
   );
 
   return (
-    <div className="@container flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-1 border-b border-hairline px-4 py-2">
-        {/* In a phone's sheet the bar holds four controls in a narrow width; the way back
-            keeps its arrow and says its name to a screen reader, and shows the name once
-            there is room for it. */}
-        <Button type="button" variant="ghost" className="-ms-1" onClick={() => onShow(null)}>
-          <ArrowLeftIcon aria-hidden />
-          <span className="sr-only @xs:not-sr-only">All documents</span>
-        </Button>
-        <span className="ms-auto text-body-compact whitespace-nowrap tabular-nums text-muted-foreground">
-          {doc.no} of {bundle.docs.length}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-hairline px-6 py-4">
+        <h2 className="text-body font-semibold">Documents</h2>
+        <span className="text-body-compact tabular-nums text-muted-foreground">
+          {bundle.docs.length} filed
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled={!previous}
-          aria-label={previous ? `Previous: ${previous.title}` : "No previous document"}
-          onClick={() => previous && onShow(previous.key)}
-        >
-          <ChevronLeftIcon aria-hidden />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled={!next}
-          aria-label={next ? `Next: ${next.title}` : "No next document"}
-          onClick={() => next && onShow(next.key)}
-        >
-          <ChevronRightIcon aria-hidden />
-        </Button>
       </div>
-
-      {/* Keyed on the document, so stepping to the next one starts at its top. */}
-      <div
-        key={doc.key}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain animate-in fade-in-0 duration-200 motion-reduce:animate-none"
-      >
-        <section aria-label={doc.title} className="flex flex-col gap-6 px-6 py-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="min-w-0 text-body font-semibold">{doc.title}</h2>
-            <DocumentPreviewActions
-              iconOnly
-              title={doc.title}
-              source={{ kind: "composed", content: page }}
-              className="-my-2 shrink-0"
-            />
-          </div>
-
-          {page}
-
-          {facts.length > 0 ? (
-            <div className="flex flex-col gap-3 border-t border-hairline pt-6">
-              <h3 className="text-body-compact font-semibold">Read from this page</h3>
-              <DescriptionList className="[&>*:not(:last-child)]:border-b [&>*:not(:last-child)]:border-hairline">
-                {facts.map(({ id, fact }) => (
-                  <DescriptionRow
-                    key={id}
-                    className={cn(
-                      "-mx-2 grid-cols-1 gap-0.5 rounded-md border-0 px-2 py-2.5 transition-colors @sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] @sm:gap-4",
-                      selected?.rowId === id && "bg-accent",
-                    )}
-                  >
-                    <DescriptionTerm className="text-body-compact">{fact.term}</DescriptionTerm>
-                    <DescriptionDetails
-                      className={cn(
-                        "min-w-0 text-body-compact break-words whitespace-pre-line",
-                        !fact.value && "text-muted-foreground",
-                        fact.numeric && "tabular-nums",
-                      )}
-                    >
-                      {fact.value ?? "Not provided"}
-                    </DescriptionDetails>
-                  </DescriptionRow>
-                ))}
-              </DescriptionList>
-            </div>
-          ) : null}
-        </section>
-      </div>
+      {docs.length === 0 && absent.length === 0 ? (
+        <p className="px-6 py-4 text-body-compact text-muted-foreground">
+          No document matches.
+        </p>
+      ) : (
+        <DocumentScroller
+          docs={docs}
+          absent={absent}
+          active={
+            selected ? { doc: selected.key, zone: selected.zone ?? null } : null
+          }
+        />
+      )}
     </div>
   );
 }

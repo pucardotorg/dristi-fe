@@ -9,6 +9,10 @@ import {
 } from "lucide-react";
 
 import { APPROVE_COPY_QUEUE_COUNT } from "./approve-copy-application";
+import {
+  COGNIZANCE_QUEUE_COUNT,
+  cognizanceCaseById,
+} from "./cognizance";
 import { DELAY_CONDONATION_QUEUE_COUNT } from "./delay-condonation";
 import { hearingById, TODAYS_HEARING_COUNT } from "./hearings";
 import { OTHER_APPLICATIONS_QUEUE_COUNT } from "./other-applications";
@@ -36,9 +40,9 @@ import { WITNESS_DEPOSITION_QUEUE_COUNT } from "./sign-witness-deposition";
  * not markup: the rail renders whatever is here, so a row's destination, its count or
  * its position is a change to this file rather than to a component.
  *
- * **Most of it is not wired yet.** The three Hearings rows, all four Actions rows —
- * Scrutinise submitted cases, Register cases, Approve copy application and Register
- * advocates — all three Review applications rows —
+ * **Most of it is not wired yet.** The three Hearings rows, all five Actions rows —
+ * Scrutinise submitted cases, Register cases, Take cognizance, Approve copy application
+ * and Register advocates — all three Review applications rows —
  * Rescheduling request, Delay condonation and Others — and all seven of the Sign rows —
  * Sign forms, Sign orders, Sign process, Sign bail bonds, Sign witness deposition, Sign
  * evidence and Sign A-Diary — have an `href`, and they point at the court-side routes
@@ -51,7 +55,8 @@ import { WITNESS_DEPOSITION_QUEUE_COUNT } from "./sign-witness-deposition";
  * decides how a row truncates). None of these labels describes an action this build
  * performs. The exceptions are the built rows whose counts are derived from the lists
  * they lead to (`lib/employee/hearings.ts`, `lib/employee/schedule.ts`,
- * `lib/employee/register-cases.ts`, `lib/employee/approve-copy-application.ts`,
+ * `lib/employee/register-cases.ts`, `lib/employee/cognizance.ts`,
+ * `lib/employee/approve-copy-application.ts`,
  * `lib/employee/approve-registrations.ts`,
  * `lib/employee/rescheduling-request.ts`,
  * `lib/employee/delay-condonation.ts`, `lib/employee/other-applications.ts`,
@@ -173,6 +178,22 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
         label: "Register cases",
         href: "/employee/register-cases",
         count: REGISTER_QUEUE_COUNT,
+      },
+      /* Straight after the register, because that is the order a complaint meets them:
+         the registry numbers it, and hours later the magistrate decides whether the case
+         goes ahead. Registering is not taking cognizance — it puts the complaint on the
+         register and nothing more, and this row is the act that follows.
+
+         One row, not two. The reference split this queue into *With Delay* and *Without
+         delay* as two counted children opening two screens that differed by three lines.
+         Whether a complaint was late changes nothing about how cognizance is taken — the
+         condonation application came with it either way — so delay narrows the one list
+         instead of forking the rail (owner, 2026-09-14). */
+      {
+        id: "cognizance",
+        label: "Take cognizance",
+        href: "/employee/cognizance",
+        count: COGNIZANCE_QUEUE_COUNT,
       },
       {
         id: "approve-copy",
@@ -375,6 +396,11 @@ const NESTED_ROUTES: {
     queue: "/employee/register-cases",
     pattern: /^\/employee\/register-cases\/([^/]+)\/?$/,
     identify: (id) => registerCaseById(id)?.caseNumber,
+  },
+  {
+    queue: "/employee/cognizance",
+    pattern: /^\/employee\/cognizance\/([^/]+)\/?$/,
+    identify: (id) => cognizanceCaseById(id)?.caseNumber,
   },
 ];
 

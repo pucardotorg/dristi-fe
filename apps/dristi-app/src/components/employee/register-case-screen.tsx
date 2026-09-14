@@ -1231,7 +1231,7 @@ function ActBody({
           <p className="text-body-compact text-pretty">
             {settled
               ? "The complaint is on the register. It appears in the court's case list from today."
-              : "Registering takes cognizance of the complaint. It cannot be undone from this screen."}
+              : "Registering puts the complaint on the register and gives it a number. Taking cognizance is a separate act, and it comes after. It cannot be undone from this screen."}
           </p>
         )}
 
