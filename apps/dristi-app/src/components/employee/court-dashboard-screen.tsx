@@ -1,10 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRightIcon } from "lucide-react";
+import {
+  CalendarClockIcon,
+  ChevronRightIcon,
+  GavelIcon,
+  LandmarkIcon,
+  LockIcon,
+  PauseIcon,
+  SendIcon,
+  TimerIcon,
+  type LucideIcon,
+} from "lucide-react";
 
 import { useCourtSession } from "@/components/employee/use-court-role";
 import { useCourtToday } from "@/components/employee/use-court-today";
+import { PANEL_CLASS } from "@/components/shell/panel";
 import {
   COURT_CASE_COUNT,
   COURT_PRIORITIES,
@@ -13,54 +24,58 @@ import {
   courtPriorityCount,
   courtStageSpread,
   oldestCourtCase,
+  type CourtPriorityId,
 } from "@/lib/employee/cases";
-import {
-  COURT_CASES_PAGE,
-  courtWaitingQueues,
-} from "@/lib/employee/navigation";
 import { formatCourtDay, TODAYS_HEARING_COUNT } from "@/lib/employee/hearings";
+import { COURT_CASES_PAGE, courtWaitingGroups } from "@/lib/employee/navigation";
 import { cn } from "@/lib/utils";
 
 /**
  * `/employee` — this court's health check.
  *
- * ## What it is, after two rejected versions
+ * ## Craft brief (owner, 2026-09-14, third pass)
  *
- * v1 was six count cards in a band over the register, each card a filter. v2 made the
- * filter a single-select list beside the register, which fixed the feedback but kept the
- * two things on one screen. The owner rejected the premise on 2026-09-14: *"a dashboard
- * is more of a health check — that is the intent of a dashboard, and it should look like
- * a dashboard also. By mixing these two we are complicating things for ourselves."*
+ * The information and the intent were right; the composition was not — *"it looks badly
+ * crafted, no UI sensibility, I want better chunking, layering, use of space and
+ * typography."* Fair. v2 was eight equal boxes on the canvas at one elevation, a flat
+ * two-column list of sixteen queues, and a bar chart with an orphan paragraph under it.
+ * Every block had the same weight, so nothing led.
  *
- * Which is the right call, and it dissolves the problem rather than solving it. A health
- * check answers **how is this court doing**; a register answers **where is that file**.
- * Those are different questions, they want different forms, and the screen that tried to
- * be both had to compromise on each — which is why the card could never carry its own
- * pressed state.
+ * This pass composes rather than lists, on four moves:
  *
- * So: no list on this screen, and nothing here is a filter. Every number is a link to
- * the screen that holds the work, and **navigation is the feedback** — the whole page
- * changes, which is the strongest answer a press can get and the one thing the filtering
- * versions could not produce.
+ * 1. **Three depths, not one.** Canvas (beige) → panels (white, raised) → wells
+ *    (`surface-sunken`) for the one highlighted stat. The six priority tiles are the only
+ *    things that lift on hover, because they are the only things you act on; the two
+ *    reference panels sit still.
+ * 2. **A hero number per priority.** Each tile is a stat, not a box: a `display-s` count
+ *    is the loudest thing on the card, an identity mark sits above it, the label names it
+ *    below, and the numbers align across the row because the mark row is a fixed height.
+ * 3. **The workload keeps the rail's four groups.** v2 flattened sixteen queues into two
+ *    columns of `label … number`, which is a spreadsheet. Here they stay Hearings /
+ *    Actions / Review / Sign — four columns, each under its own mark and sub-total, the
+ *    way the bench already files the work.
+ * 4. **The pipeline is a figure, not a list with a tail.** Bars left, the oldest case as
+ *    a proper sunken stat well to their right, on one baseline.
  *
- * ## The three questions it answers
+ * ## What is on it, and what is deliberately not
  *
- * 1. **Needs attention** — the six statutory and administrative categories from the
- *    owner's Gujarat field visit. Judges there asked for exactly these and explicitly did
- *    *not* want general analytics on their primary landing screen; this is not that
- *    screen (the day's cause list is), which is what makes the rest of the board fair
- *    game. Each tile opens the register already narrowed to its category.
- * 2. **Waiting on this court** — how much sits in every built queue, read straight out
- *    of the rail's own data so the two can never disagree. It earns its place because the
- *    rail's four groups are collapsed by default: every one of these counts is otherwise
- *    behind a click.
- * 3. **Where the cases stand** — the register by stage, in pipeline order, with the
- *    oldest file on it. This is the one broad number on the board, and it is the one a
- *    magistrate can actually act on: nine cases stuck at cognizance is a diagnosis.
- *
- * There is no disposal rate, no month-on-month, and no chart of anything the bench cannot
- * do something about this morning.
+ * The six categories come from the owner's Gujarat field visit; judges there asked for
+ * these and explicitly did not want general analytics on their landing screen. This is not
+ * that screen — the day's cause list is — so the pipeline and the workload are fair, but
+ * there is still no disposal rate and no month-on-month: only numbers the bench can act on
+ * this morning. Every number is a link to the work behind it, and navigating there is the
+ * feedback — the whole screen changes, which no in-place filter could match.
  */
+
+const PRIORITY_ICON: Record<CourtPriorityId, LucideIcon> = {
+  "pending-cognizance": GavelIcon,
+  utp: LockIcon,
+  stayed: PauseIcon,
+  "time-bound": TimerIcon,
+  "appellate-pending": LandmarkIcon,
+  "process-pending": SendIcon,
+};
+
 export function CourtDashboardScreen() {
   const today = useCourtToday();
   /* The bench this staff member signed in to. The board says it because every order and
@@ -68,7 +83,7 @@ export function CourtDashboardScreen() {
      foot, which is `sr-only` when the rail is folded. */
   const { court } = useCourtSession();
 
-  const waiting = courtWaitingQueues();
+  const groups = courtWaitingGroups();
   const spread = courtStageSpread();
   const oldest = oldestCourtCase();
   /* One scale for all seven bars, anchored on the busiest stage — a bar chart's whole
@@ -76,24 +91,43 @@ export function CourtDashboardScreen() {
   const busiest = Math.max(...spread.map((entry) => entry.count), 1);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
-          Dashboard
-        </h1>
-        {/* Which bench, which day, and what is on it — one line, because the day's
-            sitting is where signing in lands and where the rail opens. The board must
-            not repeat that screen as a panel of its own; it owes it a way back, and the
-            count is the way back. */}
-        <p className="text-body text-muted-foreground">
-          {court} · {formatCourtDay(today)} ·{" "}
-          <Link
-            href="/employee/hearings"
-            className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
-          >
-            {TODAYS_HEARING_COUNT} matters listed today
-          </Link>
-        </p>
+    <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-title text-balance font-semibold sm:text-title-l">
+            Dashboard
+          </h1>
+          <p className="text-body text-muted-foreground">
+            {court} · {formatCourtDay(today)}
+          </p>
+        </div>
+
+        {/* The one time-bound thing on the board, and the screen signing in lands on, so
+            it is a way back to it rather than a panel repeating it. Given its own small
+            lifted card in the header so "today" reads before the standing counts do. */}
+        <Link
+          href="/employee/hearings"
+          className={cn(
+            PANEL_CLASS,
+            "group flex shrink-0 items-center gap-3 rounded-xl bg-card p-3 pr-4 transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none",
+          )}
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-muted text-brand-muted-foreground">
+            <CalendarClockIcon aria-hidden className="size-5" />
+          </span>
+          <span className="flex flex-col">
+            <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">
+              Today&rsquo;s sitting
+            </span>
+            <span className="text-body font-semibold tabular-nums">
+              {TODAYS_HEARING_COUNT} matters listed
+            </span>
+          </span>
+          <ChevronRightIcon
+            aria-hidden
+            className="ml-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+          />
+        </Link>
       </header>
 
       <section aria-labelledby="court-attention" className="flex flex-col gap-4">
@@ -103,99 +137,108 @@ export function CourtDashboardScreen() {
           </h2>
           <p className="text-body-compact text-muted-foreground">
             The matters this court must act on first. Each opens the register,
-            narrowed.
+            narrowed to it.
           </p>
         </div>
 
-        {/* Two across on a phone, three from `md`, all six on one band from `xl`. Never
-            one per row: six full-width tiles would be a screen of its own before the
-            board had said anything else. */}
         <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-          {COURT_PRIORITIES.map((priority) => {
-            const count = courtPriorityCount(priority);
-            return (
-              <li key={priority.id} className="flex">
-                <PriorityTile
-                  label={priority.tile}
-                  count={count}
-                  href={`${COURT_CASES_PAGE.href}?priority=${priority.id}`}
-                />
-              </li>
-            );
-          })}
+          {COURT_PRIORITIES.map((priority) => (
+            <li key={priority.id} className="flex">
+              <PriorityTile
+                icon={PRIORITY_ICON[priority.id]}
+                label={priority.tile}
+                count={courtPriorityCount(priority)}
+                href={`${COURT_CASES_PAGE.href}?priority=${priority.id}`}
+              />
+            </li>
+          ))}
         </ul>
       </section>
 
-      <div className="grid min-w-0 gap-6 xl:grid-cols-2">
-        <section
-          aria-labelledby="court-waiting"
-          className="flex min-w-0 flex-col gap-4 rounded-xl border border-hairline bg-card p-6 shadow-raised"
-        >
-          <div className="flex flex-col gap-1">
-            <h2 id="court-waiting" className="text-title-s font-semibold">
-              Waiting on this court
-            </h2>
-            <p className="text-body-compact text-muted-foreground">
-              Every queue with work in it, and how much.
-            </p>
-          </div>
+      <section
+        aria-labelledby="court-waiting"
+        className={cn(PANEL_CLASS, "flex flex-col gap-6 rounded-xl bg-card p-6")}
+      >
+        <div className="flex flex-col gap-1">
+          <h2 id="court-waiting" className="text-title-s font-semibold">
+            Waiting on this court
+          </h2>
+          <p className="text-body-compact text-muted-foreground">
+            Every queue with work in it, in the four kinds the rail groups them by.
+          </p>
+        </div>
 
-          {/* Two columns inside the panel from `sm`: sixteen rows in one column is a
-              panel twice the height of the one beside it. */}
-          <ul className="grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
-            {waiting.map((queue) => (
-              <li key={queue.id} className="min-w-0">
-                <Link
-                  href={queue.href}
-                  className="group/queue flex min-h-10 items-center justify-between gap-4 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none"
-                >
-                  <span className="min-w-0 text-body-compact">
-                    {queue.label}
+        <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
+          {groups.map((group) => {
+            const GroupIcon = group.icon;
+            return (
+              <div key={group.id} className="flex min-w-0 flex-col gap-1">
+                {/* The group's mark and its sub-total, over a hairline that chunks the
+                    column without a box around it. */}
+                <div className="flex items-center gap-2 border-b border-hairline pb-2">
+                  <GroupIcon aria-hidden className="size-4 text-muted-foreground" />
+                  <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">
+                    {group.label}
                   </span>
-                  <span className="shrink-0 text-body-compact font-semibold tabular-nums">
-                    {queue.count}
+                  <span className="ml-auto text-caption font-semibold text-muted-foreground tabular-nums">
+                    {group.total}
                   </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
+                </div>
 
-        <section
-          aria-labelledby="court-spread"
-          className="flex min-w-0 flex-col gap-4 rounded-xl border border-hairline bg-card p-6 shadow-raised"
-        >
-          <div className="flex flex-col gap-1">
-            <h2 id="court-spread" className="text-title-s font-semibold">
-              Where the cases stand
-            </h2>
-            <p className="text-body-compact text-muted-foreground">
-              All {COURT_CASE_COUNT} cases on the file, by the stage they have
-              reached.
-            </p>
-          </div>
+                <ul className="flex flex-col">
+                  {group.items.map((queue) => (
+                    <li key={queue.id}>
+                      <Link
+                        href={queue.href}
+                        className="group/row -mx-2 flex min-h-9 items-center justify-between gap-3 rounded-md px-2 transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none"
+                      >
+                        <span className="min-w-0 truncate text-body-compact">
+                          {queue.label}
+                        </span>
+                        <span className="shrink-0 text-body-compact font-semibold tabular-nums">
+                          {queue.count}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
-          {/* One series, so no legend — the heading names it. Every row prints its own
-              label and its own number, so nothing here is carried by colour alone, and
-              the rows are their own table view. Pipeline order, never sorted by size:
-              the order is the information. */}
-          <ul className="flex flex-col gap-2">
+      <section
+        aria-labelledby="court-spread"
+        className={cn(PANEL_CLASS, "flex flex-col gap-6 rounded-xl bg-card p-6")}
+      >
+        <div className="flex flex-col gap-1">
+          <h2 id="court-spread" className="text-title-s font-semibold">
+            Where the cases stand
+          </h2>
+          <p className="text-body-compact text-muted-foreground">
+            All {COURT_CASE_COUNT} cases on the file, by the stage they have reached.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch">
+          {/* One series, so one hue and no legend — the heading names it. Every row
+              prints its own label and count, so the rows are their own table view and
+              nothing is carried by colour alone. Pipeline order, never sorted by size:
+              the order is the diagnosis. */}
+          <ul className="flex min-w-0 flex-1 flex-col gap-3">
             {spread.map((entry) => (
-              <li key={entry.stage} className="flex items-center gap-3">
+              <li key={entry.stage} className="flex items-center gap-4">
                 <span className="w-24 shrink-0 text-body-compact text-muted-foreground">
                   {entry.label}
                 </span>
-                {/* The plot. Bars grow from one shared baseline, 8px thick with a 4px
-                    rounded data-end and a square start, on no track — a track would
-                    turn seven comparable lengths into seven separate meters. */}
                 <span aria-hidden className="flex min-w-0 flex-1 items-center">
-                  <span
-                    className={cn(
-                      "h-2 rounded-r-sm bg-brand-accent",
-                      entry.count === 0 && "hidden",
-                    )}
-                    style={{ width: `${(entry.count / busiest) * 100}%` }}
-                  />
+                  {entry.count > 0 ? (
+                    <span
+                      className="h-2.5 rounded-r-sm bg-brand-accent"
+                      style={{ width: `${(entry.count / busiest) * 100}%` }}
+                    />
+                  ) : null}
                 </span>
                 <span className="w-6 shrink-0 text-right text-body-compact font-semibold tabular-nums">
                   {entry.count}
@@ -205,75 +248,108 @@ export function CourtDashboardScreen() {
           </ul>
 
           {oldest ? (
-            <p className="text-body-compact text-muted-foreground">
-              Oldest on the file:{" "}
-              <span className="font-medium text-foreground">
+            <div className="flex flex-col gap-1 rounded-lg border border-hairline bg-surface-sunken p-4 lg:w-64 lg:shrink-0">
+              <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">
+                Oldest on file
+              </span>
+              <span className="text-title-s font-semibold tabular-nums">
+                {courtCaseAge(oldest.registeredDaysAgo)}
+              </span>
+              <span className="text-body-compact font-medium tabular-nums">
                 {oldest.caseNumber}
-              </span>{" "}
-              — {courtCaseTitle(oldest)}, {courtCaseAge(oldest.registeredDaysAgo)}{" "}
-              old.
-            </p>
+              </span>
+              <span className="text-body-compact text-muted-foreground">
+                {courtCaseTitle(oldest)}
+              </span>
+            </div>
           ) : null}
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
 
 /**
- * One category: what it is, how many are in it, and a way into them.
+ * One priority category as a stat: an identity mark, the count as the hero, the name
+ * below it.
  *
- * **A link, not a toggle.** This is the whole of the redesign in one component. The
- * pressable version had to signal its own state from a card that also had to stay
- * readable as a fact, and it could not — the advocate side's Pending tasks proves it, by
- * having to draw the pressed kind a second time as a chip in the filter row. A link has
- * no state to signal: it goes somewhere, and arriving is the feedback.
+ * **A link, not a toggle** — the whole of the redesign that got here. A pressable card had
+ * to signal its own state from a surface that also had to stay readable as a fact, and it
+ * could not; a link has no state to signal, so arriving is the feedback.
  *
- * Name first, count under it, arrow bottom-right. The name is what the eye uses to find
- * the tile and the number is what it came for; the name gets a whole row because at two
- * tiles across on a phone there is not enough width to share one with anything.
- *
- * A category with nothing in it is not a link. Zero is a real and useful answer — no one
- * in custody today — and the standing six are the court's standing six whatever today
- * holds; what a zero tile must not be is a door onto an empty table.
+ * The mark sits in its own row so the numbers line up across all six tiles whatever the
+ * label length, and the label wraps downward under a number that never moves. A category
+ * with nothing in it is not a link and not a hero: the count goes muted, the chevron and
+ * the lift are gone, and it recedes to context — which is the honest weight of "no one in
+ * custody today".
  */
 function PriorityTile({
+  icon: Icon,
   label,
   count,
   href,
 }: {
+  icon: LucideIcon;
   label: string;
   count: number;
   href: string;
 }) {
-  const shell =
-    "flex w-full flex-col gap-3 rounded-xl border border-hairline bg-card p-4 shadow-raised";
+  const empty = count === 0;
+  const shell = cn(
+    PANEL_CLASS,
+    "flex h-full w-full flex-col gap-3 rounded-xl bg-card p-4",
+  );
+  const body = (
+    <>
+      <span className="flex items-center justify-between">
+        <span
+          className={cn(
+            "flex size-9 items-center justify-center rounded-lg bg-surface-sunken",
+            empty ? "text-muted-foreground/70" : "text-muted-foreground",
+          )}
+        >
+          <Icon aria-hidden className="size-5" />
+        </span>
+        {empty ? null : (
+          <ChevronRightIcon
+            aria-hidden
+            className="size-4 text-muted-foreground opacity-0 transition-all group-hover/tile:translate-x-0.5 group-hover/tile:opacity-100"
+          />
+        )}
+      </span>
+      <span className="flex flex-col gap-1">
+        <span
+          className={cn(
+            "text-display-s font-semibold tracking-tight tabular-nums",
+            empty && "text-muted-foreground",
+          )}
+        >
+          {count}
+        </span>
+        {/* Two lines reserved: most labels wrap to two at tile width and a few
+            ("Stayed", "Time-bound") do not, and without the reserve the short ones
+            leave the stretched card empty at the foot. */}
+        <span className="min-h-10 text-body-compact font-medium text-muted-foreground">
+          {label}
+        </span>
+      </span>
+    </>
+  );
 
-  if (count === 0) {
-    return (
-      <div className={cn(shell, "text-muted-foreground")}>
-        <span className="text-body-compact font-medium">{label}</span>
-        <span className="text-title-l font-semibold tabular-nums">{count}</span>
-      </div>
-    );
+  if (empty) {
+    return <div className={shell}>{body}</div>;
   }
 
   return (
     <Link
       href={href}
+      aria-label={`${label}: ${count} ${count === 1 ? "case" : "cases"}`}
       className={cn(
         shell,
-        "group/tile transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none",
+        "group/tile transition-all hover:bg-accent hover:shadow-overlay focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none",
       )}
     >
-      <span className="text-body-compact font-medium">{label}</span>
-      <div className="flex items-end justify-between gap-3">
-        <span className="text-title-l font-semibold tabular-nums">{count}</span>
-        <ArrowRightIcon
-          aria-hidden
-          className="mb-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover/tile:translate-x-0.5"
-        />
-      </div>
+      {body}
     </Link>
   );
 }

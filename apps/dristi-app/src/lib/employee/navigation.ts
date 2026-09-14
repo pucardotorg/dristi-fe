@@ -509,27 +509,41 @@ export function courtTrail(pathname: string): CourtCrumb[] {
 }
 
 
-/**
- * Every queue with work waiting in it, flattened out of the rail's own groups.
- *
- * The dashboard's "Waiting on this court" panel reads this rather than importing sixteen
- * count constants of its own, so the panel and the rail can never disagree about how much
- * is in a queue. It is also why the panel is worth having at all: the rail's four groups
- * are collapsed by default, so every one of these counts is otherwise behind a click.
- *
- * Only rows that are **built and populated** — a row with no `href` goes nowhere, and a
- * row at zero is not waiting on anybody. The group each row came from rides along, so the
- * panel can say which kind of work it is without re-deriving it.
- */
-export function courtWaitingQueues(): {
+/** One queue with work waiting in it. */
+export type CourtWaitingItem = {
   id: string;
   label: string;
   href: string;
   count: number;
-  group: string;
-}[] {
-  return COURT_NAV_GROUPS.flatMap((group) =>
-    group.items
+};
+
+/** A rail group and the built, non-empty queues under it. */
+export type CourtWaitingGroup = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  /** Everything waiting in this group, so the dashboard can print a sub-total. */
+  total: number;
+  items: CourtWaitingItem[];
+};
+
+/**
+ * What is waiting on this court, kept in the rail's own four groups.
+ *
+ * The dashboard's "Waiting on this court" panel reads this rather than importing sixteen
+ * count constants of its own, so the panel and the rail can never disagree about how much
+ * is in a queue. It keeps the grouping — Hearings, Actions, Review, Sign — because that
+ * is how the bench already thinks about its work, and because the rail's groups are
+ * collapsed by default, so laying the four out at once is the whole reason the panel earns
+ * its place. The group's mark rides along so the panel and the rail wear the same icon.
+ *
+ * Only rows that are **built and populated** survive: a row with no `href` goes nowhere,
+ * a row at zero is waiting on nobody, and a group with nothing left in it is dropped
+ * whole rather than printed as an empty heading.
+ */
+export function courtWaitingGroups(): CourtWaitingGroup[] {
+  return COURT_NAV_GROUPS.map((group) => {
+    const items = group.items
       .filter(
         (item): item is CourtNavItem & { href: string; count: number } =>
           Boolean(item.href) && typeof item.count === "number" && item.count > 0,
@@ -539,7 +553,13 @@ export function courtWaitingQueues(): {
         label: item.label,
         href: item.href,
         count: item.count,
-        group: group.label,
-      })),
-  );
+      }));
+    return {
+      id: group.id,
+      label: group.label,
+      icon: group.icon,
+      total: items.reduce((sum, item) => sum + item.count, 0),
+      items,
+    };
+  }).filter((group) => group.items.length > 0);
 }

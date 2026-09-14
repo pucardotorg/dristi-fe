@@ -7,7 +7,7 @@ import {
   COURT_NAV_GROUPS,
   COURT_NAV_LINKS,
   courtTrail,
-  courtWaitingQueues,
+  courtWaitingGroups,
   isCourtNavActive,
 } from "./navigation";
 
@@ -179,26 +179,38 @@ describe("the court's standalone rows", () => {
   });
 });
 
-describe("courtWaitingQueues", () => {
-  it("offers only queues that are built and have work in them", () => {
-    const queues = courtWaitingQueues();
-    assert.ok(queues.length > 0);
-    for (const queue of queues) {
-      assert.ok(queue.href, `${queue.id} has no destination`);
-      assert.ok(queue.count > 0, `${queue.id} is empty and still listed`);
-      assert.ok(queue.group, `${queue.id} does not say which work it is`);
+describe("courtWaitingGroups", () => {
+  it("keeps the rail's groups, and only built, non-empty queues in them", () => {
+    const groups = courtWaitingGroups();
+    assert.ok(groups.length > 0);
+    for (const group of groups) {
+      assert.ok(group.label, `${group.id} has no label`);
+      assert.ok(group.icon, `${group.id} has no mark`);
+      assert.ok(group.items.length > 0, `${group.id} is an empty heading`);
+      for (const queue of group.items) {
+        assert.ok(queue.href, `${queue.id} has no destination`);
+        assert.ok(queue.count > 0, `${queue.id} is empty and still listed`);
+      }
+    }
+  });
+
+  it("totals each group from its own rows", () => {
+    for (const group of courtWaitingGroups()) {
+      const sum = group.items.reduce((total, item) => total + item.count, 0);
+      assert.equal(group.total, sum, `${group.id} total disagrees with its rows`);
     }
   });
 
   /* The panel reads the rail's own data so the two cannot disagree about a queue. */
-  it("takes its label and count from the rail's own row", () => {
-    for (const queue of courtWaitingQueues()) {
-      const row = COURT_NAV_GROUPS.flatMap((group) => group.items).find(
-        (item) => item.id === queue.id,
-      );
-      assert.ok(row);
-      assert.equal(queue.label, row.label);
-      assert.equal(queue.count, row.count);
+  it("takes each row's label and count from the rail's own row", () => {
+    const rows = COURT_NAV_GROUPS.flatMap((group) => group.items);
+    for (const group of courtWaitingGroups()) {
+      for (const queue of group.items) {
+        const row = rows.find((item) => item.id === queue.id);
+        assert.ok(row);
+        assert.equal(queue.label, row.label);
+        assert.equal(queue.count, row.count);
+      }
     }
   });
 });
