@@ -6,9 +6,12 @@ import {
   COURT_CASE_FLAG_LABEL,
   COURT_CASES,
   COURT_PRIORITIES,
+  courtCaseAge,
   courtCaseTitle,
   courtPriorityById,
   courtPriorityCount,
+  courtStageSpread,
+  oldestCourtCase,
   EMPTY_COURT_CASE_FILTERS,
   filterCourtCases,
   hasCourtCaseFilters,
@@ -16,7 +19,7 @@ import {
   registeredDay,
   type CourtCaseFlag,
 } from "./cases";
-import { CAUSE_LIST, causeTitle } from "./hearings";
+import { CAUSE_LIST, causeTitle, COURT_CASE_STAGES } from "./hearings";
 
 const TODAY = "2026-09-14";
 
@@ -207,5 +210,53 @@ describe("filtering the register", () => {
       rows.length <=
         filterCourtCases({ ...EMPTY_COURT_CASE_FILTERS, priority: "stayed" }).length,
     );
+  });
+});
+
+describe("the court's health check", () => {
+  it("spreads every case across the stages, in pipeline order", () => {
+    const spread = courtStageSpread();
+    assert.deepEqual(
+      spread.map((entry) => entry.stage),
+      COURT_CASE_STAGES.map((stage) => stage.id),
+      "the bars are not in the order a case moves through them",
+    );
+    assert.equal(
+      spread.reduce((total, entry) => total + entry.count, 0),
+      COURT_CASE_COUNT,
+      "the stages do not account for every case",
+    );
+    for (const entry of spread) {
+      assert.ok(entry.label, `${entry.stage} has no label`);
+    }
+  });
+
+  it("names the oldest case on the file", () => {
+    const oldest = oldestCourtCase();
+    assert.ok(oldest);
+    for (const record of COURT_CASES) {
+      assert.ok(record.registeredDaysAgo <= oldest.registeredDaysAgo);
+    }
+  });
+
+  it("has no oldest case in an empty register", () => {
+    assert.equal(oldestCourtCase([]), undefined);
+  });
+
+  /* The unit a court would say out loud, and never a zero second unit. */
+  it("says an age in the unit that fits it", () => {
+    assert.equal(courtCaseAge(1), "1 day");
+    assert.equal(courtCaseAge(18), "18 days");
+    assert.equal(courtCaseAge(30), "30 days");
+    assert.equal(courtCaseAge(61), "2 months");
+    assert.equal(courtCaseAge(365), "1 year");
+    assert.equal(courtCaseAge(420), "1 year 1 month");
+    assert.equal(courtCaseAge(800), "2 years 2 months");
+    for (const days of [365, 730, 1095]) {
+      assert.ok(
+        !courtCaseAge(days).includes("0 month"),
+        `${days} days reads with a zero second unit`,
+      );
+    }
   });
 });

@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { COURT_DASHBOARD, courtTrail, isCourtNavActive } from "./navigation";
+import {
+  COURT_CASES_PAGE,
+  COURT_DASHBOARD,
+  COURT_NAV_GROUPS,
+  COURT_NAV_LINKS,
+  courtTrail,
+  courtWaitingQueues,
+  isCourtNavActive,
+} from "./navigation";
 
 /**
  * Two contracts, set a day apart.
@@ -144,6 +152,53 @@ describe("courtTrail", () => {
       const trail = courtTrail(path);
       assert.ok(trail.length > 1, path);
       assert.equal(trail.at(-1)?.href, undefined, path);
+    }
+  });
+});
+
+describe("the court's standalone rows", () => {
+  /* Both were dead external rows transcribed from the reference. Both are built now, and
+     they stay two rows: a health check and a register are two questions. */
+  it("are the dashboard and the register, both internal and both built", () => {
+    assert.deepEqual(
+      COURT_NAV_LINKS.map((row) => row.href),
+      [COURT_DASHBOARD.href, COURT_CASES_PAGE.href],
+    );
+    for (const row of COURT_NAV_LINKS) {
+      assert.ok(row.href, `${row.id} still goes nowhere`);
+      assert.equal(row.external, undefined, `${row.id} still leaves the app`);
+      /* The rail paints its counts in destructive red, and neither of these numbers is
+         a backlog. */
+      assert.equal(row.count, undefined, `${row.id} carries a count`);
+    }
+  });
+
+  it("carry no trail, because nothing nests under them", () => {
+    assert.deepEqual(courtTrail(COURT_DASHBOARD.href), []);
+    assert.deepEqual(courtTrail(COURT_CASES_PAGE.href), []);
+  });
+});
+
+describe("courtWaitingQueues", () => {
+  it("offers only queues that are built and have work in them", () => {
+    const queues = courtWaitingQueues();
+    assert.ok(queues.length > 0);
+    for (const queue of queues) {
+      assert.ok(queue.href, `${queue.id} has no destination`);
+      assert.ok(queue.count > 0, `${queue.id} is empty and still listed`);
+      assert.ok(queue.group, `${queue.id} does not say which work it is`);
+    }
+  });
+
+  /* The panel reads the rail's own data so the two cannot disagree about a queue. */
+  it("takes its label and count from the rail's own row", () => {
+    for (const queue of courtWaitingQueues()) {
+      const row = COURT_NAV_GROUPS.flatMap((group) => group.items).find(
+        (item) => item.id === queue.id,
+      );
+      assert.ok(row);
+      assert.equal(queue.label, row.label);
+      assert.equal(queue.count, row.count);
     }
   });
 });

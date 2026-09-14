@@ -1,6 +1,7 @@
 import {
   CalendarDaysIcon,
   FileSearchIcon,
+  FolderIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
   SignatureIcon,
@@ -106,13 +107,13 @@ export type CourtNavGroup = {
 };
 
 /**
- * The dashboard — the bench's priority tiles over this court's whole register.
+ * The dashboard — this court's health check.
  *
  * It replaces `COURT_HOME`, which was an empty placeholder nothing linked to: it was not
  * a rail row and could not be one, so the top bar's trail was the only path to it, and
- * the trail no longer has a root (see `courtTrail`). `app/employee/(court)/page.tsx` and
- * the rail row both take their label from here, so a row and the screen it opens cannot
- * end up calling one destination two things.
+ * the trail no longer has a root (see `courtTrail`). The screen and the rail row both
+ * take their label from here, so a row and the screen it opens cannot end up calling one
+ * destination two things.
  *
  * **It is not where signing in lands.** The day's cause list is (`court-sign-in-block`),
  * on the owner's call that a dashboard is not the common thing court staff open the
@@ -121,27 +122,52 @@ export type CourtNavGroup = {
 export const COURT_DASHBOARD = { href: "/employee", label: "Dashboard" } as const;
 
 /**
- * The row that stands on its own, above the grouped work.
+ * The register — every case on this court's file, searchable.
  *
- * **One, where there were two, and it goes somewhere.** `Dashboards` and `All cases`
- * were both transcribed from the reference and both marked `external` — real, focusable
- * rows that said plainly they went nowhere. The owner collapsed them into a single
- * destination on 2026-09-14 (*"I think we can combine the dashboard and all cases
- * list"*), which is the right read of them: the bench's priority tiles are saved filters
- * over the register, not a separate analytic, so a dashboard and a case list are one
- * screen. `/employee` is now that screen, and this row is the way to it.
+ * **A separate screen from the dashboard, on the owner's second look** (2026-09-14).
+ * The two were briefly one: the priority tiles filtered a register below them, which was
+ * the owner's own first suggestion and which they rejected once built — *"the dashboard
+ * is more of a health check, that is the intent of a dashboard, and it should look like
+ * one; by mixing these two we are complicating things for ourselves."* Which is right.
+ * A health check answers "how is this court doing"; a register answers "where is that
+ * file". One screen answering both had to compromise on the form of each.
  *
- * **It carries no count.** Every other number in this rail is work waiting on the bench,
- * and the rail prints them in the destructive red its badge is painted in. The register's
- * length is not a backlog — a red 40 beside "Dashboard" reads as forty problems — so the
- * row stays bare and the screen's own line says how many cases the court holds.
+ * The two are still joined, by a link rather than by a filter: a dashboard tile opens
+ * this screen already narrowed to its category (`?priority=`). Navigation is also the
+ * strongest feedback a press can give — the whole screen changes — which is the problem
+ * the filtering version never solved.
+ */
+export const COURT_CASES_PAGE = {
+  href: "/employee/cases",
+  label: "All cases",
+} as const;
+
+/**
+ * The two rows that stand on their own, above the grouped work.
+ *
+ * They were transcribed from the reference as `Dashboards` and `All cases` and both
+ * marked `external` — real, focusable rows that said plainly they went nowhere. Both are
+ * built now and both are internal. They stay two rows, and not one: a health check and a
+ * register are two questions, and the owner's ruling on 2026-09-14 was that answering
+ * both on one screen compromised the form of each.
+ *
+ * **Neither carries a count.** Every other number in this rail is work waiting on the
+ * bench, and the rail prints them in the destructive red its badge is painted in. Forty
+ * cases on the file is not a backlog — a red 40 beside "All cases" reads as forty
+ * problems — so these rows stay bare and each screen's own line says its number.
  */
 export const COURT_NAV_LINKS: CourtNavItem[] = [
   {
     id: "dashboard",
-    label: "Dashboard",
+    label: COURT_DASHBOARD.label,
     href: COURT_DASHBOARD.href,
     icon: LayoutDashboardIcon,
+  },
+  {
+    id: "all-cases",
+    label: COURT_CASES_PAGE.label,
+    href: COURT_CASES_PAGE.href,
+    icon: FolderIcon,
   },
 ];
 
@@ -480,4 +506,40 @@ export function courtTrail(pathname: string): CourtCrumb[] {
   }
 
   return [];
+}
+
+
+/**
+ * Every queue with work waiting in it, flattened out of the rail's own groups.
+ *
+ * The dashboard's "Waiting on this court" panel reads this rather than importing sixteen
+ * count constants of its own, so the panel and the rail can never disagree about how much
+ * is in a queue. It is also why the panel is worth having at all: the rail's four groups
+ * are collapsed by default, so every one of these counts is otherwise behind a click.
+ *
+ * Only rows that are **built and populated** — a row with no `href` goes nowhere, and a
+ * row at zero is not waiting on anybody. The group each row came from rides along, so the
+ * panel can say which kind of work it is without re-deriving it.
+ */
+export function courtWaitingQueues(): {
+  id: string;
+  label: string;
+  href: string;
+  count: number;
+  group: string;
+}[] {
+  return COURT_NAV_GROUPS.flatMap((group) =>
+    group.items
+      .filter(
+        (item): item is CourtNavItem & { href: string; count: number } =>
+          Boolean(item.href) && typeof item.count === "number" && item.count > 0,
+      )
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        href: item.href,
+        count: item.count,
+        group: group.label,
+      })),
+  );
 }

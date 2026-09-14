@@ -39,6 +39,7 @@
 
 import {
   CAUSE_LIST,
+  COURT_CASE_STAGES,
   isoDay,
   parseIsoDay,
   type CourtCaseStage,
@@ -469,4 +470,72 @@ export function filterCourtCases(
       courtCaseTitle(record).toLowerCase().includes(query)
     );
   });
+}
+
+/* ------------------------------------------------------------------ health check */
+
+/**
+ * How many cases sit at each stage, in the order a §138 case moves through them.
+ *
+ * **Ordered by the pipeline, never sorted by size.** The order is the information: a
+ * court with nine cases at cognizance and six at process has a specific, diagnosable
+ * problem at the front of its pipeline, and sorting the bars by magnitude would destroy
+ * exactly that reading.
+ *
+ * This is the one broad number on the dashboard, and it is there because the owner asked
+ * for a health check (2026-09-14). It is not on the *landing* screen — the day's cause
+ * list is — which is what the Gujarat research objected to.
+ */
+export function courtStageSpread(
+  register: CourtCase[] = COURT_CASES,
+): { stage: CourtCaseStage; label: string; count: number }[] {
+  return COURT_CASE_STAGES.map((stage) => ({
+    stage: stage.id,
+    label: stage.label,
+    count: register.filter((record) => record.stage === stage.id).length,
+  }));
+}
+
+/**
+ * The case that has been on this court's file longest.
+ *
+ * One case, not a bucket count: "the oldest thing here is this, and it is this old" is a
+ * fact a magistrate can act on, where "12 cases over a year" is the broad pendency number
+ * the research said they did not want.
+ */
+export function oldestCourtCase(
+  register: CourtCase[] = COURT_CASES,
+): CourtCase | undefined {
+  return register.reduce<CourtCase | undefined>(
+    (oldest, record) =>
+      !oldest || record.registeredDaysAgo > oldest.registeredDaysAgo
+        ? record
+        : oldest,
+    undefined,
+  );
+}
+
+/**
+ * "1 year 2 months", "3 months", "18 days" — how long a case has been on the file.
+ *
+ * Rounded to the unit a court would say out loud: days below a month, whole months below
+ * a year, then years and the remaining months, with the second unit dropped when it is
+ * zero so nothing reads "1 year 0 months".
+ *
+ * **A year is 365 days here and a month is 30, deliberately.** Deriving months from the
+ * astronomical 30.44 and then taking years out of *those* makes 365 days read as "11
+ * months", which is not what anybody means by a case that was filed a year ago today.
+ * This is a phrase a person says about a file, not an interval calculation.
+ */
+export function courtCaseAge(days: number): string {
+  if (days < 31) return `${days} ${days === 1 ? "day" : "days"}`;
+  const years = Math.floor(days / 365);
+  if (years === 0) {
+    const months = Math.floor(days / 30);
+    return `${months} ${months === 1 ? "month" : "months"}`;
+  }
+  const months = Math.floor((days % 365) / 30);
+  const yearPart = `${years} ${years === 1 ? "year" : "years"}`;
+  if (months === 0) return yearPart;
+  return `${yearPart} ${months} ${months === 1 ? "month" : "months"}`;
 }
