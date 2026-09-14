@@ -4,6 +4,7 @@ import {
   FolderIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  SettingsIcon,
   SignatureIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -106,8 +107,19 @@ export type CourtNavGroup = {
   items: CourtNavItem[];
 };
 
-/** The two rows that stand on their own, above the grouped work. Both leave the app. */
+/**
+ * The rows that stand on their own, above the grouped work.
+ *
+ * Configurations is the one internal destination here — it opens the order-template
+ * configuration screen for the magistrate. The other two leave the app.
+ */
 export const COURT_NAV_LINKS: CourtNavItem[] = [
+  {
+    id: "configurations",
+    label: "Configurations",
+    icon: SettingsIcon,
+    href: "/employee/configurations",
+  },
   {
     id: "dashboards",
     label: "Dashboards",
@@ -450,6 +462,14 @@ export function courtTrail(pathname: string): CourtCrumb[] {
   if (pathname === COURT_HOME.href) return [];
 
   const home: CourtCrumb = { label: COURT_HOME.label, href: COURT_HOME.href };
+
+  /* Standalone links above the groups — the ones with an href and no group. A standalone
+     link that owns this path ends the trail with its own label as the current page. */
+  for (const link of COURT_NAV_LINKS) {
+    if (link.href && pathname.startsWith(link.href)) {
+      return [home, { label: link.label }];
+    }
+  }
 
   for (const group of COURT_NAV_GROUPS) {
     for (const item of group.items) {
