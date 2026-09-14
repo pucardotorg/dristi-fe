@@ -770,3 +770,42 @@ two sides: the component renders radio roles over toggle-button behaviour.
 so `type="single"` is an honest radiogroup; or keep the toggle behaviour and render
 toggle-button roles (`aria-pressed`) rather than radio roles. Exposing the choice
 (`deselectable`) would work too, as long as the roles follow it.
+
+## 23. There is no brand text ink — teal type on a white surface has only a fill colour
+
+`destructive`, `warning`, `success` and `info` each ship an `*-ink` token for their word
+on a plain surface. The brand family does not. So a screen that has to print something in
+the product's teal reaches for `text-primary`, which is `--brand-solid` (`#007e7e`) — a
+**fill** colour, tuned to carry white text on top of it, not to be text itself.
+
+Measured on `/employee/hearings/[hearingId]/order`, where the owner's reference prints the
+purpose and date of the next hearing in teal beside black labels:
+
+| Role | Token | Value | On white |
+|---|---|---|---|
+| the label | `foreground` | `#1c1a18` | **17.35:1** |
+| the value | `primary` | `#007e7e` | **4.90:1** |
+| nearest alternative | `brand-muted-foreground` | `#0a6969` | 6.49:1 |
+| `brand-11` | — | `#008573` | 4.56:1 |
+
+`primary` clears AA for normal text and nothing more, so at the same weight as its own
+label the teal value reads as the faint half of the line — the owner's report was *"the
+weight of that text is very light"*, on type that was the same size and weight as the
+words beside it.
+
+**And the screen has no local answer.** Moving the emphasis onto the value
+(`font-semibold`, label muted) was built and reverted on the owner's verdict the same
+hour: it is mass compensating for ink, it only works on a line with a weight to spare, and
+it shifts the balance of the whole block rather than the one thing that is wrong with it.
+So the line stands at the measured 4.90:1, by the owner's choice, until there is a token
+for it.
+
+`brand-muted-foreground` (`#0a6969`, 6.49:1) is the value that would work, and using it
+here would be off-role: it is documented as the ink *pair for `brand-muted` fills*, and
+ui-craft's own rule is that a tint's foreground belongs on that tint.
+
+**Request:** a `brand-ink` token, at the other families' contrast, for the brand's word on
+`card` / `paper` / `muted`. Two smaller notes for whoever picks it up. `brand-11` is
+*lower* contrast than `brand-solid` in light mode (4.56:1), so the ramp position that
+reads as "the text one" is not the one to take. And in dark mode `--brand-solid` becomes
+`--brand-10` (`#0eb39e`), so the pair has to be chosen per theme rather than by ramp index.

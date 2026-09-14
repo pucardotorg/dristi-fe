@@ -1116,6 +1116,39 @@ something under it. No band rule beneath the list: the variant's accent bar sits
 of it, so a rule would draw the second parallel line ui-craft §2 names rather than the one
 the bar lands on.
 
+**D53 · An answered application keeps its row. Reverses "the answer is in the order, so
+the row can go."** Owner, 2026-09-14: *"why did the pending applications got removed from
+the application tab, please add it back."* Nothing had removed them — **answering them
+had**. The panel listed only what was still pending, on the reasoning that the order
+beside it is where the bench reads what it has done. That is true of the *sentence* and
+false of the *panel*: the row vanished, the count dropped off the tab, and
+"No application is standing in this matter." stood on a matter where two had been standing
+a second earlier. A panel that erases the thing you just acted on cannot be told apart
+from one that lost it.
+
+Reachable two ways, which is why it reads as a disappearance rather than as a
+consequence. A press of Accept or Reject empties the strip one row at a time; and
+`initialOrderDraft` answers **all** of them the moment a listing is completed (D23), so a
+completed listing opened the tab already empty, having never shown the applications it had
+decided. The second path is the one with no press behind it at all.
+
+*Shape:* the pending list keeps the owner's heading and its cards unchanged, and an
+**Answered in this sitting** group follows it under a caption eyebrow — subordinate,
+because the group above it is the work. The row keeps the title, the number and View, and
+gives up the two marks that meant *this needs you*: the amber leading bar and Accept /
+Reject. The Pending chip is replaced by the outcome as a word in its own ink — the
+treatment this screen already uses for Absent, which is how the panel keeps **one** chip
+and it is the one that means somebody is waiting. **Allowed / Dismissed**, not Accepted /
+Rejected: the split `ListingApplicationDecision` already documents, controls in the
+reference's words and outcomes in the court's. The leading edge keeps a transparent
+`border-s-4` so both groups' titles start on the same pixel. The empty line now splits in
+two, because a matter that never had an application and a matter whose applications have
+all been answered are not the same empty.
+
+*Open, for the owner:* there is no way back. An answered row cannot be un-answered, so a
+mis-press is corrected by editing the sentence in the order rather than by the control
+that wrote it.
+
 ## 5a. Attributes (value → source → type → slot)
 
 Pass 9's census, and the record that makes the template system auditable: a row with no
@@ -1782,6 +1815,8 @@ in `components/ui`.
 
 | Date | What | Who |
 |---|---|---|
+| 2026-09-14 | ~~**D54: the next-hearing values take the weight and the labels step back**~~ — **built and reverted on the owner's verdict the same hour.** Owner: *"the weight of that text is very light"*, then *"No revert"*. The diagnosis stands and is worth keeping: the values are `text-primary`, which is `--brand-solid` (`#007e7e`, **4.90:1** on the page) — a fill colour carrying type — against labels at `foreground` (**17.35:1**), so at equal weight the fact reads as the faint half of its own line. What was rejected is the *remedy*: moving the mass to the value and muting the label. Read against D44's lesson, the likely reason is the same one — the change did two things at once (the value gained weight **and** the label lost it), so the block's whole balance shifted rather than the one half the report was about. D49's bold label over a teal value stands. **Still open, and now without a local answer:** the ink itself, raised upstream as **ds-requests #23** — the brand family has no `*-ink` token while destructive, warning, success and info all do, so teal type on a white surface has only a fill colour to reach for. A token there fixes this line without touching its weights. | owner (report + verdict), ui-designer (build) |
+| 2026-09-14 | **D53 built: an answered application keeps its row, under *Answered in this sitting*.** Owner reported the pending applications gone from the tab. Diagnosed: nothing removed them, answering them did — and `initialOrderDraft` answers every application the moment a listing is completed (D23), so that tab opened empty with no press behind it. Reverses the "the answer is in the order, so the row can go" reading. Answered rows drop the amber bar and Accept / Reject, keep title, number and View, and carry the outcome as a word in its own ink (Allowed / Dismissed, the court's words, per `ListingApplicationDecision`) so the panel keeps one chip and it is the one that means somebody is waiting. Empty copy split in two. Gates + 739 tests pass; both groups verified rendering together on the served DOM under a temporary probe, since no fixture listing is both completed and carrying applications. | owner (report), ui-designer (build) |
 | 2026-09-14 | **D52 built: the catalogue splits into System orders and Custom orders, two `line`-variant tabs under the search.** Owner's ask. The line is the source's own — `hasTemplateText`, twenty-five worded templates against the two the source gives no words for (Order under section 202 CrPC, Judgement) — so it is a reading of the catalogue rather than a curation of it, and a template the court later fills in leaves the custom tab by itself. `others` moves there too and the **Something else** button under the groups is gone: each type is listed once, so the group counts drop to 5 / 5 / 10 / 5. Tab counts are match counts while a query stands, which is how a search for "202" reads as *System 0 / Custom 1* instead of an empty list. Rows are one shared `CatalogueRow` across both tabs. Gates + 739 tests pass; tabs, counts and group counts verified on the served DOM. | owner (ask), ui-designer (build) |
 | 2026-09-14 | **Masthead fold: built and reverted the same hour.** Owner: *"why did you put the case heading and parties into an accordian. That was never the ask."* Correct — the report was that the paper needed scrolling, and the answer hid content the owner had explicitly asked for two turns earlier (party roll, facts, offence line). A problem statement is not a licence to remove the thing that was requested. The gap and padding tightening from the same pass is kept; it hides nothing. **The measurement below stands and is the part worth keeping.** | ui-designer (owner report) |
 | 2026-09-14 | ~~**The document masthead folds on arrival**~~ — D17's metric had regressed. Owner: *"the entire paper is barely visible on first fold and requires users to scroll."* Measured the first typing affordance at y≈845 on a 923px viewport; D17 had moved it from y≈815 to y≈450 in 2026-09-06 and D43/D45 put it back by stacking a court name, three facts, a party roll, an offence line and an ORDER heading above the writing — ~340px, none of it typed, every fact already on the page header. Folded into one 40px row that keeps the case number; page gap 6→4 and padding `p-8 md:p-12`→`p-6 md:p-8`. About 400px comes out. Preview and the signing queue still print the masthead in full. **Lesson for the log: y-of-first-affordance is a number this screen has to be re-measured against after any change to the page, because every addition to a document's furniture is invisible to the gates.** | ui-designer (owner report) |

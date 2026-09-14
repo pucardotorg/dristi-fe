@@ -248,14 +248,44 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     hearingOngoing: true,
   };
 
-  /* Only what is still pending. The reference labels every row "Pending — …", so a row
-     that has been answered has left the strip; the answer is in the order, which is
-     where the bench reads what it has done. */
+  /* What is still waiting on the bench. The reference labels every row "Pending — …",
+     so an answered application does not belong under that heading. */
   const pending = React.useMemo(
     () =>
       applicationsForListing(hearing.id).filter(
         (application) => !draft.applications[application.id],
       ),
+    [hearing.id, draft.applications],
+  );
+
+  /**
+   * And what has been answered, which until 2026-09-14 left the panel without a trace.
+   *
+   * The old reading was that the answer is in the order and the order is where the bench
+   * reads what it has done. That is true of the *sentence* and false of the *panel*: an
+   * application answered — by a press here, or by `initialOrderDraft` answering all of
+   * them the moment a listing is completed (D23) — took its row out of the strip, dropped
+   * the count off the tab, and left "No application is standing in this matter." on a
+   * matter where two had been standing a second earlier. Owner, 2026-09-14: *"why did the
+   * pending applications got removed from the application tab."* Nothing had removed
+   * them; answering them had, and a panel that erases the thing you just acted on is
+   * indistinguishable from one that lost it.
+   */
+  const answered = React.useMemo(
+    () =>
+      applicationsForListing(hearing.id)
+        .map((application) => ({
+          application,
+          decision: draft.applications[application.id],
+        }))
+        .filter(
+          (
+            row,
+          ): row is {
+            application: ListingApplication;
+            decision: ListingApplicationDecision;
+          } => row.decision !== undefined,
+        ),
     [hearing.id, draft.applications],
   );
 
@@ -542,10 +572,31 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
                   onDecide={decide}
                 />
               ) : (
+                /* Two different facts, and the old copy told the wrong one half the
+                   time: a matter that never had an application, and a matter whose
+                   applications have all been answered, are not the same empty. */
                 <p className="text-body text-muted-foreground">
-                  No application is standing in this matter.
+                  {answered.length > 0
+                    ? "Every application in this matter has been answered."
+                    : "No application is standing in this matter."}
                 </p>
               )}
+
+              {answered.length > 0 ? (
+                <div className="flex min-w-0 flex-col gap-2">
+                  {/* An eyebrow rather than a second `text-body` heading: the group is
+                      subordinate to the one above it and has to read that way, and this
+                      is the treatment its siblings in the other tab already use. A
+                      heading and not a `p`, because it labels a list. */}
+                  <h3 className="text-caption font-semibold text-muted-foreground">
+                    Answered in this sitting
+                  </h3>
+                  <AnsweredApplications
+                    rows={answered}
+                    onOpen={setOpenApplication}
+                  />
+                </div>
+              ) : null}
             </TabsContent>
           </Tabs>
         </Card>
@@ -713,6 +764,81 @@ function PendingApplications({
             >
               Reject
             </Button>
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => onOpen(application)}
+            >
+              View
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The same applications, after the bench has answered them.
+ *
+ * **The row stays; only the reason to look at it changes.** So it keeps the title, the
+ * number and the way in, and gives up the two things that meant "this needs you": the
+ * amber bar down the leading edge, and Accept / Reject. What replaces the Pending chip is
+ * the outcome as a word in its own ink — the treatment this screen already uses for
+ * Absent, and the reason there is no second badge family here. One chip in the panel, and
+ * it is the one that means somebody is waiting.
+ *
+ * **"Allowed" and "Dismissed", not "Accepted" and "Rejected".** The split
+ * `ListingApplicationDecision` documents: the controls carry the reference's Accept /
+ * Reject, and everything that reports an outcome carries the court's own two words,
+ * because that is what the order beside this panel prints.
+ *
+ * The leading edge keeps a `border-s-4`, transparent, so the title starts on the same
+ * pixel as a pending row's. Without it the two groups would sit 4px out of line, which
+ * reads as a mistake rather than as a difference.
+ *
+ * *Not here, and worth the owner's decision: no way back.* An answered row cannot be
+ * un-answered, so a mis-press is corrected by editing the sentence in the order rather
+ * than by the control that wrote it.
+ */
+function AnsweredApplications({
+  rows,
+  onOpen,
+}: {
+  rows: readonly {
+    application: ListingApplication;
+    decision: ListingApplicationDecision;
+  }[];
+  onOpen: (application: ListingApplication) => void;
+}) {
+  return (
+    <ul className="flex min-w-0 flex-col gap-2">
+      {rows.map(({ application, decision }) => (
+        <li
+          key={application.id}
+          className="flex min-w-0 flex-col gap-3 rounded-lg border-s-4 border-transparent bg-surface-sunken p-4"
+        >
+          <p
+            className={cn(
+              "text-caption font-semibold",
+              decision === "allowed"
+                ? "text-success-ink"
+                : "text-destructive-ink",
+            )}
+          >
+            {decision === "allowed" ? "Allowed" : "Dismissed"}
+          </p>
+
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <p className="text-body-compact min-w-0 font-medium">
+              {listingApplicationLabel(application)}
+            </p>
+            <p className="text-caption tabular-nums text-muted-foreground">
+              {application.number}
+            </p>
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="link"
