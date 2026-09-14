@@ -829,25 +829,324 @@ dropping the tint alone, or demoting Reject from a filled destructive to a quiet
 leaving both decisions and the press count untouched — was never put in front of the
 owner, and is the thing to try before proposing this again.
 
+**D45 · Attendance and the next listing are edited in the page, not in the panel.**
+*(owner wireframe, 2026-09-14)* They are two sentences the order itself says, so they are
+set down where they appear: an eyebrow on the page names each, and under it the form that
+writes it. **Both open on arrival** — a typist lands here to record a sitting that has
+just happened, and the two facts they always have are who appeared and when it is next
+listed; opening closed would make the first two acts of every order a press that reveals
+a form. Each holds its entries and commits on **Apply to order**, so the page does not
+change under someone working down a roll of four, and abandoning a half-marked roll
+leaves the order saying what it said before. This is D17's principle finishing its job:
+the order was already the editing surface for the directions, and these were the last two
+facts still being typed somewhere else and mirrored in.
+
+**D46 · One control per person, and problem 1 is finally gone.** The roll is a single
+three-state control per appearance — Not marked / Present / Absent — which is the owner's
+wireframe and which makes "present and absent at once" *unrepresentable* rather than
+merely discouraged. Two independent checkbox grids over the same four roles have been
+problem 1 since the first revision of this brief; every previous pass moved them, folded
+them or re-labelled them. **Every choice is on the page, and the two sides are split**
+*(owner, 2026-09-14)*: a `SegmentedControl` per person — the DS primitive written for
+exactly this, "a small, fixed set of mutually exclusive options shown side by side" —
+under a `fieldset` per side of the cause. A dropdown hid two of three answers behind a
+press and made four rows of identical closed boxes; marking a roll is now four presses
+rather than eight, and the roll's whole content is legible without opening anything.
+Grouping reads a new `side` field on `Appearance` rather than matching words in `role`:
+the label is copy, it will be translated, and a second accused would break a parse
+silently. With the side as the heading, the party's row needs no role caption at all and
+only counsel carry one. *(A `NativeSelect` stood here for part of one day, chosen because
+Radix's `Select` ships an empty trigger until hydration — true, and moot once every
+option is rendered.)* Same pass makes **"List it again"** a positive
+checkbox rather than the reference's "Skip scheduling next hearing" (problem 3), with the
+two fields *removed* when it is unticked rather than sitting disabled.
+
+**D47 · The composer's document is `bg-card`; `paper` goes back to being the facsimile.**
+*(forced by D45, and it restores D21)* `foundations/colors` fixes the `paper` family in
+both modes because a printed page does not invert — which is exactly why a themed form
+control cannot sit on it. D21 said so ("a `Textarea` on it breaks in dark") and D33/D43
+drifted from it when the page moved into the composer. With selects, checkboxes, a date
+picker and an editor now on that surface, the drift had to end. In light nothing changes:
+`card` is white. In dark the document column themes with the product instead of showing
+dark controls on a white sheet. Preview and the signing queue keep the true `paper`
+facsimile, which is what the token is for.
+
+**D48 · The left panel is two tabs again: Orders, then Applications with its count.**
+*(owner, 2026-09-14)* With attendance and the next listing gone into the page, what is
+left are the only two things on this screen that are *not* the order's own text — and
+they are genuine alternatives, which is what a tab is for. Orders is the default because
+it is the work. Applications carries a figure because a party is waiting on it and a tab
+you are not looking at has to be able to say so. *This supersedes D42's four-section
+accordion, which was carrying a sequence and a pair of alternatives in one instrument;
+its summaries-in-the-closed-row argument stays true and is why the count is on the tab.*
+
+**D49 · The page prints what it holds as the order sheet prints it.** *(owner
+screenshots, 2026-09-14)* Four things, all of them the same move — a fact the page holds
+is set as a *fact*, not as a sentence the reader has to parse.
+
+**Attendance is two rolls**, `Present:` and `Absent:`, listing offices rather than names:
+the roll of parties two inches above already maps one to the other, and that is how an
+order sheet writes it. A side with nobody on it prints no line — "Absent: —" is a
+sentence about nothing. The running sentence survives in `opening` for the unmarked case.
+
+**The next listing is two named facts**, purpose and date, and the prose form survives
+only for the one case that is not two facts — a matter not being listed again. An unset
+value prints "Not set" in the muted voice rather than as a blank nobody notices.
+
+**The order ends with a signature block**, not a sentence saying one is pending.
+`PRESIDING_MAGISTRATE` and never `CURRENT_STAFF`: the seat at the keyboard is a bench
+clerk or a typist, and the order is not theirs to sign. Its name comes from the owner's
+reference; its designation is written against `CURRENT_STAFF.court` rather than copied
+from that reference, because the reference names a differently-worded Kollam court and
+one page must not give itself two. **"Signature" is a caption over an empty space**,
+which is honest — nothing here signs anything (D10).
+
+**Deviation, logged rather than buried:** the two next-hearing values take the brand ink.
+That is against rationing brand colour to the one primary action per view. The owner's
+reference marks them this way and they are the two things a bench looks for first; taken
+on the owner's instruction, and it is the one place on this page colour carries emphasis
+rather than status. **Reversible in a line** if the page starts to read as decorated.
+
+**~~And a fix the DS should probably own~~ — withdrawn the same day.** The
+`SegmentedControl`'s well was overridden to `bg-card`, reasoning that a sunken control on
+a sunken card has no edge of its own. True, and the wrong trade: **the DS selection cue
+*is* a white lifted pill**, so a white well left the marked answer reading only by weight
+and a faint shadow (owner: "I don't think the rounded filters be white"). The well is the
+ground the pill lifts off, and the group is already delineated by the hairline the
+primitive draws around it. Reverted to the DS default, and the lesson is the general one:
+a control whose surface looks redundant against its parent is usually telling you
+something about the parent, not the control.
+
+**D50 · "Likely at this hearing" is read off the sitting, not off the purpose alone.**
+*(owner ask, 2026-09-14; grounded on `public/case-file/09-orders.pdf`)* D41 mapped the
+purpose to the orders the source's table lists against it, and that was all the shortcut
+knew. **Item 1 of the cause list is where that failed**: an evidence listing with a bail
+application standing in it (`listing-applications.ts`) was offered Witness batta and a
+witness summons, and never the one order the bench was about to pass.
+
+**The court's own order pack is what settled the model.** Nine orders, cognizance to
+sentence. Read end to end they say a day-order is a substantive direction plus the next
+date — the next date is already its own control after D45 — and *what the direction is*
+turns on four things this screen already held and threw away:
+
+| Ground | What says so | The row's caption |
+|---|---|---|
+| An application the bench **allowed** | DOC-ORD-003: *"Bail application considered… bail is granted on execution of bond"* | "Follows CMP/312/2026, allowed at this hearing" |
+| A party the sitting needs is **absent** | The same order's *"Accused… appears with counsel"* — the branch that decided it | "The accused is marked absent" |
+| The **chain inside one order** | DOC-ORD-001: *"Cognizance is taken. Issue summons to the accused"* — one order, two items | "Follows cognizance at item 1" |
+| An application still **pending** | The same pairing, not yet ruled on — so the sentence is conditional | "If CMP/312/2026 is allowed" |
+| What it was **listed for** | The source's purpose table, unchanged | *(none — see below)* |
+
+**Grounds are ranked, never weighted.** A ground is a reason and a reason either applies or
+does not; summing weights would produce an order nobody could explain to a bench. The list
+above *is* the explanation, and an order the bench has allowed an application for outranks
+one the purpose table merely mentions, always.
+
+**The ordinary row keeps its silence and its workflow line.** A section headed "Likely at
+this hearing" has already said why a baseline row is there, so captioning it "usual at this
+hearing" would buy a line of type and no information. Only a signal the reader cannot see
+from the heading earns a sentence — which is also why the list became an `ol`: position is
+now the answer to how likely, so a `ul` would throw away the thing that was computed.
+
+**It suggests and never restricts** — the law D41 set, kept literally. No signal removes a
+row: an order the bench has just contradicted (process against an absence, when the accused
+has been marked present) *sinks* and stays listed, and an order already written drops to the
+foot of the list saying **"Already item 2"** rather than vanishing, because a second summons
+to a second witness is a real second item. Availability is still `unavailableReason`'s to
+decide and the ranking cannot overrule it. The cap of five is honest for the same reason the
+gated rows are shown: the whole catalogue is a search field directly underneath.
+
+**What it refuses to guess, and this is the load-bearing restraint.** An order is a judicial
+act, so a consequence the source does not tie to the situation is not one a ranking function
+will infer. The accused's absence promotes Issue of warrants **only where the source's own
+purpose row already lists it** — rows 5, 6 and 9. At a plea hearing the source names no
+warrant, so neither do we; and a *complainant's* absence is not answered by borrowing the
+accused's remedy at all. Both gaps are real and are asked of product in §12 rather than
+filled in by a sort comparator.
+
+**D50a · And one conflict in the source, which the order pack decides.** `issue-of-summons`
+is gated *"once the case is on file"*, while the hearing-purpose table lists Issue of
+summons against **Admission** and **Cognizance** — purposes at which the case is by
+definition not on file yet. The two halves of the spec contradict each other. DOC-ORD-001 is
+what the court actually does: *"Cognizance is taken. Issue summons to the accused on payment
+of process fee."* One order, both directions. So **cognizance taken as an item of this draft
+puts the case on file for the rest of the order** (`cognizanceDueFor`) — the only reading
+under which the register's own first order can be written on this screen at all. It shuts
+the right doors too: a case taken on file at item 1 cannot be dismissed at item 2, and
+Cognizance and Dismiss case both correctly leave the list once item 1 is down. The rule
+lives in `order-suggestions.ts` beside its justification, not inline in the render, because
+it is a reading of the source and not a detail of a component.
+
+**D51 · The auto-fill pass exists, and D40's reason for not having one was a
+miscount.** *(owner ask, 2026-09-14; the spec's resolution order, step 3)* D40 concluded
+that nothing could be auto-filled because "none of the twenty-seven references a general
+variable", and built `fillGeneralVariables`, `OrderTemplateFacts` and `openSlots` — then
+wired none of them. **All three were dead code for a day.** The conclusion came from
+reading the six *name* rows of the spec's general-variables table. **That table has
+thirteen rows.**
+
+The five it missed are `[Party Type]`, `[Party Name]`, `[Document Type]`,
+`[Hearing Purpose]` and `[Current Hearing Date]`, and the census tells the story:
+
+| Token | Times used in the 27 | Decided as |
+|---|---|---|
+| `[Party Type]` | **15** | the judge's choice — D31's selector |
+| `[Application Number]` | **6** | **auto-filled** (context) |
+| `[Party Name]` | 5 | the judge's choice, and it follows the type |
+| `[Document Type]` · `[Document Name]` | 3 · 3 | the judge's choice (master data · free text) |
+| `[Hearing Purpose]` · `[Application Type]` | 2 · 2 | **auto-filled** (context) |
+| `[Amount]` · `[Date]` · `[Mode of ADR]` | 2 · 2 · 2 | the judge's choice |
+| `[Hearing Date]` · `[Original Hearing Date]` | 1 · 1 | **auto-filled** (context) |
+| the discretionary deadlines, `[Notice Type]`, `[Plea]` | 1 each | the judge's choice |
+| the six name variables | **0** | auto-filled, and used by no template today |
+
+**The reconciliation is the decision, not the field list.** The spec says two things that
+look contradictory — those variables are "auto-populated, the judge never types these",
+*and* "the system cannot fill a variable that requires a **choice among options**". It
+resolves on what kind of value each one is:
+
+- **A single-valued fact resolves.** One court, one cause title, one case number, one
+  presiding magistrate, one today. These fill always.
+- **A choice does not** — and this is D40's real lesson, kept. `[Party Type]` is
+  complainant *or* accused *or* witness; the spec's own rule is that with several
+  candidates the system offers a selector. Filling those fifteen with a guess would put
+  "Issue summons to the accused" in an order nobody had chosen, which is the exact bug
+  D40 was written to kill.
+- **A choice already made elsewhere on this screen is context, not a guess.** The spec
+  names this separately: *"Application context — the Application Number and Application
+  Type are already known, because the judge arrived at this order from the application
+  itself"*, and *"Workflow context — variables the workflow already collected are
+  pre-filled."* The bench answers applications and sets the next date **on this screen**,
+  so those values are collected.
+
+**And the application context is where D50 pays off twice.** A suggestion row already
+says which application it came from — "Follows CMP/341/2026, allowed at this hearing" —
+so the row carries that application to the click and the order opens on the number.
+
+**D51b · The rule is "the order arrived from it", never "there is only one" — and the
+first build got that wrong.** It filled `[Application Number]` from *the only application
+standing on the listing*, reading the spec's "with one, it fills automatically" as
+covering the application context. It does not: that sentence is about **parties**, and the
+application rule is *"the Application Number and Application Type are already known,
+because the judge arrived at this order from the application itself."* The difference is
+not academic. **On the board's own h-245 the only application standing is one for
+production of documents, so browsing a *withdrawal* order there opened it on that
+number** — a wrong application named in an order, reading as perfectly finished text.
+That is the single worst thing this pass can do.
+
+So the candidate is type-matched through `APPLICATION_CONSEQUENCE` — the same grounded
+pairing map D50 uses, which *is* the arrival written down (`applicationForOrder`). A
+withdrawal order can only ever take a withdrawal application's number; two of one head
+standing at once is ambiguous again and fills nothing; and with nothing to name one the
+token stays open. **Naming the wrong application is far worse than naming none.**
+
+**The honest other half: the composer now says what is still a hole.** Auto-fill's whole
+justification is that an unresolved slot *keeps its name and stays visible*, so an order
+that arrives part-written has to be legible as part-written. Each row in **In this order**
+carries "3 details still to fill", and the live-region announcement names them, because
+"its text is written" would tell a screen-reader user an order was finished with three
+brackets standing in it. *(This is D32, finally built — it was an attribute row in §5a
+with nothing behind it.)*
+
+**D51a · A third date register, and the court's own pages set it.** A date inside the
+operative words of an order takes neither of the two registers this app had. The order
+pack writes *"Accused to appear on 12 August 2025"* and *"Call on 15 September 2025 for
+Evidence of Complainant"* — no weekday. `Summons_Kollam_v14.pdf` makes the split on a
+single page, printing "18 September 2026" in the sentence requiring the appearance and
+"Friday, 10:30 AM" in the facts block above it. So `formatOrderDate` is for order text,
+`formatCourtDay` stays for a named fact, and the split is the court's rather than a
+preference. *Noted and not changed:* the next-listing block on the page still writes its
+date with the weekday, which is correct for a named fact under D49 — but it means one page
+carries two registers, which is right only for as long as that reasoning holds.
+
+**What this does *not* do, stated plainly because it is most of the catalogue.** Fifteen
+`[Party Type]` slots and five `[Party Name]` slots are untouched, which is every process
+order and both payment orders. They need **D31's party selector**, and the census makes it
+smaller than it looked: our model holds exactly one complainant and one accused, so the
+spec's "with one, it fills automatically" means the selector only ever has to ask for the
+*type* — the name follows it. On today's twenty-seven the visible effect of this pass is
+`withdrawal-of-case` opening complete, and the two hearing templates when they become
+reachable — template 6 is gated while a sitting is on and template 7 is application-only.
+
+**A fixture had to be added for that one reachable path to exist at all.** No listing on
+the board carried an application to withdraw the complaint, and `withdrawal-of-case` is
+the only order in the dropdown whose template takes `[Application Number]` as a locked
+variable — so the pass was correct and *invisible*. `h-258` now carries CMP/341/2026, a
+§138 complainant who has been paid and does not wish to prosecute. It was a listing with
+nothing pending, so no other screen's counts move.
+
+**D51c · And one value it must not supply: `[Original Hearing Date]`.** The first build
+filled it with today, reasoning that the listing being moved is the one in front of the
+bench. Template 7 says otherwise — *"Next hearing scheduled on [Original Hearing Date] for
+[Hearing Purpose] **has been rescheduled to** [New Hearing Date]"* — so the date being
+moved is a **future** hearing's and today is merely the day the order moving it is passed.
+Nothing on this screen holds it (a `ListingApplication` carries its number, filer, filing
+date and reason, and no hearing date). It stays open, and when template 7 becomes
+reachable all three of its values come from the rescheduling request.
+
+**D52 · The catalogue is two tabs under the search: system orders and custom orders.**
+Owner's ask, and the split it asks for already exists in the source rather than needing
+to be curated into it. Twenty-five of the twenty-seven carry a BOTD line, arrive
+part-written, and leave the judge filling what auto-fill could not. Two carry none —
+**Order under section 202 CrPC** and **Judgement** — and the source says what that means:
+"If an order type has **no template** ... the judge writes the order text from scratch —
+or a dedicated screen handles it (e.g. Judgement)." Those two are the custom tab, together
+with `others`, which is the one order that is not the court's at all and which is where
+the quiet **Something else** button under the groups went. So the predicate is
+`hasTemplateText`, read off the text and not kept as a list of two ids: a template the
+court later fills in stops being a write-it-yourself order without anyone remembering to
+move it.
+
+Three things follow, and each is the reason to prefer this line over a nicer-sounding one.
+**Each type is listed in exactly one place** — the group counts drop to 5 / 5 / 10 / 5,
+because a row in both tabs would make the tabs mean nothing. **Both tabs answer the search
+above them**, which is what the tab counts are for: a typist searching "202" reads
+*System orders 0 / Custom orders 1* and clicks, rather than reading an empty list and
+concluding the catalogue does not have it. The counts are match counts while a query
+stands and the catalogue's own size at rest, and on the system tab the number is the sum of
+the four group counts below it, so the tab carries the total and each group carries its
+share — the same fact at two grains, not twice. **And the rows are one component**
+(`CatalogueRow`), so the two tabs cannot drift into two row designs; a ruled-out type keeps
+its words and loses its button in both.
+
+*Treatment:* the DS `Tabs` `line` variant — underline and teal, no well, no second white
+pill. The panel's own Orders / Applications pair is the default pill-in-a-well directly
+above, and a second identical switch inside it would read as its sibling rather than as
+something under it. No band rule beneath the list: the variant's accent bar sits 4px clear
+of it, so a rule would draw the second parallel line ui-craft §2 names rather than the one
+the bar lands on.
+
 ## 5a. Attributes (value → source → type → slot)
 
 Pass 9's census, and the record that makes the template system auditable: a row with no
 source is an invented attribute; a fact typed `product copy` is a sentence doing a field's
 job.
 
-**(a) General variables — auto-filled, never a control.** Source: the spec's General
-variables table. **Slot: none** — they resolve into generated text and take **no**
-`prefilled` treatment (D31).
+**(a) The spec's thirteen general variables, plus context — and which side of the
+auto-fill pass each one falls on (D51).** **Slot: none for the filled ones** — they
+resolve into the generated text and take **no** `prefilled` treatment (D31). *The
+"absent today" notes are gone: all nine single-valued facts are supplied by
+`orderTemplateFacts`.*
 
-| Value | Source | Type |
-|---|---|---|
-| `[Court Name]` · `[Case Name]` · `[Case Number]` · `[Current Date]` | court/case data · system | data |
-| `[Judge Name]` · `[Judge Designation]` | court data | data — **absent today**; Preview says "Pending the signature of the magistrate" |
-| `[Complainant Name]` · `[Accused Name]` | `hearing.parties` | data |
-| `[Party Type]` | case data | closed enum — complainant · accused · witness. **A slot class, not one attribute** (D31) |
-| `[Party Name]` | *"any person in the case — complainant, accused, witness, or PoA holder"* | data — **our model holds two strings; build requirement in D31** |
-| `[Document Type]` · `[Hearing Purpose]` | master data | closed enum — **values not enumerated in the spec (§12)** |
-| `[Current Hearing Date]` | case data | data — absent today |
+| Value | Source | Type | Auto-filled? |
+|---|---|---|---|
+| `[Court Name]` | `CURRENT_STAFF.court` | data | **yes** — used by no template today |
+| `[Case Name]` · `[Case Number]` | `causeTitle` · `hearing.caseNumber` | data | **yes** — used by no template today |
+| `[Current Date]` · `[Current Hearing Date]` | the sitting's day, in the order register | data | **yes** — used by no template today |
+| `[Judge Name]` · `[Judge Designation]` | `PRESIDING_MAGISTRATE` | data | **yes** — never `CURRENT_STAFF`, which is the seat at the keyboard |
+| `[Complainant Name]` · `[Accused Name]` | `hearing.parties` | data | **yes** — used by no template today |
+| `[Application Number]` · `[Application Type]` | the application the order **arrived from** — the suggestion row's, or type-matched via `applicationForOrder`. **Never "the only one on the listing"** (D51b) | data · closed enum | **yes, context** — 6 uses · 2 uses |
+| `[Hearing Purpose]` | `draft.nextPurpose`, set in Next hearing | closed enum | **yes, context** — only once the bench has set it |
+| `[Hearing Date]` | `draft.nextDate`, set in Next hearing | data (date) | **yes, context** |
+| `[Original Hearing Date]` | the **future** hearing being moved — not this sitting | data (date) | **mapped, never supplied here** (D51c) |
+| `[Party Type]` | case data | closed enum — complainant · accused · witness | **no — a choice.** 15 uses; D31's selector |
+| `[Party Name]` | *"any person in the case — complainant, accused, witness, or PoA holder"* | data | **no — follows the type.** Our model holds one of each, so the selector need only ask the type |
+| `[Document Type]` | master data | closed enum — **values not enumerated in the spec (§12)** | **no — a choice** |
+
+**The census is a test, not a table** (`order-autofill.test.ts`). Every token any of the
+twenty-seven uses must be either in the pass or on the test's declared list of judge's
+choices; a template that introduces an unclassified one fails the suite rather than
+shipping a bracket nobody fills.
 
 **(b) Judge-input slots — the fields D31 creates.**
 
@@ -879,10 +1178,22 @@ variables table. **Slot: none** — they resolve into generated text and take **
 | **Additional comments** | composer | user free text | `Textarea` (D39) |
 | Next-listing choice | screen state | closed enum — list · none | `SegmentedControl` (D3) |
 | Board item number, next unhandled item | `CAUSE_LIST` + session | data | footer caption (D18) |
-| Unfilled-slot count | derived | data | footer caption (D32) |
+| Unfilled-slot count, per order | `openSlots` over the item's own words | data | the item row's caption — "3 details still to fill" (D32, built by D51) |
 | Honesty and empty-state copy, disabled reasons | this brief | **product copy** | support lines — *guidance, deliberately not in (a) or (b)* |
+| **Suggestion rank, per order** | **derived: purpose table + `listing-applications.ts` + `OrderDraft.marks` + `OrderDraft.items`** | **data (ordinal)** | **position in the `ol` (D50)** |
+| **Suggestion ground** | derived — the same four signals | closed enum — allowed application · party absent · order chain · pending application · purpose table | the row's caption, one fixed sentence per ground (D50) |
+| Items already of this type | `OrderDraft.items` position | data | the same caption — "Already item 2" (D50) |
 
-**Three rows are the finding.** *Business line* and *full order paragraph* start identical
+**Four rows are the finding.** *Suggestion ground* is the row that has to be read
+carefully: it is a **closed enum of five, each with one fixed sentence and at most one
+slot** — an application number, a party, an item number — and that is what keeps D50 on the
+right side of §1.6 of `ui-craft`. A caption composed per case would be a machine result
+rendered as prose, which is the thing that cannot be filtered, sorted, or reused; five
+sentences from a closed enum is a status rendered through one slot. **The rank beneath it is
+data and not copy**, which is why it is spent on position rather than on a word like
+"strongly".
+
+**Three rows are the older finding.** *Business line* and *full order paragraph* start identical
 and diverge — one generated and frozen, one free — which is the whole of D33, and why they
 are two rows and not one. And *"In dropdown" availability* has a source that exists in the
 app but not on this screen's model, which is why D29 fails open and D29(c) is a build
@@ -894,10 +1205,12 @@ requirement.
 `lib/employee/order-templates.ts` carries all twenty-seven types from
 `docs/product/order-templates.md` — BOTD text, locked and optional variables, the
 "In dropdown" gate, and the workflow each one sets in motion. `order-items.ts` is now a
-thin layer over it and no longer holds a sentence this app wrote. **Nothing is
+thin layer over it and no longer holds a sentence this app wrote. ~~**Nothing is
 auto-filled on arrival, and that is the source's design, not a shortfall:** none of the
-twenty-seven references a general variable, so an order opens on the court's line with
-its own slots standing — `[Party Name]`, `[Amount]`, `[Date]`. The old build wrote
+twenty-seven references a general variable~~ **— wrong, and corrected by D51 on
+2026-09-14. That was read off the six *name* rows of the spec's general-variables table,
+which has thirteen.** An order still opens with its *choices* standing —
+`[Party Name]`, `[Amount]`, `[Date]`. The old build wrote
 "Issue summons to Anand Traders" and read as finished while nobody had chosen a party.
 A test asserts every declared variable still appears in its own template text, because a
 locked variable dropped in transcription is a broken workflow behind an order that reads
@@ -910,7 +1223,9 @@ be recorded, and how often it is reached for is a reading on the catalogue.
 *(the reference's Workflows & Templates region)* **Likely at this hearing** — the source's
 hearing-purpose table, so an evidence listing offers Witness batta and Issue of summons
 first, each captioned with the workflow it triggers, which is what the reference's tiles
-were showing. Then **the whole catalogue**: a search field over four standing groups —
+were showing. **(Superseded in its first limb by D50, 2026-09-14: the shortcut is now
+ranked off the sitting rather than off the purpose alone, and the workflow caption survives
+only on the rows no signal moved.)** Then **the whole catalogue**: a search field over four standing groups —
 the reference's own browse, adopted on the owner's instruction 2026-09-13, replacing a
 `Combobox`. *The trade is deliberate:* a combobox is faster for a typist who knows the
 word and shows **nothing** to one who does not, because its list exists only while the
@@ -1369,6 +1684,60 @@ been closed below rather than asked again.**
 3. **The clipped Workflow column.** A transcription defect, not a product gap. Non-blocking
    (no workflows in this build), but a clean export closes a §11 risk.
 
+**Raised by D51, 2026-09-14 — the auto-fill pass.**
+
+- **D31's party selector is now the blocking gap, and it is the largest one left.** Fifteen
+  `[Party Type]` slots and five `[Party Name]` slots stay bracketed — every process order
+  and both payment orders. **The census makes it smaller than it looked:** our model holds
+  exactly one complainant and one accused, so the spec's *"with one, it fills
+  automatically"* means the control only ever has to ask for the **type**, and the name
+  follows. One `Select` per positional `[Party Type]`, three at most in any one template.
+  Worth confirming before it is built, because it turns on the claim that a §138 listing's
+  party set is (complainant, accused, witnesses) and nothing else.
+- **Does `[Application Type]` want the head or the head without its prefix?** The two
+  templates that use it read "Application [Application Number] for [Application Type] is
+  accepted", and our heads are phrased "Application for case withdrawal" — which would
+  render "Application CMP/330/2026 for Application for case withdrawal". Both are
+  application-only templates and therefore unreachable on this screen today, so nothing is
+  broken; the pass maps the head verbatim rather than inventing a de-prefixing rule.
+- **Template 7's `[Hearing Purpose]` is not template 6's.** Template 6 means the *next*
+  listing's purpose, which this screen sets and fills; template 7 means the purpose of the
+  hearing being *moved*. A single token-to-value map cannot tell them apart, and template
+  7 is application-only so nothing renders wrong today. If the rescheduling order ever
+  becomes reachable from this screen, the pass needs to be per-template — worth knowing
+  before someone ungates it.
+- **Should one page carry two date registers?** D51a takes the split from the court's own
+  summons — "18 September 2026" in the operative sentence, "Friday, 10:30 AM" in the facts
+  block. The next-listing block on this page therefore keeps its weekday while order text
+  drops it. Correct under D49's reading that the next listing is a *named fact*, and the
+  first thing to revisit if the page starts to look inconsistent rather than conventional.
+
+**Raised by D50, 2026-09-14 — the suggestion's own refusals to guess.**
+
+- **What answers an absence the purpose table has no row for?** The accused absent from a
+  **plea** hearing is the sharp case: rows 5, 6 and 9 answer absence with Issue of warrants
+  and row 7 names nothing, which is probably a gap in the table rather than a rule about
+  pleas. The ranking therefore stays silent there. **One line from product settles it**, and
+  `WARRANT_ON_ABSENCE` in `order-suggestions.ts` is a list precisely so that adding a purpose
+  to it is a decision somebody makes on purpose.
+- **And a *complainant's* absence?** Not answered at all, because a warrant is process
+  against the person the court required to attend and is not the complainant's remedy to
+  borrow. `dismiss-case` is the obvious candidate and the catalogue gates it to *before*
+  cognizance, so post-cognizance there is nothing in the twenty-seven to reach for. Either
+  the catalogue is short a type or the consequence is not an order — we are not guessing
+  which.
+- **Does an allowed application draw its consequential order automatically?** Today the
+  bench allows the application and then chooses the order, with the suggestion putting it
+  first and saying why. Six pairings are mapped, each off the template's own words or the
+  source's table (`APPLICATION_CONSEQUENCE`). If product wants the order *pre-added* rather
+  than suggested, that is a different decision and a bigger one — it writes a judicial act
+  from a click on a different control.
+- **Does the order pack's reading of the summons gate hold generally?** D50a resolves a
+  flat contradiction between the spec's gate and its own purpose table using DOC-ORD-001.
+  **We think it is plainly right and it is still our reading, not the spec's** — worth
+  confirming, because it is the difference between the register's first order being writable
+  on this screen and not.
+
 **Carried, non-blocking.**
 
 - **What is this screen's job?** (§4.) Candidate B is now strong in product's own words but
@@ -1413,6 +1782,17 @@ in `components/ui`.
 
 | Date | What | Who |
 |---|---|---|
+| 2026-09-14 | **D52 built: the catalogue splits into System orders and Custom orders, two `line`-variant tabs under the search.** Owner's ask. The line is the source's own — `hasTemplateText`, twenty-five worded templates against the two the source gives no words for (Order under section 202 CrPC, Judgement) — so it is a reading of the catalogue rather than a curation of it, and a template the court later fills in leaves the custom tab by itself. `others` moves there too and the **Something else** button under the groups is gone: each type is listed once, so the group counts drop to 5 / 5 / 10 / 5. Tab counts are match counts while a query stands, which is how a search for "202" reads as *System 0 / Custom 1* instead of an empty list. Rows are one shared `CatalogueRow` across both tabs. Gates + 739 tests pass; tabs, counts and group counts verified on the served DOM. | owner (ask), ui-designer (build) |
+| 2026-09-14 | **Masthead fold: built and reverted the same hour.** Owner: *"why did you put the case heading and parties into an accordian. That was never the ask."* Correct — the report was that the paper needed scrolling, and the answer hid content the owner had explicitly asked for two turns earlier (party roll, facts, offence line). A problem statement is not a licence to remove the thing that was requested. The gap and padding tightening from the same pass is kept; it hides nothing. **The measurement below stands and is the part worth keeping.** | ui-designer (owner report) |
+| 2026-09-14 | ~~**The document masthead folds on arrival**~~ — D17's metric had regressed. Owner: *"the entire paper is barely visible on first fold and requires users to scroll."* Measured the first typing affordance at y≈845 on a 923px viewport; D17 had moved it from y≈815 to y≈450 in 2026-09-06 and D43/D45 put it back by stacking a court name, three facts, a party roll, an offence line and an ORDER heading above the writing — ~340px, none of it typed, every fact already on the page header. Folded into one 40px row that keeps the case number; page gap 6→4 and padding `p-8 md:p-12`→`p-6 md:p-8`. About 400px comes out. Preview and the signing queue still print the masthead in full. **Lesson for the log: y-of-first-affordance is a number this screen has to be re-measured against after any change to the page, because every addition to a document's furniture is invisible to the gates.** | ui-designer (owner report) |
+| 2026-09-14 | **D51 corrected twice on review, both times for writing a wrong value into an order.** Asked whether it was built correctly, and it was not. **(a)** `[Application Number]` was filled from "the only application standing on the listing" — a rule read off the spec's *parties* sentence, not its application one. On h-245, whose only application is for production of documents, browsing a **withdrawal** order opened it on that number: a wrong application named in an order, reading as finished text. Now type-matched through `APPLICATION_CONSEQUENCE` (`applicationForOrder`), so a withdrawal order can only take a withdrawal application's number. **(b)** `[Original Hearing Date]` was filled with today; template 7's own sentence shows it is the date of a *future* hearing being moved, which nothing on this screen holds. Now left open. Both have regression tests naming the wrong behaviour. Also added the h-258 withdrawal application — without one there was **no reachable path on which the pass could show**, so it was correct and invisible. 743 tests, seven gates, verified on the served DOM. | ui-designer (self-review) |
+| 2026-09-14 | **D51 built: the auto-fill pass, and D40's reason for not having one was a miscount.** Owner asked for the text box to be populated with the general variables on selecting a template. D40 had said there was nothing to fill and left `fillGeneralVariables`, `OrderTemplateFacts` and `openSlots` as **dead code** — the claim was read off the six *name* rows of the spec's general-variables table, which has **thirteen**. Wired properly: nine single-valued facts always, five context values when the screen has actually collected them, and the choices left standing. `orderTemplateFacts` in `order-draft.ts` (testable; a wrong value silently written into an order is not something a render test catches), `createOrderItem(type, id, facts)`, and the demo draft runs the same pass so one screen cannot have two answers to what an order opens on. **A D50 suggestion carries the application it came from**, which resolves the case a count cannot — two applications standing, and the row still knows which. **D32 built alongside it**, because auto-fill without a visible remainder is half a feature: each item row says "3 details still to fill" and the announcement names them. **D51a** adds a third date register off the court's own pages. **Stated plainly: 15 `[Party Type]` slots are untouched** and need D31 — filling them with a guess is the exact bug D40 existed to stop. 739 tests (26 new, including a census that fails if a template introduces an unclassified token), seven gates. | ui-designer (owner ask) |
+| 2026-09-14 | **D50 built: the shortcut reads the sitting.** Owner asked for the most accurate suggestions in "Likely at this hearing" and pointed at the PDFs. `public/case-file/09-orders.pdf` — nine orders, cognizance to sentence — is what supplied the model: an application the bench allowed, a party marked absent, the chain inside one order, an application still pending, then the purpose table. New `order-suggestions.ts` holds the ranking, the six application→order pairings and the grounding for each; the screen only wires the signals it already had and threw away. Baseline rows keep their silence and their workflow line; the list became an `ol` because position now carries the answer. **D50a fell out of doing it** — the spec gates Issue of summons on the case being on file *and* lists it against Admission and Cognizance, and DOC-ORD-001 decides it. 703 tests (25 new, most against states the demo board cannot reach), seven gates, verified on the served DOM across eight listings. **Two refusals logged as questions rather than guessed**: an absence at a plea hearing, and a complainant's absence. | ui-designer (owner ask) |
+| 2026-09-14 | **Application card relaid to the owner's spec.** "Pending" becomes a `Badge variant="warning"` on its own line; the application's name and serial follow; then every act in one row — Accept, Reject, and **View** as a `link` button beside them. Two faults fixed by the structure rather than by styling: "Pending — Application to reschedule/adjournment" was one run of text doing two jobs and wrapped under a word that was not part of the title, and View had no hover on this card. `link`'s hover is an underline, so it does not depend on a fill — which is the workaround for ds-requests #21 rather than a third bordered control. | ui-designer (owner spec) |
+| 2026-09-14 | **Application cards: the amber becomes a leading-edge bar.** Owner, asked to choose between three treatments: *"instead of the whole cards being yellow, can you have yellow line on the leftside of the card only."* Card is a neutral well with `border-s-4 border-warning`; the ink override on View goes with the fill it existed for. This is the narrow move D44 should have been — status kept, the loudest object in the panel gone, and **not one press added**. The rest of D44's diagnosis is still unspent: the row says "Pending" a third time after the tab's own figure, and Reject is a filled destructive on a decision that is neither dangerous nor irreversible. Offered, not taken. | ui-designer (owner choice) |
+| 2026-09-14 | **D49 built.** Owner's screenshots of the reference order sheet: Present/Absent as two rolls, purpose and date as named facts in brand ink, a signature block at the foot, and the segmented control's well white against the card it sits on. Added `role` to `AttendanceEntry` and `attendance` to `OrderDocument` so the page has the marks and not only the prose; added `PRESIDING_MAGISTRATE` to `content.ts` — the order is signed by the bench, never by the seat working the screen. The brand-ink values are a deliberate departure from the one-primary rule and are logged as such. | ui-designer (owner reference) |
+| 2026-09-14 | **D46 amended on sight: the roll shows every choice and separates the sides.** Owner: *"instead of drop down, show all the shows at once… make clear distinction between complainant and accused."* Four dropdowns became four segmented controls inside two `fieldset`s, one per side. Added `side` and `kind` to `Appearance` so the grouping is data rather than a parse of the role label — the reason being translation and the multi-accused case the order catalogue already assumes. | ui-designer (owner report) |
+| 2026-09-14 | **D45–D48 built.** Owner's wireframe moved attendance and the next listing into the page as inline forms, open by default, committing on Apply; the left panel went back to two tabs (Orders default, Applications with a count). Two things fell out of doing it: the roll became one three-state control per person, which **closes problem 1** after five revisions of moving it around; and the document surface had to leave `bg-paper` for `bg-card`, because themed form controls cannot sit on a family the DS fixes in both modes — **restoring D21**, which D33 and D43 had drifted from. `NativeSelect` over the DS `Select` after the served HTML showed Radix shipping four empty triggers that fill in on hydration. 678 tests, six gates, verified on the DOM. | ui-designer (owner wireframe) |
 | 2026-09-13 | **D41 amended: the browse is the reference's — a search field over four groups, not a `Combobox`.** Owner asked for the reference's structure directly. Surfaced a real conflict in doing it: the reference offers **Accept / Reject** as a browsable group of 7, and the source marks **every** accept/reject order *not in dropdown* — they are reached from the application that produces them. Built as five rows reading "Comes from an application", so the group stands where the reference puts it and nothing claims to be selectable that is not. The reference's counts (5 / 7 / 10 / 6 = 28) do not reconcile with the catalogue's 27 either; ours are 5 / 5 / 11 / 6. **Both are provisional — the source lists grouping as still to supply.** | ui-designer (owner report) |
 | 2026-09-13 | **D42 amended again: the per-section "Next" is cut.** Owner: *"we don't need this button across application, attendance, next hearing, and orders because we are already expecting the user to click through it."* It was carried over from the icon-rail revision, where the rows were not visible and something had to carry the move; with four headers always in view it was a second control doing what the row beneath it already did. Nothing about gating changes — the move was never blocked and still isn't. | ui-designer (owner report) |
 | 2026-09-13 | **D44 reverted, same day, on sight.** Owner: *"looks bad, revert."* The tinted card with View / Reject / Accept is restored and D36 stands. Kept in §5 rather than deleted: the diagnosis (a status tint marking the norm; three action treatments on one card) is still true and will recur. The lesson recorded with it — the proposal bundled a colour fix with a cost of one extra press, so a "no" on the whole cannot be read as a "no" on the colour. | ui-designer (owner report) |

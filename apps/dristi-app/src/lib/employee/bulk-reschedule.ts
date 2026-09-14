@@ -186,6 +186,51 @@ const UPCOMING: UpcomingListing[] = [
     purpose: "evidence-of-complainant",
     offset: 9,
   },
+  /* Past the fortnight, and then past the month. A court fixes evidence and arguments
+     six weeks out as a matter of course, and the board used to stop nine days from
+     today — which left the range filter with almost nothing to do: every span wider
+     than a week selected the whole screen, so asking for one looked like a control that
+     did not work. A range is only worth drawing over a board deep enough to narrow. */
+  {
+    id: "r-276",
+    caseNumber: "ST/276/2026",
+    title: "Zainaba Musthafa v. Ashtamudi Cashew Exports",
+    stage: "evidence",
+    purpose: "evidence-of-complainant",
+    offset: 13,
+  },
+  {
+    id: "r-851",
+    caseNumber: "CMP/851/2026",
+    title: "Vinod Kumar P v. Thattamala Steels",
+    stage: "cognizance",
+    purpose: "admission",
+    offset: 17,
+  },
+  {
+    id: "r-277",
+    caseNumber: "ST/277/2026",
+    title: "Remani Amma v. Kundara Poultry Farms",
+    stage: "evidence",
+    purpose: "examination-of-accused-351",
+    offset: 24,
+  },
+  {
+    id: "r-278",
+    caseNumber: "ST/278/2026",
+    title: "Shajahan Kunju v. Paravur Cements",
+    stage: "arguments",
+    purpose: "arguments",
+    offset: 36,
+  },
+  {
+    id: "r-279",
+    caseNumber: "ST/279/2026",
+    title: "Preetha Krishnan v. Chavara Fisheries Co-operative",
+    stage: "judgement",
+    purpose: "judgement",
+    offset: 47,
+  },
 ];
 
 /** `YYYY-MM-DD`, `n` days on. Built through a Date so month and year ends are the OS's. */
@@ -221,10 +266,12 @@ export function reschedulableHearings(today: string): ReschedulableHearing[] {
     date: today,
   }));
 
-  const ahead: ReschedulableHearing[] = UPCOMING.map(({ offset, ...listing }) => ({
-    ...listing,
-    date: addDays(today, offset),
-  }));
+  const ahead: ReschedulableHearing[] = UPCOMING.map(
+    ({ offset, ...listing }) => ({
+      ...listing,
+      date: addDays(today, offset),
+    }),
+  );
 
   return [...listedToday, ...ahead].sort(byListing);
 }

@@ -512,11 +512,11 @@ discovering that nothing happened.
 
 ---
 
-## 19. `DatePicker` / `DateRangePicker`: four defects a screen cannot reach past
+## 19. `DatePicker` / `DateRangePicker`: what a screen cannot reach past
 
-The date controls came up four times while building **Bulk reschedule hearings**
+The date controls came up again and again while building **Bulk reschedule hearings**
 (`employee/bulk-reschedule-screen.tsx`), which asks for a span of days and then the single
-day to move that span to. None of the four has a local answer: `DateRangePicker` renders
+day to move that span to. None of them has a local answer: `DateRangePicker` renders
 its own `Popover` and its own `Calendar`, its `className` lands on the trigger `Button`,
 and the popover is portalled to `document.body` — so nothing a screen can pass, in props
 or in CSS, reaches the calendar inside it.
@@ -536,6 +536,17 @@ render (2026-09-13): the same date lit twice, in two places, in one control.
 and since that is the system's only multi-month calendar, nothing else moves. Better still
 if `Calendar` owns the rule — outside days off whenever `numberOfMonths > 1`, since two
 adjacent months can never want them.
+
+**One loose end for whoever implements it.** Bulk reschedule now sets it (§19f) and it
+does fix the defect — re-measured with the same 13 Sept – 2 Oct span, no date appears in
+both panels. But `react-day-picker` still emits the outside `<td>` and still marks it
+`data-selected` / `range_end`, and `Calendar` paints the range fill on the **cell** rather
+than on the day button inside it (`calendar.tsx:112-120`), so September's grid holds a
+selected, `bg-accent` cell with no day in it. It does not currently show — measured at
+the cell's centre it resolves to the panel white, because `range_end` is `isolate z-0` and
+something above it wins — so this is a latent artifact, not a live one, and Dristi carries
+no override for it. Worth fixing at the same time, since it is the same wrong assumption:
+a cell is not the day.
 
 **b. `value={undefined}` means "uncontrolled", so a range cannot be cleared.**
 
@@ -596,8 +607,56 @@ prevents that: the open state belongs to the primitive.
 **Request:** either a `clearable` / `onClear` prop that renders the `×` inside the
 trigger and leaves the popover alone, or a footer slot on the popover for a **Clear**
 beside the calendar. The second is better — a range picker's clear belongs next to the
-days it is undoing — and it would also give the presets row (`Next 7 days`, `This week`)
-somewhere to live if the courts ask for one.
+days it is undoing — and it would also give the presets row somewhere to live.
+
+**f. The first consumer that needed anything beyond the defaults stopped using it.**
+
+Bulk reschedule no longer uses `DateRangePicker`. `RangeField`
+(`employee/bulk-reschedule-screen.tsx`) composes `Popover` and `Calendar` directly and
+reimplements the trigger, the label formatting and the controlled range.
+
+It started as a placement problem. The owner brought a reference on 2026-09-14 whose date
+filter carries named spans (`Last 7 days`, `This month`) beside the custom dates; built
+first beside the trigger, they were rejected on sight — the spans belong *inside* the
+picker, next to the days they light up. There is no way to put them there. The primitive
+renders its own `Popover`, takes no `children`, spreads `className` onto the trigger, and
+portals its content, so nothing a consumer passes reaches inside.
+
+**The spans were then dropped** (owner, same day: the calendar is the one question that
+filter asks, and it did not want a second way of answering it). The composition stayed,
+because by then it was carrying (a), (c) and (e) as well — and *those* are why it cannot
+go back. Fixed locally, all three unreachable through the primitive:
+
+| | fixed by | measured |
+|---|---|---|
+| (a) | `showOutsideDays={false}` | 13 Sept – 2 Oct: no date appears in both panels |
+| (c) | closing the span closes the surface | second click dismisses; first does not |
+| (e) | `onInteractOutside` refuses this field's own parts | `×` clears, calendar stays |
+
+(b) went too: the empty-`DateRange` trick is gone, the value is plainly `undefined`.
+
+Two more the composition reached that the primitive still cannot. The trigger is named by
+its label *and* its own content (`aria-labelledby`), so it announces
+"Hearing dates, 14 Sept 2026 – 20 Sept 2026" — a `role="group"` wrapper was the best the
+primitive allowed. And `max-w-(--radix-popover-content-available-width)`: the primitive
+sets no ceiling, so at 200% text on a 375px viewport the two-month calendar wants 424px
+and hangs off a `position: fixed` surface with no page scroll to recover it
+(ACCESSIBILITY §10).
+
+**What would bring us back**, in order:
+
+1. **`open` / `onOpenChange`** — (c), and anything with a control of its own outside the
+   portal. Our `×` is dismissed *as an outside click* until the consumer owns open state.
+2. **`children`, or a header/footer slot** — (e), and where a presets row would have gone
+   had it survived.
+3. **`calendarProps`**, or `showOutsideDays={false}` as the internal default — (a).
+4. **A max-width ceiling** on the content by default.
+
+**The cost, recorded honestly:** this screen no longer tracks the primitive. A fix to
+`DateRangePicker` will not reach it, and `check:ui-sync` cannot see the divergence,
+because nothing under `components/ui/` changed. That is duplicated behaviour that agrees
+today — the `check:table-rows` lesson — and it is why this is filed rather than quietly
+absorbed. `date-picker.tsx` itself is untouched and still serves seven other screens.
 
 ---
 
@@ -643,3 +702,71 @@ be switched on.
 a `nav` with `aria-current`, not from `Tabs`. Switching a section of a panel is closer to
 navigation than to tab panels, so nothing is lost — but it is a workaround, and the
 moment a screen genuinely needs a vertical tablist there is no way to build one.
+
+---
+
+## 21. `ghost` has no hover state inside a well — `accent` and `surface-sunken` are 1.03:1
+
+`Button variant="ghost"` carries `hover:bg-accent` and nothing at rest. That works on
+`card`: `#ffffff` → `#f3f0ec` is a step you can see. It fails on any sunken surface,
+which is where a lot of secondary actions end up:
+
+| Surface | Value | Against `accent` `#f3f0ec` |
+|---|---|---|
+| `card` | `#ffffff` | 1.06:1 — visible |
+| `surface-sunken` | `#f5f4f1` | **1.03:1 — not visible** |
+
+`--accent` resolves to `--neutral-3` (`#f3f0ec`) and `--surface-sunken` is a tuned
+2.5-step well at `#f5f4f1`. They are two steps of the same warm ramp a quarter-step
+apart, so a ghost button in a well has, in practice, no hover feedback at all — the
+pointer is the only thing telling the user the control is live, and a keyboard user gets
+the focus ring and nothing else.
+
+Found on the order composer's application rows (`order-screen.tsx`), where View sat as a
+`ghost` on a `surface-sunken` card and the owner reported being unable to tell it was
+highlighted. **This is not specific to that screen**: every well in the product is a
+candidate — info wells, collapsed strips, filled document rows, the media wells in
+`foundations/elevation`. Anywhere the pattern "quiet action inside a well" appears, the
+quiet action is inert-looking.
+
+**Request:** give `ghost` a hover that is defined against its *parent* rather than
+against `card` — the straightforward version is a second step, e.g. `hover:bg-accent`
+staying as-is on `card` and a `data-`/`group-` variant resolving to `accent-strong`
+inside a sunken context. Alternatively document the constraint plainly in the `Button`
+docs ("`ghost` requires a `card` ground") so a screen reaches for `outline` deliberately
+rather than discovering it from a bug report.
+
+**Meanwhile, in Dristi:** the application row's View is `outline`. It is the right answer
+for that row anyway — it brings its own edge at rest — but it was chosen to route around
+this, not because the row wanted a third bordered control.
+
+---
+
+## 22. `SegmentedControl` renders radio roles over toggle-button behaviour
+
+The served DOM is `role="radiogroup"` with `role="radio"` / `aria-checked` on the items
+(Radix `ToggleGroup type="single"`). But `Enter` on the checked segment unchecks it, and
+the group is then a radiogroup with nothing checked. A radio the reader can uncheck is
+not a radio (ARIA 1.2, ACCESSIBILITY §2).
+
+**Every** segmented control in this repo guards it — seven call sites across six files
+(`top-bar`, `sign-in-block` twice, `bond-signing-screen`, `filing/segmented`,
+`order-screen`, `advocate-home`), each independently writing `if (!value) return` or
+`value && …`. `order-screen.tsx:1527` is the one that
+says why out loud: *"an empty value is dropped rather than being a fourth state that
+only appears by accident."* When every consumer without exception writes the same guard,
+the default is wrong — the primitive is shipping a state no screen in the product wants.
+
+The same lie has a second half, measured on the render (during a date-presets
+exploration on Bulk reschedule that did not ship — §19f — but the behaviour is the
+component's, and the seven live call sites all have it): **ArrowRight moves the highlight
+to the next segment without selecting it.** In a `role="radiogroup"`, arrow keys must move
+focus *and* check the option (ARIA 1.2) — that is the whole reason a radio group is one
+tab stop. So a keyboard user arrows onto the next segment, it looks focused, and the
+value has not changed. Deselect-on-Enter and no-select-on-arrow are the same defect from
+two sides: the component renders radio roles over toggle-button behaviour.
+
+**Request:** pick one and render it whole. Either suppress deselect and select on arrow,
+so `type="single"` is an honest radiogroup; or keep the toggle behaviour and render
+toggle-button roles (`aria-pressed`) rather than radio roles. Exposing the choice
+(`deselectable`) would work too, as long as the roles follow it.

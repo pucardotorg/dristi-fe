@@ -7,20 +7,27 @@
  * `order-templates.ts`, which transcribes the court's own twenty-seven templates, and
  * this module is the thin layer between that catalogue and the draft the composer holds.
  *
- * **What an order opens on is its BOTD line, unfilled.** None of the twenty-seven
- * templates references a general variable, so there is nothing to auto-fill on arrival:
- * an order opens on the court's sentence with its own slots still standing — `[Party
- * Name]`, `[Amount]`, `[Date]`. That is the source's design and not a shortfall. Which
- * party is summoned and what a cost is set at are choices, and the spec is explicit that
- * the system cannot make them: *"The system cannot fill a variable when it requires a
- * choice among multiple options."* The old build wrote "Issue summons to Anand Traders"
- * and read as finished while nobody had chosen anything.
+ * **What an order opens on is its BOTD line with the auto-fill pass run over it.**
+ * *(Corrected 2026-09-14. This comment used to say none of the twenty-seven references a
+ * general variable and there was therefore nothing to fill — read off the six* name *rows
+ * of the spec's general-variables table, which has thirteen. `[Application Number]`,
+ * `[Hearing Purpose]` and the hearing dates are general or context variables and they are
+ * all over the catalogue.)*
+ *
+ * What is still **not** filled, and this part of the old comment stands: which party is
+ * summoned and what a cost is set at are choices, and the spec is explicit that the
+ * system cannot make them — *"The system cannot fill a variable when it requires a choice
+ * among multiple options."* The old build wrote "Issue summons to Anand Traders" and read
+ * as finished while nobody had chosen anything, so `[Party Type]`, `[Party Name]`,
+ * `[Amount]` and the discretionary dates keep their brackets and wait for D31's fields.
  */
 
 import type { RichTextValue } from "@/components/cases/rich-text-field";
 
 import {
+  fillGeneralVariables,
   orderTemplate,
+  type OrderTemplateFacts,
   type OrderTemplateId,
 } from "./order-templates";
 
@@ -54,11 +61,30 @@ export function orderItemLabel(id: OrderItemTypeId): string {
   }
 }
 
-/** The words an order opens on: its BOTD line. Empty where the source gives none. */
-export function orderItemStandingText(id: OrderItemTypeId): string {
+/**
+ * The words an order opens on: its BOTD line, with the auto-fill pass run over it.
+ *
+ * **`facts` is what makes this the spec's step 3 rather than a paste of the template.**
+ * The spec's resolution order is explicit — the judge selects a type, the system loads
+ * the template, *then* "general variables and context variables are filled in", and only
+ * what is left becomes a field the judge answers. Without facts this returns the raw
+ * template, which is what an order opened on until 2026-09-14 and what
+ * `orderItemStandingText(id)` still means for callers that have no case in hand (the
+ * catalogue tests, and anything asking "what does this template say").
+ *
+ * What cannot be resolved stays standing as its own bracketed token — see
+ * `fillGeneralVariables`. That is the whole reason auto-fill is safe to do at all: it
+ * never has to decide between a value and a blank, because an unresolved slot keeps its
+ * name and stays visible in the place the value goes.
+ */
+export function orderItemStandingText(
+  id: OrderItemTypeId,
+  facts?: OrderTemplateFacts,
+): string {
   if (id === "others") return "";
   try {
-    return orderTemplate(id).botd;
+    const botd = orderTemplate(id).botd;
+    return facts ? fillGeneralVariables(botd, facts) : botd;
   } catch {
     return "";
   }
@@ -99,10 +125,23 @@ export function nextOrderItemId(): string {
   return `order-item-${sequence}`;
 }
 
-/** An order of this type, opened on the court's words for it. */
+/**
+ * An order of this type, opened on the court's words for it with what the screen knows
+ * already filled in.
+ *
+ * `facts` is optional so the catalogue can still be asked what a template *says*
+ * independently of any case. Every caller that is composing a real order passes them —
+ * an order that opens on `[Application Number]` when the application is on the screen
+ * beside it is the screen making the typist retype what it already holds.
+ */
 export function createOrderItem(
   type: OrderItemTypeId,
   id: string = nextOrderItemId(),
+  facts?: OrderTemplateFacts,
 ): OrderItemDraft {
-  return { id, type, text: richTextFromPlain(orderItemStandingText(type)) };
+  return {
+    id,
+    type,
+    text: richTextFromPlain(orderItemStandingText(type, facts)),
+  };
 }

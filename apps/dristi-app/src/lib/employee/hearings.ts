@@ -731,10 +731,21 @@ export function parseIsoDay(day: string): Date {
 /**
  * A day, written out.
  *
- * Two registers, because a date does two jobs on these screens. Prose names the day the
- * court is sitting on and can afford the weekday; a column of dates read against each
- * other cannot, and gets the short form. Both pin `en-IN` rather than reading the
- * runtime's locale, so the server and the browser render the same string.
+ * **Three registers, because a date does three jobs here.** Screen prose names the day
+ * the court is sitting on and can afford the weekday; a column of dates read against
+ * each other cannot, and gets the short form; and a date inside the operative words of
+ * an order takes neither — the court's own orders write "12 August 2025" and the
+ * weekday is not part of the direction (`public/case-file/09-orders.pdf`: *"Accused to
+ * appear on 12 August 2025"*, *"Call on 15 September 2025 for Evidence of
+ * Complainant"*).
+ *
+ * The split is the court's, not a preference: `Summons_Kollam_v14.pdf` makes it on one
+ * page, writing "18 September 2026" in the sentence that requires the appearance and
+ * "Friday, 10:30 AM" in the facts block above it. So a named fact may carry the weekday
+ * and a sentence of order text may not.
+ *
+ * All three pin `en-IN` rather than reading the runtime's locale, so the server and the
+ * browser render the same string.
  */
 const LONG_DAY = new Intl.DateTimeFormat("en-IN", {
   weekday: "long",
@@ -749,6 +760,12 @@ const LISTING_DAY = new Intl.DateTimeFormat("en-IN", {
   year: "numeric",
 });
 
+const ORDER_DAY = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
 /** "Monday, 31 August 2026" — a day named in a sentence. */
 export function formatCourtDay(day: string): string {
   return LONG_DAY.format(parseIsoDay(day));
@@ -757,6 +774,11 @@ export function formatCourtDay(day: string): string {
 /** "31 Aug 2026" — a day in a column, beside other days. */
 export function formatListingDate(day: string): string {
   return LISTING_DAY.format(parseIsoDay(day));
+}
+
+/** "31 August 2026" — a day inside the operative words of an order. */
+export function formatOrderDate(day: string): string {
+  return ORDER_DAY.format(parseIsoDay(day));
 }
 
 /**

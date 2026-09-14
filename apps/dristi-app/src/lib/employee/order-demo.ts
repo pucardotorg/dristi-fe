@@ -29,6 +29,7 @@ import { applicationsForListing } from "./listing-applications";
 import {
   appearancesFor,
   EMPTY_ORDER_DRAFT,
+  orderTemplateFacts,
   type AttendanceMark,
   type OrderDraft,
 } from "./order-draft";
@@ -38,6 +39,7 @@ import {
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "./order-items";
+import type { OrderTemplateFacts } from "./order-templates";
 
 /**
  * The item, as the bench would have dictated it on this listing.
@@ -174,9 +176,19 @@ function decisionsOf(hearing: CourtHearing): OrderDraft["applications"] {
  * completed matter opens on the same items every time — the editors are keyed on them,
  * and an id that changed between renders would restart the typist's cursor.
  */
-function itemsOf(hearing: CourtHearing): OrderItemDraft[] {
+function itemsOf(
+  hearing: CourtHearing,
+  /* The same auto-fill pass a live add runs (`orderTemplateFacts`). Without it a
+     completed listing would open on raw `[…]` tokens while clicking the identical order
+     on a live one opened on filled text — one screen with two answers to what an order
+     opens on. It changes nothing visible on today's fixtures, because the only item any
+     of them carries past the first is the cognizance summons and its tokens are all
+     parties, which stay the judge's to choose. That is the point: it is wired so it
+     cannot drift, not because it currently shows. */
+  facts: OrderTemplateFacts,
+): OrderItemDraft[] {
   return ITEM_TYPES[hearing.purpose].map((type, index) => {
-    const item = createOrderItem(type, `${hearing.id}-item-${index + 1}`);
+    const item = createOrderItem(type, `${hearing.id}-item-${index + 1}`, facts);
     if (index > 0) return item;
     return { ...item, text: richTextFromPlain(ITEM_TEXT[hearing.purpose]) };
   });
@@ -204,12 +216,20 @@ export function initialOrderDraft(
 
   const nextPurpose = NEXT_PURPOSE[hearing.purpose];
 
-  return {
+  /* The sitting without its items, so the auto-fill pass can read the next listing this
+     draft is about to claim — the facts depend on the draft and the items depend on the
+     facts, so the draft is assembled in that order rather than all at once. */
+  const sitting: OrderDraft = {
     marks: attendanceOf(hearing),
     applications: decisionsOf(hearing),
     next: nextPurpose ? "list" : "none",
     nextPurpose: nextPurpose ?? "",
     nextDate: nextPurpose ? nextSittingDay(today) : null,
-    items: itemsOf(hearing),
+    items: [],
+  };
+
+  return {
+    ...sitting,
+    items: itemsOf(hearing, orderTemplateFacts(hearing, sitting, today)),
   };
 }

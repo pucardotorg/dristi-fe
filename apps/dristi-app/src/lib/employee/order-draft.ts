@@ -13,21 +13,25 @@
 
 import type { RichTextValue } from "@/components/cases/rich-text-field";
 
-import { CURRENT_STAFF } from "./content";
+import { CURRENT_STAFF, PRESIDING_MAGISTRATE } from "./content";
 import {
   applicationsForListing,
+  listingApplicationLabel,
   listingApplicationSentence,
   type ListingApplication,
   type ListingApplicationDecision,
 } from "./listing-applications";
 import { orderItemLabel, type OrderItemDraft } from "./order-items";
+import type { OrderTemplateFacts } from "./order-templates";
 import {
   CAUSE_LIST,
   causeTitle,
   counselFor,
   courtHearingPurposeLabel,
   formatCourtDay,
+  formatOrderDate,
   withHearingSession,
+  type CounselSide,
   type CourtHearing,
   type CourtHearingPurposeId,
 } from "./hearings";
@@ -39,6 +43,17 @@ export type Appearance = {
   id: string;
   name: string;
   role: string;
+  /**
+   * Which side of the cause they appear on.
+   *
+   * Carried rather than read back off `role`, because a roll that groups by side must
+   * not depend on parsing the words "for the complainant" out of a label — the label is
+   * copy and will be translated, and a state that adds a second accused would break the
+   * parse silently.
+   */
+  side: CounselSide;
+  /** The party themselves, or counsel appearing for them. */
+  kind: "party" | "counsel";
 };
 
 /**
@@ -46,12 +61,96 @@ export type Appearance = {
  * that side, then the accused, then counsel for that side. A side with no vakalat
  * has no advocate row — the 1.0 screen still offered a checkbox for one.
  */
+/**
+ * Everything the auto-fill pass can resolve about this listing — the spec's step 3.
+ *
+ * Assembled here rather than in the composer because it is a derivation over the same
+ * three things `buildOrderDocument` already reads (the listing, the draft, the day), and
+ * a component is the wrong place for a rule about which values the court considers known.
+ * Being a plain function it is also testable, which matters more here than usual: the
+ * failure mode of this pass is a *wrong value silently written into an order*, and that is
+ * not something a render test would catch.
+ *
+ * **Dates go in the order's register, not the screen's.** `formatOrderDate` — "12 August
+ * 2025", the way the court's own orders write a date inside the words of a direction
+ * (`public/case-file/09-orders.pdf`). The screen's own prose keeps the weekday; an
+ * operative sentence does not.
+ *
+ * **`application` is the one the order was reached from, and nothing else will do.** It
+ * comes either from the suggestion row that was pressed or from `applicationForOrder`,
+ * which type-matches through the same pairing map — never from counting what is on the
+ * listing. *The first build of this function counted*, and on the board's own h-245 that
+ * put an application for **production of documents** into a **withdrawal** order. The
+ * spec's condition is not "there is only one" but *"the judge arrived at this order from
+ * the application itself"*. With nothing to name one, the token stays open: naming the
+ * wrong application in an order is far worse than naming none.
+ *
+ * **The next-listing values are filled only when the bench has actually set them** and
+ * only when the matter is being listed again at all. `next: "none"` means there is no
+ * next date, so `[Hearing Date]` has no value to take — and an unset optional leaves its
+ * bracket standing rather than resolving to a blank.
+ */
+export function orderTemplateFacts(
+  hearing: CourtHearing,
+  draft: OrderDraft,
+  today: string,
+  /* The number and the head, and nothing else — so a `ListingApplication` off the strip
+     and an `ApplicationSignal` off a suggestion row both satisfy it without either
+     module having to import the other's shape. */
+  application?: Pick<ListingApplication, "number" | "type">,
+): OrderTemplateFacts {
+  const listingAgain = draft.next === "list";
+  return {
+    court: CURRENT_STAFF.court,
+    caseName: causeTitle(hearing),
+    caseNumber: hearing.caseNumber,
+    currentDate: formatOrderDate(today),
+    judgeName: PRESIDING_MAGISTRATE.name,
+    judgeDesignation: PRESIDING_MAGISTRATE.designation,
+    complainant: hearing.parties.complainant,
+    accused: hearing.parties.accused,
+    /* The sitting this order is passed at is today's, because the cause list is one day
+       (`hearings.ts`). It is a separate field from `currentDate` all the same: they are
+       the same value only for as long as an order can only be composed on the day it was
+       listed, and the spec names them as two variables. */
+    currentHearingDate: formatOrderDate(today),
+    applicationNumber: application?.number,
+    applicationType: application ? listingApplicationLabel(application) : undefined,
+    hearingPurpose:
+      listingAgain && draft.nextPurpose
+        ? courtHearingPurposeLabel(draft.nextPurpose)
+        : undefined,
+    hearingDate:
+      listingAgain && draft.nextDate
+        ? formatOrderDate(draft.nextDate)
+        : undefined,
+    /* **`[Original Hearing Date]` is deliberately not supplied, and the first build of
+       this function got it wrong.** It read `today`, reasoning that the listing being
+       moved is the one in front of the bench. Template 7's sentence says otherwise:
+       *"Next hearing scheduled on [Original Hearing Date] for [Hearing Purpose] **has
+       been rescheduled to** [New Hearing Date]"* — the date being moved is a **future**
+       hearing's, and today is the day the order moving it is passed. Nothing on this
+       screen holds it: a `ListingApplication` carries its own number, filer, filing date
+       and reason, and no hearing date at all. So it stays open.
+
+       Template 7 is `context` anyway and cannot be added here. When it becomes reachable
+       it arrives from a rescheduling request, and all three of its values are that
+       workflow's to supply — the spec's *"variables the workflow already collected are
+       pre-filled"*. `[Hearing Purpose]` is filled above because template 6, the reachable
+       one, means the **next** listing's purpose by it; template 7 means the moved
+       hearing's, and a single token-to-value map cannot tell them apart. Recorded in §12
+       rather than papered over with per-template machinery for an unreachable row. */
+  };
+}
+
 export function appearancesFor(hearing: CourtHearing): Appearance[] {
   const rows: Appearance[] = [
     {
       id: "complainant",
       name: hearing.parties.complainant,
       role: "Complainant",
+      side: "complainant",
+      kind: "party",
     },
   ];
   counselFor(hearing, "complainant").forEach((counsel, index) => {
@@ -59,18 +158,24 @@ export function appearancesFor(hearing: CourtHearing): Appearance[] {
       id: `complainant-counsel-${index}`,
       name: counsel.name,
       role: "Advocate for the complainant",
+      side: "complainant",
+      kind: "counsel",
     });
   });
   rows.push({
     id: "accused",
     name: hearing.parties.accused,
     role: "Accused",
+    side: "accused",
+    kind: "party",
   });
   counselFor(hearing, "accused").forEach((counsel, index) => {
     rows.push({
       id: `accused-counsel-${index}`,
       name: counsel.name,
       role: "Advocate for the accused",
+      side: "accused",
+      kind: "counsel",
     });
   });
   return rows;
@@ -166,6 +271,8 @@ export type AttendanceEntry = {
   name: string;
   /** "the complainant" / "advocate for the accused" — the office in the sentence. */
   office: string;
+  /** "Complainant" / "Advocate for the accused" — the office as a list entry. */
+  role: string;
   mark: AttendanceMark;
 };
 
@@ -201,6 +308,7 @@ export function assembleAttendance(
         id: appearance.id,
         name: appearance.name,
         office: attendanceOffice(appearance),
+        role: appearance.role,
         mark,
       },
     ];
@@ -434,8 +542,24 @@ export type OrderDocument = {
   /** Attendance, as it opens the order. */
   opening: string;
   /**
-   * How the applications pending on this listing were answered. Empty when none was
-   * pending — the paper then has no such paragraph at all.
+   * Who was marked, for the page's own two lines.
+   *
+   * The order sheet prints **Present:** and **Absent:** as two rolls rather than as the
+   * running sentence `opening` holds, so the page needs the marks and not only the
+   * prose. Empty while nothing has been marked, which is when `opening` says so.
+   */
+  attendance: AttendanceEntry[];
+  /**
+   * How the applications standing on this listing were **answered**.
+   *
+   * Answered only. An unanswered application is a fact about the typist's work, not a
+   * direction of the court, and no order sheet says "we did not get to these" — so the
+   * "N applications pending…" sentence `assembleApplications` produces never reaches the
+   * page (owner, 2026-09-14: *"do we need that information there though?"*). The block's
+   * own `pending` flag still carries the state for anything that wants to warn about it,
+   * which belongs in the chrome beside Sign order rather than inside the document.
+   *
+   * Empty when nothing has been answered — the paper then has no such paragraph at all.
    */
   applications: { text: string; pending: boolean }[];
   /**
@@ -462,12 +586,14 @@ export function buildOrderDocument(
     matter: causeTitle(hearing),
     title: "Order",
     opening: assembleAttendance(appearances, draft.marks).body,
-    applications:
+    attendance: assembleAttendance(appearances, draft.marks).appearances ?? [],
+    applications: (
       assembleApplications(
         hearing,
         applicationsForListing(hearing.id),
         draft.applications,
-      )?.sentences ?? [],
+      )?.sentences ?? []
+    ).filter((sentence) => !sentence.pending),
     items: assembleItems(draft.items).items ?? [],
     closing: assembleNextListing(draft).body,
     dated: formatCourtDay(day),

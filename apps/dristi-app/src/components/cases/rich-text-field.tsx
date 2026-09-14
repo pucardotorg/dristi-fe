@@ -9,6 +9,7 @@ import {
   ItalicIcon,
   ListIcon,
   ListOrderedIcon,
+  UnderlineIcon,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -25,6 +26,16 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
  * marks are DS ToggleGroups in a `role="toolbar"` strip. Nothing under
  * `components/ui` is edited or forked.
  *
+ * **The toolbar is transparent, and the 40px buttons stay 40px** (2026-09-14). The marks
+ * were `ToggleGroup variant="outline"`, so every one of the seven carried a border and a
+ * card fill: three bordered blocks of form-weight controls above a paragraph, which is
+ * the whole reason the field read as unfinished. `default` is the toolbar treatment — the
+ * button is nothing at rest, `accent` on hover, `accent-strong` when it is on, so the one
+ * mark on the strip is the format actually in force. **Do not shrink the buttons to make
+ * the strip lighter**: `ACCESSIBILITY.md` §8 puts the interactive floor at 40×40 and says
+ * a smaller visual must expand its hit area to reach it, so the size is the target and
+ * the size was never what looked heavy. The border was.
+ *
  * InputGroupAddon is not the toolbar. That slot is prefix chrome (a dialling
  * code, a search icon) — `cursor-text`, muted label colour, click-to-focus an
  * `<input>`. Putting ToggleGroups there made the strip read as a second field
@@ -37,8 +48,14 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
  * lists and alignment out of one surface.
  */
 
+/*
+ * Restores what Preflight strips, for the editor *and* for `RichTextValueView` — the two
+ * have to agree about what the same markup looks like. `[&_u]:underline` is belt and
+ * braces: `u` keeps its default rule today, and an underline that silently rendered as
+ * plain text would be a mark the typist applied and the order never showed.
+ */
 const LIST_CLASSES =
-  "[&_ol]:list-decimal [&_ol]:ps-6 [&_ul]:list-disc [&_ul]:ps-6";
+  "[&_ol]:list-decimal [&_ol]:ps-6 [&_ul]:list-disc [&_ul]:ps-6 [&_u]:underline";
 
 /** Both shapes are kept: html renders the formatting, text drives validation. */
 export type RichTextValue = {
@@ -48,13 +65,14 @@ export type RichTextValue = {
 
 export const EMPTY_RICH_TEXT: RichTextValue = { html: "", text: "" };
 
-type MarkCommand = "bold" | "italic";
+type MarkCommand = "bold" | "italic" | "underline";
 type ListCommand = "insertUnorderedList" | "insertOrderedList";
 type AlignCommand = "justifyLeft" | "justifyCenter" | "justifyRight";
 
 const MARKS: { command: MarkCommand; label: string; Icon: typeof BoldIcon }[] = [
   { command: "bold", label: "Bold", Icon: BoldIcon },
   { command: "italic", label: "Italic", Icon: ItalicIcon },
+  { command: "underline", label: "Underline", Icon: UnderlineIcon },
 ];
 
 const LISTS: { command: ListCommand; label: string; Icon: typeof BoldIcon }[] = [
@@ -156,7 +174,11 @@ export function RichTextField({
       <div
         role="toolbar"
         aria-label="Formatting"
-        className="flex w-full flex-wrap items-center gap-2 border-b border-hairline px-2 py-1"
+        /* `px-1` against the control's `px-4`: a 40px button centres a 16px icon at
+           12px, so 4 + 12 lands the first icon on the same 16px line the text below it
+           starts from. The toolbar and the paragraph read as one left edge instead of
+           two that nearly agree. */
+        className="flex w-full flex-wrap items-center gap-2 border-b border-hairline px-1 py-1"
         onMouseDownCapture={(event) => {
           // A button mousedown would steal focus and collapse the range
           // before execCommand runs. Cancel the default; the click still
@@ -166,7 +188,6 @@ export function RichTextField({
       >
         <ToggleGroup
           type="multiple"
-          variant="outline"
           spacing={0}
           value={marks}
           onValueChange={(next: string[]) => run(changedCommands(next, marks))}
@@ -186,7 +207,6 @@ export function RichTextField({
 
         <ToggleGroup
           type="multiple"
-          variant="outline"
           spacing={0}
           value={lists}
           onValueChange={(next: string[]) => run(changedCommands(next, lists))}
@@ -213,7 +233,6 @@ export function RichTextField({
         */}
         <ToggleGroup
           type="multiple"
-          variant="outline"
           spacing={0}
           value={[alignment]}
           onValueChange={(next: string[]) => {
@@ -245,7 +264,7 @@ export function RichTextField({
         contentEditable
         suppressContentEditableWarning
         className={cn(
-          "w-full min-h-64 px-2.5 py-2 text-body outline-none",
+          "w-full min-h-64 px-4 py-3 text-body outline-none",
           LIST_CLASSES
         )}
         onInput={emitChange}

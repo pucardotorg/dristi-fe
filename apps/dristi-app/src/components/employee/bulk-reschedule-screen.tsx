@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  CalendarDaysIcon,
   CalendarX2Icon,
   CircleCheckIcon,
   SearchXIcon,
@@ -18,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DateRangePicker } from "@/components/ui/date-picker";
 import type { DateRange } from "react-day-picker";
 import {
   Dialog,
@@ -37,6 +37,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   boardAfterMoves,
   earliestNewListing,
@@ -95,13 +100,21 @@ function plural(count: number, one: string, many: string): string {
  * The day clicked is not handed over, so it is read back out of what changed — the
  * calendar has already moved exactly one end, or cleared the span because the click
  * landed on its start.
+ *
+ * **Whether an end is being held is told, not inferred.** It used to be read off the
+ * value as `from !== to`, which is true of a span half-drawn and false of a span of one
+ * day — two different things wearing one shape. Ask for a single day (click it twice),
+ * reopen, and click the 5th meaning only the 5th: the click was taken as the *far end*
+ * of a span that was already finished, and the board got `5 Sept – 14 Sept` — ten days,
+ * nine of them behind the court, on the screen that moves twenty-two matters at once.
+ * The caller knows which click this is because it watched the previous one, so it says.
  */
 function nextRangeFromPick(
   current: Span,
   next: DateRange | undefined,
+  /** One end is down and this click is the other. */
+  holding: boolean,
 ): Span {
-  const wasComplete = current.from !== null && current.from !== current.to;
-
   if (!next?.from) {
     /* Cleared — which the calendar only does when the click landed on the span's own
        start. A span of one day is where that click was going. */
@@ -111,13 +124,13 @@ function nextRangeFromPick(
   const from = isoDay(next.from);
   const to = next.to ? isoDay(next.to) : from;
 
-  /* One day held, second day named: this is the span being closed, so take it. */
-  if (!wasComplete) return { from, to };
+  /* One day held, second day named: this is the span being closed, so take it —
+     including when both names are the same day, which is a span of one. */
+  if (holding) return { from, to };
 
   const clicked = !next.to ? from : from !== current.from ? from : to;
   return { from: clicked, to: clicked };
 }
-
 
 /**
  * Bulk reschedule — moving a span of this court's board to another date in one act.
@@ -150,11 +163,7 @@ function nextRangeFromPick(
  * the place it matters, rather than letting the screen imply the act is finished.
  */
 export function BulkRescheduleScreen() {
-  const today = React.useSyncExternalStore(
-    NEVER_CHANGES,
-    readToday,
-    readToday,
-  );
+  const today = React.useSyncExternalStore(NEVER_CHANGES, readToday, readToday);
 
   /* One state, not a draft and an applied one: the board answers the controls as they are
      used. Both ends of the range are calendars, which hand over a whole day or nothing —
@@ -322,12 +331,20 @@ export function BulkRescheduleScreen() {
  * the accessibility floor treats a placeholder as a hint rather than a label
  * (ACCESSIBILITY §12).
  *
- * All three controls apply as they are used, and the Search button is gone. It had been
+ * Every control applies as it is used, and the Search button is gone. It had been
  * argued for on the grounds that a range is composed before it is asked for — but a
  * calendar hands over a whole day or nothing, so there was never a half-formed range to
  * protect, and the filter only narrows rows the browser already holds. Nothing is
  * re-queried and nothing is committed: moving the board is the act at the bottom of the
  * page, behind its own overlay, and it is untouched.
+ *
+ * A reference the owner brought on 2026-09-14 offered named spans (`Last 7 days`) and an
+ * **Apply Custom Filter** button beside them. Neither is here. The spans were built, put
+ * beside the field, then moved inside the picker, then dropped — the calendar is the one
+ * question this filter asks and it turned out not to want a second way of answering it
+ * (owner, across 2026-09-14). The Apply never came across at all: this screen had one, a
+ * date picker and an Apply above the table, and it was taken out on 2026-09-13 as "two
+ * acts, a worksheet between them".
  *
  * Removing it also spends the screen's teal properly. This page used to paint two strong
  * fills — Search here and Reschedule in the commit bar — on a reading of the Ration Teal
@@ -344,6 +361,8 @@ function RangeFilters({
   onRangeChange: (from: string | null, to: string | null) => void;
 }) {
   return (
+    /* Two fields, each a label over one control — the shape today's cause list uses,
+       so the bottoms line up. */
     <form
       className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
       onSubmit={(event) => event.preventDefault()}
@@ -353,7 +372,7 @@ function RangeFilters({
         label="Hearing dates"
         range={filters}
         onChange={onRangeChange}
-        className="w-full sm:w-72"
+        className="sm:w-72"
       />
 
       <QueueSearchField
@@ -370,40 +389,48 @@ function RangeFilters({
 /**
  * The span of days the board is showing — **one control that says it is a range**.
  *
- * It was two: `Listed from` and `Listed until`, each its own single-date picker. They
- * were read on the render as two unrelated date fields rather than as the two ends of one
- * thing — *"it was not apparent that this is a date range selector"* (stakeholder, via the
- * owner, 2026-09-13). Two adjacent controls can only ever be a range by convention; one
- * control whose value is a span says so before it is read, and the two-month calendar it
- * opens shows the span being drawn.
+ * It was two fields once: `Listed from` and `Listed until`, each its own single-date
+ * picker. They were read on the render as two unrelated date fields rather than as the
+ * two ends of one thing — *"it was not apparent that this is a date range selector"*
+ * (stakeholder, via the owner, 2026-09-13). Two adjacent controls can only ever be a
+ * range by convention; one control whose value is a span says so before it is read.
  *
- * The design system's `DateRangePicker` is that control and it is taken as it ships. It
- * also removes code rather than adding it: a range picked as one gesture cannot have its
- * ends the wrong way round, so the clamp that used to carry one end past the other is
- * gone with it.
+ * **Composed from `Popover` and `Calendar` rather than taken from `DateRangePicker`,
+ * and that is a deliberate step away from the primitive.**
  *
- * **A one-day span is held as `to: undefined`.** That is how the primitive draws a single
- * date (`September 13th, 2026`) instead of the same day written twice with a dash between
- * it, and it is also the state the calendar wants when the next click is going to set the
- * other end. The board still reads it as `from = to`: a court sitting on one day is a
- * range of one, not an unfinished question.
+ * It began as the only way to put a row of named spans inside the picker rather than
+ * beside it (owner, 2026-09-14). The spans were then dropped — the calendar is the one
+ * question this filter asks, and it did not want a second way of answering it — but the
+ * composition stays, because what it actually bought was §19 itself.
  *
- * What a click does to a span already finished is decided in `nextRangeFromPick`, not by
- * the calendar.
+ * `DateRangePicker` renders its own `Popover` and its own `Calendar`, takes no
+ * `children`, spreads its `className` onto the trigger `Button`, and portals its content
+ * to `document.body`. So a screen using it cannot reach the calendar inside it, in props
+ * or in CSS, and three of the four defects filed against it are unreachable from here —
+ * which is the whole of `ds-requests` 19. Owning the popover fixes all three rather than
+ * working around them:
  *
- * **The field gives the span back, the way the search box gives the text back.** A span
- * is cleared from the control that holds it, not from a button at the end of the row that
- * also drops the search and the ticks — `Clear filters` does more, and doing more is the
- * reason it is not this (owner, 2026-09-13). It appears only once there is a span to
- * clear: a permanent `×` on an empty field is a control that does nothing, which is the
- * contract `QueueSearchField` already sets one control to the left.
+ * - **(a)** `showOutsideDays={false}`. Two adjacent months draw each other's edge days,
+ *   so September's trailing cells and October's leading cells were the same dates drawn
+ *   twice and lit twice — one span painting two ends.
+ * - **(c)** the calendar dismisses when the span closes. The primitive leaves it standing
+ *   over the page after the one decision it exists for.
+ * - **(e)** the `×` no longer costs the calendar. It sits outside the portalled content,
+ *   so Radix's dismissable layer read the press as an outside click and closed the
+ *   popover the bench was still using; with `open` held here, clearing clears and nothing
+ *   else moves.
  *
- * It sits in the trigger's own inline-end, because that is where this product puts a
- * field's clear. `DateRangePicker` renders its trigger itself and takes no children, so
- * the `×` is a sibling laid over the padding the trigger is given to hold it, rather than
- * a child of it — a button inside a button is not markup, and the primitive is not forked
- * to avoid it. **Inside the calendar is where this really belongs**, next to the days it
- * undoes; that needs the popover, which the primitive owns. Raised as `ds-requests` 19(e).
+ * **A one-day span is held as `to: undefined`.** That is what draws a single date rather
+ * than the same day written twice with a dash between it, and it is the state the
+ * calendar wants when the next click is going to set the other end. The board still reads
+ * it as `from = to`: a court sitting on one day is a range of one, not an unfinished
+ * question. What a click does to a span already finished is decided in
+ * `nextRangeFromPick`, not by the calendar.
+ *
+ * **The span is given back from the `×` on the field**, the way the search box beside it
+ * gives its text back, and it appears only once there is a span to clear (owner,
+ * 2026-09-13). `Clear filters` drops the search and the span together and is the empty
+ * state's business; a field's own clear takes only what the field holds.
  *
  * The width is the caller's, and the id prefixes the label element it owns.
  */
@@ -420,50 +447,157 @@ function RangeField({
   onChange: (from: string | null, to: string | null) => void;
   className?: string;
 }) {
+  const [open, setOpen] = React.useState(false);
+  /* One end is down and the calendar is waiting for the other. Held here rather than
+     read off the value, because a span of one day and a span half-drawn are the same
+     value — see `nextRangeFromPick`. True only between two clicks on the calendar:
+     closing the surface abandons a half-drawn span rather than leaving it armed for the
+     next time it opens. */
+  const [holding, setHolding] = React.useState(false);
   const held = range.from !== null;
+
+  /* Undefined, not an empty `DateRange`: the calendar is handed the value directly here
+     rather than through `DateRangePicker`, whose `value === undefined` meant "this
+     control is uncontrolled" and made clearing impossible (`ds-requests` 19(b)). Nothing
+     falls back to a remembered value any more, so the plain absence is the honest shape
+     and the workaround it needed is gone with the primitive. */
+  const selected: DateRange | undefined =
+    range.from === null
+      ? undefined
+      : {
+          from: parseIsoDay(range.from),
+          to:
+            range.to === null || range.from === range.to
+              ? undefined
+              : parseIsoDay(range.to),
+        };
+
+  /* The same words the table's own date column uses, so the field and the rows it
+     filters cannot describe one day two ways. */
+  const value = !held
+    ? "Select date range"
+    : range.to === null || range.from === range.to
+      ? formatListingDate(range.from as string)
+      : `${formatListingDate(range.from as string)} – ${formatListingDate(range.to)}`;
+
+  function pick(next: DateRange | undefined) {
+    const picked = nextRangeFromPick(range, next, holding);
+    onChange(picked.from, picked.to);
+    /* The second click closes the span, whichever day it landed on — a different day
+       makes a range, the held day again makes a span of one — and closing the span is
+       the decision this surface exists for, so it stands down on it (§19c). A first
+       click is not that: it puts one end down and waits. */
+    setHolding(!holding);
+    if (holding) setOpen(false);
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      {/* `DateRangePicker` owns its trigger and takes no `id`, so the visible label names
-          a group around it rather than pointing `htmlFor` at a control that does not
-          exist. The trigger still announces the span it holds. */}
-      <span id={`${id}-label`} className="w-fit text-body font-medium">
-        {label}
-      </span>
-      <div
-        role="group"
-        aria-labelledby={`${id}-label`}
-        className="relative min-w-0"
+      {/* A real `label`, not a `span`: a `button` is a labelable element, so this both
+          names the trigger and opens it when pressed — which is what the search field
+          40px to the right already does with its own label, and what a bench that
+          clicks the words expects. The `aria-labelledby` on the trigger stays, because
+          the accessible name wants the span as well as the field's name. */}
+      <label
+        id={`${id}-label`}
+        htmlFor={`${id}-trigger`}
+        data-range-part={id}
+        className="w-fit text-body font-medium"
       >
-        <DateRangePicker
-          /* No span asked for means no day lit, and that is what makes the first click
-             on the calendar a first date rather than the far end of a span the screen
-             had already begun.
-
-             **An empty `DateRange`, never `undefined`.** The primitive reads `undefined`
-             as "this control is uncontrolled" and falls back to the last value it kept
-             internally, so clearing the span left the trigger still reading the range it
-             had just given up (measured on the render). An object whose `from` is unset
-             is a value — the control stays controlled, the label falls through to the
-             placeholder, and the calendar lights nothing. */
-          value={
-            range.from === null
-              ? { from: undefined, to: undefined }
-              : {
-                  from: parseIsoDay(range.from),
-                  to:
-                    range.to === null || range.from === range.to
-                      ? undefined
-                      : parseIsoDay(range.to),
-                }
-          }
-          onValueChange={(next) => {
-            const picked = nextRangeFromPick(range, next);
-            onChange(picked.from, picked.to);
+        {label}
+      </label>
+      <div className={cn("relative w-full min-w-0", className)}>
+        <Popover
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            /* A half-drawn span does not survive the surface closing. Escaping out of
+               one and reopening would otherwise take the first click as its far end. */
+            if (!next) setHolding(false);
           }}
-          placeholder="Select date range"
-          className={cn(className, held && "pr-12")}
-        />
+        >
+          <PopoverTrigger asChild>
+            {/* Named by the visible label *and* by its own content, the way a combobox
+                is: "Hearing dates, 14 Sept 2026 – 20 Sept 2026". The label alone would
+                drop the span; the content alone would drop what the span is of. */}
+            <Button
+              id={`${id}-trigger`}
+              variant="outline"
+              aria-labelledby={`${id}-label ${id}-trigger`}
+              className={cn(
+                "w-full justify-start gap-2 text-left font-normal",
+                !held && "text-muted-foreground",
+                held && "pr-12",
+              )}
+            >
+              <CalendarDaysIcon data-icon="inline-start" aria-hidden />
+              <span className="truncate">{value}</span>
+            </Button>
+          </PopoverTrigger>
+
+          {/* Sized by what it holds rather than the popover's own `w-72` — but never
+              wider than the room it has.
+
+              A two-month calendar has a floor it cannot shrink past: the months stack
+              into one column below `md`, which is enough at a phone's default text size,
+              and is not once the text grows. Measured at 200% on a 375px viewport, the
+              calendar alone wants 424px. Radix's popper hard-sets `min-width:
+              max-content` on its wrapper, so without a ceiling the surface simply takes
+              that width and hangs off the screen — and because a popover is
+              `position: fixed`, there is no page scroll to go and get it
+              (ACCESSIBILITY §10, RESPONSIVE.md 9).
+
+              Radix's own available-width variable is that ceiling, and it is the reason
+              this does not reproduce here while it still does under `DateRangePicker`,
+              which sets no max width at all. `collisionPadding` keeps the surface off
+              the viewport edge rather than flush against it. */}
+          <PopoverContent
+            align="start"
+            collisionPadding={16}
+            className="w-auto max-w-(--radix-popover-content-available-width) gap-0 p-0"
+            /* **This field's own parts are not outside clicks.** The label and the
+               `×` both sit outside the portalled content in the DOM — the `×` laid
+               over the trigger's padding, the label above it — so Radix's dismissable
+               layer dismisses on both. Radix excludes the trigger itself
+               (`targetIsTrigger`) and nothing else, which is how clearing used to cost
+               the calendar (`ds-requests` 19(e)), and it is why a plain `label` would
+               close the surface on pointer-down and then reopen it when the browser
+               forwarded the click on to the button — a flicker that can never be shut.
+
+               Refusing the dismiss for both fixes both: the `×` clears and the surface
+               the bench is still reading stays put; the label's forwarded click reaches
+               the trigger with the popover still open, so it toggles shut the way
+               pressing the trigger does. Marked per field — a bare attribute would let a
+               second range field suppress this one's legitimate dismiss. Covers focus as
+               well as pointer, because pressing either does both. */
+            onInteractOutside={(event) => {
+              const target = event.detail.originalEvent.target;
+              if (
+                target instanceof Element &&
+                target.closest(`[data-range-part="${id}"]`)
+              ) {
+                event.preventDefault();
+              }
+            }}
+          >
+            <Calendar
+              mode="range"
+              numberOfMonths={2}
+              /* §19a: two adjacent months otherwise draw each other's edge days, so
+                   the same date appears in both panels and lights twice. Measured on
+                   the render with 13 Sept – 2 Oct: no date now appears more than once. */
+              showOutsideDays={false}
+              selected={selected}
+              onSelect={pick}
+              /* Opening the surface puts the reader on a day, not on the chevron that
+                 happens to come first in it. Radix focuses the first tabbable in the
+                 content, which without this is *Previous month* — so a keyboard user
+                 arrived one control short of the only question here. */
+              autoFocus
+            />
+          </PopoverContent>
+        </Popover>
+
         {held ? (
           /* **The same mark as the search box's clear, one control to the right.** It
              was drawn a third smaller and went unfound: `Button size="icon-xs"` shrinks
@@ -482,10 +616,14 @@ function RangeField({
              area back without changing what is drawn (ACCESSIBILITY §8). */
           <Button
             type="button"
+            data-range-part={id}
             variant="ghost"
             size="icon-xs"
             aria-label={`Clear ${label.toLowerCase()}`}
-            onClick={() => onChange(null, null)}
+            onClick={() => {
+              onChange(null, null);
+              setHolding(false);
+            }}
             className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground after:absolute after:-inset-2 after:content-['']"
           >
             <XIcon aria-hidden className="size-4" />
@@ -786,11 +924,7 @@ function RescheduleOverlay({
           {outcome ? (
             <Settled outcome={outcome} />
           ) : (
-            <PickDay
-              day={day}
-              onDayChange={setDay}
-              earliest={earliestNewDay}
-            />
+            <PickDay day={day} onDayChange={setDay} earliest={earliestNewDay} />
           )}
         </div>
       </div>

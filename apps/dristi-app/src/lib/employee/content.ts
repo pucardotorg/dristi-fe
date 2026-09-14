@@ -85,3 +85,22 @@ export const CURRENT_STAFF: { name: string; court: string; role: CourtRole } = {
   court: "JMFC Court 1, Kollam",
   role: "bench-clerk",
 };
+
+/**
+ * Who signs the order this court passes.
+ *
+ * Not the person at the keyboard. `CURRENT_STAFF` is the seat working the screen — a
+ * bench clerk or a typist — and the order is the magistrate's; the page has to say whose
+ * signature it is waiting for, and it is never theirs.
+ *
+ * **The name is the owner's own reference screen's** (2026-09-14), carried here so the
+ * signature block has something to print. The designation is written against
+ * `CURRENT_STAFF.court` rather than copied from that reference, which names a differently
+ * worded Kollam court — one page must not give itself two court names. Fixture, like
+ * `CURRENT_STAFF`: the directory that replaces one replaces both, and nothing keys off
+ * it.
+ */
+export const PRESIDING_MAGISTRATE: { name: string; designation: string } = {
+  name: "Sri. Anand Krishnan",
+  designation: "Judicial Magistrate of the First Class",
+};

@@ -75,10 +75,7 @@ export type OrderDropdownRule =
   | "case-is-lp";
 
 export type OrderGroupId =
-  | "process"
-  | "accept-reject"
-  | "progression"
-  | "directives";
+  "process" | "accept-reject" | "progression" | "directives";
 
 export type OrderVariable = {
   /** The token as it appears in the template, without brackets. */
@@ -506,6 +503,24 @@ export function browsableTemplates(): OrderTemplate[] {
 }
 
 /**
+ * Whether the source gives this type any words at all.
+ *
+ * Two of the twenty-seven carry no BOTD line — **Order under section 202 CrPC** and
+ * **Judgement** — and the source says what that means rather than leaving it as a hole:
+ * "If an order type has **no template** ... the judge writes the order text from scratch
+ * — or a dedicated screen handles it (e.g. Judgement)." They are still the court's own
+ * types and still choosable. What they are not is *worded*, and that is the one honest
+ * line through the catalogue: twenty-five orders the system writes for you, and two it
+ * hands you blank.
+ *
+ * Read off the text rather than kept as a list of two ids, so a template the court later
+ * fills in stops being a write-it-yourself order without anyone remembering to move it.
+ */
+export function hasTemplateText(entry: OrderTemplate): boolean {
+  return entry.botd.trim().length > 0;
+}
+
+/**
  * Available at every hearing, whatever it was listed for.
  *
  * The source lists these separately and does not repeat them against any purpose.
@@ -566,41 +581,132 @@ export function likelyTemplatesFor(
     .filter((entry) => unavailableReason(entry, context) === null);
 }
 
-/** The general variables, which come from case and court data and are never typed. */
+/**
+ * Everything the auto-fill pass can resolve without asking anybody.
+ *
+ * **The spec's general-variables table has thirteen rows, not six.** The first version of
+ * this type carried the six *name* variables and concluded from their absence that the
+ * catalogue references no general variable at all (D40). That was half the table. The
+ * spec also lists `[Party Type]`, `[Party Name]`, `[Document Type]`, `[Hearing Purpose]`
+ * and `[Current Hearing Date]` as general — *"Available to every template.
+ * Auto-populated — the judge never types these"* — and four of those five are the most
+ * common tokens in the twenty-seven.
+ *
+ * **So the reconciliation is the load-bearing part of this type, not the field list.**
+ * The spec says two things that look contradictory: those variables are auto-populated,
+ * *and* "the system cannot fill a variable that requires a **choice among options**". It
+ * resolves itself once you read what kind of value each one is:
+ *
+ * - **A single-valued fact resolves.** There is one court, one cause title, one case
+ *   number, one presiding magistrate, one today. These fill, always.
+ * - **A choice does not.** `[Party Type]` is complainant *or* accused *or* witness, and
+ *   the spec's own rule is that with multiple candidates the system offers a selector.
+ *   `[Party Name]` follows the type, so it cannot resolve before it.
+ *   `[Document Type]` is a master-data dropdown the judge picks. **These are absent from
+ *   this type on purpose** — filling them is what D40 was written to stop, and guessing
+ *   "Issue summons to the accused" would put a party in an order that nobody chose.
+ * - **A choice already made elsewhere on this screen is context, not a guess.** The spec
+ *   calls this out separately: *"Workflow context — when an order is the output of a
+ *   workflow… variables the workflow already collected are pre-filled"*, and
+ *   *"Application context — when acting on an application, the Application Number and
+ *   Application Type are already known, because the judge arrived at this order from the
+ *   application itself."* The bench sets the next purpose and date in Next hearing and
+ *   answers applications on the same screen, so those values are collected, not invented.
+ *
+ * Every context field is optional, and an absent one leaves its token standing rather
+ * than resolving to a blank or a guess.
+ */
 export type OrderTemplateFacts = {
+  /* The general variables: one value each, no choice to make. */
+  /** `[Court Name]` */
   court: string;
+  /** `[Case Name]` — "A v. B", the cause title. */
+  caseName: string;
+  /** `[Case Number]` */
   caseNumber: string;
-  matter: string;
+  /** `[Current Date]` — already written out, not an ISO day. */
+  currentDate: string;
+  /** `[Judge Name]` — the magistrate whose order it is, never the seat at the keyboard. */
+  judgeName: string;
+  /** `[Judge Designation]` */
+  judgeDesignation: string;
+  /** `[Complainant Name]` */
   complainant: string;
+  /** `[Accused Name]` */
   accused: string;
-  today: string;
+  /** `[Current Hearing Date]` — the sitting this order is passed at. */
+  currentHearingDate: string;
+
+  /* Context. Present only when the screen has actually collected the value. */
+  /** `[Application Number]` — the application this order was reached from. */
+  applicationNumber?: string;
+  /** `[Application Type]` — its head. */
+  applicationType?: string;
+  /** `[Hearing Purpose]` — the next listing's purpose, as set in Next hearing. */
+  hearingPurpose?: string;
+  /** `[Hearing Date]` — the next listing's date, as set in Next hearing. */
+  hearingDate?: string;
+  /**
+   * `[Original Hearing Date]` — the date of the hearing being **moved**, which is a
+   * future listing and not the sitting this order is passed at.
+   *
+   * The order composer never supplies it (`orderTemplateFacts` says why); it belongs to
+   * the rescheduling workflow. Mapped here so that workflow can fill it when it exists.
+   */
+  originalHearingDate?: string;
 };
 
 const GENERAL: { token: string; from: keyof OrderTemplateFacts }[] = [
   { token: "[Court Name]", from: "court" },
-  { token: "[Case Name]", from: "matter" },
+  { token: "[Case Name]", from: "caseName" },
   { token: "[Case Number]", from: "caseNumber" },
-  { token: "[Current Date]", from: "today" },
+  { token: "[Current Date]", from: "currentDate" },
+  { token: "[Judge Name]", from: "judgeName" },
+  { token: "[Judge Designation]", from: "judgeDesignation" },
   { token: "[Complainant Name]", from: "complainant" },
   { token: "[Accused Name]", from: "accused" },
+  { token: "[Current Hearing Date]", from: "currentHearingDate" },
+  { token: "[Application Number]", from: "applicationNumber" },
+  { token: "[Application Type]", from: "applicationType" },
+  { token: "[Hearing Purpose]", from: "hearingPurpose" },
+  { token: "[Hearing Date]", from: "hearingDate" },
+  { token: "[Original Hearing Date]", from: "originalHearingDate" },
 ];
 
 /**
- * The auto-fill pass: general variables resolved, everything else left standing.
+ * The tokens the auto-fill pass resolves — the other half of the census.
+ *
+ * Exported so a test can assert that every token appearing anywhere in the twenty-seven
+ * is either on this list or on the test's list of declared *choices*. Templates are
+ * system configuration an administrator edits, so a new one can introduce a token
+ * tomorrow; the census is what makes that a failing test rather than a silent bracket
+ * nobody ever fills.
+ */
+export const AUTO_FILLED_TOKENS: string[] = GENERAL.map((entry) => entry.token);
+
+/**
+ * The auto-fill pass — step 3 of the spec's own resolution order.
  *
  * A variable the system cannot resolve stays in the text as its own bracketed token, and
  * that is deliberate. It is a hole the reader can see, in the place the value will go —
  * where a blank, a guess, or a silently dropped clause would each produce an order that
- * reads as finished and is not.
+ * reads as finished and is not. An *optional* fact that is absent behaves the same way:
+ * no next date set yet means `[Hearing Date]` is still standing, not an empty gap in a
+ * sentence.
+ *
+ * `[Hearing Date]` is replaced before `[Original Hearing Date]` would be a bug — one
+ * token is not a prefix of the other, so plain substitution is safe here, and
+ * `ORDER_TEMPLATE_TOKENS` in the test asserts that stays true of every token pair.
  */
 export function fillGeneralVariables(
   botd: string,
   facts: OrderTemplateFacts,
 ): string {
-  return GENERAL.reduce(
-    (text, entry) => text.split(entry.token).join(facts[entry.from]),
-    botd,
-  );
+  return GENERAL.reduce((text, entry) => {
+    const value = facts[entry.from];
+    if (value === undefined || value === "") return text;
+    return text.split(entry.token).join(value);
+  }, botd);
 }
 
 /** The bracketed tokens still standing in a filled line, in the order they appear. */
