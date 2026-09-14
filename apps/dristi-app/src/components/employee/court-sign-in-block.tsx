@@ -126,11 +126,16 @@ export function CourtSignInBlock() {
           up through the lower half. Still charcoal-rooted, not the citizen side's flat
           teal. Desktop only, like the citizen plate. */}
       <aside
-        style={{
-          ...(CHARCOAL_PLATE.vars as React.CSSProperties),
-          background:
-            "radial-gradient(85% 65% at 18% 106%, color-mix(in srgb, var(--rail-avatar) 60%, transparent) 0%, transparent 58%), linear-gradient(165deg, var(--sidebar) 0%, var(--sidebar) 42%, color-mix(in srgb, var(--brand-canvas) 82%, var(--sidebar)) 100%)",
-        }}
+        style={
+          {
+            ...CHARCOAL_PLATE.vars,
+            /* A darker charcoal than the rail's own — local to this plate, so the rail
+               elsewhere keeps its token. The teal still blooms from the foot over it. */
+            "--court-plate": "color-mix(in srgb, var(--sidebar) 58%, #000)",
+            background:
+              "radial-gradient(85% 65% at 18% 106%, color-mix(in srgb, var(--rail-avatar) 58%, transparent) 0%, transparent 58%), linear-gradient(165deg, var(--court-plate) 0%, var(--court-plate) 44%, color-mix(in srgb, var(--brand-canvas) 78%, var(--court-plate)) 100%)",
+          } as React.CSSProperties
+        }
         className="relative hidden overflow-hidden px-12 py-12 text-(--sidebar-foreground) lg:row-span-2 lg:flex lg:flex-col"
       >
         <BrandLockup onDark className="relative h-12" />
