@@ -39,7 +39,6 @@
 
 import {
   CAUSE_LIST,
-  COURT_CASE_STAGES,
   isoDay,
   parseIsoDay,
   type CourtCaseStage,
@@ -68,6 +67,18 @@ export type CourtCase = {
   /** How long the case has been on this court's file, in days. */
   registeredDaysAgo: number;
   flags: CourtCaseFlag[];
+  /** Days the accused has been in custody — set only on `utp` cases. A person's liberty,
+   *  so the dashboard leads with it. Demo data standing in for the real record's field. */
+  custodyDays?: number;
+  /** Days until the disposal deadline a higher court fixed — set only on `time-bound`
+   *  cases. Demo data for the real field. */
+  deadlineInDays?: number;
+  /** Days the service report is overdue on an issued summons — set on `process`-stage
+   *  cases still waiting on one. Demo data for the real field. */
+  serviceOverdueDays?: number;
+  /** The court above that has the matter — set on `stayed` / `appellate-pending` cases.
+   *  Demo data for the real field. */
+  higherCourt?: string;
 };
 
 /**
@@ -382,7 +393,42 @@ const NOT_LISTED_TODAY: CourtCase[] = [
 ];
 
 /** Everything on this court's file. */
-export const COURT_CASES: CourtCase[] = [...LISTED_TODAY, ...NOT_LISTED_TODAY];
+/**
+ * The specifics behind each flag — what turns a priority from a count into an action. A
+ * flag says a case is time-bound; the bench needs "its disposal deadline is in three days"
+ * to sort it and to know what to do. Keyed by case number, merged onto the register below.
+ * Demo data standing in for fields the real record carries. Every flagged case has its
+ * matching detail here — `cases.test.ts` asserts none is left bare.
+ */
+const PRIORITY_DETAIL: Record<
+  string,
+  {
+    custodyDays?: number;
+    deadlineInDays?: number;
+    serviceOverdueDays?: number;
+    higherCourt?: string;
+  }
+> = {
+  "ST/249/2026": { custodyDays: 63 },
+  "ST/211/2026": { custodyDays: 28 },
+  "ST/186/2026": { deadlineInDays: 1 },
+  "ST/254/2026": { deadlineInDays: 3 },
+  "ST/236/2026": { deadlineInDays: 6, higherCourt: "Sessions Court" },
+  "ST/112/2026": { deadlineInDays: 9 },
+  "ST/163/2026": { serviceOverdueDays: 34 },
+  "ST/256/2026": { serviceOverdueDays: 22 },
+  "ST/262/2026": { serviceOverdueDays: 11 },
+  "ST/158/2026": { higherCourt: "High Court" },
+  "ST/219/2026": { higherCourt: "High Court" },
+  "ST/29/2025": { higherCourt: "Sessions Court" },
+  "ST/147/2026": { higherCourt: "Sessions Court" },
+  "ST/57/2025": { higherCourt: "High Court" },
+};
+
+export const COURT_CASES: CourtCase[] = [
+  ...LISTED_TODAY,
+  ...NOT_LISTED_TODAY,
+].map((record) => ({ ...record, ...PRIORITY_DETAIL[record.caseNumber] }));
 
 /** What the rail's row says. Derived, so the row and the screen agree. */
 export const COURT_CASE_COUNT = COURT_CASES.length;
@@ -472,47 +518,104 @@ export function filterCourtCases(
   });
 }
 
-/* ------------------------------------------------------------------ health check */
+/* --------------------------------------------------------------- attention */
+
+export type CaseAttentionKind = "custody" | "deadline" | "service";
+
+export type CaseAttention = {
+  kind: CaseAttentionKind;
+  /** The plain sentence shown on the row — the specific number, not a category name. */
+  reason: string;
+};
 
 /**
- * How many cases sit at each stage, in the order a §138 case moves through them.
- *
- * **Ordered by the pipeline, never sorted by size.** The order is the information: a
- * court with nine cases at cognizance and six at process has a specific, diagnosable
- * problem at the front of its pipeline, and sorting the bars by magnitude would destroy
- * exactly that reading.
- *
- * This is the one broad number on the dashboard, and it is there because the owner asked
- * for a health check (2026-09-14). It is not on the *landing* screen — the day's cause
- * list is — which is what the Gujarat research objected to.
+ * The one thing, if any, that makes a case need timely action — with the sentence that
+ * says why. Custody comes before everything (a person's liberty), then a disposal deadline
+ * a higher court fixed, then a summons whose service report has not come back. A case with
+ * none of these is not here; being stayed or under appeal is awareness, handled apart.
  */
-export function courtStageSpread(
-  register: CourtCase[] = COURT_CASES,
-): { stage: CourtCaseStage; label: string; count: number }[] {
-  return COURT_CASE_STAGES.map((stage) => ({
-    stage: stage.id,
-    label: stage.label,
-    count: register.filter((record) => record.stage === stage.id).length,
-  }));
+export function caseAttention(record: CourtCase): CaseAttention | undefined {
+  if (record.custodyDays != null) {
+    return {
+      kind: "custody",
+      reason: `In custody for ${record.custodyDays} days`,
+    };
+  }
+  if (record.deadlineInDays != null) {
+    const days = record.deadlineInDays;
+    const when = days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+    return { kind: "deadline", reason: `Disposal deadline ${when}` };
+  }
+  if (record.serviceOverdueDays != null) {
+    return {
+      kind: "service",
+      reason: `Service report overdue by ${record.serviceOverdueDays} days`,
+    };
+  }
+  return undefined;
 }
 
 /**
- * The case that has been on this court's file longest.
+ * The cases to act on first, most urgent first.
  *
- * One case, not a bucket count: "the oldest thing here is this, and it is this old" is a
- * fact a magistrate can act on, where "12 cases over a year" is the broad pendency number
- * the research said they did not want.
+ * Ordered by kind, not a blended score, because the order is a rule a court would defend:
+ * everyone in custody first (longest wait on top), then the nearest disposal deadline,
+ * then the most overdue service. No arithmetic that could seat a 40-day-overdue summons
+ * above a person who has been in jail two months.
  */
-export function oldestCourtCase(
+export function actNowCases(
   register: CourtCase[] = COURT_CASES,
-): CourtCase | undefined {
-  return register.reduce<CourtCase | undefined>(
-    (oldest, record) =>
-      !oldest || record.registeredDaysAgo > oldest.registeredDaysAgo
-        ? record
-        : oldest,
-    undefined,
-  );
+): { record: CourtCase; attention: CaseAttention }[] {
+  const rank: Record<CaseAttentionKind, number> = {
+    custody: 0,
+    deadline: 1,
+    service: 2,
+  };
+  return register
+    .map((record) => ({ record, attention: caseAttention(record) }))
+    .filter(
+      (row): row is { record: CourtCase; attention: CaseAttention } =>
+        row.attention !== undefined,
+    )
+    .sort((a, b) => {
+      if (a.attention.kind !== b.attention.kind) {
+        return rank[a.attention.kind] - rank[b.attention.kind];
+      }
+      switch (a.attention.kind) {
+        case "custody":
+          return (b.record.custodyDays ?? 0) - (a.record.custodyDays ?? 0);
+        case "deadline":
+          return (a.record.deadlineInDays ?? 0) - (b.record.deadlineInDays ?? 0);
+        case "service":
+          return (
+            (b.record.serviceOverdueDays ?? 0) - (a.record.serviceOverdueDays ?? 0)
+          );
+      }
+    });
+}
+
+/**
+ * Cases a higher court has a hand in — stayed, or with an appeal or revision live above.
+ * Awareness, not an action queue: a stayed matter must not be proceeded with, and one
+ * under appeal is being decided elsewhere. Oldest on the file first.
+ */
+export function underHigherCourtCases(
+  register: CourtCase[] = COURT_CASES,
+): { record: CourtCase; reason: string }[] {
+  return register
+    .filter(
+      (record) =>
+        record.flags.includes("stayed") ||
+        record.flags.includes("appellate-pending"),
+    )
+    .map((record) => {
+      const court = record.higherCourt ?? "a higher court";
+      const reason = record.flags.includes("stayed")
+        ? `Stayed by the ${court}`
+        : `Pending in the ${court}`;
+      return { record, reason };
+    })
+    .sort((a, b) => b.record.registeredDaysAgo - a.record.registeredDaysAgo);
 }
 
 /**

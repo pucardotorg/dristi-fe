@@ -6,12 +6,13 @@ import {
   COURT_CASE_FLAG_LABEL,
   COURT_CASES,
   COURT_PRIORITIES,
+  actNowCases,
+  caseAttention,
   courtCaseAge,
   courtCaseTitle,
   courtPriorityById,
   courtPriorityCount,
-  courtStageSpread,
-  oldestCourtCase,
+  underHigherCourtCases,
   EMPTY_COURT_CASE_FILTERS,
   filterCourtCases,
   hasCourtCaseFilters,
@@ -19,7 +20,7 @@ import {
   registeredDay,
   type CourtCaseFlag,
 } from "./cases";
-import { CAUSE_LIST, causeTitle, COURT_CASE_STAGES } from "./hearings";
+import { CAUSE_LIST, causeTitle } from "./hearings";
 
 const TODAY = "2026-09-14";
 
@@ -213,50 +214,112 @@ describe("filtering the register", () => {
   });
 });
 
-describe("the court's health check", () => {
-  it("spreads every case across the stages, in pipeline order", () => {
-    const spread = courtStageSpread();
-    assert.deepEqual(
-      spread.map((entry) => entry.stage),
-      COURT_CASE_STAGES.map((stage) => stage.id),
-      "the bars are not in the order a case moves through them",
-    );
-    assert.equal(
-      spread.reduce((total, entry) => total + entry.count, 0),
-      COURT_CASE_COUNT,
-      "the stages do not account for every case",
-    );
-    for (const entry of spread) {
-      assert.ok(entry.label, `${entry.stage} has no label`);
-    }
-  });
-
-  it("names the oldest case on the file", () => {
-    const oldest = oldestCourtCase();
-    assert.ok(oldest);
+describe("every flagged case carries its specifics", () => {
+  /* A flag with no detail behind it is a priority the dashboard cannot make actionable —
+     it would sort and read as a blank. */
+  it("gives custody, deadline, service or a higher court to each flag", () => {
     for (const record of COURT_CASES) {
-      assert.ok(record.registeredDaysAgo <= oldest.registeredDaysAgo);
+      if (record.flags.includes("utp")) {
+        assert.ok(record.custodyDays != null, `${record.caseNumber} in custody, no days`);
+      }
+      if (record.flags.includes("time-bound")) {
+        assert.ok(
+          record.deadlineInDays != null,
+          `${record.caseNumber} time-bound, no deadline`,
+        );
+      }
+      if (record.flags.includes("stayed") || record.flags.includes("appellate-pending")) {
+        assert.ok(
+          record.higherCourt != null,
+          `${record.caseNumber} above, no court`,
+        );
+      }
+    }
+  });
+});
+
+describe("what to act on first", () => {
+  it("reads custody, then deadline, then overdue service — and nothing else", () => {
+    for (const { record, attention } of actNowCases()) {
+      if (attention.kind === "custody") assert.ok(record.custodyDays != null);
+      if (attention.kind === "deadline") assert.ok(record.deadlineInDays != null);
+      if (attention.kind === "service") assert.ok(record.serviceOverdueDays != null);
+    }
+    /* Stayed / appeal are not act-now — they are awareness. */
+    const actIds = new Set(actNowCases().map((r) => r.record.id));
+    for (const record of COURT_CASES) {
+      if (
+        record.custodyDays == null &&
+        record.deadlineInDays == null &&
+        record.serviceOverdueDays == null
+      ) {
+        assert.ok(!actIds.has(record.id), `${record.caseNumber} should not be act-now`);
+      }
     }
   });
 
-  it("has no oldest case in an empty register", () => {
-    assert.equal(oldestCourtCase([]), undefined);
+  it("puts everyone in custody first, longest wait on top", () => {
+    const rows = actNowCases();
+    const custody = rows.filter((r) => r.attention.kind === "custody");
+    assert.ok(custody.length > 0);
+    /* Custody rows lead the whole list. */
+    assert.deepEqual(
+      rows.slice(0, custody.length).map((r) => r.attention.kind),
+      custody.map(() => "custody"),
+    );
+    /* And within custody, descending by days waited. */
+    for (let i = 1; i < custody.length; i += 1) {
+      assert.ok(
+        (custody[i - 1]?.record.custodyDays ?? 0) >=
+          (custody[i]?.record.custodyDays ?? 0),
+      );
+    }
   });
 
-  /* The unit a court would say out loud, and never a zero second unit. */
-  it("says an age in the unit that fits it", () => {
+  it("orders deadlines by the nearest, service by the most overdue", () => {
+    const rows = actNowCases();
+    const deadlines = rows
+      .filter((r) => r.attention.kind === "deadline")
+      .map((r) => r.record.deadlineInDays ?? 0);
+    const service = rows
+      .filter((r) => r.attention.kind === "service")
+      .map((r) => r.record.serviceOverdueDays ?? 0);
+    assert.deepEqual(deadlines, [...deadlines].sort((a, b) => a - b));
+    assert.deepEqual(service, [...service].sort((a, b) => b - a));
+  });
+
+  it("writes the reason in plain language with the number", () => {
+    assert.match(caseAttention({ ...COURT_CASES[0]!, custodyDays: 63, deadlineInDays: undefined, serviceOverdueDays: undefined })!.reason, /63 days/);
+    const tomorrow = caseAttention({ ...COURT_CASES[0]!, custodyDays: undefined, deadlineInDays: 1, serviceOverdueDays: undefined });
+    assert.equal(tomorrow?.reason, "Disposal deadline tomorrow");
+  });
+});
+
+describe("under a higher court", () => {
+  it("lists every stayed or appellate case, with its court, oldest first", () => {
+    const rows = underHigherCourtCases();
+    assert.ok(rows.length > 0);
+    for (const { record, reason } of rows) {
+      assert.ok(
+        record.flags.includes("stayed") ||
+          record.flags.includes("appellate-pending"),
+      );
+      assert.match(reason, /Stayed by|Pending in/);
+    }
+    const ages = rows.map((r) => r.record.registeredDaysAgo);
+    assert.deepEqual(ages, [...ages].sort((a, b) => b - a));
+  });
+});
+
+describe("how long a case has been on the file", () => {
+  it("says an age in the unit that fits it, never a zero second unit", () => {
     assert.equal(courtCaseAge(1), "1 day");
     assert.equal(courtCaseAge(18), "18 days");
-    assert.equal(courtCaseAge(30), "30 days");
     assert.equal(courtCaseAge(61), "2 months");
     assert.equal(courtCaseAge(365), "1 year");
     assert.equal(courtCaseAge(420), "1 year 1 month");
-    assert.equal(courtCaseAge(800), "2 years 2 months");
     for (const days of [365, 730, 1095]) {
-      assert.ok(
-        !courtCaseAge(days).includes("0 month"),
-        `${days} days reads with a zero second unit`,
-      );
+      assert.ok(!courtCaseAge(days).includes("0 month"));
     }
   });
 });

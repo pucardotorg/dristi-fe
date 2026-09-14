@@ -4,59 +4,70 @@ import Link from "next/link";
 
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { Button } from "@/components/ui/button";
-import { PANEL_CLASS } from "@/components/shell/panel";
 import {
-  COURT_CASE_COUNT,
-  COURT_PRIORITIES,
-  courtCaseAge,
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { PANEL_CLASS } from "@/components/shell/panel";
+import { CheckIcon } from "lucide-react";
+import {
+  actNowCases,
   courtCaseTitle,
+  courtPriorityById,
   courtPriorityCount,
-  courtStageSpread,
-  oldestCourtCase,
+  underHigherCourtCases,
+  type CaseAttention,
+  type CourtCase,
 } from "@/lib/employee/cases";
 import { formatCourtDay, TODAYS_HEARING_COUNT } from "@/lib/employee/hearings";
-import { COURT_CASES_PAGE, courtWaitingGroups } from "@/lib/employee/navigation";
+import { COURT_CASES_PAGE } from "@/lib/employee/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * `/employee` — the bench's morning brief.
+ * `/employee` — the bench's working brief.
  *
- * ## The brief (owner, three rejected passes)
+ * ## What this is, after the fourth pass
  *
- * The information was right from the first; the composition was a generic admin panel —
- * ten identical rounded cards at one elevation, grey icon chips, tracked all-caps
- * eyebrows, dot-joined meta. Every block weighed the same, so nothing led, and none of it
- * belonged to a court.
+ * The owner cut the last version to the studs: the stat cards manufactured urgency with no
+ * reason, the bar chart repeated the cards, and the workload panel was the navigation rail
+ * printed twice. The instruction was plain — *a dashboard should be to the point and
+ * actionable, not show useless things* — with the freedom to decide what actually helps a
+ * bench stay on top of its court.
  *
- * This pass throws that out for a quieter, more deliberate screen, on a few rules:
+ * So nothing here is a count for its own sake, and nothing restates the rail. Every line
+ * is a specific case or a specific decision, and every line **opens**. The screen answers
+ * three questions a magistrate opens it to ask, and stops:
  *
- * - **The numbers are the design.** Each priority is a big tabular count and a plain
- *   label — no icon, no card, no chevron. They sit in one hairline grid, not six floating
- *   boxes, so the row reads as a single instrument.
- * - **Colour means one thing at a time.** Red is spent once, on the accused-in-custody
- *   count, because that is the only line here about a person's liberty. Teal is spent
- *   once, on the caseload bars, because that is the shape of the court's work. Everything
- *   else is ink on paper.
- * - **No template chrome.** Sentence case throughout, no all-caps eyebrows, no `A · B · C`
- *   meta, no arrows glued to links. Case numbers are set in mono — the one motif this
- *   world actually has.
- * - **Boldness in one place.** The attention row is loud; the two panels under it are
- *   quiet reference, distinguished by form (a bar figure, four counted columns) rather
- *   than by more colour.
+ * 1. **What must I act on first?** The cases the law and the higher courts put ahead of
+ *    the queue — someone in custody, a disposal deadline running down, a summons whose
+ *    service report has not come back — each with the plain reason and the number that
+ *    makes it urgent, most pressing at the top. Not a category tile: the actual case,
+ *    openable in the register.
+ * 2. **What is waiting for my first order?** New complaints that cleared scrutiny and need
+ *    cognizance — one decision, surfaced with its count and a way in.
+ * 3. **What is out of my hands?** Cases a higher court has stayed or is hearing on appeal
+ *    or revision — awareness, so the bench does not proceed on a matter it must not.
  *
- * The six categories are the owner's Gujarat field visit, and the judges there did not
- * want general analytics on their landing screen — this is not that screen (the cause
- * list is), so a caseload figure is fair, but there is still no disposal rate and no
- * trend line. Every number links to the work behind it; arriving there is the feedback.
+ * The day's own sitting is one action in the header, because that is where signing in
+ * already lands. There is no distribution chart and no queue mirror: the register holds
+ * the whole file, the rail holds the queues, and this holds only what needs a person.
  */
+
+/** Custody is the one reason that earns colour — a person's liberty. The rest are ink. */
+function reasonToneClass(attention: CaseAttention): string {
+  return attention.kind === "custody"
+    ? "text-destructive-ink"
+    : "text-muted-foreground";
+}
+
 export function CourtDashboardScreen() {
   const today = useCourtToday();
-  const groups = courtWaitingGroups();
-  const spread = courtStageSpread();
-  const oldest = oldestCourtCase();
-  /* One scale for all seven bars, anchored on the busiest stage — a bar chart's whole
-     claim is that its lengths are comparable. */
-  const busiest = Math.max(...spread.map((entry) => entry.count), 1);
+  const actNow = actNowCases();
+  const higher = underHigherCourtCases();
+  const cognizance = courtPriorityCount(courtPriorityById("pending-cognizance")!);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
@@ -75,171 +86,137 @@ export function CourtDashboardScreen() {
         </div>
       </header>
 
-      <section aria-labelledby="court-attention" className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 id="court-attention" className="text-title-s font-semibold">
-            Needs attention
-          </h2>
-          <p className="text-body-compact text-muted-foreground">
-            The matters this court must act on first. Each opens the register.
-          </p>
-        </div>
-
-        {/* One instrument, not six cards: cells sit on a hairline ground and the `gap-px`
-            lets it through as the rule between them, so the row reads as a single divided
-            panel at every column count. */}
-        <div className="overflow-hidden rounded-xl border border-hairline bg-hairline shadow-raised">
-          <div className="grid grid-cols-2 gap-px md:grid-cols-3 xl:grid-cols-6">
-            {COURT_PRIORITIES.map((priority) => {
-              const count = courtPriorityCount(priority);
-              const alarm = priority.id === "utp" && count > 0;
-              const number = (
-                <span
-                  className={cn(
-                    "text-display-s font-semibold tracking-tight tabular-nums",
-                    count === 0 && "text-muted-foreground",
-                    alarm && "text-destructive-ink",
-                  )}
-                >
-                  {count}
-                </span>
-              );
-              const label = (
-                /* Two lines reserved: most labels wrap to two at cell width and a few
-                   ("Stayed", "Time-bound") do not — without the reserve the short ones
-                   leave the cell ragged against its neighbours in the grid. */
-                <span className="min-h-10 text-body-compact font-medium text-muted-foreground">
-                  {priority.tile}
-                </span>
-              );
-              if (count === 0) {
-                return (
-                  <div
-                    key={priority.id}
-                    className="flex flex-col gap-1 bg-card p-4 md:p-6"
-                  >
-                    {number}
-                    {label}
-                  </div>
-                );
-              }
-              return (
-                <Link
-                  key={priority.id}
-                  href={`${COURT_CASES_PAGE.href}?priority=${priority.id}`}
-                  aria-label={`${priority.title}: ${count} ${count === 1 ? "case" : "cases"}`}
-                  className="flex flex-col gap-1 bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none focus-visible:ring-inset md:p-6"
-                >
-                  {number}
-                  {label}
-                </Link>
-              );
-            })}
+      <div className="grid min-w-0 gap-6 lg:grid-cols-3">
+        <section
+          aria-labelledby="court-act-now"
+          className={cn(
+            PANEL_CLASS,
+            "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-6 lg:col-span-2",
+          )}
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="court-act-now" className="text-title-s font-semibold">
+              Act on these first
+            </h2>
+            {actNow.length > 0 ? (
+              <span className="text-body-compact text-muted-foreground tabular-nums">
+                {actNow.length} cases
+              </span>
+            ) : null}
           </div>
-        </div>
-      </section>
 
-      <section
-        aria-labelledby="court-spread"
-        className={cn(PANEL_CLASS, "flex flex-col gap-6 rounded-xl bg-card p-6")}
-      >
-        <div className="flex flex-col gap-1">
-          <h2 id="court-spread" className="text-title-s font-semibold">
-            Where the cases stand
-          </h2>
-          <p className="text-body-compact text-muted-foreground">
-            All {COURT_CASE_COUNT} cases on the file, by the stage they have reached.
-          </p>
-        </div>
+          {actNow.length === 0 ? (
+            <Empty className="px-0 py-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CheckIcon aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle className="text-body font-semibold">
+                  Nothing is pressing
+                </EmptyTitle>
+                <EmptyDescription className="text-body-compact">
+                  No case is in custody, against a deadline, or waiting on service.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <ul className="flex flex-col">
+              {actNow.map(({ record, attention }, index) => (
+                <li key={record.id}>
+                  <CaseRow
+                    record={record}
+                    reason={attention.reason}
+                    reasonClassName={reasonToneClass(attention)}
+                    divide={index > 0}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-        <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
-          {/* One series, one hue, no legend — the heading names it. Every row carries its
-              own label and count, so the figure is its own table and nothing rests on
-              colour. Trial order, never sorted by size: the order is the diagnosis. */}
-          <ul className="flex min-w-0 flex-1 flex-col gap-3">
-            {spread.map((entry) => (
-              <li key={entry.stage} className="flex items-center gap-4">
-                <span className="w-24 shrink-0 text-body-compact text-muted-foreground">
-                  {entry.label}
-                </span>
-                <span aria-hidden className="flex min-w-0 flex-1 items-center">
-                  {entry.count > 0 ? (
-                    <span
-                      className="h-2 rounded-r-full bg-brand-accent"
-                      style={{ width: `${(entry.count / busiest) * 100}%` }}
-                    />
-                  ) : null}
-                </span>
-                <span className="w-6 shrink-0 text-right text-body-compact font-semibold tabular-nums">
-                  {entry.count}
-                </span>
-              </li>
-            ))}
-          </ul>
+        <div className="flex min-w-0 flex-col gap-6">
+          <section
+            aria-labelledby="court-cognizance"
+            className={cn(PANEL_CLASS, "flex flex-col gap-3 rounded-xl bg-card p-6")}
+          >
+            <h2 id="court-cognizance" className="text-title-s font-semibold">
+              Awaiting cognizance
+            </h2>
+            <p className="text-body-compact text-muted-foreground">
+              {cognizance === 1
+                ? "1 new complaint has cleared scrutiny and needs your first order."
+                : `${cognizance} new complaints have cleared scrutiny and need your first order.`}
+            </p>
+            <Button asChild variant="outline" className="self-start">
+              <Link href="/employee/register-cases">Review complaints</Link>
+            </Button>
+          </section>
 
-          {oldest ? (
-            <div className="border-t border-hairline pt-6 lg:w-60 lg:shrink-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
-              <p className="text-body-compact text-muted-foreground">
-                Oldest case on the file
-              </p>
-              <p className="mt-1 text-title-s font-semibold tabular-nums">
-                {courtCaseAge(oldest.registeredDaysAgo)}
-              </p>
-              <p className="mt-3 font-mono text-body-compact tabular-nums">
-                {oldest.caseNumber}
-              </p>
-              <p className="text-body-compact text-muted-foreground">
-                {courtCaseTitle(oldest)}
-              </p>
-            </div>
-          ) : null}
+          <section
+            aria-labelledby="court-higher"
+            className={cn(PANEL_CLASS, "flex min-w-0 flex-col gap-3 rounded-xl bg-card p-6")}
+          >
+            <h2 id="court-higher" className="text-title-s font-semibold">
+              Under a higher court
+            </h2>
+            <ul className="flex flex-col">
+              {higher.map(({ record, reason }, index) => (
+                <li key={record.id}>
+                  <CaseRow
+                    record={record}
+                    reason={reason}
+                    reasonClassName="text-muted-foreground"
+                    divide={index > 0}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
-      </section>
-
-      <section
-        aria-labelledby="court-waiting"
-        className={cn(PANEL_CLASS, "flex flex-col gap-6 rounded-xl bg-card p-6")}
-      >
-        <div className="flex flex-col gap-1">
-          <h2 id="court-waiting" className="text-title-s font-semibold">
-            Waiting on this court
-          </h2>
-          <p className="text-body-compact text-muted-foreground">
-            Every queue with work in it, in the four kinds the rail groups them by.
-          </p>
-        </div>
-
-        <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2 xl:grid-cols-4">
-          {groups.map((group) => (
-            <div key={group.id} className="flex min-w-0 flex-col">
-              {/* The group's total is the headline; its queues are the detail under it. */}
-              <div className="flex items-baseline justify-between gap-3 border-b border-hairline pb-3">
-                <h3 className="text-body font-semibold">{group.label}</h3>
-                <span className="text-title-s font-semibold tabular-nums">
-                  {group.total}
-                </span>
-              </div>
-              <ul className="mt-3 flex flex-col gap-0.5">
-                {group.items.map((queue) => (
-                  <li key={queue.id}>
-                    <Link
-                      href={queue.href}
-                      className="-mx-2 flex min-h-9 items-center justify-between gap-3 rounded-md px-2 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none"
-                    >
-                      <span className="min-w-0 truncate text-body-compact text-muted-foreground">
-                        {queue.label}
-                      </span>
-                      <span className="shrink-0 text-body-compact font-semibold tabular-nums">
-                        {queue.count}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
+      </div>
     </div>
+  );
+}
+
+/**
+ * One openable case: its number in mono, its cause title, and the plain reason it is on
+ * this screen. The number and title lead because they are how a clerk finds the file; the
+ * reason sits under them, in ink unless it is a matter of liberty. The whole row is the
+ * link — it opens the case in the register — and the hairline between rows keeps the list
+ * one surface rather than a stack of cards.
+ *
+ * No date column: the urgent number is already in the reason ("deadline in 3 days"), and a
+ * second date beside it only asks which one matters. The cause title takes the room instead.
+ */
+function CaseRow({
+  record,
+  reason,
+  reasonClassName,
+  divide,
+}: {
+  record: CourtCase;
+  reason: string;
+  reasonClassName: string;
+  divide: boolean;
+}) {
+  return (
+    <Link
+      href={`${COURT_CASES_PAGE.href}?q=${encodeURIComponent(record.caseNumber)}`}
+      className={cn(
+        "-mx-3 flex flex-col gap-0.5 rounded-lg px-3 py-3 transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none",
+        divide && "mt-px border-t border-hairline",
+      )}
+    >
+      <div className="flex min-w-0 items-baseline gap-2">
+        <span className="shrink-0 font-mono text-body-compact tabular-nums text-muted-foreground">
+          {record.caseNumber}
+        </span>
+        <span className="truncate text-body font-medium">
+          {courtCaseTitle(record)}
+        </span>
+      </div>
+      <span className={cn("text-body-compact", reasonClassName)}>{reason}</span>
+    </Link>
   );
 }

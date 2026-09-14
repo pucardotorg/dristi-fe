@@ -79,6 +79,10 @@ export function CourtCasesScreen() {
     const known = COURT_PRIORITIES.some((priority) => priority.id === asked);
     return {
       ...EMPTY_COURT_CASE_FILTERS,
+      /* The dashboard opens a specific case here with `?q=<case number>` and a category
+         with `?priority=<id>`. Both only seed the filters — once here they are the
+         reader's to change, so the address bar never fights the controls. */
+      query: searchParams.get("q") ?? "",
       priority: known ? (asked as CourtPriorityId) : null,
     };
   });
