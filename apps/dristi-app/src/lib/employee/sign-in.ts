@@ -9,30 +9,27 @@
  * and does the one thing the screen cannot be judged without: it makes each role a
  * sign-in that a person can actually perform in a demo. Delete it with the endpoint.
  *
- * Two deliberate departures from the reference screen, both owner decisions on
- * 2026-09-14:
+ **The username decides the seat, and nothing on the screen can override it** — the
+ * same contract the real back end has. A role picker was tried first and cut the same
+ * day (owner, 2026-09-14): staff sign in for each other constantly, a bench clerk into
+ * the magistrate's account to get a thing done, and asking every one of those sign-ins
+ * to declare a role first taxes them for a fact the directory already holds.
  *
- * 1. **The role is chosen, not looked up.** On the real screen the back end knows which
- *    role a username holds and the screen never asks. Here the role is the first step,
- *    because what each seat's product *is* — the feature subset behind it — is the thing
- *    being designed, and a demo has to be able to enter any of the four on purpose. The
- *    directory below still holds the true role for each username, so picking one role and
- *    typing another role's username is a contradiction the screen names rather than
- *    silently resolving.
- * 2. **Any password is accepted.** Same bargain the citizen sign-in makes: there is
- *    nothing to check a password against, and a screen that rejected one would be
- *    inventing a rule. The field is real, required and masked; what it is not is checked.
+ * **Any password is accepted.** The same bargain the citizen sign-in makes: there is
+ * nothing to check a password against, and a screen that rejected one would be inventing
+ * a rule. The field is real, required and masked; what it is not is checked.
  */
 
 import { CURRENT_STAFF, type CourtRole } from "./content";
 
 /**
- * The four seats a person can sign in to, in the order the reference screen's own users
- * would scan for themselves: the bench first, then the establishment around it.
+ * The four seats a username can land in, in the order the bench is read: the magistrate
+ * first, then the establishment around them.
  *
  * This is every role in `CourtRole`. `COURT_SEATS` — what the rail's settings control
  * offers — follows it for the same reason: a seat you can sign in to is a seat the rail
- * has to be able to name.
+ * has to be able to name. The sign-in screen shows this list nowhere; it uses it only to
+ * lay out the prototype's demo accounts.
  */
 export const COURT_SIGN_IN_ROLES: CourtRole[] = [
   "magistrate",
@@ -40,23 +37,6 @@ export const COURT_SIGN_IN_ROLES: CourtRole[] = [
   "scrutiny-officer",
   "typist",
 ];
-
-/**
- * What the seat does, in one line, so a person picking from four rows is choosing on
- * what the work is rather than on a job title they may not use for themselves.
- *
- * Every line is the domain model's own description of that actor
- * (`docs/product/domain/actors.md`), shortened and nothing added. The typist's is the
- * model's *Stenographer / Interpreter* entry — the owner named the role "typist" on
- * 2026-09-07 and an owner naming a role is the one sanctioned source for one; whether it
- * is the same actor under a court's vocabulary is still an open question for `actors.md`.
- */
-export const COURT_ROLE_BLURB: Record<CourtRole, string> = {
-  magistrate: "Takes cognizance, records evidence and delivers judgment.",
-  "bench-clerk": "Keeps the court's daily record, exhibits and order sheet.",
-  "scrutiny-officer": "Checks a filed complaint for defects before cognizance.",
-  typist: "Records dictation and types the court's orders.",
-};
 
 /** One registered account, as the establishment's directory would return it. */
 export type CourtAccount = {
