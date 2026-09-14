@@ -119,31 +119,20 @@ export function CourtSignInBlock() {
 
   return (
     <div className="grid min-h-dvh grid-cols-1 grid-rows-[1fr_auto] lg:h-dvh lg:min-h-0 lg:grid-cols-[4fr_5fr] lg:overflow-hidden">
-      {/* The bench's own charcoal, taken whole from the rail's plate (`rail-plate.ts`) so
-          the door is the same material as the room behind it — and, because court staff
-          meet this screen every day, composed to be worth meeting: a soft teal aurora
-          drawn from the plate's own brand ink in one corner, and the ON Courts mark set
-          oversized and near-silent as texture behind the words. It stays charcoal, not
-          the citizen side's teal, on purpose. Desktop only, like the citizen plate. */}
+      {/* The bench's own charcoal (`rail-plate.ts`), so the door is the same material as
+          the room behind it — but warmed by the court's own teal rising from the foot of
+          the plate, because court staff meet this screen every day and it should be worth
+          meeting. Charcoal at the top where the mark and the promise sit; the green blooms
+          up through the lower half. Still charcoal-rooted, not the citizen side's flat
+          teal. Desktop only, like the citizen plate. */}
       <aside
         style={{
           ...(CHARCOAL_PLATE.vars as React.CSSProperties),
           background:
-            "radial-gradient(115% 90% at 8% 6%, color-mix(in srgb, var(--rail-avatar) 20%, transparent), transparent 55%), var(--sidebar)",
+            "radial-gradient(85% 65% at 18% 106%, color-mix(in srgb, var(--rail-avatar) 60%, transparent) 0%, transparent 58%), linear-gradient(165deg, var(--sidebar) 0%, var(--sidebar) 42%, color-mix(in srgb, var(--brand-canvas) 82%, var(--sidebar)) 100%)",
         }}
         className="relative hidden overflow-hidden px-12 py-12 text-(--sidebar-foreground) lg:row-span-2 lg:flex lg:flex-col"
       >
-        {/* Brand as texture, not decoration — light-ink glyph, near-silent, clipped by
-            the aside so only the shoulder of the mark shows. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/on-courts-glyph-dark.svg"
-          alt=""
-          aria-hidden
-          className="pointer-events-none absolute -right-20 -bottom-16 w-auto select-none"
-          style={{ height: "78%", opacity: 0.06 }}
-        />
-
         <BrandLockup onDark className="relative h-12" />
 
         {/* Mark, then the promise, then who runs it — a different composition as well as a
