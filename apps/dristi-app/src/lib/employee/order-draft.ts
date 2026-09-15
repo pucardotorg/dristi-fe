@@ -115,7 +115,9 @@ export function orderTemplateFacts(
        listed, and the spec names them as two variables. */
     currentHearingDate: formatOrderDate(today),
     applicationNumber: application?.number,
-    applicationType: application ? listingApplicationLabel(application) : undefined,
+    applicationType: application
+      ? listingApplicationLabel(application)
+      : undefined,
     hearingPurpose:
       listingAgain && draft.nextPurpose
         ? courtHearingPurposeLabel(draft.nextPurpose)
@@ -200,7 +202,9 @@ export type OrderDraft = {
    * application id. Absent means it has not been answered yet — which is a real state
    * and not a default, so the order says so rather than passing over it in silence.
    */
-  applications: Readonly<Record<string, ListingApplicationDecision | undefined>>;
+  applications: Readonly<
+    Record<string, ListingApplicationDecision | undefined>
+  >;
   next: NextListingChoice;
   nextPurpose: CourtHearingPurposeId | "";
   nextDate: string | null;
@@ -537,7 +541,11 @@ export type OrderDocument = {
    * own `pending` flag still carries the state for anything that wants to warn about it,
    * which belongs in the chrome beside Sign order rather than inside the document.
    *
-   * Empty when nothing has been answered — the paper then has no such paragraph at all.
+   * **The composer no longer renders these** (owner, 2026-09-15): answering an
+   * application writes its sentence into `draft.body`, so the disposal is a passage of
+   * the order the typist can correct rather than a band of generated prose above it. This
+   * stays as the structured record of the same fact, for a caller that wants the
+   * disposals apart from the passage — anything printing both would print them twice.
    */
   applications: { text: string; pending: boolean }[];
   /**

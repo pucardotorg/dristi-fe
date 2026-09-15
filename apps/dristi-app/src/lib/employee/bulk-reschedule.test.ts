@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   addDays,
   boardAfterMoves,
+  groupByNewListing,
   buildRescheduleOrder,
   earliestNewListing,
   filterReschedulable,
@@ -122,14 +123,30 @@ describe("a board with this session's moves written over it", () => {
     assert.equal(same.find((c) => c.id === first.id)!.newDate, undefined);
   });
 
-  it("keeps a moved matter on the board it was moved from", () => {
-    /* The new day is always past the span the bench asked for, so a row judged only on
-       where it now stands would vanish out of the range at the moment of the act — the
-       one row that most needs to be seen. */
+  it("splits cleanly into what is still to move and what moved", () => {
+    /* The two tabs are this one fact read twice. A row belongs to exactly one of them,
+       and every row belongs to one — so nothing can go missing between them however the
+       range is drawn. */
+    const unscheduled = moved.filter((row) => row.newDate === undefined);
+    const scheduled = moved.filter((row) => row.newDate !== undefined);
+
+    assert.equal(unscheduled.length + scheduled.length, moved.length);
+    assert.deepEqual(
+      scheduled.map((row) => row.id),
+      [first.id],
+    );
+    assert.ok(!unscheduled.some((row) => row.id === first.id));
+  });
+
+  it("judges a moved matter on the day it now sits on, not the one it left", () => {
+    /* The board is the list of what is still to move, so a matter that has moved leaves
+       the span it was picked from. Seeing what was done is the Scheduled tab's job, and
+       that tab is not filtered at all — which is the whole point: a range narrowed to
+       find the next eight matters must not erase the three already moved. */
     const span = { from: first.date, to: first.date, query: "" };
     const inRange = filterReschedulable(moved, span);
 
-    assert.ok(inRange.some((candidate) => candidate.id === first.id));
+    assert.ok(!inRange.some((candidate) => candidate.id === first.id));
     assert.ok(NEW_DAY > span.to, "the new day is outside the span, as it must be");
   });
 
@@ -221,5 +238,56 @@ describe("the order a bulk move is passed by", () => {
       order.matters[0].from,
       buildRescheduleOrder([first], addDays(TODAY, 9), TODAY).matters[0].from,
     );
+  });
+});
+
+describe("the record of a session's moves", () => {
+  const board = reschedulableHearings(TODAY);
+  const SOON = addDays(TODAY, 3);
+  const LATER = addDays(TODAY, 30);
+
+  /* Two acts in one afternoon, the way a court actually works it: a day's board to one
+     date, and then a later stretch to another. */
+  const moved = boardAfterMoves(TODAY, {
+    [board[0].id]: SOON,
+    [board[1].id]: SOON,
+    [board[2].id]: LATER,
+  });
+  const scheduled = moved.filter((row) => row.newDate !== undefined);
+
+  it("gathers the moves under the day each one landed on", () => {
+    const groups = groupByNewListing(scheduled);
+
+    assert.deepEqual(
+      groups.map((group) => [group.day, group.rows.length]),
+      [
+        [SOON, 2],
+        [LATER, 1],
+      ],
+    );
+  });
+
+  it("holds every moved matter exactly once, and nothing else", () => {
+    const groups = groupByNewListing(moved);
+    const held = groups.flatMap((group) => group.rows.map((row) => row.id));
+
+    assert.equal(held.length, new Set(held).size, "a matter is in two groups");
+    assert.deepEqual(
+      [...held].sort(),
+      scheduled.map((row) => row.id).sort(),
+    );
+  });
+
+  it("survives a range drawn somewhere else entirely", () => {
+    /* The bug this was written for: move three matters, then narrow the board to the
+       fortnight after to find the next eight, and the record read zero. The filters are
+       the board's; the record is not filtered. */
+    const elsewhere = { from: addDays(TODAY, 40), to: addDays(TODAY, 50), query: "" };
+    assert.equal(filterReschedulable(moved, elsewhere).length < moved.length, true);
+    assert.equal(groupByNewListing(scheduled).length, 2);
+  });
+
+  it("gives nothing back before anything has moved", () => {
+    assert.deepEqual(groupByNewListing(board), []);
   });
 });

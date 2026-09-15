@@ -7,6 +7,7 @@ import {
   nextOrderItemId,
   orderItemLabel,
   richTextFromPlain,
+  upsertRichTextSentence,
 } from "./order-items";
 import {
   browsableTemplates,
@@ -81,7 +82,10 @@ describe("the court's catalogue", () => {
     const cognizance = ORDER_TEMPLATES.find(
       (entry) => entry.id === "cognizance",
     )!;
-    assert.equal(unavailableReason(cognizance, onFile), "Only before cognizance");
+    assert.equal(
+      unavailableReason(cognizance, onFile),
+      "Only before cognizance",
+    );
     assert.equal(
       unavailableReason(cognizance, { ...onFile, cognizanceDue: true }),
       null,
@@ -90,7 +94,10 @@ describe("the court's catalogue", () => {
     const outOfLp = ORDER_TEMPLATES.find(
       (entry) => entry.id === "move-out-of-lp-register",
     )!;
-    assert.equal(unavailableReason(outOfLp, onFile), "Only for a long-pending case");
+    assert.equal(
+      unavailableReason(outOfLp, onFile),
+      "Only for a long-pending case",
+    );
     assert.equal(
       unavailableReason(outOfLp, { ...onFile, longPending: true }),
       null,
@@ -112,7 +119,10 @@ describe("the court's catalogue", () => {
 describe("createOrderItem", () => {
   it("opens an order on the court's own sentence, slots and all", () => {
     const item = createOrderItem("issue-of-summons", "a");
-    assert.match(item.text.text, /^Issue summons to the \[Party Type\] \[Party Name\]\./);
+    assert.match(
+      item.text.text,
+      /^Issue summons to the \[Party Type\] \[Party Name\]\./,
+    );
   });
 
   it("opens Others empty, because nobody chose a sentence for it", () => {
@@ -138,5 +148,72 @@ describe("createOrderItem", () => {
   it("mints a fresh id for each order, so two of a type do not collide", () => {
     assert.notEqual(nextOrderItemId(), nextOrderItemId());
     assert.notEqual(createOrderItem("cost").id, createOrderItem("cost").id);
+  });
+});
+
+describe("upsertRichTextSentence", () => {
+  const allowed = "The application for bail (CMP/312/2026) is allowed.";
+  const dismissed = "The application for bail (CMP/312/2026) is dismissed.";
+  const both = [allowed, dismissed];
+
+  it("writes the sentence into an empty passage", () => {
+    const value = upsertRichTextSentence({ html: "", text: "" }, allowed, both);
+    assert.equal(value.text, allowed);
+    assert.equal(value.html, `<p>${allowed}</p>`);
+  });
+
+  it("appends to what the typist has already written", () => {
+    const written = richTextFromPlain("Heard both sides.");
+    const value = upsertRichTextSentence(written, allowed, both);
+    assert.equal(value.text, `Heard both sides.\n\n${allowed}`);
+    assert.equal(value.html, `<p>Heard both sides.</p><p>${allowed}</p>`);
+  });
+
+  it("replaces the earlier answer rather than carrying both", () => {
+    const written = upsertRichTextSentence(
+      richTextFromPlain("Heard both sides."),
+      allowed,
+      both,
+    );
+    const changed = upsertRichTextSentence(written, dismissed, both);
+    assert.ok(changed.text.includes(dismissed));
+    assert.ok(!changed.text.includes(allowed));
+    assert.ok(!changed.html.includes(allowed));
+    assert.equal(changed.text.split("is dismissed").length - 1, 1);
+  });
+
+  it("does not duplicate the same answer given twice", () => {
+    const once = upsertRichTextSentence({ html: "", text: "" }, allowed, both);
+    const twice = upsertRichTextSentence(once, allowed, both);
+    assert.deepEqual(twice, once);
+  });
+
+  it("keeps the markup around a sentence the typist has moved", () => {
+    const moved = {
+      html: `<ul><li>${allowed}</li></ul>`,
+      text: allowed,
+    };
+    const changed = upsertRichTextSentence(moved, dismissed, both);
+    assert.equal(changed.html, `<ul><li>${dismissed}</li></ul>`);
+    assert.equal(changed.text, dismissed);
+  });
+
+  it("matches the sentence as the editor holds it, escaped", () => {
+    const sentence = "The application of A & B (CMP/1/2026) is allowed.";
+    const written = richTextFromPlain(sentence);
+    assert.ok(written.html.includes("&amp;"));
+    const changed = upsertRichTextSentence(
+      written,
+      "The application of A & B (CMP/1/2026) is dismissed.",
+      [sentence],
+    );
+    assert.ok(changed.html.includes("is dismissed"));
+    assert.ok(!changed.html.includes("is allowed"));
+    assert.ok(changed.html.includes("&amp;"));
+  });
+
+  it("leaves the passage alone when nothing matches and nothing is given", () => {
+    const written = richTextFromPlain("Heard both sides.");
+    assert.deepEqual(upsertRichTextSentence(written, "", []), written);
   });
 });

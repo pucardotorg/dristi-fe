@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  CalendarCheck2Icon,
   CalendarDaysIcon,
   CalendarX2Icon,
   CheckIcon,
@@ -49,11 +50,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   boardAfterMoves,
   earliestNewListing,
   filterReschedulable,
+  groupByNewListing,
   type ReschedulableHearing,
+  type RescheduledGroup,
 } from "@/lib/employee/bulk-reschedule";
 import {
   courtCaseStageLabel,
@@ -200,10 +210,81 @@ export function BulkRescheduleScreen() {
 
   const [moved, setMoved] = React.useState<MovedTo>({});
 
-  const rows = filterReschedulable(boardAfterMoves(today, moved), filters);
+  /**
+   * Which board is on screen.
+   *
+   * **Unscheduled is the default and the work; Scheduled is the receipt** (owner,
+   * 2026-09-15). The board used to be one list with the moved matters sorted back into
+   * it wearing an extra column, which made the bench read a whole range to find the four
+   * rows it had just acted on — and put a New hearing date column over twenty matters
+   * that had no new hearing date. Splitting them lets each list be about one thing: what
+   * is still to move, and what moved.
+   */
+  const [tab, setTab] = React.useState<"unscheduled" | "scheduled">(
+    "unscheduled",
+  );
+
+  /**
+   * Which days on the record are open — **empty to start with, and after an act.**
+   *
+   * The resting state of this record is every day shut, so the tab lands on the dates
+   * themselves rather than on one day's rows (owner, 2026-09-16). Nothing opens a day but
+   * the bench, including the act that created it: the overlay has just said in as many
+   * words how many matters went where, and the day arrives on the stack carrying its own
+   * count.
+   *
+   * Held here rather than inside the record so that it survives a trip to the other tab
+   * and back, which unmounts that pane. A bench that opened October and went to find more
+   * matters should not come back to October shut.
+   */
+  const [openDays, setOpenDays] = React.useState<string[]>([]);
+
+  const board = boardAfterMoves(today, moved);
+
+  /**
+   * The two lists, split by the one fact that tells them apart — and **only one of them
+   * answers to the filters.**
+   *
+   * The range and the search are a lens for finding matters to move, so they narrow the
+   * board being worked and nothing else. The record is what this session did, and work
+   * already done cannot be un-done by narrowing a lens: move three matters to the 17th,
+   * then set the range to the fortnight after to find the next eight, and the Scheduled
+   * tab used to read zero — the court's own afternoon, gone, because a filter meant for
+   * the other list reached it (owner, 2026-09-15).
+   *
+   * The controls sit above the tab strip, where they read as this panel's, and that is
+   * where the owner wants them. They were briefly moved inside the Unscheduled pane so
+   * that their scope would be structural rather than a rule — and it cost more than it
+   * bought, because switching to Scheduled then took a row of controls off the page and
+   * the tabs jumped up under the pointer (owner, 2026-09-15). Chrome does not move when
+   * the content under it changes (ui-craft §2). So the scope is this one line below
+   * instead: only `unscheduled` is filtered.
+   */
+  const unscheduled = filterReschedulable(board, filters).filter(
+    (row) => row.newDate === undefined,
+  );
+  const scheduled = board.filter((row) => row.newDate !== undefined);
+  const rescheduledDays = groupByNewListing(scheduled);
+
+  /**
+   * How much of the record is showing, for the live region below — which has to be
+   * mounted in every state, including the one with no record at all, so it needs the
+   * count without the record being on screen to give it.
+   *
+   * A single date has no disclosure and its cases are always showing; a stack shows the
+   * rows of whichever days are open, and none to begin with.
+   */
+  const showingRows =
+    rescheduledDays.length === 1
+      ? rescheduledDays[0].rows.length
+      : rescheduledDays
+          .filter((group) => openDays.includes(group.day))
+          .reduce((count, group) => count + group.rows.length, 0);
+
   /* Derived from what is on screen, so the act can never reach a row the range has
-     dropped — an id left in the set by a narrowed range simply stops counting. */
-  const selectedRows = rows.filter((row) => selected.has(row.id));
+     dropped — an id left in the set by a narrowed range simply stops counting, and a row
+     that has just moved to the other tab stops counting with it. */
+  const selectedRows = unscheduled.filter((row) => selected.has(row.id));
 
   const isSearched = filters.query.trim() !== "";
 
@@ -238,11 +319,11 @@ export function BulkRescheduleScreen() {
     });
   }
 
-  /** The header box speaks for the rows in range, and only those. */
+  /** The header box speaks for the unscheduled rows in range, and only those. */
   function toggleAll(next: boolean) {
     setSelected((current) => {
       const draft = new Set(current);
-      for (const row of rows) {
+      for (const row of unscheduled) {
         if (next) draft.add(row.id);
         else draft.delete(row.id);
       }
@@ -268,6 +349,28 @@ export function BulkRescheduleScreen() {
     setSelected(new Set());
   }
 
+  /**
+   * Follow the matters to the tab they are now on — **once the overlay has gone**.
+   *
+   * Not at the moment of the act, which is where this started and where it does not
+   * work: the commit bar belongs to the Unscheduled tab, the overlay is mounted inside
+   * it, and switching tabs mid-act therefore unmounts the bar, the dialog and the
+   * confirmation the bench had not read yet. Caught on the render — the success panel
+   * flashed and vanished.
+   *
+   * So the move happens on the way out, when the bench presses Done: it reads what
+   * happened, dismisses it, and lands on the record of it. Which is the answer to "where
+   * did those twenty rows go", given before it has to be asked.
+   */
+  function finish() {
+    setTab("scheduled");
+    /* And give the span back. It was drawn to find the matters that have just gone, so
+       leaving it on the field means the next move starts inside a window that has already
+       been dealt with — and the board behind it reads as if the court had nothing listed
+       (owner, 2026-09-15). The search text is the bench's own words and is left alone. */
+    setFilters((current) => ({ ...current, from: null, to: null }));
+  }
+
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
@@ -279,59 +382,143 @@ export function BulkRescheduleScreen() {
       {/* One panel: the range and the list are one unit of work, so they share one lifted
           sheet — the same recipe and the same `gap-6` / `p-6` today's cause list uses.
           Nothing inside draws a second frame. */}
-      <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
+      {/* `grow`, not `flex-1`: the panel fills the page it is the only thing on, so a
+          record of two collapsed dates does not stop a third of the way down a screen with
+          nothing under it (owner, 2026-09-16). `flex-1` would also let it *shrink*, and a
+          board of forty rows would be squashed into the viewport instead of scrolling the
+          page. The content stays top-aligned, so what grows is the sheet, not the gaps
+          inside it. */}
+      <section className="flex min-w-0 grow flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
         <RangeFilters
           filters={filters}
           onQueryChange={(query) => setFilters({ ...filters, query })}
           onRangeChange={changeRange}
         />
 
-        {/* Mounted whatever the board is doing, including empty — see `QueueAnnouncer`.
-            This screen paginates nothing, so the whole range is what is showing. */}
-        <QueueAnnouncer from={1} to={rows.length} total={rows.length} />
-
-        {rows.length === 0 ? (
-          <NothingToMove
-            range={filters}
-            isSearched={isSearched}
-            onClear={clearFilters}
-          />
-        ) : (
-          /* min-w-0 lets this flex item shrink below the table's content width, so a
-             wide table scrolls inside the panel instead of pushing the page sideways. */
-          <div className="min-w-0 overflow-x-auto">
-            {/* Six columns do not survive a phone. Below `md` the same rows stack as
-                items — today's cause list's own answer. */}
-            <div className="hidden md:block">
-              <BulkRescheduleTable
-                rows={rows}
-                selected={selected}
-                onToggle={toggleRow}
-                onToggleAll={toggleAll}
-              />
-            </div>
-            <div className="md:hidden">
-              <RescheduleItemList
-                rows={rows}
-                selected={selected}
-                onToggle={toggleRow}
-              />
-            </div>
+        <Tabs
+          value={tab}
+          onValueChange={(value) =>
+            setTab(value as "unscheduled" | "scheduled")
+          }
+          className="flex min-w-0 flex-col gap-6"
+        >
+          {/* Line `TabsList`, not the pill track — the same composition the process queue
+              uses for the same job, down to the `after:-bottom-px` that sits the mark on
+              the gutter's own rule instead of floating a second line above it. Two labels
+              fit a phone, but the row scrolls rather than crushing them (RESPONSIVE). */}
+          <div className="overflow-x-auto border-b border-hairline">
+            <TabsList
+              variant="line"
+              aria-label="Which matters to show"
+              className="h-10 w-max min-w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
+            >
+              {(
+                [
+                  ["unscheduled", "Unscheduled", unscheduled.length],
+                  ["scheduled", "Scheduled", scheduled.length],
+                ] as const
+              ).map(([value, label, count]) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
+                >
+                  {label}
+                  {/* How much is standing here, inheriting the trigger's colour so the
+                      count and its label read as one thing rather than as a badge stuck
+                      to a tab (ui-craft §2). */}
+                  <span className="font-normal tabular-nums">{count}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
-        )}
+
+          <TabsContent value="unscheduled" className="min-w-0 outline-none">
+            {/* Mounted whatever the board is doing, including empty — see
+                `QueueAnnouncer`. This screen paginates nothing, so the whole range is
+                what is showing. One per tab, because switching tabs changes the answer
+                and the inactive pane is unmounted. */}
+            <QueueAnnouncer
+              from={1}
+              to={unscheduled.length}
+              total={unscheduled.length}
+            />
+
+            {unscheduled.length === 0 ? (
+              <NothingToMove
+                range={filters}
+                isSearched={isSearched}
+                everythingMoved={scheduled.length > 0}
+                onClear={clearFilters}
+              />
+            ) : (
+              /* min-w-0 lets this flex item shrink below the table's content width, so a
+                 wide table scrolls inside the panel instead of pushing the page
+                 sideways. */
+              <div className="min-w-0 overflow-x-auto">
+                {/* Six columns do not survive a phone. Below `md` the same rows stack as
+                    items — today's cause list's own answer. */}
+                <div className="hidden md:block">
+                  <BulkRescheduleTable
+                    rows={unscheduled}
+                    selection={{
+                      selected,
+                      onToggle: toggleRow,
+                      onToggleAll: toggleAll,
+                    }}
+                  />
+                </div>
+                <div className="md:hidden">
+                  <RescheduleItemList
+                    rows={unscheduled}
+                    selection={{ selected, onToggle: toggleRow }}
+                  />
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent
+            value="scheduled"
+            className="flex min-w-0 flex-col gap-4 outline-none"
+          >
+            {/* Mounted whatever the record holds, including nothing — a live region has
+                to be in the DOM before the change to be read out at all
+                (`QueueAnnouncer`). What is on screen is one day of the record, not the
+                tab's total. */}
+            <QueueAnnouncer from={1} to={showingRows} total={showingRows} />
+
+            {rescheduledDays.length === 0 ? (
+              <NothingRescheduled />
+            ) : (
+              <RescheduledRecord
+                groups={rescheduledDays}
+                open={openDays}
+                onOpenChange={setOpenDays}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
       </section>
 
-      {/* Mounted whatever the board is holding, including nothing. It used to be gated on
-          the board having rows, and the overlay reporting what had just happened went down
-          with the bar it was mounted in the moment the board emptied. Chrome does not
-          vanish from the layout (ui-craft §2). */}
-      <CommitBar
-        selected={selectedRows}
-        total={rows.length}
-        today={today}
-        range={filters}
-        onReschedule={reschedule}
-      />
+      {/* Mounted whatever the Unscheduled board is holding, including nothing — it used
+          to be gated on that board having rows, and the overlay reporting what had just
+          happened went down with the bar it was mounted in the moment the board emptied.
+          Chrome does not vanish from the layout (ui-craft §2).
+
+          It does belong to one tab, though. The bar commits a selection, the Scheduled
+          record has none to make, and a sticky teal button over a list of finished work
+          would be offering an act that list cannot perform. */}
+      {tab === "unscheduled" ? (
+        <CommitBar
+          selected={selectedRows}
+          total={unscheduled.length}
+          today={today}
+          range={filters}
+          onReschedule={reschedule}
+          onFinished={finish}
+        />
+      ) : null}
     </div>
   );
 }
@@ -657,10 +844,18 @@ function RangeField({
 function NothingToMove({
   range,
   isSearched,
+  everythingMoved,
   onClear,
 }: {
   range: Span;
   isSearched: boolean;
+  /**
+   * The board is empty because the bench emptied it, not because the court had nothing
+   * listed. Two different facts that look identical from a row count, and telling the
+   * bench "this court has nothing it could move" after it has just moved everything
+   * would be the screen forgetting the act it performed a second ago.
+   */
+  everythingMoved: boolean;
   onClear: () => void;
 }) {
   /* With no span asked for, the board is everything this court has listed — so there is
@@ -678,17 +873,25 @@ function NothingToMove({
         <EmptyMedia variant="icon">
           {isSearched ? (
             <SearchXIcon aria-hidden />
+          ) : everythingMoved ? (
+            <CalendarCheck2Icon aria-hidden />
           ) : (
             <CalendarX2Icon aria-hidden />
           )}
         </EmptyMedia>
         <EmptyTitle className="text-title-s font-semibold">
-          {isSearched ? "No matters match this search" : "Nothing to move"}
+          {isSearched
+            ? "No matters match this search"
+            : everythingMoved
+              ? "Everything here has been rescheduled"
+              : "Nothing to move"}
         </EmptyTitle>
         <EmptyDescription className="text-body">
           {isSearched
             ? `No matter listed${span} matches the case name or number you asked for.`
-            : `This court has nothing listed${span} that it could move.`}
+            : everythingMoved
+              ? `Every matter listed${span} is on the Scheduled tab.`
+              : `This court has nothing listed${span} that it could move.`}
         </EmptyDescription>
       </EmptyHeader>
       {isSearched ? (
@@ -703,32 +906,161 @@ function NothingToMove({
 }
 
 /**
+ * What this session moved — **a day at a time, stacked and shut.**
+ *
+ * The dates are the content of this tab. "Where did my afternoon's work go" is a question
+ * about days, and every structure that made the *cases* primary answered it badly: a flat
+ * list buried the later dates under the first one's rows, and so did an accordion whose
+ * first day stood open. A chooser above one table fixed that and read as a filter strip;
+ * folder tiles fixed it too and put a click in front of every day.
+ *
+ * So: the days stack, and **they all start shut** (owner, 2026-09-16). Landing on this tab
+ * shows the dates and nothing else — every day the court scheduled into, with its count,
+ * on one screen and in one glance. Opening one shows its cases; opening a second does not
+ * shut the first, because the bench is comparing what it did rather than navigating a
+ * menu.
+ *
+ * **Two days is where the stack starts.** One day cannot hide another, so a single date
+ * skips the disclosure entirely and its cases are the record — nothing to click through
+ * and nothing to collapse (owner, 2026-09-16).
+ *
+ * The day is the trigger and the heading both: Radix's `Accordion.Header` is the `h3`, so
+ * the outline reads as one heading per day with its table under it.
+ */
+function RescheduledRecord({
+  groups,
+  open,
+  onOpenChange,
+}: {
+  groups: RescheduledGroup[];
+  /** The days whose cases are showing. Empty is the resting state, not an accident. */
+  open: string[];
+  onOpenChange: (open: string[]) => void;
+}) {
+  if (groups.length === 1) {
+    const only = groups[0];
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        <DayHeading group={only} />
+        <DayCases group={only} />
+      </div>
+    );
+  }
+
+  return (
+    <Accordion type="multiple" value={open} onValueChange={onOpenChange}>
+      {groups.map((group) => (
+        <AccordionItem
+          key={group.day}
+          value={group.day}
+          /* The primitive's own rule between days is the DS default `border`, which is
+             two steps darker than anything else on this screen — the table's row rules,
+             the panel edge and the tab gutter are all hairlines — so it read as the
+             heaviest line on a page it is the lightest thing on. Dashed, in the surface
+             tone: a separation between days, not a rule competing with the tables under
+             them (owner, 2026-09-15). */
+          className="border-dashed border-surface-sunken"
+        >
+          <AccordionTrigger className="items-baseline justify-start gap-2 py-3 text-body font-semibold tabular-nums hover:no-underline">
+            {/* The date takes the room and wraps; the count keeps one line beside it.
+                Left to share the row evenly, a long day on a 390px screen squeezed the
+                count into a column narrow enough to break "3 hearings" in half. */}
+            <span className="min-w-0">{formatCourtDay(group.day)}</span>
+            <span className="shrink-0 text-body-compact font-normal whitespace-nowrap text-muted-foreground">
+              {group.rows.length}{" "}
+              {plural(group.rows.length, "hearing", "hearings")}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-4">
+            <DayCases group={group} />
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
+  );
+}
+
+/** The one day on a record that has no disclosure to carry its name. */
+function DayHeading({ group }: { group: RescheduledGroup }) {
+  return (
+    <h3 className="flex flex-wrap items-baseline gap-x-2 text-body font-semibold tabular-nums">
+      <span className="min-w-0">{formatCourtDay(group.day)}</span>
+      <span className="shrink-0 text-body-compact font-normal whitespace-nowrap text-muted-foreground">
+        {group.rows.length} {plural(group.rows.length, "hearing", "hearings")}
+      </span>
+    </h3>
+  );
+}
+
+/** One day's cases — the table above `md`, the same rows stacked below it. */
+function DayCases({ group }: { group: RescheduledGroup }) {
+  return (
+    <div className="min-w-0 overflow-x-auto">
+      <div className="hidden md:block">
+        <BulkRescheduleTable
+          rows={group.rows}
+          caption={`Hearings rescheduled to ${formatCourtDay(group.day)}`}
+        />
+      </div>
+      <div className="md:hidden">
+        <RescheduleItemList rows={group.rows} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The Scheduled tab before anything has been scheduled.
+ *
+ * Says what would put something here rather than apologising for the blank. No control:
+ * the thing to do is on the other tab, and a button that only switched tabs would be a
+ * third way to press a tab.
+ */
+function NothingRescheduled() {
+  return (
+    <Empty className="border-0 p-0">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <CalendarCheck2Icon aria-hidden />
+        </EmptyMedia>
+        <EmptyTitle className="text-title-s font-semibold">
+          Nothing rescheduled yet
+        </EmptyTitle>
+        <EmptyDescription className="text-body">
+          Matters you move from the Unscheduled tab appear here, with the date
+          they were listed on and the date they go to.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
+/**
  * The same rows below `md`, stacked.
  *
  * A board read on a phone is still the cause, its number and the day it stands listed on.
  * The columns that only support scanning (stage, hearing type) drop to a caption line
  * rather than forcing a six-column table through a 375px screen.
  *
- * A matter this session has moved carries both ends of the change here too. The table
- * answers that with a second column; a stacked item has no columns, so the two dates are
- * one line — the old day struck through and muted, an arrow, the new day in the
- * foreground — which is the same sentence the pair of columns makes, read across instead
- * of down. The strike-through is decoration over a fact the words already carry, so the
- * line names both days aloud for a reader that cannot see it.
+ * `selection` is omitted on the Scheduled tab for the same reason the table drops its
+ * checkbox column there: it is a record of what was done, not a board to work. The date
+ * line changes with it — on the board it is the day the matter stands on, on the record
+ * the day it came *from*, because the day it went to is the heading over the group.
  */
 function RescheduleItemList({
   rows,
-  selected,
-  onToggle,
+  selection,
 }: {
   rows: ReschedulableHearing[];
-  selected: ReadonlySet<string>;
-  onToggle: (id: string, next: boolean) => void;
+  selection?: {
+    selected: ReadonlySet<string>;
+    onToggle: (id: string, next: boolean) => void;
+  };
 }) {
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((row) => {
-        const isSelected = selected.has(row.id);
+        const isSelected = selection?.selected.has(row.id) ?? false;
 
         return (
           <li
@@ -741,13 +1073,17 @@ function RescheduleItemList({
             {/* The design system's box expands its own hit area to 40×40; the name it
                 carries is the matter, not the column, because a row read aloud has no
                 column header. */}
-            <span className="pt-0.5">
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={(next) => onToggle(row.id, next === true)}
-                aria-label={`Select ${row.title}, ${row.caseNumber}`}
-              />
-            </span>
+            {selection ? (
+              <span className="pt-0.5">
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={(next) =>
+                    selection.onToggle(row.id, next === true)
+                  }
+                  aria-label={`Select ${row.title}, ${row.caseNumber}`}
+                />
+              </span>
+            ) : null}
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <p className="text-body-compact font-medium">{row.title}</p>
               <p className="text-caption text-muted-foreground">
@@ -755,26 +1091,10 @@ function RescheduleItemList({
                 {courtCaseStageLabel(row.stage)} ·{" "}
                 {courtHearingPurposeLabel(row.purpose)}
               </p>
-              {row.newDate ? (
-                <p className="text-body-compact tabular-nums">
-                  <span className="sr-only">
-                    {`Rescheduled from ${formatListingDate(row.date)} to ${formatListingDate(row.newDate)}`}
-                  </span>
-                  <span aria-hidden="true">
-                    <span className="text-muted-foreground line-through">
-                      {formatListingDate(row.date)}
-                    </span>{" "}
-                    <span className="text-muted-foreground">→</span>{" "}
-                    <span className="font-medium">
-                      {formatListingDate(row.newDate)}
-                    </span>
-                  </span>
-                </p>
-              ) : (
-                <p className="text-body-compact tabular-nums text-muted-foreground">
-                  {formatListingDate(row.date)}
-                </p>
-              )}
+              <p className="text-body-compact tabular-nums text-muted-foreground">
+                {selection ? "" : "Previously "}
+                {formatListingDate(row.date)}
+              </p>
             </div>
           </li>
         );
@@ -806,16 +1126,28 @@ function CommitBar({
   today,
   range,
   onReschedule,
+  onFinished,
 }: {
   selected: ReschedulableHearing[];
   total: number;
   today: string;
   range: Span;
   onReschedule: (day: string, moving: ReschedulableHearing[]) => void;
+  /**
+   * The act is over and its window has closed.
+   *
+   * Separate from `onReschedule` because the two happen at different moments and one of
+   * them is allowed to unmount this bar. Anything the screen does that takes this bar off
+   * the page — following the matters to the other tab — has to wait until the overlay
+   * mounted inside it is no longer needed.
+   */
+  onFinished: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const summaryRef = React.useRef<HTMLParagraphElement>(null);
   const count = selected.length;
+  /** Whether this opening of the overlay actually committed anything. */
+  const committed = React.useRef(false);
 
   return (
     <div className="sticky bottom-0 z-30 -mx-6 -mb-6 border-t border-hairline bg-card px-6 py-3 md:-mx-8 md:-mb-8 md:px-8 md:py-4">
@@ -833,7 +1165,15 @@ function CommitBar({
               : `${count} of ${total} ${plural(total, "matter", "matters")} selected`}
         </p>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            if (next || !committed.current) return;
+            committed.current = false;
+            onFinished();
+          }}
+        >
           <DialogTrigger asChild>
             <Button disabled={count === 0} className="w-full sm:w-fit">
               {count > 0
@@ -848,7 +1188,10 @@ function CommitBar({
               rows={selected}
               today={today}
               range={range}
-              onReschedule={onReschedule}
+              onReschedule={(day, moving) => {
+                committed.current = true;
+                onReschedule(day, moving);
+              }}
               onReturnFocus={() => summaryRef.current?.focus()}
             />
           ) : null}

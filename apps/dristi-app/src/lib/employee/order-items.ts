@@ -99,11 +99,17 @@ export function orderItemStandingText(
  */
 export function richTextFromPlain(value: string): RichTextValue {
   if (!value) return { html: "", text: "" };
-  const escaped = value
+  return { html: `<p>${escapeText(value)}</p>`, text: value };
+}
+
+/** The same escape, reachable on its own: a sentence is matched inside existing markup
+ *  in the escaped form the editor holds it in, not in the plain form it was written
+ *  in. */
+function escapeText(value: string): string {
+  return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return { html: `<p>${escaped}</p>`, text: value };
 }
 
 /**
@@ -120,7 +126,7 @@ export function richTextFromPlain(value: string): RichTextValue {
  */
 export function appendRichText(
   current: RichTextValue,
-  addition: RichTextValue
+  addition: RichTextValue,
 ): RichTextValue {
   if (!addition.text && !addition.html) return current;
   if (!current.text && !current.html) return addition;
@@ -128,6 +134,43 @@ export function appendRichText(
     html: `${current.html}${addition.html}`,
     text: `${current.text}\n\n${addition.text}`,
   };
+}
+
+/**
+ * Write a generated sentence into the passage, replacing the version of it already
+ * there.
+ *
+ * A disposal is generated from a decision the bench made — "The application of the
+ * accused for bail (CMP/312/2026) is allowed." — and a decision can be made twice: the
+ * typist opens the answered row, looks at the application again, and dismisses what they
+ * had allowed. Appending blindly would leave the order carrying both sentences, which is
+ * a court record contradicting itself; skipping the second would leave it carrying the
+ * wrong one. So the earlier wordings are passed in and the new sentence takes their
+ * place, wherever they sit in the passage.
+ *
+ * `supersedes` carries every wording the same fact could have had, the new one included
+ * — a second press of the same answer must not duplicate the sentence it already wrote.
+ *
+ * Only the sentence is swapped, not the paragraph around it, so a disposal the typist
+ * has moved into a list or joined onto their own words keeps that shape. The limit of
+ * that is stated rather than papered over: a sentence whose *words* have been edited no
+ * longer matches, and a later change of decision appends a fresh one instead of
+ * correcting the typist's own text. Rewriting a sentence somebody has taken over is the
+ * worse failure of the two.
+ */
+export function upsertRichTextSentence(
+  current: RichTextValue,
+  sentence: string,
+  supersedes: readonly string[],
+): RichTextValue {
+  for (const earlier of supersedes) {
+    if (!earlier || !current.text.includes(earlier)) continue;
+    return {
+      html: current.html.split(escapeText(earlier)).join(escapeText(sentence)),
+      text: current.text.split(earlier).join(sentence),
+    };
+  }
+  return appendRichText(current, richTextFromPlain(sentence));
 }
 
 /** One order in the draft: what it is, and the words it carries. */

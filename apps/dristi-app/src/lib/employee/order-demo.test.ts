@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAUSE_LIST, parseIsoDay } from "./hearings";
-import { applicationsForListing } from "./listing-applications";
+import {
+  applicationsForListing,
+  listingApplicationSentence,
+} from "./listing-applications";
 import { appearancesFor, assembleOrder } from "./order-draft";
 import { initialOrderDraft, nextSittingDay } from "./order-demo";
 
@@ -70,15 +73,21 @@ describe("initialOrderDraft", () => {
   });
 
   it("writes every template it pulled in into the one box, in order", () => {
-    /* The invariant the composer itself keeps (`addItem`): what the panel pulled in is
-       what the paper reads. A fixture that set `items` without `body` would show a
-       state the screen cannot reach — a list of orders standing over an empty page. */
+    /* The invariant the composer itself keeps (`addItem` and `decide`): what the panel
+       pulled in and what the bench answered is what the paper reads. A fixture that set
+       `items` or `applications` without `body` would show a state the screen cannot
+       reach — a list of orders standing over an empty page. */
     for (const row of CAUSE_LIST) {
       const draft = initialOrderDraft(row, "completed", today);
+      const disposals = applicationsForListing(row.id).map((application) =>
+        listingApplicationSentence(row, application, "allowed"),
+      );
       assert.equal(
         draft.body.text,
-        draft.items.map((item) => item.text.text).join("\n\n"),
-        `${row.caseNumber} has a body its items do not account for`,
+        [...disposals, ...draft.items.map((item) => item.text.text)].join(
+          "\n\n",
+        ),
+        `${row.caseNumber} has a body its disposals and items do not account for`,
       );
       for (const item of draft.items) {
         assert.ok(
@@ -86,6 +95,37 @@ describe("initialOrderDraft", () => {
           `${row.caseNumber} lost ${item.type} on the way into the box`,
         );
       }
+    }
+  });
+
+  it("opens the order with the applications it answered, ahead of the directions", () => {
+    /* A disposal is a sentence *of* the order now rather than a band printed above it
+       (owner, 2026-09-15), so a completed sitting has to arrive with its answers in the
+       passage — and ahead of the directions, which is the order a court takes them in.
+       Without this the only listing on the board that carries applications would answer
+       them in the panel and say nothing about them on the page. */
+    const withApplications = CAUSE_LIST.find(
+      (row) => applicationsForListing(row.id).length > 0,
+    );
+    assert.ok(withApplications);
+    const draft = initialOrderDraft(withApplications, "completed", today);
+    const disposals = applicationsForListing(withApplications.id).map(
+      (application) =>
+        listingApplicationSentence(withApplications, application, "allowed"),
+    );
+    assert.ok(draft.body.text.startsWith(disposals[0]));
+    for (const sentence of disposals) {
+      assert.ok(
+        draft.body.text.includes(sentence),
+        `answered without reaching the order: ${sentence}`,
+      );
+    }
+    /* And no listing invents one. A matter with nothing pending opens on its directions,
+       with no sentence about applications at all. */
+    for (const row of CAUSE_LIST) {
+      if (applicationsForListing(row.id).length > 0) continue;
+      const other = initialOrderDraft(row, "completed", today);
+      assert.ok(!other.body.text.includes("The application of the"));
     }
   });
 
@@ -116,7 +156,10 @@ describe("initialOrderDraft", () => {
      left waiting to be filled in. */
   it("assembles an order with no block still pending", () => {
     for (const row of CAUSE_LIST) {
-      const order = assembleOrder(row, initialOrderDraft(row, "completed", today));
+      const order = assembleOrder(
+        row,
+        initialOrderDraft(row, "completed", today),
+      );
       const pending = order.blocks.filter((block) => block.pending);
       assert.deepEqual(
         pending.map((block) => block.heading),

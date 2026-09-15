@@ -8,8 +8,8 @@ import {
   CalendarDaysIcon,
   CalendarX2Icon,
   InboxIcon,
+  PencilIcon,
   ScrollTextIcon,
-  UsersIcon,
 } from "lucide-react";
 
 import {
@@ -24,8 +24,9 @@ import { useCourtToday } from "@/components/employee/use-court-today";
 import { useHearingSession } from "@/components/employee/use-hearing-session";
 import { useOrderDraft } from "@/components/employee/use-order-draft";
 import { PANEL_CLASS } from "@/components/shell/panel";
-import { CURRENT_STAFF, PRESIDING_MAGISTRATE } from "@/lib/employee/content";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -33,7 +34,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Empty,
   EmptyContent,
@@ -42,8 +47,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@/components/ui/segmented-control";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -59,13 +67,14 @@ import {
 } from "@/lib/employee/hearing-session";
 import {
   applicationsForListing,
+  LISTING_APPLICATION_DECISIONS,
   listingApplicationLabel,
+  listingApplicationSentence,
   type ListingApplication,
   type ListingApplicationDecision,
 } from "@/lib/employee/listing-applications";
 import {
   causeTitle,
-  counselFor,
   COURT_HEARING_PURPOSES,
   courtCaseStageLabel,
   courtHearingPurposeLabel,
@@ -93,6 +102,7 @@ import {
   appendRichText,
   createOrderItem,
   orderItemLabel,
+  upsertRichTextSentence,
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "@/lib/employee/order-items";
@@ -118,14 +128,14 @@ import {
 /**
  * Compose the order of one listing.
  *
- * Two regions under a band that names the matter. The left panel holds the sitting as
- * four sections with one of them open, in the order the bench works them — the
- * applications standing in the matter, the present and absent rolls, when it is next
- * listed, and last the catalogue of what the court passed — and every closed row still
- * says what it got to. The right column is the order itself, on paper: the court's own
- * furniture around one ruled band that the typist writes. A bar across the top carries
- * the cause and the way on to the next matter; a bar across the bottom carries the
- * signature.
+ * Two regions under a band that names the matter. **The left panel is one open column**
+ * (owner, 2026-09-15): the applications standing in the matter, the present and absent
+ * rolls, when it is next listed, and the catalogue of what the court passed, all in view
+ * at once with a rule between them. It was four accordion sections with one open, which
+ * put a press between the typist and every part of a sitting they were already in the
+ * middle of. The right column is the order itself, on paper: the court's own furniture
+ * around one ruled band that the typist writes. A bar across the top carries the cause
+ * and the way on to the next matter; a bar across the bottom carries the signature.
  *
  * **This build issues nothing.** The draft is held for this sitting and dies on a
  * reload. The paper on the page is the order as it will read. Send to sign order opens the
@@ -138,17 +148,18 @@ import {
 /**
  * Which section of the left panel is open.
  *
- * **Back to the four sections, on the owner's instruction (2026-09-14).** They were
- * replaced by two tabs earlier the same day, when attendance and the next listing moved
- * onto the page as inline editors (D45); the owner has reversed that, and the editors
- * come back here. What the tabs could not carry is the reason the accordion was built in
- * the first place: the sitting is a **sequence** — the applications standing in the
- * matter are disposed of, the roll is called, the matter is posted on, and what the court
- * passed is set down last — and a pair of tabs presents alternatives, not an order of
- * work. It also gives the page back the height the two open editors were taking, which
- * was the owner's other standing complaint about this screen.
+ * **Back to the four sections, and this is the second time the owner has asked for
+ * them.** On 2026-09-14 they came back from a pair of tabs; on 2026-09-15 they came back
+ * from one open column, which had scrolled all four regions into a single scroll on the
+ * argument that the summaries were answering questions the typist could simply read.
+ * What neither replacement carried is the reason the accordion exists: the sitting is a
+ * **sequence** — the applications standing in the matter are disposed of, the roll is
+ * called, the matter is posted on, and what the court passed is set down last. Tabs
+ * present alternatives; a single column presents four regions at once and says nothing
+ * about which is next. Only this shape walks the work, and it keeps the panel short
+ * beside a page that is now as tall as the order on it.
  */
-type SectionId = "applications" | "attendance" | "next" | "orders";
+type SectionId = "applications" | "orders";
 
 type SectionEntry = {
   id: SectionId;
@@ -176,20 +187,6 @@ function sectionSummary(
        section can say which (D53). */
     return answeredCount > 0 ? "All answered" : "None pending";
   }
-  if (id === "attendance") {
-    const marks = Object.values(draft.marks);
-    const present = marks.filter((mark) => mark === "present").length;
-    const absent = marks.filter((mark) => mark === "absent").length;
-    if (present + absent === 0) return "Not marked";
-    const parts: string[] = [];
-    if (present > 0) parts.push(`${present} present`);
-    if (absent > 0) parts.push(`${absent} absent`);
-    return parts.join(", ");
-  }
-  if (id === "next") {
-    if (draft.next === "none") return "Not being listed";
-    return draft.nextDate ? formatListingDate(draft.nextDate) : "Not set";
-  }
   return draft.items.length > 0 ? `${draft.items.length} added` : "None yet";
 }
 
@@ -203,10 +200,103 @@ function sectionSummary(
  */
 const SECTIONS: SectionEntry[] = [
   { id: "applications", title: "Applications", icon: InboxIcon },
-  { id: "attendance", title: "Attendance", icon: UsersIcon },
-  { id: "next", title: "Next hearing", icon: CalendarDaysIcon },
   { id: "orders", title: "Orders", icon: ScrollTextIcon },
 ];
+
+/**
+ * Has the matter been posted on?
+ *
+ * Both answers count: a date with the purpose it is for, or a decision not to list the
+ * matter again. A date on its own is not a posting — it is half of one — which is why
+ * setting the date first leaves the block open rather than setting it down over an
+ * unanswered purpose.
+ */
+function postingSettled(
+  draft: Pick<OrderDraft, "next" | "nextPurpose" | "nextDate">,
+): boolean {
+  if (draft.next === "none") return true;
+  return Boolean(draft.nextPurpose && draft.nextDate);
+}
+
+/**
+ * Which edges of a scrolled box have content past them.
+ *
+ * With no scrollbar there is nothing to say a region scrolls (owner, 2026-09-16), so the
+ * box says it itself: the content fades out at an edge it continues past, and the fade is
+ * gone at an edge it does not. That is the whole reason this is measured rather than
+ * drawn permanently — a fade over the last row of a list that has ended is a lie about
+ * there being more, which is worse than no affordance at all.
+ *
+ * Measured on three signals, because the box's content changes under all three: scrolling
+ * it, filtering it (the search shortens the list), and opening a group inside it (the
+ * `Collapsible` mounts rows). The `ResizeObserver` on the content covers the last two
+ * without this needing to know what changed — it watches the *height*, which is the only
+ * thing that matters here.
+ *
+ * `1` rather than `0` as the threshold: `scrollTop` is fractional on a trackpad and at
+ * non-integer zoom, so an exact comparison leaves a 0.4px scroll reading as "scrolled"
+ * and flickers the top fade on for the rest of the sitting.
+ */
+function useScrollEdges() {
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = React.useState({ top: false, bottom: false });
+
+  const measure = React.useCallback(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const top = box.scrollTop > 1;
+    const bottom = box.scrollTop + box.clientHeight < box.scrollHeight - 1;
+    /* Same object back when nothing moved: this runs on every scroll frame, and a fresh
+       object each time would re-render the whole catalogue as the reader scrolls it. */
+    setEdges((current) =>
+      current.top === top && current.bottom === bottom
+        ? current
+        : { top, bottom },
+    );
+  }, []);
+
+  React.useEffect(() => {
+    measure();
+    const content = contentRef.current;
+    if (!content || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [measure]);
+
+  return { boxRef, contentRef, edges, measure };
+}
+
+/**
+ * No bar at all — the region scrolls, and nothing draws a rail for it.
+ *
+ * Three passes at this. The platform default drew a full-height track with a grey thumb
+ * flush inside the panel's rounded edge; thinning it and clearing the track left a
+ * shorter, quieter rail, and the rail was still the wrong object (owner, 2026-09-15: make
+ * the bar itself about 16px).
+ *
+ * **A 16px bar is not reachable through the platform scrollbar, and saying so is part of
+ * the decision.** A thumb's *length* is not a CSS property: the browser sizes it as the
+ * ratio of the visible box to the scrolled content, so the only ways to shorten it are to
+ * shrink the box or lengthen the content, and neither is a design decision anyone would
+ * make about a catalogue. A fixed 16px mark would mean drawing a scroll indicator of our
+ * own — new UI, and a DS's job rather than a screen's. So the bar goes instead of being
+ * miniaturised, which is the same end the ask was reaching for.
+ *
+ * This is the DS's own intent: `combobox`, `command` and `sidebar` all apply a
+ * `no-scrollbar` class — which is defined nowhere in the DS or here, so those three draw
+ * the platform bar in spite of it. The properties are held in this constant rather than
+ * as a local utility of that name: the missing utility is the DS's to add, and a local
+ * copy under the same name would be a second kit answering to no one.
+ *
+ * Nothing becomes unreachable. The region's content is rows and controls — suggestion
+ * tiles, the search field, the group triggers — so a keyboard user moves through it by
+ * Tab and the browser scrolls each one into view; wheel, trackpad and touch are
+ * untouched; and the content is visibly cut off at the boundary, which is the affordance
+ * a rail was adding little to.
+ */
+const NO_SCROLLBAR = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
 export function OrderScreen({ hearingId }: { hearingId: string }) {
   const hearing = hearingById(hearingId);
@@ -262,26 +352,28 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     [hearing, status, today],
   );
   const [draft, setDraft] = useOrderDraft(hearing.id, initial);
-  const [signOpen, setSignOpen] = React.useState(false);
-  /* Orders by default: it is the work this screen exists for, and the applications tab
-     can say for itself that something is waiting. */
   /**
-   * Opens on the roll, always (owner, 2026-09-15).
+   * How many times the screen has written the order for the typist.
    *
-   * It used to open on the applications whenever one was standing, on the reasoning that
-   * a party waiting for an answer outranks everything else on the screen. True about the
-   * *matter* and wrong about the *work*: a typist arrives at this composer to record a
-   * sitting that has just happened, and the first thing they have in hand is who
-   * answered the call. Opening on the strip made the common case — a roll to mark and no
-   * application to decide — start with a press.
+   * **The editor reads its HTML once, on mount** (`rich-text-field.tsx`: rewriting
+   * `innerHTML` while somebody is typing eats the caret), so `OrderBody` remounts it on a
+   * new `key` whenever the words change from outside. That key used to be
+   * `draft.items.length`, which was true while the catalogue was the only thing that
+   * wrote: pulling a template changed the count, so the editor re-read.
    *
-   * Nothing is hidden by it. The Applications row states its own count while closed
-   * ("2 pending"), which is the whole reason the sections carry summaries, and answering
-   * the last one still walks the panel on to the roll (D59).
+   * Answering an application writes a sentence too now, and it changes no count —
+   * re-deciding one changes not even the number of answers — so the disposal landed in
+   * `draft.body` and never reached the box (owner, 2026-09-16: the answers "are not
+   * appearing in the text box"). The tests were green throughout, because what broke was
+   * not the draft but the one place that does not read it continuously.
+   *
+   * So the key is a count of the writes themselves. Every programmatic write bumps it and
+   * nothing else does — in particular `setBody`, which is the editor reporting its own
+   * typing, must never touch it, or the box would remount under each keystroke.
    */
-  const [section, setSection] = React.useState<SectionId | null>("attendance");
+  const [bodyWrites, setBodyWrites] = React.useState(0);
+  const [signOpen, setSignOpen] = React.useState(false);
   const [announcement, setAnnouncement] = React.useState("");
-
   /**
    * Open a section and put the reader in it.
    *
@@ -301,6 +393,45 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   const signature = useSignatureChoice("order");
 
   const appearances = React.useMemo(() => appearancesFor(hearing), [hearing]);
+  /**
+   * Whether the roll has been set down, which is what decides if the page shows the
+   * controls or the lines they produce (owner, 2026-09-15).
+   *
+   * The roll is the one block on this sheet whose form is bigger than its output: four
+   * rows of controls print as one or two lines. Leaving the form standing after the roll
+   * is called costs the page ~130px permanently and, worse, leaves the sheet reading as a
+   * form for the rest of the sitting — the typist's remaining work is the *writing*, and
+   * the document should look like one by then.
+   *
+   * It is composer state, not a fact of the order: nothing about `draft.marks` changes
+   * when it flips, and it dies with the composer like the rest of the draft. A listing
+   * that arrives with every appearance already answered — a completed sitting, whose
+   * draft `initialOrderDraft` fills in (D23) — opens set down, because the roll was
+   * called before this screen was ever opened.
+   *
+   * **It flips on the last answer, not on a press** (owner, 2026-09-15: once everything
+   * is selected it should just be done). An `Apply attendance` button stood here for part
+   * of the day, on the reasoning that only the typist can say when a roll with an
+   * unaccountable office is finished. That case does not pay for a confirmation on every
+   * ordinary sitting: the marks were always live in the draft, so the press was
+   * confirming a record that was already written, and `Edit` was always the way back. Its
+   * one real consequence is stated plainly — a roll left deliberately part-called keeps
+   * its controls, which is the page saying the roll has not been called.
+   *
+   * The panel's roll had no Apply either, for a related reason that still holds there: a
+   * section row promising "2 present, 1 absent" cannot be true unless the mark is already
+   * in the draft. This only ever governed how the block *renders*, never the record.
+   */
+  const [rollApplied, setRollApplied] = React.useState(() =>
+    appearances.every((appearance) => draft.marks[appearance.id]),
+  );
+  /**
+   * And the same for the posting: once it holds a purpose and a date the block is the two
+   * lines it produces, with the way back on its eyebrow.
+   */
+  const [postingApplied, setPostingApplied] = React.useState(() =>
+    postingSettled(draft),
+  );
   const upNext = nextUnhandledListing(hearing, session);
   /* One document for the page and the preview. They print the same artefact, so they
      read it off the same object rather than each building their own. */
@@ -360,6 +491,24 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           } => row.decision !== undefined,
         ),
     [hearing.id, draft.applications],
+  );
+
+  /**
+   * Where the panel opens: on the applications when one is standing, on the order when
+   * none is.
+   *
+   * The sitting is still a sequence — applications disposed of, the roll called, the
+   * matter posted on, the order set down last — but only its first and last steps are
+   * sections now. The roll and the posting are on the sheet (owner, 2026-09-15,
+   * exploration), in view from the moment the screen loads and needing nothing opened,
+   * so the panel opens on the first step it still owns that has anything in it. With
+   * nothing pending that is the order itself, which is the work this screen exists for.
+   *
+   * Read once, on the first render of this listing's composer: it is where the panel
+   * *opens*, not a rule about where it must be.
+   */
+  const [section, setSection] = React.useState<SectionId | null>(
+    pending.length > 0 ? "applications" : "orders",
   );
 
   /**
@@ -435,6 +584,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
       items: [...current.items, item],
       body: appendRichText(current.body, item.text),
     }));
+    setBodyWrites((count) => count + 1);
     /* The announcement says what is left to do, because after the auto-fill pass that is
        the fact that changed: an order can now arrive part-written, and "its text is
        written" would tell a screen-reader user it is finished when three brackets are
@@ -460,6 +610,77 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   }
 
   /**
+   * Where the walk points, and it points at the first step of the sitting that has no
+   * answer yet.
+   *
+   * With the roll and the posting on the page, "walk the panel on" is no longer the
+   * right description of this: the move is sometimes a focus on the sheet and sometimes
+   * a section opening. Stated once, here, rather than at each call site — and it returns
+   * the sentence the live region reads out, because the announcement and the move have to
+   * agree about where the typist has just been sent.
+   *
+   * **It does not answer for the roll.** Every caller is a roll that has just been called
+   * or set down, so a branch sending the reader back up to attendance could only ever
+   * fire on the one press that had just finished with it — which is how setting down a
+   * part-called roll used to bounce focus back onto the block it had just closed.
+   *
+   * Takes the posting as arguments rather than reading the draft: every caller is inside
+   * the action that just changed it, where `draft` is still the value from the render
+   * being replaced.
+   */
+  function walkOn(
+    next: OrderDraft["next"],
+    purpose: OrderDraft["nextPurpose"],
+    nextDate: string | null,
+  ): string {
+    if (!postingSettled({ next, nextPurpose: purpose, nextDate })) {
+      document.getElementById("order-next")?.focus();
+      return "The next posting, on the order, is next.";
+    }
+    showSection("orders");
+    return "What the court passed is now open.";
+  }
+
+  /**
+   * Set the roll down as it stands, complete or not.
+   *
+   * **Back on the owner's instruction (2026-09-15), and the case is a real one:** the
+   * accused's advocate was not required to attend, so they are neither present nor
+   * absent — there is no answer to give, and a record that says "absent" would be a
+   * false line in a court order. A roll like that never becomes complete, so the block
+   * would stand open as a form for the rest of the sitting with no way to close it.
+   *
+   * It does not replace the automatic set-down, it backstops it: a roll where every
+   * office has an answer still closes on the last mark, so the ordinary sitting never
+   * presses this. Which is also why it is enabled irrespective of what has been marked —
+   * the press exists precisely for the rolls the rule cannot finish, and a control
+   * disabled exactly when someone needs it is worse than one rarely used. The order
+   * prints the gap in its own muted voice, as it always did.
+   */
+  function applyRoll() {
+    setRollApplied(true);
+    const marked = appearances.filter(
+      (appearance) => draft.marks[appearance.id],
+    ).length;
+    const gap =
+      marked === appearances.length
+        ? ""
+        : marked === 0
+          ? " No appearance has an answer, and the order says the roll was not marked."
+          : " Not every appearance has an answer, and the order prints the gap.";
+    setAnnouncement(
+      `Attendance is set down on the order.${gap} ${walkOn(draft.next, draft.nextPurpose, draft.nextDate)}`,
+    );
+  }
+
+  /** Back to the controls, with the reader put on the block they just reopened. */
+  function editRoll() {
+    setRollApplied(false);
+    document.getElementById("order-attendance")?.focus();
+    setAnnouncement("Attendance is open for correction.");
+  }
+
+  /**
    * Answer one application, from the row.
    *
    * The answer is a sentence in the draft order and nothing else — no bail is granted
@@ -472,10 +693,27 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     application: ListingApplication,
     decision: ListingApplicationDecision,
   ) {
+    /* **The disposal is written into the order, not printed beside it** (owner,
+       2026-09-15). It used to be a band of sentences above the editor, derived from the
+       decisions and not editable — so the one part of the order the screen wrote for
+       itself was the one part a typist could not correct, and the page carried two
+       regions of prose where an order has one passage.
+
+       `upsertRichTextSentence` is what makes changing an answer safe: re-deciding an
+       application replaces the sentence it wrote rather than leaving the order carrying
+       both, and pressing the same answer twice writes nothing new. */
     setDraft((current) => ({
       ...current,
       applications: { ...current.applications, [application.id]: decision },
+      body: upsertRichTextSentence(
+        current.body,
+        listingApplicationSentence(hearing, application, decision),
+        LISTING_APPLICATION_DECISIONS.map((earlier) =>
+          listingApplicationSentence(hearing, application, earlier),
+        ),
+      ),
     }));
+    setBodyWrites((count) => count + 1);
     setOpenApplication(null);
 
     /* **The sitting is a sequence, so the panel walks it** (owner, 2026-09-15): answering
@@ -490,26 +728,59 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
        answer is not asking to be marched forward again. */
     const remaining = pending.filter((entry) => entry.id !== application.id);
     const advancing = remaining.length === 0 && section === "applications";
-    if (advancing) showSection("attendance");
+    /* **The next step is on the sheet, so focus goes there rather than to a section.**
+       With the roll on the page the walk still runs applications, roll, posting — only
+       its middle step is no longer something to open. The panel stays where it is,
+       showing what was just answered, and the reader is put on the roll's own heading;
+       `PaperBlock` takes `focusable` for exactly this, which is the flow its own note
+       said would one day want the tabindex.
+
+       Every other answer moves focus to the section heading instead: Accept and Reject
+       sit *inside* the row, answering takes the row off the strip, and a focus left on a
+       destroyed button restarts the next Tab at the top of the page. Harmless on the
+       overlay path either way — Radix restores focus after close and `onReturnFocus`
+       lands on the same heading. */
+    /* **The last answer closes this section and opens the order** (owner, 2026-09-15).
+       One section is open at a time, so opening Orders folds Applications away by itself
+       — and Applications has nothing left to do: the answers are in the passage, the
+       answered list stays a row away behind its own summary, and the roll and the posting
+       are on the sheet where they need no opening. What the panel is *for* from here is
+       the catalogue.
+
+       Every other answer keeps the section and moves focus to its heading, because
+       Accept and Reject sit inside the row and answering takes the row off the strip —
+       focus left on a removed button restarts the next Tab at the top of the page. */
+    if (advancing) {
+      showSection("orders");
+    } else {
+      document
+        .getElementById(`order-section-${section ?? "applications"}`)
+        ?.focus();
+    }
 
     setAnnouncement(
-      `${listingApplicationLabel(application)}, ${application.number}, is ${decision}. The order records it.${
-        advancing ? " Nothing is left pending; attendance is now open." : ""
+      `${listingApplicationLabel(application)}, ${application.number}, is ${decision}. The sentence recording it is written into the order, where it can be edited.${
+        advancing
+          ? " Nothing is left pending. What the court passed is now open."
+          : ""
       }`,
     );
   }
 
   /**
-   * Mark one appearance, and open the next posting once the roll is complete.
+   * Mark one appearance, and hand over the moment the roll is complete.
    *
-   * Complete means **every** appearance has an answer, present or absent — not the first
-   * mark, which would throw the typist out of the roll after one press. Unmarking never
-   * advances, because the roll stops being complete.
+   * One mark per person — the control on the page is single-choice, so present and absent
+   * cannot both be true of the same appearance, which is not a state a court record can
+   * be in. Pressing the answer that is already given clears it, and the roll goes back to
+   * being incomplete.
    *
-   * *Known and accepted:* correcting a mark on a finished roll completes it a second time
-   * and so advances again — untick, tick the other answer, and the panel moves on. The
-   * rule then reads the same every time it fires, which is worth more than a hidden "only
-   * the first time" that would make the panel look broken on the second.
+   * **On the transition, not on the state.** It fires when this press *finishes* the roll
+   * — incomplete before, complete after — and never again. The roll is on the page now,
+   * so a mark can be corrected at any point in the sitting, including while the typist is
+   * writing the order; re-firing there would take focus off the words under their hands.
+   * This also retires a quirk the panel version accepted: untick, tick the other answer,
+   * and the screen moved on a second time.
    */
   function mark(id: string, value: AttendanceMark | undefined) {
     /* The write goes through the updater so it merges into whatever the draft holds at
@@ -522,12 +793,72 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
 
     const marks = { ...draft.marks, [id]: value };
     const complete = appearances.every((appearance) => marks[appearance.id]);
-    if (complete && section === "attendance") {
-      showSection("next");
+    /* **A complete roll on an open block sets itself down** (owner, 2026-09-15): every
+       office has an answer, so there is nothing left for a confirmation to confirm, and
+       `Edit` is the way back if one of them is wrong. It mirrors the posting, which
+       settles the moment it holds a purpose and a date.
+
+       **The test is the block's state, not the roll's transition.** It read "was
+       incomplete, is now complete", which is true exactly once and left a corrected roll
+       standing open for the rest of the sitting: after `Edit` the roll is already
+       complete, so switching one office from present to absent changed nothing the
+       condition could see (owner, 2026-09-15 — the block "remains the way it is instead
+       of going back"). Asking whether the block is open instead answers both the first
+       calling and every correction after it, and it cannot re-fire while the roll is set
+       down, because the controls are not on the page then.
+
+       The walk has to run here, not merely because it is the next step, but because the
+       control that was just pressed unmounts with the form — focus left on a removed
+       segment falls to the body and the next Tab restarts at the top of the page. */
+    if (complete && !rollApplied) {
+      setRollApplied(true);
       setAnnouncement(
-        "The roll is complete. When the matter is next listed is now open.",
+        `Attendance is set down on the order. ${walkOn(draft.next, draft.nextPurpose, draft.nextDate)}`,
       );
     }
+  }
+
+  /**
+   * Post the matter on, or decide not to, from the page.
+   *
+   * The three writes are one region's worth of work, so they sit together: the purpose
+   * alone settles nothing, while a date or a decision not to list is the last fact the
+   * posting needs. When that lands and the roll is already called, the walk moves on to
+   * the order — and when the roll is *not* called it stays where it is rather than
+   * dragging the typist back up the sheet to a roll they have chosen to leave for later.
+   */
+  function postNext(
+    change: Partial<Pick<OrderDraft, "next" | "nextPurpose" | "nextDate">>,
+  ) {
+    setDraft((current) => ({ ...current, ...change }));
+    /* The posting as it stands *after* this change. `draft` is the value from the render
+       being replaced, and `nextDate` can legitimately be set to `null`, so the merge
+       tests for `undefined` rather than falling back on truthiness. */
+    const posting = {
+      next: change.next ?? draft.next,
+      nextPurpose: change.nextPurpose ?? draft.nextPurpose,
+      nextDate:
+        change.nextDate !== undefined ? change.nextDate : draft.nextDate,
+    };
+    if (!postingSettled(posting)) return;
+    setPostingApplied(true);
+    /* Set down either way; the walk only moves when there is somewhere sensible to move
+       to. A typist who has posted the matter before calling the roll is not dragged back
+       up the sheet to the roll they chose to leave for later. */
+    const rollCalled = appearances.every(
+      (appearance) => draft.marks[appearance.id],
+    );
+    if (!rollCalled) return;
+    setAnnouncement(
+      walkOn(posting.next, posting.nextPurpose, posting.nextDate),
+    );
+  }
+
+  /** Back to the two fields, with the reader put on the block they just reopened. */
+  function editPosting() {
+    setPostingApplied(false);
+    document.getElementById("order-next")?.focus();
+    setAnnouncement("The next posting is open for correction.");
   }
 
   /**
@@ -577,10 +908,16 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         </Button>
       </header>
 
-      {/* The split the owner drew. Left: what the court did at this sitting, and what it
-          passed — one at a time behind a tab strip, because the sitting's facts are
-          finished in one pass and the catalogue is the region that wants the whole panel
-          under it. Right: the order those entries make, on paper.
+      {/* The split the owner drew. Left: what the court did at this sitting and what it
+          passed, one section at a time. Right: the order those entries make, on paper.
+
+          **Thirds, and the page takes two of them** (owner, 2026-09-15). It was half and
+          half for part of a day, to give an open column room for a roll four checkboxes
+          across; the page won instead, because it is the artefact this screen exists to
+          produce and the thing a typist reads back. The roll asks for no such width in
+          this shape — one section is open at a time, and its two rolls are single columns
+          of 40px rows. Below two columns the order of the DOM stands and the page sits
+          under the panel.
 
           The column between the white header and footer is the scoped work canvas:
           `bg-muted` in light so the panels read against the same tone as the rail; dark
@@ -592,46 +929,38 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
             what the reference screen does and what a shared card was flattening into one
             object with an internal seam.
 
-            `self-start` on the panel and nothing on the page: the panel floats at its own
-            height, the page fills the canvas. That is the difference between a control
-            surface, which is as tall as its contents, and a document, which is a page.
+            `self-start` on both: each surface is as tall as its own contents. The page
+            held the canvas height while it carried a signature at its foot, which gave
+            the sheet somewhere to end; without one it was just a long empty margin.
 
             The columns stay 1/3 and 2/3, as they were before the container was removed.
             Narrowing the panel *and* unwrapping it in one step moved both surfaces at
             once, and the layout stopped being recognisable (owner, 2026-09-14). Only one
             of those was asked for. */}
+        {/* **Four sections, one open at a time, and the closed ones say where they got
+            to** — the panel as it was designed, restored on the owner's instruction
+            (2026-09-15) after a day spent as one open column. That is the whole reason
+            this beat an icon rail: a rail can show you four marks but not one fact, so
+            the panel had nothing in it and the way on ended up below the fold. A row that
+            reads "Attendance — Not marked" is the state and the way back to it in the
+            same line.
+
+            `Collapsible` and not `Accordion`: the DS `Accordion` renders its header as
+            a fixed `h3`, which would skip a level under this page's `h1` (D16 on this
+            screen made the same call for the same reason).
+
+            Not D16's mechanism, which was reversed. That folded the roll *for you* once
+            every appearance was marked, and bought nothing on arrival because the
+            screen opens unmarked. This is the navigation itself: it moves when you
+            move, never on its own.
+
+            **The rows are the only way through, and they are enough.** A "Next" inside
+            each open section was a second control doing what the row below it already
+            did, on a panel where all four rows are always in view. Nothing gates the
+            move either way: an application can stand over, a roll can go unmarked, a
+            date can be left unset, and the page prints the gap rather than the panel
+            refusing to move on. */}
         <Card className={cn(PANEL_CLASS, "min-w-0 gap-6 self-start p-6")}>
-          {/* Two tabs, and they are genuine alternatives now rather than a sequence
-                cut in half. Attendance and the next listing moved into the page on
-                2026-09-14 — they are sentences the order says, so they are edited where
-                they appear — which leaves this panel holding only the two things that
-                are *not* the order's own text: what the court passed, and what is
-                standing in the matter waiting on an answer.
-
-                Orders is the default because it is the work. Applications carries its
-                count, because a party is waiting on it and a tab you are not looking at
-                has to be able to say so. */}
-          {/* Four sections, one open at a time, and **the closed ones say where they got
-              to**. That is the whole reason this beat an icon rail: a rail can show you
-              four marks but not one fact, so the panel had nothing in it and the way on
-              ended up below the fold. A row that reads "Attendance — Not marked" is the
-              state and the way back to it in the same line.
-
-              `Collapsible` and not `Accordion`: the DS `Accordion` renders its header as
-              a fixed `h3`, which would skip a level under this page's `h1` (D16 on this
-              screen made the same call for the same reason).
-
-              Not D16's mechanism, which was reversed. That folded the roll *for you* once
-              every appearance was marked, and bought nothing on arrival because the
-              screen opens unmarked. This is the navigation itself: it moves when you
-              move, never on its own.
-
-              **The rows are the only way through, and they are enough.** A "Next" inside
-              each open section was a second control doing what the row below it already
-              did, on a panel where all four rows are always in view. Nothing gates the
-              move either way: an application can stand over, a roll can go unmarked, a
-              date can be left unset, and the page prints the gap rather than the panel
-              refusing to move on. */}
           <div className="flex min-w-0 flex-col divide-y divide-hairline">
             {SECTIONS.map((entry) => {
               const Icon = entry.icon;
@@ -732,27 +1061,13 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
                         draft={draft}
                         pending={pending}
                         answered={answered}
-                        appearances={appearances}
                         items={draft.items}
                         purpose={hearing.purpose}
                         suggestions={suggestions}
                         catalogue={catalogue}
                         onOpen={setOpenApplication}
                         onDecide={decide}
-                        onMark={mark}
                         onAdd={addItem}
-                        onSkip={(skip) =>
-                          setDraft((current) => ({
-                            ...current,
-                            next: skip ? "none" : "list",
-                          }))
-                        }
-                        onPurpose={(nextPurpose) =>
-                          setDraft((current) => ({ ...current, nextPurpose }))
-                        }
-                        onDate={(nextDate) =>
-                          setDraft((current) => ({ ...current, nextDate }))
-                        }
                       />
                     </div>
                   </CollapsibleContent>
@@ -768,9 +1083,20 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         <OrderPaper
           className="lg:col-span-2"
           document={orderDocument}
-          hearing={hearing}
+          appearances={appearances}
+          marks={draft.marks}
           draft={draft}
+          bodyRevision={bodyWrites}
           onBody={setBody}
+          onMark={mark}
+          rollApplied={rollApplied}
+          onApplyRoll={applyRoll}
+          onEditRoll={editRoll}
+          postingApplied={postingApplied}
+          onEditPosting={editPosting}
+          onSkip={(skip) => postNext({ next: skip ? "none" : "list" })}
+          onPurpose={(nextPurpose) => postNext({ nextPurpose })}
+          onDate={(nextDate) => postNext({ nextDate })}
         />
       </div>
 
@@ -824,7 +1150,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         }}
         noun="order"
         subject={`You are adding your signature to the order in ${hearing.caseNumber}.`}
-        warning="Signing publishes this order and cannot be reversed."
+        warning="This records how the order is to be signed. Nothing is issued from this screen."
         choice={signature}
         onSubmit={() => {
           setSignOpen(false);
@@ -841,37 +1167,26 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
  * One open section's contents.
  *
  * Split out so the four rows above stay readable as a list of four rows. Each branch is
- * the same content the tabs were holding an hour ago — nothing here was rebuilt, it was
- * moved — with the two editors now writing straight into the draft rather than holding a
- * local copy behind an Apply.
+ * the content the panel was holding when it ran as one column — nothing here was
+ * rebuilt, it was moved back — with the two editors writing straight into the draft
+ * rather than holding a local copy behind an Apply.
  *
  * **No heading inside a branch.** The section row *is* the heading: an `h2` carrying the
  * name, the state, and the way in. "Pending applications" over a list that already sits
  * under a row reading "Applications — 2 pending" is the same word twice.
- *
- * It took a `headingId` until 2026-09-15, for the branches to send focus to when a row
- * left a list under them. The order list was the last one that removed rows; with Remove
- * gone from it, nothing in here empties under the cursor any more. The row still carries
- * the id — answering an application still returns focus to it — so this is one prop less,
- * not one behaviour less.
  */
 function SectionBody({
   entry,
   draft,
   pending,
   answered,
-  appearances,
   items,
   purpose,
   suggestions,
   catalogue,
   onOpen,
   onDecide,
-  onMark,
   onAdd,
-  onSkip,
-  onPurpose,
-  onDate,
 }: {
   entry: SectionEntry;
   purpose: CourtHearingPurposeId;
@@ -883,23 +1198,41 @@ function SectionBody({
     application: ListingApplication;
     decision: ListingApplicationDecision;
   }[];
-  appearances: Appearance[];
   items: readonly OrderItemDraft[];
   onOpen: (application: ListingApplication) => void;
   onDecide: (
     application: ListingApplication,
     decision: ListingApplicationDecision,
   ) => void;
-  onMark: (id: string, mark: AttendanceMark | undefined) => void;
   onAdd: (
     type: OrderItemTypeId,
     application?: Pick<ListingApplication, "number" | "type">,
   ) => void;
-  onSkip: (skip: boolean) => void;
-  onPurpose: (purpose: CourtHearingPurposeId | "") => void;
-  onDate: (day: string | null) => void;
 }) {
   if (entry.id === "applications") {
+    /* **A matter that never carried one.** The only case that wants a sentence, and it is
+       still its own fact rather than the same empty as an answered matter (D53) — which
+       is now told by showing what was answered. */
+    if (pending.length === 0 && answered.length === 0) {
+      return (
+        <p className="text-body-compact text-muted-foreground">
+          No application is standing in this matter.
+        </p>
+      );
+    }
+
+    /* **Everything answered: the list, and nothing else** (owner, 2026-09-15). This
+       carried three pieces of chrome over one list — a *Pending applications* heading
+       above an empty group, a sentence saying every application had been answered, and an
+       *Answered in this sitting* heading under it — which between them said "all
+       answered" three times and left the section reading as two groups, one of them
+       missing. The section row already says it once, in the place built for exactly this:
+       "Applications — All answered". A group heading earns its line when there are two
+       groups to tell apart, and only then. */
+    if (pending.length === 0) {
+      return <AnsweredApplications rows={answered} onOpen={onOpen} />;
+    }
+
     return (
       <div className="flex min-w-0 flex-col gap-6">
         <div className="flex min-w-0 flex-col gap-3">
@@ -913,22 +1246,11 @@ function SectionBody({
           <h3 className="text-caption font-semibold text-muted-foreground">
             Pending applications
           </h3>
-          {pending.length > 0 ? (
-            <PendingApplications
-              applications={pending}
-              onOpen={onOpen}
-              onDecide={onDecide}
-            />
-          ) : (
-            /* Two different facts, and one sentence for both told the wrong one half the
-             time: a matter that never had an application, and a matter whose applications
-             have all been answered, are not the same empty (D53). */
-            <p className="text-body-compact text-muted-foreground">
-              {answered.length > 0
-                ? "Every application in this matter has been answered."
-                : "No application is standing in this matter."}
-            </p>
-          )}
+          <PendingApplications
+            applications={pending}
+            onOpen={onOpen}
+            onDecide={onDecide}
+          />
         </div>
 
         {answered.length > 0 ? (
@@ -940,27 +1262,6 @@ function SectionBody({
           </div>
         ) : null}
       </div>
-    );
-  }
-
-  if (entry.id === "attendance") {
-    return (
-      <AttendanceEditor
-        appearances={appearances}
-        marks={draft.marks}
-        onMark={onMark}
-      />
-    );
-  }
-
-  if (entry.id === "next") {
-    return (
-      <NextHearingEditor
-        draft={draft}
-        onSkip={onSkip}
-        onPurpose={onPurpose}
-        onDate={onDate}
-      />
     );
   }
 
@@ -1096,27 +1397,29 @@ function PendingApplications({
 }
 
 /**
- * The same applications, after the bench has answered them.
+ * What this sitting has already answered.
  *
- * **The row stays; only the reason to look at it changes.** So it keeps the title, the
- * number and the way in, and gives up the two things that meant "this needs you": the
- * amber bar down the leading edge, and Accept / Reject. What replaces the Pending chip is
- * the outcome as a word in its own ink — the treatment this screen already uses for
- * Absent, and the reason there is no second badge family here. One chip in the panel, and
- * it is the one that means somebody is waiting.
+ * **Rows, not cards** (owner, 2026-09-15: the answered cards "look really weird"). They
+ * were the pending card with its decisions taken out — a filled sunken box, 106px tall,
+ * holding a status word on its own line, a title, a number, and one text button floating
+ * where three controls used to be. A card is the right object for a decision the bench
+ * has to make, and the wrong one for a decision it has already made: there is nothing to
+ * act on here, so what the list owes the reader is *what was answered and how*, as
+ * briefly as that can be said.
  *
- * **"Allowed" and "Dismissed", not "Accepted" and "Rejected".** The split
- * `ListingApplicationDecision` documents: the controls carry the reference's Accept /
- * Reject, and everything that reports an outcome carries the court's own two words,
- * because that is what the order beside this panel prints.
+ * So: the decision as a `Badge` in the DS's own status pair — `success` for allowed,
+ * `destructive` for dismissed, muted fill against muted-foreground, never the ink alone —
+ * then the application and its serial, then the way in. Hairline rules between rows
+ * rather than four boxes on the panel's own white, which is the separation the section
+ * rows above already use. The word is in the badge, so the status is never colour alone
+ * (ACCESSIBILITY §3).
  *
- * The leading edge keeps a `border-s-4`, transparent, so the title starts on the same
- * pixel as a pending row's. Without it the two groups would sit 4px out of line, which
- * reads as a mistake rather than as a difference.
- *
- * *Not here, and worth the owner's decision: no way back.* An answered row cannot be
- * un-answered, so a mis-press is corrected by editing the sentence in the order rather
- * than by the control that wrote it.
+ * `View` keeps `link`, the DS's text button, and the row centres it rather than aligning
+ * it to the top (owner, 2026-09-15). At the top it sat level with the decision pill,
+ * which read as a control *on* the badge — and the badge is a state, not something to
+ * act on. Centred, it lands between the application and its serial: level with the pair
+ * it opens, and it stays there whether the name takes one line or three, which an
+ * alignment to any single line does not.
  */
 function AnsweredApplications({
   rows,
@@ -1129,42 +1432,60 @@ function AnsweredApplications({
   onOpen: (application: ListingApplication) => void;
 }) {
   return (
-    <ul className="flex min-w-0 flex-col gap-3">
+    <ul className="flex min-w-0 flex-col divide-y divide-hairline">
       {rows.map(({ application, decision }) => (
         <li
           key={application.id}
-          className="flex min-w-0 flex-col gap-2 rounded-lg border-s-4 border-transparent bg-surface-sunken p-3"
+          /* `py-3`, not `py-2`. A row here is two lines — the application over its
+             serial — and 8px a side put 16px between one row's serial and the next row's
+             badge while the pair inside a row sits 4px apart. Four to sixteen is not
+             enough of a step for the eye to group by, so two answers read as one block of
+             text with a line through it (owner, 2026-09-15: "cramped"). 12px makes it 4
+             to 24, which is the same ratio the panel's own section rows use. */
+          className="flex min-w-0 items-center justify-between gap-2 py-3 first:pt-0 last:pb-0"
         >
-          <p
-            className={cn(
-              "text-caption font-semibold",
-              decision === "allowed"
-                ? "text-success-ink"
-                : "text-destructive-ink",
-            )}
-          >
-            {decision === "allowed" ? "Allowed" : "Dismissed"}
-          </p>
+          {/* **The pill takes its own line, and the application sits under it** (owner,
+              2026-09-15). Beside the chip, a short name like "Bail" read as one line and
+              "Application to reschedule/adjournment" broke into a narrow two-line column
+              next to its badge — the same list drawing rows of two different shapes,
+              which is what looked broken. Above it, every row is the same three lines:
+              the decision, the application, its serial. It costs a line per row and buys
+              a list that can hold any length of name.
 
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <p className="text-body-compact min-w-0 font-medium">
-              {listingApplicationLabel(application)}
-            </p>
-            <p className="text-caption tabular-nums text-muted-foreground">
-              {application.number}
-            </p>
-          </div>
+              `self-start` on the badge because a `Badge` is an inline-flex span, and a
+              flex column stretches its children — without it the pill would run the full
+              width of the row as a bar.
 
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              onClick={() => onOpen(application)}
+              Two gaps, not one: 6px under the decision, 2px between the application and
+              its serial. The name and the number are one fact about one application; the
+              decision is a different fact about it, so the spacing groups them that
+              way. */}
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Badge
+              variant={decision === "allowed" ? "success" : "destructive"}
+              className="self-start"
             >
-              View
-            </Button>
+              {decision === "allowed" ? "Allowed" : "Dismissed"}
+            </Badge>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <p className="text-body-compact min-w-0 font-medium">
+                {listingApplicationLabel(application)}
+              </p>
+              <p className="text-caption tabular-nums text-muted-foreground">
+                {application.number}
+              </p>
+            </div>
           </div>
+
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="shrink-0"
+            onClick={() => onOpen(application)}
+          >
+            View
+          </Button>
         </li>
       ))}
     </ul>
@@ -1303,6 +1624,7 @@ function OrderItems({
   const [query, setQuery] = React.useState("");
   const [openGroup, setOpenGroup] = React.useState<OrderGroupId | null>(null);
   const [source, setSource] = React.useState<CatalogueSourceId>("system");
+  const { boxRef, contentRef, edges, measure } = useScrollEdges();
 
   const openCount = openSlots(body.text).length;
 
@@ -1359,218 +1681,276 @@ function OrderItems({
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <div className="flex min-w-0 flex-col gap-3">
-        <p className="text-caption font-semibold text-muted-foreground">
-          Likely at this hearing
-        </p>
-        {suggestions.length === 0 ? (
-          <p className="text-body-compact text-muted-foreground">
-            {noSuggestionsNote(purpose)}
-          </p>
-        ) : (
-          /* An `ol`, because the order is the answer. The list is ranked by how strongly
+    /* **The catalogue scrolls, the panel does not** (owner, 2026-09-15). This region is
+       the only thing in the panel with unbounded height — twenty-seven orders in nine
+       groups, plus the shortcuts above them — so it was what pushed the panel past the
+       viewport and made reading down the catalogue drag the whole surface, section rows
+       and all, up off the screen. Capped and scrolled in place, the panel stays as tall
+       as the screen can hold and *Likely at this hearing* and the search scroll within
+       it, which is what the reader is actually moving through.
+
+       `svh` rather than `vh`: on a phone `vh` is the viewport with the browser's chrome
+       *hidden*, so a `vh` box is taller than what anyone can see until they scroll
+       (RESPONSIVE.md). `overscroll-contain` stops the page taking over when the list
+       reaches its end — a scroll that jumps to the document the moment a list bottoms
+       out is the same fault as the panel moving in the first place.
+
+       `NO_SCROLLBAR` takes the bar away; with no thumb over the words, the `pe-1` that
+       kept them apart goes with it. What says the region scrolls instead is the fade at
+       whichever edge it continues past — see `useScrollEdges`. The fades are laid over
+       the box rather than inside it, so they stay at its edges while the content moves
+       under them, and they run from `card` to `card/0` because the panel they sit on is
+       `card`: a fade has to end in the colour behind it or it reads as a band of its own.
+       `card/0` rather than `transparent` — CSS interpolates a gradient towards
+       `transparent` through transparent *black*, which greys the middle of a fade on a
+       light panel; the same colour at zero alpha fades in the one hue it should.
+
+       `aria-hidden` and `pointer-events-none`: it is a shadow of the content, not content
+       of its own, and a scroll region you cannot click through is worse than one with no
+       fade. */
+    <div className="relative min-w-0">
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-card to-card/0 transition-opacity motion-reduce:transition-none",
+          edges.top ? "opacity-100" : "opacity-0",
+        )}
+      />
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 bg-gradient-to-t from-card to-card/0 transition-opacity motion-reduce:transition-none",
+          edges.bottom ? "opacity-100" : "opacity-0",
+        )}
+      />
+      <div
+        ref={boxRef}
+        onScroll={measure}
+        className={cn(
+          "flex max-h-[50svh] min-w-0 flex-col gap-6 overflow-y-auto overscroll-contain",
+          NO_SCROLLBAR,
+        )}
+      >
+        <div ref={contentRef} className="flex min-w-0 flex-col gap-6">
+          <div className="flex min-w-0 flex-col gap-3">
+            <p className="text-caption font-semibold text-muted-foreground">
+              Likely at this hearing
+            </p>
+            {suggestions.length === 0 ? (
+              <p className="text-body-compact text-muted-foreground">
+                {noSuggestionsNote(purpose)}
+              </p>
+            ) : (
+              /* An `ol`, because the order is the answer. The list is ranked by how strongly
              the sitting argues for each row — an application the bench has allowed above
              an order the purpose table merely mentions — so position carries meaning and
              a `ul` would have thrown it away. The numbers stay off: a typist chooses one
              of these, they do not work down them. */
-          <ol className="flex min-w-0 flex-col gap-2">
-            {suggestions.map((suggestion) => {
-              const caption = suggestionCaption(suggestion);
-              return (
-                <li key={suggestion.template.id} className="min-w-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    /* `h-auto` so a wrapped label and its caption both fit, and
+              <ol className="flex min-w-0 flex-col gap-2">
+                {suggestions.map((suggestion) => {
+                  const caption = suggestionCaption(suggestion);
+                  return (
+                    <li key={suggestion.template.id} className="min-w-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        /* `h-auto` so a wrapped label and its caption both fit, and
                        `min-h-10` because `h-auto` alone let an uncaptioned row —
                        Cognizance, Judgement, and the others the source gives no workflow
                        — render at 36px, under the DS floor of 40×40 for a touch target
                        (ACCESSIBILITY §8). The floor is the control metric, so it is
                        `min-h-10` and not a spacing value. */
-                    className="h-auto min-h-10 w-full flex-col items-start gap-0.5 px-3 py-2 text-start whitespace-normal"
-                    onClick={() =>
-                      add(suggestion.template.id, suggestion.fromApplication)
-                    }
-                  >
-                    <span className="text-body-compact font-medium">
-                      {suggestion.template.label}
-                    </span>
-                    {caption ? (
-                      <span className="text-caption text-muted-foreground">
-                        {caption}
-                      </span>
-                    ) : null}
-                  </Button>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </div>
+                        className="h-auto min-h-10 w-full flex-col items-start gap-0.5 px-3 py-2 text-start whitespace-normal"
+                        onClick={() =>
+                          add(
+                            suggestion.template.id,
+                            suggestion.fromApplication,
+                          )
+                        }
+                      >
+                        <span className="text-body-compact font-medium">
+                          {suggestion.template.label}
+                        </span>
+                        {caption ? (
+                          <span className="text-caption text-muted-foreground">
+                            {caption}
+                          </span>
+                        ) : null}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </div>
 
-      <div className="flex min-w-0 flex-col gap-3">
-        {/* The panel's label voice, not the DS field default. See the prop's own note:
+          <div className="flex min-w-0 flex-col gap-3">
+            {/* The panel's label voice, not the DS field default. See the prop's own note:
             16px here was louder than "Likely at this hearing" directly above it. */}
-        <QueueSearchField
-          label="Search orders"
-          value={query}
-          onChange={setQuery}
-          placeholder="Search the catalogue"
-          className="w-full"
-          labelClassName="text-caption font-semibold text-muted-foreground"
-        />
+            <QueueSearchField
+              label="Search orders"
+              value={query}
+              onChange={setQuery}
+              placeholder="Search the catalogue"
+              className="w-full"
+              labelClassName="text-caption font-semibold text-muted-foreground"
+            />
 
-        {/* The panel's own pair of tabs sits above this one, so this switch has to read
+            {/* The panel's own pair of tabs sits above this one, so this switch has to read
             as subordinate to it: it takes the DS's `line` variant — underline and teal,
             no well and no second white pill competing with the one above. No band rule
             under it either; the accent bar sits 4px clear of the list, so a rule would
             draw a second parallel line rather than the one the bar lands on. */}
-        <Tabs
-          value={source}
-          onValueChange={(next) => setSource(next as CatalogueSourceId)}
-        >
-          <TabsList variant="line">
-            <TabsTrigger value="system" className="gap-2">
-              System orders
-              <span className="text-caption tabular-nums text-muted-foreground">
-                {systemCount}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="custom" className="gap-2">
-              Custom orders
-              <span className="text-caption tabular-nums text-muted-foreground">
-                {customRows.length}
-              </span>
-            </TabsTrigger>
-          </TabsList>
+            <Tabs
+              value={source}
+              onValueChange={(next) => setSource(next as CatalogueSourceId)}
+            >
+              <TabsList variant="line">
+                <TabsTrigger value="system" className="gap-2">
+                  System orders
+                  <span className="text-caption tabular-nums text-muted-foreground">
+                    {systemCount}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="custom" className="gap-2">
+                  Custom orders
+                  <span className="text-caption tabular-nums text-muted-foreground">
+                    {customRows.length}
+                  </span>
+                </TabsTrigger>
+              </TabsList>
 
-          <TabsContent
-            value="system"
-            className="flex min-w-0 flex-col divide-y divide-hairline"
-          >
-            {groups.map((group) => {
-              /* A search opens whatever it found and leaves the rest shut, so the result
+              <TabsContent
+                value="system"
+                className="flex min-w-0 flex-col divide-y divide-hairline"
+              >
+                {groups.map((group) => {
+                  /* A search opens whatever it found and leaves the rest shut, so the result
                  is on screen without the typist opening four groups to look for it. */
-              const open = searching
-                ? group.rows.length > 0
-                : openGroup === group.id;
-              return (
-                <Collapsible
-                  key={group.id}
-                  open={open}
-                  onOpenChange={(next) => setOpenGroup(next ? group.id : null)}
-                  className="min-w-0 py-1"
-                >
-                  <CollapsibleTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={searching && group.rows.length === 0}
-                      className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-start transition-colors hover:bg-surface-sunken focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:opacity-50"
+                  const open = searching
+                    ? group.rows.length > 0
+                    : openGroup === group.id;
+                  return (
+                    <Collapsible
+                      key={group.id}
+                      open={open}
+                      onOpenChange={(next) =>
+                        setOpenGroup(next ? group.id : null)
+                      }
+                      className="min-w-0 py-1"
                     >
-                      <ChevronDownIcon
-                        aria-hidden
-                        className={cn(
-                          "size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
-                          open && "rotate-180",
-                        )}
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          disabled={searching && group.rows.length === 0}
+                          className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-start transition-colors hover:bg-surface-sunken focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:opacity-50"
+                        >
+                          <ChevronDownIcon
+                            aria-hidden
+                            className={cn(
+                              "size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
+                              open && "rotate-180",
+                            )}
+                          />
+                          <span className="text-body-compact min-w-0 flex-1 font-medium">
+                            {group.label}
+                          </span>
+                          <span className="text-caption shrink-0 text-muted-foreground tabular-nums">
+                            {group.rows.length}
+                          </span>
+                        </button>
+                      </CollapsibleTrigger>
+
+                      <CollapsibleContent className="min-w-0">
+                        <ul className="flex min-w-0 flex-col gap-0.5 ps-8 pt-1 pb-2">
+                          {group.rows.map((template) => (
+                            <CatalogueRow
+                              key={template.id}
+                              label={template.label}
+                              caption={template.workflow}
+                              reason={unavailableReason(template, catalogue)}
+                              onSelect={() => add(template.id)}
+                            />
+                          ))}
+                        </ul>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
+              </TabsContent>
+
+              <TabsContent value="custom" className="min-w-0">
+                {customRows.length === 0 ? (
+                  <p className="text-body-compact py-1 text-muted-foreground">
+                    No order you write yourself answers to that.
+                  </p>
+                ) : (
+                  <ul className="flex min-w-0 flex-col gap-0.5 py-1">
+                    {customRows.map((row) => (
+                      <CatalogueRow
+                        key={row.key}
+                        label={row.label}
+                        caption={row.caption}
+                        reason={row.reason}
+                        onSelect={row.select}
                       />
-                      <span className="text-body-compact min-w-0 flex-1 font-medium">
-                        {group.label}
-                      </span>
-                      <span className="text-caption shrink-0 text-muted-foreground tabular-nums">
-                        {group.rows.length}
-                      </span>
-                    </button>
-                  </CollapsibleTrigger>
+                    ))}
+                  </ul>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
 
-                  <CollapsibleContent className="min-w-0">
-                    <ul className="flex min-w-0 flex-col gap-0.5 ps-8 pt-1 pb-2">
-                      {group.rows.map((template) => (
-                        <CatalogueRow
-                          key={template.id}
-                          label={template.label}
-                          caption={template.workflow}
-                          reason={unavailableReason(template, catalogue)}
-                          onSelect={() => add(template.id)}
-                        />
-                      ))}
-                    </ul>
-                  </CollapsibleContent>
-                </Collapsible>
-              );
-            })}
-          </TabsContent>
-
-          <TabsContent value="custom" className="min-w-0">
-            {customRows.length === 0 ? (
-              <p className="text-body-compact py-1 text-muted-foreground">
-                No order you write yourself answers to that.
+          <div className="flex min-w-0 flex-col gap-3">
+            <p className="text-caption font-semibold text-muted-foreground">
+              Pulled into this order
+            </p>
+            {items.length === 0 ? (
+              <p className="text-body-compact text-muted-foreground">
+                Nothing has been pulled in yet. Choose an order and the
+                court&rsquo;s standing words for it are written into the page
+                beside you, ready to be corrected — and where the catalogue
+                gives none, write the order there yourself.
               </p>
             ) : (
-              <ul className="flex min-w-0 flex-col gap-0.5 py-1">
-                {customRows.map((row) => (
-                  <CatalogueRow
-                    key={row.key}
-                    label={row.label}
-                    caption={row.caption}
-                    reason={row.reason}
-                    onSelect={row.select}
-                  />
-                ))}
-              </ul>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-3">
-        <p className="text-caption font-semibold text-muted-foreground">
-          Pulled into this order
-        </p>
-        {items.length === 0 ? (
-          <p className="text-body-compact text-muted-foreground">
-            Nothing has been pulled in yet. Choose an order and its words are
-            written into the page beside you — or write the order there
-            yourself.
-          </p>
-        ) : (
-          <>
-            {/* **A record of what was pulled in, and no Remove** (owner, 2026-09-15).
+              <>
+                {/* **A record of what was pulled in, and no Remove** (owner, 2026-09-15).
                 Its words are part of one passage the moment they land, so a Remove here
                 would either have to guess which sentences were once this template's or
                 quietly take out text the typist has since rewritten. Deleting a
                 direction is deleting the sentence that carries it, in the box, the way
                 it is done on paper. */}
-            <ol className="flex min-w-0 flex-col gap-2">
-              {items.map((item, index) => (
-                <li
-                  key={item.id}
-                  className="flex min-h-10 min-w-0 items-center gap-3 rounded-lg bg-surface-sunken px-3 py-2"
-                >
-                  <p className="text-body-compact min-w-0">
-                    <span className="tabular-nums">{index + 1}.</span>{" "}
-                    {orderItemLabel(item.type)}
-                  </p>
-                </li>
-              ))}
-            </ol>
-            {/* What the auto-fill pass could not resolve, **read off the box rather than
+                <ol className="flex min-w-0 flex-col gap-2">
+                  {items.map((item, index) => (
+                    <li
+                      key={item.id}
+                      className="flex min-h-10 min-w-0 items-center gap-3 rounded-lg bg-surface-sunken px-3 py-2"
+                    >
+                      <p className="text-body-compact min-w-0">
+                        <span className="tabular-nums">{index + 1}.</span>{" "}
+                        {orderItemLabel(item.type)}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+                {/* What the auto-fill pass could not resolve, **read off the box rather than
                 off the templates**. It used to be a count per row, taken from the words
                 each template arrived with — which went stale the moment the typist filled
                 one in, the row still claiming a hole that was no longer there. One count,
                 measured on what the order actually says now. The brackets themselves are
                 visible in the page beside this, so this carries the number and the
                 document carries the places. */}
-            {openCount > 0 ? (
-              <p className="text-caption tabular-nums text-muted-foreground">
-                {openCount === 1
-                  ? "1 detail still to fill in the order"
-                  : `${openCount} details still to fill in the order`}
-              </p>
-            ) : null}
-          </>
-        )}
+                {openCount > 0 ? (
+                  <p className="text-caption tabular-nums text-muted-foreground">
+                    {openCount === 1
+                      ? "1 detail still to fill in the order"
+                      : `${openCount} details still to fill in the order`}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1645,74 +2025,83 @@ function MatterFacts({ hearing }: { hearing: CourtHearing }) {
  * next-hearing box — that described an order without ever being one. The owner's
  * reference puts the document itself in this column and it is right to: the typist is
  * setting down a page a court will read, and a page is the only honest preview of a
- * page. The furniture around the writing is the court's own — the cause heading, the
- * roll of parties and their counsel, the offence, attendance, the next posting, the
- * signature — and none of it is typed, because every one of those facts is already
- * known to the listing.
+ * page. The furniture around the writing is the court's own — the title, attendance,
+ * the next posting, the signature — and none of it is typed, because every one of those
+ * facts is already known to the listing.
+ *
+ * **No cause block.** The page opened on a printed heading held back to 60% — the court,
+ * the case number, the matter, the date, a roll of the parties with their counsel, and
+ * the offence. It came out (owner, 2026-09-15). All of it is already on screen: the
+ * strip above this column names the case and the matter, and the column beside it
+ * carries the item and the purpose. The copy that leaves this court is not short of a
+ * cause title either — the signing queue renders the same document with its own heading,
+ * from the same `court`, `matter` and `dated` fields. Repeating it here spent a third of
+ * the sheet before the first line of what the court actually passed.
  *
  * `paper` is the DS family for exactly this and for nothing else: a fixed facsimile that
  * does not invert in dark, because a printed page does not change colour with the
  * product palette. It is the same treatment the signing queue uses on the same artefact,
  * so what the bench reads back here is what it will see when it comes to sign.
  *
- * **One writable region, ruled off, and always there.** Between the attendance line and
- * the next posting sits the one part of the page that is composed rather than known: a
- * single editor holding the whole of what the court passed. It was a band carrying one
+ * **One writable region, ruled off at the top, and always there.** Below attendance
+ * and the next posting sits the one part of the page that is composed rather than known:
+ * a single editor holding the whole of what the court passed. It was a band carrying one
  * bordered well per template, which grew the page a box at a time and made a document
  * read as a stack of forms (owner, 2026-09-15) — so the wells collapsed into one editor.
- * The rules above and below it stayed: they are the reference's own, and they say where
- * the court's standing furniture stops and the typist's work begins.
+ * The top rule stayed: it is the reference's own, and it says where the court's standing
+ * furniture stops and the typist's work begins. The matching rule below did not: with
+ * nothing under the writing, it was a leftover divider (owner, 2026-09-15).
  */
 function OrderPaper({
   className,
   document: order,
-  hearing,
+  appearances,
+  marks,
   draft,
+  bodyRevision,
   onBody,
+  onMark,
+  rollApplied,
+  onApplyRoll,
+  onEditRoll,
+  postingApplied,
+  onEditPosting,
+  onSkip,
+  onPurpose,
+  onDate,
 }: {
   className?: string;
   document: OrderDocument;
-  hearing: CourtHearing;
+  appearances: Appearance[];
+  marks: OrderDraft["marks"];
   draft: OrderDraft;
+  /** Bumped by every write the screen makes to the order — see `bodyWrites`. */
+  bodyRevision: number;
   onBody: (value: RichTextValue) => void;
+  onMark: (id: string, mark: AttendanceMark | undefined) => void;
+  rollApplied: boolean;
+  onApplyRoll: () => void;
+  onEditRoll: () => void;
+  postingApplied: boolean;
+  onEditPosting: () => void;
+  onSkip: (skip: boolean) => void;
+  onPurpose: (purpose: CourtHearingPurposeId | "") => void;
+  onDate: (day: string | null) => void;
 }) {
   return (
     <article
       className={cn(
         PANEL_CLASS,
-        "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-6 text-card-foreground md:p-8",
+        /* `self-start`, as the panel beside it has: with the signature gone from the
+           foot (owner, 2026-09-15) there is nothing left to hold down there, and a sheet
+           stretched to the canvas was a tall pale container with its writing bunched at
+           the top. The page is now as tall as the order on it, and the writable region's
+           own minimum height is what keeps it reading as a page rather than a slip. */
+        "flex min-w-0 flex-col gap-4 self-start rounded-xl bg-card p-6 text-card-foreground md:p-8",
         className,
       )}
       aria-labelledby="order-paper"
     >
-      {/* The cause heading, the roll and the offence are held back to 60% so the page
-          opens on ORDER and what follows it. None of this block is typed — court, case,
-          parties, counsel and the section are all already known to the listing — and on
-          paper that standing furniture is printed lighter than the operative part. It is
-          one group rather than three dimmed siblings so the reading stays uniform: a
-          half-lit heading over a fully-lit roll would read as an error, not a hierarchy. */}
-      <div className="flex flex-col gap-4 opacity-60">
-        <header className="flex flex-col gap-4">
-          <p className="text-body text-center font-semibold text-balance">
-            {order.court}
-          </p>
-          <dl className="flex flex-col gap-1">
-            <PaperFact label="Case no." value={order.caseNumber} />
-            <PaperFact label="In the matter of" value={order.matter} />
-            <PaperFact label="Dated" value={order.dated} />
-          </dl>
-        </header>
-
-        <PartyRoll hearing={hearing} />
-
-        {/* Every case on this platform is a cheque-dishonour prosecution, so the offence
-            is a fact about the page rather than something the typist chooses. An order
-            sheet names it above the operative part. */}
-        <p className="text-caption text-center text-muted-foreground">
-          Offence under S. 138 of the Negotiable Instruments Act, 1881
-        </p>
-      </div>
-
       <h2
         id="order-paper"
         tabIndex={-1}
@@ -1721,64 +2110,125 @@ function OrderPaper({
         {order.title}
       </h2>
 
-      <PaperBlock id="order-attendance" label="Attendance">
-        <AttendanceRolls document={order} />
-      </PaperBlock>
+      {/* **Framed while it is work, plain once it is set down.** The well is what makes
+          the roll read as a section of its own rather than four loose rows on a sheet
+          (owner, 2026-09-15); the printed lines it becomes are a passage of the order,
+          and a box drawn round them would say the opposite of what Apply just did. */}
+      {/* **The sitting's two facts, side by side** (owner, 2026-09-15). The posting used
+          to sit at the foot of the sheet, below the writing, which put the two things a
+          typist settles before composing anything at opposite ends of the page — and cost
+          the sheet two full-width blocks of form where one row of two would do.
 
-      {order.applications.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          {order.applications.map((sentence) => (
-            /* No muted branch: only answered applications reach the page now
-               (`OrderDocument.applications`), and an answer is not a provisional
-               thing — it is what the court did. */
-            <p key={sentence.text} className="text-body-compact">
-              {sentence.text}
-            </p>
-          ))}
-        </div>
-      ) : null}
+          Two columns from `md` up and one below it: each block holds a label beside a
+          control, and at a phone's width there is no room for two of those across.
+          `items-start` so a four-row roll does not stretch the two-field posting to match
+          its height — they are neighbours, not a table. */}
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 md:items-start">
+        <PaperBlock
+          id="order-attendance"
+          label="Attendance"
+          focusable
+          framed={!rollApplied}
+          action={
+            rollApplied ? (
+              /* **Brand teal and a pencil** (owner, 2026-09-15). `text-primary` is the
+               app's action colour and the one this page's own text buttons wore before
+               2026-09-14 — not `success`, which is a true green reserved for an outcome
+               and would claim something had succeeded. `hover:text-primary` because
+               `ghost` otherwise takes the label to `foreground` on hover, which would
+               drop the brand exactly when the pointer is on it.
+
+               The icon is fine here and would not be on the footer's Send to sign order:
+               that rule is about the screen's primary CTA, whose label carries the act on
+               its own. This is a 32px affordance on an eyebrow, where the pencil is what
+               makes "Edit" findable at a glance in a page of printed lines. `data-icon`
+               is the DS's own hook for the tighter leading padding an icon wants, and
+               `aria-hidden` because the label already says it. */
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="shrink-0 text-primary hover:text-primary"
+                onClick={onEditRoll}
+              >
+                <PencilIcon data-icon="inline-start" aria-hidden />
+                Edit
+              </Button>
+            ) : null
+          }
+        >
+          {rollApplied ? (
+            <AttendanceRolls document={order} />
+          ) : (
+            <PaperAttendance
+              appearances={appearances}
+              marks={marks}
+              onMark={onMark}
+              onApply={onApplyRoll}
+            />
+          )}
+        </PaperBlock>
+
+        <PaperBlock
+          id="order-next"
+          label="Next hearing"
+          focusable
+          framed={!postingApplied}
+          action={
+            postingApplied ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="shrink-0 text-primary hover:text-primary"
+                onClick={onEditPosting}
+              >
+                <PencilIcon data-icon="inline-start" aria-hidden />
+                Edit
+              </Button>
+            ) : null
+          }
+        >
+          {postingApplied ? (
+            <NextHearingLines document={order} draft={draft} />
+          ) : (
+            <PaperNextHearing
+              draft={draft}
+              onSkip={onSkip}
+              onPurpose={onPurpose}
+              onDate={onDate}
+            />
+          )}
+        </PaperBlock>
+      </div>
 
       {/* The composed region: one box, always here, whether or not a template has been
-          pulled into it, and **ruled top and bottom**.
+          pulled into it, and **ruled at the top**.
 
-          The rules were dropped with the per-template wells on the argument that the
-          editor's own border already said where the writing began — and on the page that
-          reading was wrong (owner, 2026-09-15). A lone framed field floating between the
-          roll and the next posting reads as a control that has landed on the sheet; the
-          rules are what make the same field read as the passage this document is for.
-          They are the reference's own, and they are doing the job they were drawn for:
-          separating what the typist composes from the court's standing furniture around
-          it. Two borders here are not one statement twice — the outer pair belongs to the
-          page and the inner one to the control. */}
-      <div className="flex min-w-0 flex-col border-y border-hairline py-6">
+          The top rule is what makes the editor read as the passage this document is for
+          rather than a control that has landed on the sheet. The matching rule below was
+          dropped (owner, 2026-09-15): with the next posting now beside attendance, nothing
+          sits under the writing, so a bottom hairline was a leftover divider over empty
+          card. The editor's own border already closes the writable region. */}
+      <div className="flex min-w-0 flex-col border-t border-hairline py-6">
         <OrderBody
           value={draft.body}
-          revision={draft.items.length}
+          revision={bodyRevision}
           onChange={onBody}
         />
       </div>
-
-      <PaperBlock id="order-next" label="Next hearing">
-        <NextHearingLines document={order} draft={draft} />
-      </PaperBlock>
-
-      {/* The page is a page: what is written stops where it stops, and the signature
-          sits at the foot of the sheet rather than crowding up under the last line.
-          `aria-hidden` because it is space, not content. */}
-      <div aria-hidden className="min-h-8 flex-1" />
-
-      <SignatureBlock />
     </article>
   );
 }
 
 /**
- * Attendance as an order sheet prints it: two rolls, not a running sentence.
+ * Attendance as the order prints it once the roll is set down: two lines, not a running
+ * sentence.
  *
- * The offices are listed, not the names — the roll of parties two inches above already
- * maps one to the other, and an order sheet's Present line names offices. A side that
- * has nobody on it prints no line at all rather than an empty one: "Absent: —" is a
- * sentence about nothing.
+ * The offices are listed, not the names — an order sheet's Present line names offices,
+ * and the block was a table of them a press ago. A side that has nobody on it prints no
+ * line at all rather than an empty one: "Absent: —" is a sentence about nothing, and an
+ * unmarked roll says so in the muted voice rather than leaving the eyebrow over nothing.
  */
 function AttendanceRolls({ document: order }: { document: OrderDocument }) {
   const rolls = [
@@ -1796,11 +2246,6 @@ function AttendanceRolls({ document: order }: { document: OrderDocument }) {
     },
   ].filter((roll) => roll.names.length > 0);
 
-  /* **An unmarked roll has to say so.** While the editor sat in this block it filled the
-     gap by being there; with the editing back in the panel (D55) an unmarked sitting left
-     the page printing the word "Attendance" over nothing at all, which reads as a
-     rendering fault rather than as a fact. Same muted voice the next-listing block uses
-     for "Not set", and the same principle: a gap stays a gap and is never a blank. */
   if (rolls.length === 0) {
     return (
       <p className="text-body-compact text-muted-foreground">Not marked</p>
@@ -1819,6 +2264,124 @@ function AttendanceRolls({ document: order }: { document: OrderDocument }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * The roll, called on the sheet itself.
+ *
+ * **An exploration, opened on the owner's ask (2026-09-15):** can attendance live on the
+ * paper rather than in the panel? It has been tried once — D45 put the roll and the next
+ * posting on the page as inline editors on 2026-09-14 and the owner reversed it the same
+ * day, because two editors on the sheet met the typist with ~400px of form before the
+ * first line of the order. What answers that objection here is not the size of the
+ * control: the form is how the roll is *called*, and the moment every office has an
+ * answer the block is two printed lines again.
+ *
+ * **Rebuilt after the first attempt looked, in the owner's words, poorly made
+ * (2026-09-15).** Three faults, all of them layout rather than primitive:
+ *
+ * 1. `justify-between` in a column of its own stranded each control in the middle of a
+ *    two-thirds-wide sheet, tethered to its label by 200px of nothing. It is a grid now —
+ *    one column for the offices, one for their answers — sized `w-fit`, so the answers
+ *    line up directly after the longest office and the pair reads as a row of a table.
+ *    That is what an attendance roll is, and it is why the roll needed no second change
+ *    when the block moved into half the sheet's width: a table that hugs its content fits
+ *    whatever column it is given.
+ * 2. Four full-height wells stacked down the page were the loudest objects on a sheet
+ *    whose whole point is the writing. `size="compact"` is the DS's answer for exactly
+ *    this — a 32px well that keeps its 40px hit target — so the wells stop being slabs
+ *    without any of them becoming a smaller target than the Laws allow.
+ * 3. Nothing ended it, so the controls read as furniture rather than as work with an
+ *    end. The last answer closes the block now: four offices answered is the whole of
+ *    the question, and the printed lines are what the sheet shows from then on.
+ *
+ * `SegmentedControl`, not the panel's two checkbox rolls: one question per person with
+ * one answer, so *Present | Absent* beside the office is the shortest true form of it,
+ * and a person cannot be ticked into both rolls at once. It carries state as weight
+ * rather than as brand colour, which is what keeps four of them quiet on paper.
+ */
+function PaperAttendance({
+  appearances,
+  marks,
+  onMark,
+  onApply,
+}: {
+  appearances: Appearance[];
+  marks: OrderDraft["marks"];
+  onMark: (id: string, mark: AttendanceMark | undefined) => void;
+  onApply: () => void;
+}) {
+  const rollId = React.useId();
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      {/* `w-fit` with `max-w-full`: the table is as wide as its two columns need and no
+          wider, and on a narrow screen the office column takes the squeeze by wrapping
+          rather than pushing the answers off the sheet. */}
+      <div className="grid w-fit max-w-full grid-cols-[auto_auto] items-center gap-x-6 gap-y-1">
+        {appearances.map((appearance) => {
+          const labelId = `${rollId}-${appearance.id}`;
+          const mark = marks[appearance.id];
+          return (
+            <React.Fragment key={appearance.id}>
+              {/* The office, and it names the control beside it rather than labelling it
+                  twice: the segments say *Present* and *Absent*, which are the answers,
+                  and this says whose. `wrap-break-word` because this app ships per state
+                  and a Malayalam role label is longer than the English one. */}
+              <span
+                id={labelId}
+                className="text-body-compact min-w-0 wrap-break-word"
+              >
+                {rollLabel(appearance, appearances)}
+              </span>
+              <SegmentedControl
+                type="single"
+                size="compact"
+                value={mark ?? ""}
+                /* Pressing the answer that is already given clears it — Radix hands back
+                   an empty string — and the roll goes back to incomplete. A court record
+                   with no answer for a person is a real state; one that cannot be
+                   corrected is not. */
+                onValueChange={(next) =>
+                  onMark(
+                    appearance.id,
+                    next === "present" || next === "absent" ? next : undefined,
+                  )
+                }
+                aria-labelledby={labelId}
+                className="justify-self-start"
+              >
+                <SegmentedControlItem value="present">
+                  Present
+                </SegmentedControlItem>
+                <SegmentedControlItem value="absent">
+                  Absent
+                </SegmentedControlItem>
+              </SegmentedControl>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* **Outline, not the page's one primary.** Send to sign order is the act this
+          screen builds towards and it sits in the footer; a second filled button on the
+          sheet would compete with it for the same meaning.
+
+          Never disabled. The roll that needs this press is the one an office cannot
+          answer — an advocate who was not required to attend is neither present nor
+          absent — and such a roll can be in any state, including untouched. A gate here
+          would withhold the control from exactly the sitting it exists for. */}
+      <Button
+        id="order-attendance-apply"
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-fit"
+        onClick={onApply}
+      >
+        Apply attendance
+      </Button>
+    </div>
   );
 }
 
@@ -1873,15 +2436,12 @@ function OrderBody({
 }
 
 /**
- * The next listing, as the two facts it is.
+ * The posting as the order prints it once it is settled: the two facts, as lines.
  *
- * A purpose and a date are values in fields, not a sentence to be parsed — which is what
- * the owner's reference prints and what the register will need to read back. The prose
- * form survives for the one case that is not two facts: a matter not being listed again.
- *
- * The values take the brand ink. That is a **deliberate departure** from rationing the
- * brand colour to one action per view: the owner's reference marks them this way, and
- * they are the two things on the page a bench looks for first. Logged in §5 D49.
+ * The same two labels the fields wore a press ago, which is the point — nothing moves
+ * between asking and printing, so the block reads as one thing in two states rather than
+ * as a form that was swapped for a summary. A matter that is not being listed again
+ * prints the closing sentence the order itself carries.
  */
 function NextHearingLines({
   document: order,
@@ -1913,12 +2473,13 @@ function NextHearingLines({
           className="flex min-w-0 flex-wrap items-baseline gap-x-2"
         >
           <dt className="text-body-compact font-semibold">{line.label}:</dt>
-          {/* A gap stays a gap. An unset value prints as "Not set" in the muted voice
-              rather than as a blank the reader has to notice. */}
+          {/* A gap stays a gap. The block only prints once both facts are in, so this is
+              for the matter reopened and half-cleared rather than for the ordinary
+              path. */}
           <dd
             className={cn(
               "text-body-compact min-w-0",
-              line.value ? "text-primary" : "text-muted-foreground",
+              line.value ? "text-foreground" : "text-muted-foreground",
             )}
           >
             {line.value ?? "Not set"}
@@ -1930,30 +2491,179 @@ function NextHearingLines({
 }
 
 /**
- * Where the order is signed.
+ * Where the matter is posted to, settled on the sheet.
  *
- * An order sheet ends with the bench's name and designation over a signature, and the
- * page was ending with a sentence saying one was pending. The block is the form of the
- * document; **"Signature" is a caption over an empty space**, which is exactly what this
- * is — nothing on this screen signs anything (D10), and the Send to sign order control in the
- * footer is the act.
+ * **The second half of the same exploration** (owner, 2026-09-15): the two lines this
+ * block printed — *Purpose of next hearing* and *Date of next hearing* — are the labels
+ * of the controls that set them, and once both are answered they are those lines again.
  *
- * The magistrate is `PRESIDING_MAGISTRATE`, never `CURRENT_STAFF`: the seat working this
- * screen is a bench clerk or a typist, and the order is not theirs to sign.
+ * **The labels sit above their controls, and the controls fill the column.** They were
+ * a label beside a `w-48` control while this block had the sheet's whole width; in half
+ * of it, a long label and a fixed control wrapped into an accidental stack — the same
+ * layout, arrived at by running out of room, which is how a field ends up with its
+ * control in a different place on every row. Stated instead: two full-width fields, and
+ * the pair reads down the column rather than across it.
+ *
+ * **The exception keeps its own line and its own polarity.** *List it again* is the
+ * ordinary end of a §138 listing and the reference's "Skip scheduling next hearing"
+ * asked it backwards; the panel's version fixed that and this keeps the fix. It sits
+ * above the two rows because unticking it takes them away — a control that removes what
+ * is under it does not belong beneath them.
+ *
+ * **The calendar is owned here rather than taken from `DatePicker`** (owner, 2026-09-15:
+ * the date "dropdown is not working properly"; open it upward so the whole month is
+ * visible). `DatePicker` renders its own `Popover` and hardcodes `align="start"` with no
+ * side, no collision padding and no way to close the surface when a day is chosen — a
+ * screen using it cannot reach any of that, in props or in CSS, which is `ds-requests`
+ * 19 and the same reason the bulk-reschedule filter owns its own popover. Owning it buys
+ * three things this block needs:
+ *
+ * - `side="top"`. This block is the last thing on a long sheet, so a calendar opening
+ *   downward opens into the sticky footer and the viewport edge. Above the trigger it has
+ *   the whole page to sit in. `collisionPadding` keeps it off the edge if it does flip,
+ *   and the available-width ceiling keeps it from hanging off a narrow screen
+ *   (RESPONSIVE.md 9).
+ * - **It closes when a day is chosen.** The primitive leaves the surface standing over
+ *   the sheet after the answer has been given, which is most of what "not working
+ *   properly" was: the date *was* set, underneath a calendar still covering the page.
+ * - The trigger is named by the printed label beside it rather than by a repeated one.
  */
-function SignatureBlock() {
+function PaperNextHearing({
+  draft,
+  onSkip,
+  onPurpose,
+  onDate,
+}: {
+  draft: OrderDraft;
+  onSkip: (skip: boolean) => void;
+  onPurpose: (purpose: CourtHearingPurposeId | "") => void;
+  onDate: (day: string | null) => void;
+}) {
+  const fieldId = React.useId();
+  const listing = draft.next === "list";
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
+  const chosen = draft.nextDate ? parseIsoDay(draft.nextDate) : undefined;
   return (
-    <div className="flex min-w-0 flex-col items-end gap-0.5 text-end">
-      <p className="text-caption text-muted-foreground">Signature</p>
-      <p className="text-body-compact font-semibold">
-        {PRESIDING_MAGISTRATE.name}
-      </p>
-      <p className="text-caption text-muted-foreground">
-        {PRESIDING_MAGISTRATE.designation},
-      </p>
-      <p className="text-caption text-muted-foreground">
-        {CURRENT_STAFF.court}
-      </p>
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-h-10 min-w-0 items-center gap-2">
+        <Checkbox
+          id={`${fieldId}-list`}
+          /* As on the panel's own checkboxes: the box would otherwise be the one
+             arrow-cursor spot in a row the label has made a pointer. */
+          className="cursor-pointer"
+          checked={listing}
+          onCheckedChange={(checked) => onSkip(checked !== true)}
+        />
+        <Label
+          htmlFor={`${fieldId}-list`}
+          className="text-body-compact min-h-10 min-w-0 flex-1 cursor-pointer font-normal"
+        >
+          List it again
+        </Label>
+      </div>
+
+      {listing ? (
+        <>
+          <div className="flex min-w-0 flex-col gap-1">
+            {/* The printed label, naming the control rather than being repeated inside
+                it: `SelectValue`'s placeholder asks for the answer ("Choose a purpose")
+                and this says what the answer is about. */}
+            <span
+              id={`${fieldId}-purpose`}
+              className="text-body-compact min-w-0 wrap-break-word"
+            >
+              Purpose of next hearing
+            </span>
+            <Select
+              value={draft.nextPurpose || undefined}
+              onValueChange={(value) =>
+                onPurpose(value as CourtHearingPurposeId)
+              }
+            >
+              <SelectTrigger
+                aria-labelledby={`${fieldId}-purpose`}
+                className="w-full"
+              >
+                {/* The label, rendered rather than left to the primitive. `SelectValue`
+                    resolves its own text from the mounted item on the client, so a
+                    trigger with a value server-renders empty and fills in on hydration.
+                    In the panel that flash never showed — the section arrived collapsed,
+                    and by the time anyone opened it the page had hydrated. On the sheet
+                    the control is always mounted, and a completed listing arrives with a
+                    purpose already chosen (`order-demo.ts`), so the first paint would
+                    have been an empty box on a page that does have an answer. Children
+                    win over the primitive's lookup; the placeholder still shows when
+                    there is no value, which is what `|| undefined` on the value is
+                    for. */}
+                <SelectValue placeholder="Choose a purpose">
+                  {draft.nextPurpose
+                    ? courtHearingPurposeLabel(draft.nextPurpose)
+                    : null}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {COURT_HEARING_PURPOSES.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-1">
+            <span
+              id={`${fieldId}-date`}
+              className="text-body-compact min-w-0 wrap-break-word"
+            >
+              Date of next hearing
+            </span>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                {/* Named by the label beside it *and* by its own content, the way a
+                    combobox is: "Date of next hearing, October 6th, 2026". The label
+                    alone would drop the date; the content alone would drop what the date
+                    is of. */}
+                <Button
+                  id={`${fieldId}-date-trigger`}
+                  variant="outline"
+                  aria-labelledby={`${fieldId}-date ${fieldId}-date-trigger`}
+                  className={cn(
+                    "w-full justify-start gap-2 text-left font-normal",
+                    !chosen && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarDaysIcon data-icon="inline-start" aria-hidden />
+                  <span className="truncate">
+                    {draft.nextDate
+                      ? formatListingDate(draft.nextDate)
+                      : "Pick a date"}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="start"
+                collisionPadding={16}
+                className="w-auto max-w-(--radix-popover-content-available-width) gap-0 p-0"
+              >
+                <Calendar
+                  mode="single"
+                  autoFocus
+                  selected={chosen}
+                  onSelect={(day) => {
+                    onDate(day ? isoDay(day) : null);
+                    /* The answer given, the surface goes. Leaving it standing over the
+                       sheet is what made choosing a date feel like nothing had
+                       happened. */
+                    if (day) setCalendarOpen(false);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -1971,14 +2681,51 @@ function SignatureBlock() {
 function PaperBlock({
   id,
   label,
+  focusable,
+  framed,
+  action,
   children,
 }: {
   id: string;
   label: string;
+  /** Sends focus here from elsewhere on the screen — see the note below. */
+  focusable?: boolean;
+  /**
+   * Draws the block as its own section on the sheet — a nested well, for a block that is
+   * a *form* rather than a passage of the order.
+   *
+   * The DS's rule for content that must read as its own unit inside a card (FAQ, form
+   * section, case facts) is a hairline edge, never a fill difference — and for something
+   * nested *inside* a card, `surface-sunken` with a hairline, because it holds
+   * interactive content. Not a second `Card`: the sheet is already `shadow-raised`, and a
+   * raised box inside a raised box flattens both, which is the same reading that took the
+   * page out of its old panel.
+   *
+   * The recess also does the control states a favour. A `SegmentedControl`'s own well is
+   * `surface-sunken` too, so inside this it reads by its hairline rather than by its
+   * fill — and the selected pill, which is `card` plus a raised shadow, now lifts off a
+   * recessed ground instead of sitting on the same white. Marked and unmarked are further
+   * apart here than they were on the bare sheet.
+   */
+  framed?: boolean;
+  /**
+   * One control on the eyebrow's own line — the way back into a block that has been set
+   * down. This is *not* the teal **Mark attendance** button removed on 2026-09-14: that
+   * one opened an editor living somewhere else, which is why two entry points to one
+   * editor was the fault. The editor is on this page now, and what this carries is the
+   * switch between the block as a form and the block as the document it produces.
+   */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-2">
+    <section
+      aria-labelledby={id}
+      className={cn(
+        "flex min-w-0 flex-col gap-2",
+        framed && "rounded-lg border border-hairline bg-surface-sunken p-4",
+      )}
+    >
       {/* An eyebrow and nothing else. It carried a teal **Mark attendance** / **Set next
           hearing** text button until 2026-09-14, when the editors it opened went back to
           the panel on the owner's instruction — so the page is output again and the way
@@ -1987,51 +2734,31 @@ function PaperBlock({
           on arrival, and the block's own heading keeps the page's furniture intact
           without it.
 
-          **No `tabIndex={-1}`, because nothing focuses this heading.** The `id` is here
-          to name the region through `aria-labelledby`, and naming wants no tabindex. It
-          said `stays` on the strength of the editors that used to live on the paper;
-          grep the file now and the one place it sends focus after the thing you were on
-          disappears is the panel section that held the application. A focusable element
-          nothing focuses is a claim the next reader has to disprove before they dare
-          move anything near it, so whoever adds that flow adds the attribute with
-          it. */}
-      <h3
-        id={id}
-        className="text-caption font-semibold uppercase tracking-wide text-muted-foreground"
-      >
-        {label}
-      </h3>
+          **`tabIndex` only where something focuses the heading**, which is now the
+          attendance block: answering the last application hands the typist the roll, and
+          the roll is on this page. Every other block leaves the attribute off — the `id`
+          is there to name the region through `aria-labelledby`, and naming wants no
+          tabindex. A focusable element nothing focuses is a claim the next reader has to
+          disprove before they dare move anything near it. */}
+      {/* The eyebrow keeps its line to itself when there is no control: a flex row with
+          one child lays out exactly as the heading did. */}
+      <div className="flex min-w-0 items-center justify-between gap-4">
+        <h3
+          id={id}
+          tabIndex={focusable ? -1 : undefined}
+          className="text-caption font-semibold uppercase tracking-wide text-muted-foreground"
+        >
+          {label}
+        </h3>
+        {action}
+      </div>
       {children}
     </section>
   );
 }
 
 /**
- * Who appeared, as two rolls the bench calls: who is present, then who is absent.
- *
- * **Organised by the answer, not by the person** (owner, 2026-09-15). It was one
- * three-state control per person, which was correct and read as four identical rows of
- * chrome — the roll's shape was invisible, and each answer cost a trip along a segmented
- * track. A court calls a roll the other way round: it asks who is here and hears names.
- * So the two states are the groups, and the four parts of the cause are the options in
- * each.
- *
- * **This is not the 1.0 screen's two grids, and the difference is the whole reason that
- * design was thrown out.** There, present and absent were two independent maps, so the
- * complainant could be ticked in both and the order would have said so. Here both groups
- * read and write **one** mark per appearance: a tick under *present* sets it to present,
- * which leaves the box under *absent* unchecked because they are the same fact asked
- * twice. Unticking clears the mark rather than flipping it — unmarked is a real state and
- * it is what the roll starts on. Contradiction is not prevented by validation; it is not
- * representable.
- *
- * **Labels are the parts of the cause, not the names on the vakalat.** The owner's own
- * four: Complainant, Complainant's advocate, Accused, Accused's advocate. Short because
- * they are control labels, and the same split `ListingApplicationDecision` documents —
- * the order beside this panel keeps the sentence register ("Advocate for the complainant
- * is present"), and the paper's own party roll carries the names. A side with two counsel
- * on record would give two identical rows, so in that one case the name comes back onto
- * the label.
+ * What one roll calls each appearance.
  *
  * A side with no vakalat has no advocate row at all; the list is built from the
  * appearances rather than from the owner's four, so it cannot offer a box for counsel who
@@ -2047,305 +2774,4 @@ function rollLabel(appearance: Appearance, appearances: Appearance[]): string {
     (entry) => entry.side === appearance.side && entry.kind === "counsel",
   );
   return counsel.length > 1 ? `${label} — ${appearance.name}` : label;
-}
-
-function AttendanceEditor({
-  appearances,
-  marks,
-  onMark,
-}: {
-  appearances: Appearance[];
-  marks: OrderDraft["marks"];
-  onMark: (id: string, mark: AttendanceMark | undefined) => void;
-}) {
-  const rolls: { mark: AttendanceMark; legend: string }[] = [
-    { mark: "present", legend: "Who is present" },
-    { mark: "absent", legend: "Who is absent" },
-  ];
-  const rollId = React.useId();
-
-  /* Each tick lands in the draft; there is no Apply. See the note the next-listing editor
-     carries — the section row's summary ("2 present, 1 absent") can only be true if the
-     mark is already there, and the owner has ruled out the per-section press. */
-  return (
-    <div className="flex min-w-0 flex-col gap-6">
-      {/* **`role="group"` and a heading, not `fieldset`/`legend`** — the third time that
-          pair has cost something on this screen and the last. A rendered `<legend>` is
-          placed in its fieldset's *border* area rather than in the content flow, so it is
-          not a flex item: `display:flex` and `gap-3` on the fieldset separated the list
-          from nothing and the heading sat flush on the first checkbox, which is what the
-          owner saw as the rolls looking *"cut off abruptly"* (2026-09-15). The same quirk
-          had already forced the divider onto a wrapper, because `border-t` there drew the
-          rule *under* the heading. A labelled group gets the same semantics — the heading
-          names the set of boxes for a screen reader through `aria-labelledby` — and obeys
-          the layout it is given.
-
-          Sentence case and no tracking, matching *Pending applications* and *Answered in
-          this sitting* one section above: one treatment for a group label inside the
-          panel. The uppercase eyebrow belongs to the paper, which is a different
-          surface. */}
-      {rolls.map((roll, index) => (
-        <div
-          key={roll.mark}
-          role="group"
-          aria-labelledby={`${rollId}-${roll.mark}`}
-          className={cn(
-            "flex min-w-0 flex-col gap-3",
-            index > 0 && "border-t border-hairline pt-6",
-          )}
-        >
-          <h3
-            id={`${rollId}-${roll.mark}`}
-            className="text-caption font-semibold text-muted-foreground"
-          >
-            {roll.legend}
-          </h3>
-          {/* **Rows the height of the target, and no gap between them.** Each box draws
-              at 16px and claims its 40x40 hit area with an `after:` inset, per the DS's
-              accessibility rules; the row it sat in was 20px tall, so across a `gap-3`
-              list the eight claims *overlapped* — a tap aimed at the white between two
-              roles landed on whichever box won, and marking the advocate present when
-              the party was meant is a false line in a court record. A 40px row makes the
-              eight tile instead of fight. The gap is what pays for the height: it was
-              there to hold 20px rows apart and a row that is itself the target delimits
-              itself, so the two rolls cost +88px rather than the +160px the height alone
-              would have. Same list metric as the cases filter sheet. */}
-          <ul className="flex min-w-0 flex-col">
-            {appearances.map((appearance) => {
-              const id = `${roll.mark}-${appearance.id}`;
-              return (
-                <li
-                  key={appearance.id}
-                  className="flex min-h-10 min-w-0 items-center gap-2"
-                >
-                  <Checkbox
-                    id={id}
-                    /* One cursor for one target. The row is a 40px press and the label
-                       carries `cursor-pointer` for it, but a `<button>` takes its cursor
-                       from the UA sheet rather than from the row it sits in, so without
-                       this the 16px box in the middle of the press showed an arrow. */
-                    className="cursor-pointer"
-                    /* **The word on screen, then the roll it stands under.** The same
-                       four appearances are asked twice, so *Complainant* is the visible
-                       label of two different controls and the group's own
-                       `aria-labelledby` names the group rather than the box in it. A
-                       voice user saying "click Complainant" had two identical targets
-                       and a screen reader's list of controls read as four duplicate
-                       pairs. Naming each box "Complainant Who is present" keeps the
-                       spoken name starting with the word that is actually on screen —
-                       which is what makes it sayable — and finishes it with the only
-                       thing that tells the pair apart. Deliberately not an `aria-label`:
-                       a name invented in the markup and not shown is the same defect
-                       turned around. */
-                    aria-labelledby={`${id}-label ${rollId}-${roll.mark}`}
-                    checked={marks[appearance.id] === roll.mark}
-                    onCheckedChange={(checked) =>
-                      onMark(
-                        appearance.id,
-                        checked === true ? roll.mark : undefined,
-                      )
-                    }
-                  />
-                  {/* The label *is* the row — full height, rest of the width — so the
-                      thing you press is the whole line and not the box plus however wide
-                      the words happen to be. `htmlFor` stays: that is what makes pressing
-                      the words tick the box. */}
-                  <Label
-                    id={`${id}-label`}
-                    htmlFor={id}
-                    className="text-body-compact min-h-10 min-w-0 flex-1 cursor-pointer font-normal"
-                  >
-                    {rollLabel(appearance, appearances)}
-                  </Label>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * When the matter is next listed, and what for.
- *
- * Held and applied the same way as the roll above it, and phrased the same way round:
- * **"List it again"**, not the reference's "Skip scheduling next hearing". Scheduling is
- * the ordinary end of a §138 listing and skipping is the exception, so the checkbox asks
- * the common case as a positive (problem 3). Unticked, the two fields go rather than
- * sitting disabled — a control you cannot use is a question the screen is still asking.
- */
-function NextHearingEditor({
-  draft,
-  onSkip,
-  onPurpose,
-  onDate,
-}: {
-  draft: OrderDraft;
-  onSkip: (skip: boolean) => void;
-  onPurpose: (purpose: CourtHearingPurposeId | "") => void;
-  onDate: (day: string | null) => void;
-}) {
-  const listId = React.useId();
-  const listing = draft.next === "list";
-
-  /* Live, and for the same reasons as the roll above it: the row's summary is the date
-     itself, and the owner has ruled out the per-section press. */
-  return (
-    <div className="flex min-w-0 flex-col gap-4">
-      {/* A 40px row, for the reason the roll above it carries in full: the box is 16px
-          and the hit area it claims needs the row to be as tall as the claim. The `mt-1`
-          that nudged the box down onto the first line of the label goes with it —
-          centring inside a row the height of the target does that job, and keeps doing it
-          when a longer script wraps the label onto a second line. */}
-      <div className="flex min-h-10 min-w-0 items-center gap-2">
-        <Checkbox
-          id={listId}
-          /* As on the roll: the box would otherwise be the one arrow-cursor spot in a
-             row the label has made a pointer. */
-          className="cursor-pointer"
-          checked={listing}
-          onCheckedChange={(checked) => onSkip(checked !== true)}
-        />
-        <Label
-          htmlFor={listId}
-          className="text-body-compact min-h-10 min-w-0 flex-1 cursor-pointer font-normal"
-        >
-          List it again
-        </Label>
-      </div>
-
-      {listing ? (
-        <>
-          <Field className="min-w-0">
-            {/* **The panel has two type sizes and this is the smaller one** (owner,
-                2026-09-15: the next-listing fields "suddenly" differed). Anything that
-                labels a group or a control wears the caption voice — *Who is present*,
-                *Pending applications*, *Likely at this hearing*, and these two — and
-                everything that *is* content sits at `text-body-compact`. It is a step
-                under the DS's own `FieldLabel` (14px, medium, foreground), which is right
-                on a full-width form and was the loudest thing in a 410px column. Applies
-                to this panel only: the paper and every other screen keep the default. */}
-            <FieldLabel className="text-caption font-semibold text-muted-foreground">
-              Purpose of hearing
-            </FieldLabel>
-            <Select
-              value={draft.nextPurpose || undefined}
-              onValueChange={(value) =>
-                onPurpose(value as CourtHearingPurposeId)
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choose a purpose" />
-              </SelectTrigger>
-              <SelectContent>
-                {COURT_HEARING_PURPOSES.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names
-              a group around it rather than pointing `htmlFor` at a control that does not
-              exist. Same pattern as today's hearings filter. */}
-          <div className="flex min-w-0 flex-col gap-2">
-            <span
-              id={`${listId}-date`}
-              className="text-caption w-fit font-semibold text-muted-foreground"
-            >
-              Next date of hearing
-            </span>
-            <div role="group" aria-labelledby={`${listId}-date`}>
-              <DatePicker
-                value={draft.nextDate ? parseIsoDay(draft.nextDate) : undefined}
-                onValueChange={(next) => onDate(next ? isoDay(next) : null)}
-                placeholder="Pick a date"
-                className="w-full"
-              />
-            </div>
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-/** One label-and-value line of the page's heading block. */
-function PaperFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-      <dt className="text-body-compact font-semibold">{label}</dt>
-      <dd className="text-body-compact min-w-0">{value}</dd>
-    </div>
-  );
-}
-
-/**
- * Who is on the cause, and who appears for them.
- *
- * The reference prints this roll and an order does carry it, but the reason to build it
- * is narrower: the composer names parties in the words it writes, and a typist correcting
- * "Issue summons to Anand Traders" should be able to see, on the same page, that Anand
- * Traders is the accused and that Adv. Rekha Pillai is on record for them.
- *
- * A side with no vakalat prints a dash rather than an empty cell — the absence is a fact
- * about the matter, and a blank reads as a rendering fault.
- */
-function PartyRoll({ hearing }: { hearing: CourtHearing }) {
-  /* Capitalised here rather than through `partySideLabel`, which returns the word as it
-     reads mid-sentence ("the complainant is present"). A table cell is a heading for the
-     row, not a clause. */
-  const sides = [
-    {
-      side: "complainant" as const,
-      label: "Complainant",
-      name: hearing.parties.complainant,
-    },
-    {
-      side: "accused" as const,
-      label: "Accused",
-      name: hearing.parties.accused,
-    },
-  ];
-  return (
-    <table className="w-full border-collapse text-start">
-      <thead>
-        <tr className="border-b border-paper-border">
-          {["Party", "Name", "Advocate"].map((head) => (
-            <th
-              key={head}
-              scope="col"
-              className="text-caption px-0 py-2 text-start font-semibold text-paper-muted-foreground"
-            >
-              {head}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {sides.map((entry) => {
-          const counsel = counselFor(hearing, entry.side);
-          return (
-            <tr key={entry.side} className="border-b border-paper-border">
-              <td className="text-body-compact py-2 pe-4 align-top">
-                {entry.label}
-              </td>
-              <td className="text-body-compact py-2 pe-4 align-top">
-                {entry.name}
-              </td>
-              <td className="text-body-compact py-2 align-top">
-                {counsel.length > 0
-                  ? counsel.map((lawyer) => lawyer.name).join(", ")
-                  : "—"}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
 }

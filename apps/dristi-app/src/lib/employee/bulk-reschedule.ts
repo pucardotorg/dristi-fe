@@ -324,6 +324,40 @@ export function boardAfterMoves(
     .sort(byListing);
 }
 
+/** One day the bench moved matters to, and everything it moved there. */
+export type RescheduledGroup = { day: string; rows: ReschedulableHearing[] };
+
+/**
+ * This session's moves, gathered under the day each one landed on.
+ *
+ * A session is not one act. A court that is not sitting on the 15th moves that day's
+ * board to the 17th, then looks at the fortnight after and moves eight more to 9 October
+ * — two decisions, two days, one afternoon. Listed flat, that reads as eleven rows with a
+ * date column to scan; gathered, it reads as what the bench actually did: three there,
+ * eight there (owner, 2026-09-15).
+ *
+ * The day is the group, so it is not also a column inside it. What the rows carry is
+ * where each matter came from, which is the fact the heading does not hold.
+ *
+ * Days ascend, and rows keep the order the board gave them — `boardAfterMoves` has
+ * already sorted by the day a matter now sits on and then by the court's own number, so
+ * a group is a contiguous run of it.
+ */
+export function groupByNewListing(
+  rows: ReschedulableHearing[],
+): RescheduledGroup[] {
+  const groups = new Map<string, ReschedulableHearing[]>();
+  for (const row of rows) {
+    if (row.newDate === undefined) continue;
+    const held = groups.get(row.newDate);
+    if (held) held.push(row);
+    else groups.set(row.newDate, [row]);
+  }
+  return [...groups]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, held]) => ({ day, rows: held }));
+}
+
 export type RescheduleFilters = {
   /**
    * First and last listing date to pull in, inclusive — or `null` for no bound.
@@ -354,14 +388,17 @@ export function filterReschedulable(
     (filters.to === null || day <= filters.to);
 
   return rows.filter((row) => {
-    /* Either end of the move keeps the row on the board, and the first one is why.
-       A new date always lands *after* the span the bench asked for — `earliestNewListing`
-       makes sure of it — so a row judged on where it now stands would leave the range
-       the instant it was moved. The bench would press Reschedule and watch twenty
-       matters vanish from the list it had just picked them out of, which is the one
-       reading of that act nobody wants. The row stays where the work was done, showing
-       the day it was listed on and the day it goes to. */
-    if (!inSpan(row.date) && !inSpan(listedOn(row))) return false;
+    /* Judged on the day the matter stands listed on — which for a matter this session
+       moved is the day it moved to.
+       
+       This used to let either end of the move keep a row in range, so that the bench
+       could see what it had just done. That job now belongs to the Scheduled tab, which
+       this filter does not touch: a range is a lens for finding matters to move, and
+       nothing about narrowing it should hide work already finished. Leaving the rule
+       here made the record answer to the lens — reschedule three matters, then move the
+       range on to the next fortnight, and the Scheduled tab read zero (owner,
+       2026-09-15). */
+    if (!inSpan(listedOn(row))) return false;
     if (!query) return true;
     return `${row.title} ${row.caseNumber}`.toLowerCase().includes(query);
   });

@@ -27,66 +27,76 @@ import { cn } from "@/lib/utils";
 /**
  * The matters in range, and which of them the bench has picked.
  *
- * **The New hearing date column appears when there is a new hearing date, and not
- * before.** It used to stand there permanently, reading back what a date picker above the
- * table had written into it: an em dash on every row until something was applied, and an
- * em dash again the moment the range moved. That column went out with the picker. The
- * date is asked for once, inside the overlay the act opens — and then the answer has to
- * land somewhere the bench can see it, because a move whose only trace is the dialog that
- * closed is a move the board never admits to. So the pair comes back the other way round:
- * the moment any matter on screen has been moved, the board carries both ends of the
- * change — the day it was listed on, and the day it now goes to (owner, 2026-09-15).
+ * **One table, two jobs, told apart by one prop.** The screen shows it twice, once per
+ * tab (owner, 2026-09-15), and `selection` is what says which:
  *
- * The two dates are not the same kind of fact and are not drawn as though they were. The
- * day the matter was listed on is settled and muted; the day it moves to is what changed,
- * so it carries the foreground and the weight. A row nobody has moved has no new date,
- * and says so rather than borrowing its old one.
+ * - **Present — the Unscheduled board.** A checkbox column, and picked rows carry the
+ *   design system's own selection band (`tableRowClass({ selectable })`) so a run of them
+ *   paints as one block. The date column is *Hearing date*: where the matter stands.
+ * - **Absent — the Scheduled record.** Nothing to pick, so no column for picking. The
+ *   date column is *Previous hearing date*: where the matter came from. Where it went is
+ *   the heading over the group this table sits in, so it is not also a column inside it.
  *
- * Picking is the one thing that happens here, so a picked row carries the design system's
- * own selection band (`tableRowClass({ selectable })`) and a run of them paints as one
- * block. The row itself stays inert — the checkbox is the control, and a hover fill would
- * promise a click the row does not answer.
+ * That was two columns for a while, Current and New, on a flat list of everything moved.
+ * It stopped being right when a session turned out to hold several moves to several days:
+ * the day became the thing to group by, and a New hearing date column repeating its own
+ * group heading on every row is the same fact printed twice.
+ *
+ * The row itself stays inert either way — the checkbox is the control, and a hover fill
+ * would promise a click the row does not answer.
  *
  * The panel shell (border, fill, shadow) lives on the screen around this, so the table is
  * one panel rather than a box inside a box.
  */
 export function BulkRescheduleTable({
   rows,
-  selected,
-  onToggle,
-  onToggleAll,
+  selection,
+  caption,
 }: {
   rows: ReschedulableHearing[];
-  selected: ReadonlySet<string>;
-  onToggle: (id: string, next: boolean) => void;
-  onToggleAll: (next: boolean) => void;
+  /** Omitted where the table is a record of what was done rather than a board to work. */
+  selection?: {
+    selected: ReadonlySet<string>;
+    onToggle: (id: string, next: boolean) => void;
+    onToggleAll: (next: boolean) => void;
+  };
+  /**
+   * What this table is, for a reader that cannot see the heading above it.
+   *
+   * The record is several tables under several date headings, and a screen reader moving
+   * by table hears only "table" for each. Sighted readers get the heading; this is the
+   * same sentence, in the place the table itself carries it.
+   */
+  caption?: string;
 }) {
-  const selectedHere = rows.filter((row) => selected.has(row.id)).length;
+  const selectedHere = selection
+    ? rows.filter((row) => selection.selected.has(row.id)).length
+    : 0;
   const allChecked = selectedHere === rows.length;
 
-  /* Asked of what is on screen, not of the session: a column belongs to the board the
-     bench is looking at. Narrow the range past every matter this session moved and the
-     column goes with them, which is right — there is no change left to show. */
-  const showsNewDate = rows.some((row) => row.newDate !== undefined);
-  const columns = showsNewDate ? 7 : 6;
+  /* Six on the board, five on the record — the checkbox column is the difference. */
+  const columns = selection ? 6 : 5;
 
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
+      {caption ? <caption className="sr-only">{caption}</caption> : null}
       <TableHeader>
         <TableRow className={TABLE_HEAD_ROW}>
-          <TableHead className={cn(TABLE_HEAD, "w-12")}>
-            <Checkbox
-              checked={
-                allChecked ? true : selectedHere > 0 ? "indeterminate" : false
-              }
-              onCheckedChange={(next) => onToggleAll(next === true)}
-              aria-label={
-                allChecked
-                  ? "Clear the selection"
-                  : "Select every matter in this range"
-              }
-            />
-          </TableHead>
+          {selection ? (
+            <TableHead className={cn(TABLE_HEAD, "w-12")}>
+              <Checkbox
+                checked={
+                  allChecked ? true : selectedHere > 0 ? "indeterminate" : false
+                }
+                onCheckedChange={(next) => selection.onToggleAll(next === true)}
+                aria-label={
+                  allChecked
+                    ? "Clear the selection"
+                    : "Select every matter in this range"
+                }
+              />
+            </TableHead>
+          ) : null}
           <TableHead className={cn(TABLE_HEAD, "min-w-64 whitespace-normal")}>
             Case title
           </TableHead>
@@ -100,16 +110,13 @@ export function BulkRescheduleTable({
             Hearing type
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
-            {showsNewDate ? "Current hearing date" : "Hearing date"}
+            {selection ? "Hearing date" : "Previous hearing date"}
           </TableHead>
-          {showsNewDate ? (
-            <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
-              New hearing date
-            </TableHead>
-          ) : null}
         </TableRow>
       </TableHeader>
-      <TableBody className={tableBodyClass({ hover: false, selectable: true })}>
+      <TableBody
+        className={tableBodyClass({ hover: false, selectable: Boolean(selection) })}
+      >
         {/* The header is a well, not a band welded to the rows — it needs the panel's
             fill under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held
@@ -118,21 +125,28 @@ export function BulkRescheduleTable({
           <td colSpan={columns} className="h-2 p-0" />
         </tr>
         {rows.map((row) => {
-          const isSelected = selected.has(row.id);
+          const isSelected = selection?.selected.has(row.id) ?? false;
 
           return (
             <TableRow
               key={row.id}
               data-state={isSelected ? "selected" : undefined}
-              className={tableRowClass({ hover: false, selectable: true })}
+              className={tableRowClass({
+                hover: false,
+                selectable: Boolean(selection),
+              })}
             >
-              <TableCell className={cn(TABLE_CELL, "w-12")}>
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={(next) => onToggle(row.id, next === true)}
-                  aria-label={`Select ${row.title}, ${row.caseNumber}`}
-                />
-              </TableCell>
+              {selection ? (
+                <TableCell className={cn(TABLE_CELL, "w-12")}>
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={(next) =>
+                      selection.onToggle(row.id, next === true)
+                    }
+                    aria-label={`Select ${row.title}, ${row.caseNumber}`}
+                  />
+                </TableCell>
+              ) : null}
               {/* The row's one emphasised cell. Not a link: there is no court-side case
                   file yet, and the citizen side's is not the bench's to point at. */}
               <TableCell
@@ -149,6 +163,9 @@ export function BulkRescheduleTable({
               <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>
                 {courtHearingPurposeLabel(row.purpose)}
               </TableCell>
+              {/* Where the matter is, or where it was — the heading says which, and on
+                  the record the day it went to is that heading. Muted either way: it is
+                  the settled fact in the row, not the one being decided. */}
               <TableCell
                 className={cn(
                   TABLE_CELL,
@@ -157,28 +174,6 @@ export function BulkRescheduleTable({
               >
                 {formatListingDate(row.date)}
               </TableCell>
-              {showsNewDate ? (
-                <TableCell
-                  className={cn(
-                    TABLE_CELL,
-                    "font-medium tabular-nums whitespace-nowrap",
-                  )}
-                >
-                  {row.newDate ? (
-                    formatListingDate(row.newDate)
-                  ) : (
-                    /* A row in a range where others moved. The rule is drawn for the
-                       eye, which reads a gap in a column of dates as a loading cell;
-                       the reader that cannot see it is told the fact instead. */
-                    <>
-                      <span aria-hidden="true" className="text-muted-foreground">
-                        —
-                      </span>
-                      <span className="sr-only">Not rescheduled</span>
-                    </>
-                  )}
-                </TableCell>
-              ) : null}
             </TableRow>
           );
         })}

@@ -120,7 +120,8 @@ const SESSION_SLOT_CLASS = "min-w-32";
  * column's cut edge with it, is the bench's case only.
  */
 const ACTION_COLUMN_CLASS = "w-52 min-w-52";
-const ORDERS_COLUMN_CLASS = "w-18";
+/** Exported because the Sign orders draft queue draws the same column at the same width. */
+export const ORDERS_COLUMN_CLASS = "w-18";
 /**
  * A listing already being written on, marked in the Orders column it was always in.
  *
@@ -464,6 +465,8 @@ export function HearingOrdersButton({
   seat,
   named = false,
   drafted = false,
+  opensExisting = false,
+  isRowOpener = false,
   onOpen,
   className,
 }: {
@@ -478,16 +481,40 @@ export function HearingOrdersButton({
    * Position alone is a single channel, and on a phone row there is no column at all.
    */
   drafted?: boolean;
+  /**
+   * The order this control opens already exists, so the seat's drafting precondition
+   * does not apply to it.
+   *
+   * The gate below asks *may an order be drafted on this listing from this seat* — a
+   * question about starting one, which is why it turns on whether the matter has been
+   * called. The Sign orders draft queue asks nothing of the kind: a row is on that list
+   * because an order on it has already been started or recorded, and a control disabled
+   * over an order that is sitting right there would be a row the court can see and
+   * cannot open. It is off by default, so the cause list is untouched.
+   */
+  opensExisting?: boolean;
+  /**
+   * This control is what its row hands a click to (`row-activation.ts`).
+   *
+   * Opt-in, and off here: on the cause list the row already has an opener — the cause
+   * title, which reads the case — and a row cannot have two. The Sign orders draft queue
+   * turns it on, because there the order *is* what the row is for and the case name
+   * carries no link of its own.
+   */
+  isRowOpener?: boolean;
   onOpen?: (hearing: CourtHearing) => void;
   className?: string;
 }) {
   const label = drafted
     ? `Resume draft order for item ${hearing.item}, ${causeTitle(hearing)}`
     : `Order for item ${hearing.item}, ${causeTitle(hearing)}`;
-  /* One column, two preconditions — see above. */
-  const open = seatHasBenchControls(seat)
-    ? canDraftOrder(hearing.status)
-    : canTypeOrder(hearing.status);
+  /* One column, two preconditions — see above — and neither of them is asked about an
+     order that has already been drawn up. */
+  const open =
+    opensExisting ||
+    (seatHasBenchControls(seat)
+      ? canDraftOrder(hearing.status)
+      : canTypeOrder(hearing.status));
   /* Whether this listing has an order on it — see the note above on why `completed` is
      the honest test for that and not a stand-in for one.
      A started draft outranks it in the glyph: a typist who has been editing a completed
@@ -576,6 +603,7 @@ export function HearingOrdersButton({
     >
       <Link
         href={`/employee/hearings/${hearing.id}/order`}
+        {...(isRowOpener ? rowOpener : {})}
         /* The mark travels in the name as well as in the colour. A green glyph is the
            whole of the signal for a sighted reader and none of it for anyone else, and
            colour is never allowed to be the only carrier (`ACCESSIBILITY.md` — status

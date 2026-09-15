@@ -14,21 +14,33 @@
  * out of a component changed how long it lives on one device; it changed nothing about
  * what it claims.
  *
+ * The map opens on the orders this court already has in progress rather than on
+ * nothing — see `OPENING_DRAFTS` below.
+ *
  * Read it through `components/employee/use-order-draft.ts`, never directly from a
  * render — the hook is what subscribes.
  */
 
 import { EMPTY_ORDER_DRAFT, type OrderDraft } from "./order-draft";
+import { ORDERS_IN_PROGRESS } from "./order-demo";
 
-/** Every listing that has been dictated on, keyed by hearing id. */
+/** Every listing that has an order open on it, keyed by hearing id. */
 export type OrderDrafts = Readonly<Record<string, OrderDraft>>;
 
-/* One frozen empty map, shared: `useSyncExternalStore` compares snapshots by identity,
-   so an untouched sitting has to read as the same object every time or the composer
-   would re-render on every tick of anything. */
-const NO_DRAFTS: OrderDrafts = {};
+/* One frozen map, shared: `useSyncExternalStore` compares snapshots by identity, so an
+   untouched sitting has to read as the same object every time or the composer would
+   re-render on every tick of anything.
 
-let drafts: OrderDrafts = NO_DRAFTS;
+   **It is not empty.** The court opens with the orders it already has in progress
+   (`order-demo.ts`), so the day's work is there to be looked at without somebody typing
+   eleven orders first. What that changes is the *starting point*, not what a key means:
+   a key here still says an order on this listing has been started and not sent for
+   signature, which is what the cause list's draft mark and the Sign orders draft queue
+   both read it for. Everything the seed claims, and does not claim, is written out
+   where it is built. */
+const OPENING_DRAFTS: OrderDrafts = ORDERS_IN_PROGRESS;
+
+let drafts: OrderDrafts = OPENING_DRAFTS;
 const listeners = new Set<() => void>();
 
 export function subscribeToOrderDrafts(listener: () => void): () => void {

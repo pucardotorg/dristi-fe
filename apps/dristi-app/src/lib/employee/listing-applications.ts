@@ -58,6 +58,17 @@ import {
  */
 export type ListingApplicationDecision = "allowed" | "dismissed";
 
+/**
+ * Both answers, for the callers that need to reason about the ones not chosen.
+ *
+ * The composer writes a disposal into the order's passage, so changing an answer has to
+ * find the sentence the other answer wrote — which means building every wording the same
+ * fact could have had. Derived from one list rather than spelled out at the call site, so
+ * a third answer could never be added here and missed there.
+ */
+export const LISTING_APPLICATION_DECISIONS: readonly ListingApplicationDecision[] =
+  ["allowed", "dismissed"];
+
 export type ListingApplication = {
   id: string;
   /**
@@ -77,7 +88,9 @@ export type ListingApplication = {
 };
 
 /** What is pending on this listing. Most listings have nothing. */
-export function applicationsForListing(hearingId: string): ListingApplication[] {
+export function applicationsForListing(
+  hearingId: string,
+): ListingApplication[] {
   return LISTING_APPLICATIONS[hearingId] ?? [];
 }
 

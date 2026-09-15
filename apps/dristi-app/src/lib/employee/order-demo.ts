@@ -8,9 +8,10 @@
  *
  * **It is demo text, and it is not a transcript.** Nothing in this build listens to a
  * courtroom, and no word here was said by anybody. It is the same bargain the rest of
- * `/employee` makes (`hearings.ts`, `order-drafts.ts`): the composer's own footer note
- * says so on the screen, the draft dies on a reload, and nothing is filed, signed or
- * notified. What this module buys is a screen that can be walked through end to end —
+ * `/employee` makes (`hearings.ts`, `order-drafts.ts`): the draft dies on a reload, and
+ * nothing is filed, signed or notified. The screen says as much where it acts — the
+ * Add-signature overlay's own warning, and the note read out when a signature is
+ * recorded — rather than in a standing line of footer prose, which it has never had. What this module buys is a screen that can be walked through end to end —
  * call a matter, end it, open the order — without somebody having to type an order first.
  *
  * It is the listing's *opening* draft, not a lock on it: the moment the bench changes
@@ -20,12 +21,16 @@
 
 import { addDays } from "./bulk-reschedule";
 import {
+  hearingById,
   parseIsoDay,
   type CourtHearing,
   type CourtHearingPurposeId,
   type CourtHearingStatus,
 } from "./hearings";
-import { applicationsForListing } from "./listing-applications";
+import {
+  applicationsForListing,
+  listingApplicationSentence,
+} from "./listing-applications";
 import {
   appearancesFor,
   EMPTY_ORDER_DRAFT,
@@ -41,6 +46,9 @@ import {
   type OrderItemTypeId,
 } from "./order-items";
 import type { OrderTemplateFacts } from "./order-templates";
+/* Type-only, as everywhere else in `/employee`: a value import here would drag a
+   client component into a module a node test reads. */
+import type { RichTextValue } from "@/components/cases/rich-text-field";
 
 /**
  * The item, as the bench would have dictated it on this listing.
@@ -117,20 +125,22 @@ const ITEM_TYPES: Record<CourtHearingPurposeId, OrderItemTypeId[]> = {
  * `null` is a real answer and not a gap: after judgement there is no next date, which is
  * what the composer's own "no next date" choice says.
  */
-const NEXT_PURPOSE: Record<CourtHearingPurposeId, CourtHearingPurposeId | null> =
-  {
-    admission: "cognizance",
-    appearance: "plea",
-    arguments: "judgement",
-    bail: "plea",
-    cognizance: "appearance",
-    "delay-condonation": "cognizance",
-    "evidence-of-complainant": "evidence-of-complainant",
-    "examination-of-accused-351": "arguments",
-    "for-reports": "for-reports",
-    judgement: null,
-    plea: "evidence-of-complainant",
-  };
+const NEXT_PURPOSE: Record<
+  CourtHearingPurposeId,
+  CourtHearingPurposeId | null
+> = {
+  admission: "cognizance",
+  appearance: "plea",
+  arguments: "judgement",
+  bail: "plea",
+  cognizance: "appearance",
+  "delay-condonation": "cognizance",
+  "evidence-of-complainant": "evidence-of-complainant",
+  "examination-of-accused-351": "arguments",
+  "for-reports": "for-reports",
+  judgement: null,
+  plea: "evidence-of-complainant",
+};
 
 /** Three weeks on, and never on a weekend the court does not sit. */
 const NEXT_LISTING_DAYS = 21;
@@ -161,6 +171,28 @@ function attendanceOf(hearing: CourtHearing): Record<string, AttendanceMark> {
  * screen arguing with itself. Both sentences the document can print are still reachable
  * — the bench answers these itself from the composer, and either way is one click.
  */
+/**
+ * The disposals, as the order's own opening sentences.
+ *
+ * A completed sitting answered its applications before it passed anything, and the
+ * sentences that record that live in the passage now rather than in a band above it —
+ * so the fixture writes them where the live screen writes them (`decide`), ahead of the
+ * directions the templates contribute. A draft that answered the applications without
+ * the words being in the order would be showing a state the composer cannot reach.
+ */
+function disposalsOf(hearing: CourtHearing): RichTextValue {
+  return applicationsForListing(hearing.id).reduce<RichTextValue>(
+    (written, application) =>
+      appendRichText(
+        written,
+        richTextFromPlain(
+          listingApplicationSentence(hearing, application, "allowed"),
+        ),
+      ),
+    { html: "", text: "" },
+  );
+}
+
 function decisionsOf(hearing: CourtHearing): OrderDraft["applications"] {
   return Object.fromEntries(
     applicationsForListing(hearing.id).map((application) => [
@@ -189,7 +221,11 @@ function itemsOf(
   facts: OrderTemplateFacts,
 ): OrderItemDraft[] {
   return ITEM_TYPES[hearing.purpose].map((type, index) => {
-    const item = createOrderItem(type, `${hearing.id}-item-${index + 1}`, facts);
+    const item = createOrderItem(
+      type,
+      `${hearing.id}-item-${index + 1}`,
+      facts,
+    );
     if (index > 0) return item;
     return { ...item, text: richTextFromPlain(ITEM_TEXT[hearing.purpose]) };
   });
@@ -238,9 +274,130 @@ export function initialOrderDraft(
   return {
     ...sitting,
     items,
+    /* Disposals first, then the directions — the order a court takes them in, and the
+       order the live screen produces them in when the panel opens on the applications. */
     body: items.reduce(
       (written, item) => appendRichText(written, item.text),
-      sitting.body,
+      disposalsOf(hearing),
     ),
   };
 }
+
+
+/**
+ * The listings this court already has an order open on when the prototype opens, and
+ * how far each one has got.
+ *
+ * **Why a seed exists at all.** A draft lives for the length of one visit
+ * (`order-drafts.ts`), so on a cold load the only order in this court's hands would be
+ * the one the finished sitting carries — one row on a screen built to hold a morning's
+ * work. Anyone opening the prototype to look at the Draft orders queue would be looking
+ * at an empty queue and would have to go and type eleven orders to see it work (owner,
+ * 2026-09-16).
+ *
+ * **What it claims.** Exactly what a draft claims anywhere in this build: somebody at
+ * this court has started writing this order and has not sent it for signature. Nothing
+ * is filed, signed, notified or written back to a case, and the words are demo text that
+ * no court passed — the same bargain the rest of this module makes. A reload puts the
+ * court back to these eleven, and every edit made in between is gone.
+ *
+ * **Two states, because a half-written order is not one thing.** Most of them are
+ * dictated: the roll taken, the applications answered, the day's paragraph written. Two
+ * are the roll and nothing else — a typist who opened the composer, marked who answered
+ * the call, and was pulled away. Both are states the live composer reaches, which is the
+ * test a fixture has to pass: a seeded draft the screen could not produce would be a
+ * screenshot rather than a demo.
+ *
+ * **None of them is posted on.** `nextDate` stays null on every seed, so the matter has
+ * been heard and not yet given its next date — the one difference from
+ * `initialOrderDraft`'s finished order, and the plainest thing an order still being
+ * written looks like. It also keeps the seed free of today's date, so the fixture reads
+ * the same on the server and in the browser and has nothing to go stale.
+ */
+const DICTATED: string[] = [
+  "h-241",
+  "h-243",
+  "h-245",
+  "h-247",
+  "h-248",
+  "h-250",
+  "h-255",
+  "h-260",
+  "h-263",
+];
+
+/** Opened, the roll taken, nothing dictated yet. */
+const ROLL_ONLY: string[] = ["h-252", "h-257"];
+
+/** Where the matter goes next, as far as a draft that has not been posted on says it. */
+function postingOf(hearing: CourtHearing): Pick<
+  OrderDraft,
+  "next" | "nextPurpose" | "nextDate"
+> {
+  const nextPurpose = NEXT_PURPOSE[hearing.purpose];
+  return {
+    /* After judgement there is no next date, which is the composer's own "no next date"
+       choice rather than an unanswered question. */
+    next: nextPurpose ? "list" : "none",
+    nextPurpose: nextPurpose ?? "",
+    nextDate: null,
+  };
+}
+
+/**
+ * The day's own paragraph as the one item pulled in.
+ *
+ * Only the first of the purpose's items, and deliberately: the ones after it open on
+ * their standing template words, which carry `[…]` tokens until the auto-fill pass runs
+ * over them with a case in hand. A fixture that froze those tokens would be showing an
+ * order nobody had filled in — so the seed stops at the item that is already prose.
+ */
+function dictatedItem(hearing: CourtHearing): OrderItemDraft {
+  const type = ITEM_TYPES[hearing.purpose][0];
+  return {
+    ...createOrderItem(type, `${hearing.id}-item-1`),
+    text: richTextFromPlain(ITEM_TEXT[hearing.purpose]),
+  };
+}
+
+function dictatedDraft(hearing: CourtHearing): OrderDraft {
+  const item = dictatedItem(hearing);
+  return {
+    marks: attendanceOf(hearing),
+    applications: decisionsOf(hearing),
+    ...postingOf(hearing),
+    items: [item],
+    /* Disposals first, then the direction — the order a court takes them in, and the
+       order the live screen produces them in. */
+    body: appendRichText(disposalsOf(hearing), item.text),
+  };
+}
+
+function rollOnlyDraft(hearing: CourtHearing): OrderDraft {
+  return {
+    ...EMPTY_ORDER_DRAFT,
+    marks: attendanceOf(hearing),
+    ...postingOf(hearing),
+  };
+}
+
+function seed(
+  ids: string[],
+  build: (hearing: CourtHearing) => OrderDraft,
+): [string, OrderDraft][] {
+  return ids.map((id) => {
+    const hearing = hearingById(id);
+    /* A seed naming a listing the board does not have is a fixture that has drifted from
+       the cause list, and it would show up as a row this court cannot open. */
+    if (!hearing) throw new Error(`No listing ${id} on today's cause list`);
+    return [id, build(hearing)] as [string, OrderDraft];
+  });
+}
+
+export const ORDERS_IN_PROGRESS: Readonly<Record<string, OrderDraft>> =
+  Object.freeze(
+    Object.fromEntries([
+      ...seed(DICTATED, dictatedDraft),
+      ...seed(ROLL_ONLY, rollOnlyDraft),
+    ]),
+  );
