@@ -363,6 +363,19 @@ function CasePeekOverview({
         <PeekRow term="Filed">{formatCaseDate(record.filedOn)}</PeekRow>
       </DescriptionList>
 
+      {/* Pending work comes before the last hearing: what still has to be done
+          before the next posting outranks the record of the one that passed. */}
+      {tasks.length > 0 ? (
+        <section className="flex flex-col gap-4">
+          <SectionHeading count={tasks.length}>Pending before the hearing</SectionHeading>
+          <ItemGroup className="gap-3">
+            {tasks.map((task) => (
+              <TaskRow key={task.id} caseId={record.id} task={task} now={now} />
+            ))}
+          </ItemGroup>
+        </section>
+      ) : null}
+
       {record.previousHearingOn ? (
         <LastHearingCard
           on={record.previousHearingOn}
@@ -370,17 +383,6 @@ function CasePeekOverview({
           order={extras.orderOfTheDay ?? record.latestUpdate}
           directed={Boolean(extras.orderOfTheDay)}
         />
-      ) : null}
-
-      {tasks.length > 0 ? (
-        <section className="flex flex-col gap-4">
-          <SectionHeading count={tasks.length}>Pending tasks</SectionHeading>
-          <ItemGroup className="gap-3">
-            {tasks.map((task) => (
-              <TaskRow key={task.id} caseId={record.id} task={task} now={now} />
-            ))}
-          </ItemGroup>
-        </section>
       ) : null}
     </div>
   );
@@ -548,6 +550,46 @@ function TaskRow({
       ? `Assigned to ${task.assignedTo} · marked ${formatCaseDate(task.markedOn)}`
       : due.on;
 
+  const dueLabel = (
+    <p
+      className={cn(
+        "shrink-0 text-caption",
+        due.overdue ? "text-destructive-ink" : "text-muted-foreground"
+      )}
+    >
+      {due.label}
+    </p>
+  );
+
+  // When the task names its verb, the row states the task and offers that action
+  // as its own outline button — the deadline sits quietly beside it. Without a
+  // named verb the whole row is the link to where the task is handled.
+  if (task.action) {
+    // The statement leads on its own line so it is never squeezed by the action
+    // beside it; the deadline and the action then sit together on a second line,
+    // the button anchored to the right.
+    return (
+      <Item variant="muted" size="sm" className="min-h-10 p-4">
+        <ItemContent className="min-w-0 gap-1.5">
+          <ItemTitle className="line-clamp-none text-body-compact font-medium text-foreground">
+            {task.title}
+          </ItemTitle>
+          <ItemDescription className="line-clamp-none text-caption">
+            {detail}
+          </ItemDescription>
+          <div className="mt-1.5 flex items-center justify-between gap-3">
+            {dueLabel}
+            <Button variant="outline" size="xs" asChild>
+              <Link href={caseSectionHref(caseId, task.action.section)}>
+                {task.action.label}
+              </Link>
+            </Button>
+          </div>
+        </ItemContent>
+      </Item>
+    );
+  }
+
   // items-baseline puts the due status on the title's first-line baseline, so the date
   // reads as sitting on the same plane as the heading rather than floating a little low
   // (owner, Sept 11).
@@ -562,14 +604,7 @@ function TaskRow({
             {detail}
           </ItemDescription>
         </ItemContent>
-        <p
-          className={cn(
-            "shrink-0 text-caption",
-            due.overdue ? "text-destructive-ink" : "text-muted-foreground"
-          )}
-        >
-          {due.label}
-        </p>
+        {dueLabel}
       </Link>
     </Item>
   );

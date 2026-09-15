@@ -31,6 +31,7 @@ import {
   railGroups,
   railTasks,
   teamOf,
+  timelineOn,
   weekOf,
   weightOf,
 } from "./home";
@@ -562,5 +563,99 @@ describe("railTasks", () => {
       railTasks(w).map((t) => t.id),
       ["t-overdue", "t-block", "t-later"]
     );
+  });
+});
+
+describe("timelineOn", () => {
+  const startedJustNow = new Date(NOW_MS - 10 * 60 * 1000).toISOString();
+  // A day across two courts: a concluded slot both share, one matter being
+  // called now, a clear upcoming slot, and an upcoming slot both share.
+  const day = dayKeyOf(at(0, 12));
+  const scene = () =>
+    world([
+      listed("c1", 0, 6, "Court A"),
+      listed("c2", 0, 6, "Court B"),
+      { ...listed("live", 0, 12, "Court A"), nextHearingAt: startedJustNow },
+      listed("u1", 0, 22, "Court A"),
+      listed("x1", 0, 23, "Court A"),
+      listed("x2", 0, 23, "Court B"),
+    ]);
+
+  it("groups matters across courts into time slots, splitting the day into zones", () => {
+    const t = timelineOn(scene(), day, NOW_MS);
+
+    assert.deepEqual(t.concluded.map((s) => s.key), ["06:00"]);
+    assert.equal(t.now.length, 1);
+    assert.equal(t.now[0].hearings[0].kase.id, "live");
+    assert.deepEqual(t.upcoming.map((s) => s.key), ["22:00", "23:00"]);
+  });
+
+  it("flags a slot with two or more hearings as a conflict", () => {
+    const t = timelineOn(scene(), day, NOW_MS);
+    const conflict = t.slots.find((s) => s.key === "23:00")!;
+    assert.equal(conflict.conflict, true);
+    assert.equal(conflict.hearings.length, 2);
+    assert.deepEqual(conflict.courts.sort(), ["Court A", "Court B"]);
+
+    const clear = t.slots.find((s) => s.key === "22:00")!;
+    assert.equal(clear.conflict, false);
+  });
+
+  it("counts the summary over every slot", () => {
+    const { summary } = timelineOn(scene(), day, NOW_MS);
+    assert.equal(summary.total, 6);
+    assert.equal(summary.conflictSlots, 2); // 06:00 and 23:00
+    assert.equal(summary.overlap, 4); // two hearings in each conflict slot
+    assert.equal(summary.clearSlots, 2); // the now slot and 22:00
+    assert.equal(summary.courts, 2);
+  });
+
+  it("keeps each court's own cause-list numbering inside a shared slot", () => {
+    const t = timelineOn(scene(), day, NOW_MS);
+    const conflict = t.slots.find((s) => s.key === "23:00")!;
+    const b = conflict.hearings.find((h) => h.court === "Court B")!;
+    // Court B lists only c2 (06:00) then x2 (23:00), so x2 is its item 2.
+    assert.equal(b.item, 2);
+    assert.equal(b.courtLabel, "Court B");
+  });
+
+  it("marks only the latest started slot as now, not every recent one", () => {
+    // Two slots both inside the 90-minute window; only the later one is "now",
+    // the earlier has been called and concluded.
+    const earlier = new Date(NOW_MS - 60 * 60 * 1000).toISOString();
+    const later = new Date(NOW_MS - 10 * 60 * 1000).toISOString();
+    const w = world([
+      { ...listed("earlier", 0, 11, "Court A"), nextHearingAt: earlier },
+      { ...listed("later", 0, 11, "Court A"), nextHearingAt: later },
+    ]);
+    const t = timelineOn(w, dayKeyOf(at(0, 12)), NOW_MS);
+    assert.equal(t.now.length, 1);
+    assert.equal(t.now[0].hearings[0].kase.id, "later");
+    assert.equal(
+      t.concluded.some((s) => s.hearings[0].kase.id === "earlier"),
+      true
+    );
+  });
+
+  it("points the next hint at the first upcoming slot", () => {
+    const t = timelineOn(scene(), day, NOW_MS);
+    assert.equal(t.next?.key, "22:00");
+  });
+
+  it("narrows to the chosen courts and rescopes the summary", () => {
+    const t = timelineOn(scene(), day, NOW_MS, ["Court B"]);
+    assert.deepEqual(
+      t.slots.map((s) => s.key),
+      ["06:00", "23:00"]
+    );
+    assert.equal(t.summary.total, 2);
+    assert.equal(t.summary.conflictSlots, 0);
+    assert.equal(t.summary.courts, 1);
+  });
+
+  it("treats an empty filter as every court", () => {
+    const all = timelineOn(scene(), day, NOW_MS);
+    const none = timelineOn(scene(), day, NOW_MS, []);
+    assert.equal(none.summary.total, all.summary.total);
   });
 });

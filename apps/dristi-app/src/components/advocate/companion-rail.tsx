@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  CalendarClock,
+  Archive,
   ChevronDown,
   ChevronRight,
   FileClock,
@@ -36,12 +36,8 @@ import type { Locale } from "@/lib/onboarding/content";
 import { pick } from "@/lib/onboarding/content";
 import { advHome, fillCopy } from "@/lib/advocate/content";
 import {
-  prepAhead,
-  prepGroups,
   railCaseLineOf,
   railGroups,
-  type PrepGroup,
-  type PrepItem,
   type RailGroup,
 } from "@/lib/advocate/home";
 import { dueCueOf } from "@/lib/tasks/format";
@@ -71,7 +67,66 @@ import { RowAction } from "@/components/advocate/home-bits";
  * chrome hovers to `accent-strong`, plain `accent` being invisible on a sunken fill.
  */
 
-export type RailSection = "tasks" | "prep";
+export type RailSection = "tasks";
+
+/** A request to trace a case's tasks in the rail; the nonce re-triggers it. */
+export type TaskHighlight = { caseId: string; nonce: number } | null;
+
+/**
+ * The stroke that traces a highlighted task's card. A rounded rect drawn once
+ * around the boundary (`stroke-dashoffset` off `pathLength`), held, then faded —
+ * a deliberate "look here", so it runs longer than routine UI motion. The draw
+ * uses a strong ease-out; reduced-motion drops the travel for a plain fade.
+ */
+function TaskTraceStyles() {
+  return (
+    <style>{`
+      @keyframes task-trace-draw {
+        /* A short delay lets the rail settle and the eye arrive; then the stroke
+           travels at a steady, gentle pace (soft start, not a fast ease-out that
+           is already half-drawn before it is noticed), holds, and fades. */
+        0%   { stroke-dashoffset: 100; opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+        55%  { stroke-dashoffset: 0;   opacity: 1; }
+        74%  { stroke-dashoffset: 0;   opacity: 1; animation-timing-function: ease-out; }
+        100% { stroke-dashoffset: 0;   opacity: 0; }
+      }
+      @keyframes task-trace-fade {
+        0% { opacity: 0; } 20% { opacity: 1; } 72% { opacity: 1; } 100% { opacity: 0; }
+      }
+      .task-trace-rect {
+        x: 1.5px; y: 1.5px;
+        width: calc(100% - 3px);
+        height: calc(100% - 3px);
+        rx: 7px;
+        fill: none;
+        stroke: var(--brand-accent);
+        stroke-width: 2px;
+        stroke-dasharray: 100;
+        stroke-dashoffset: 100;
+        animation: task-trace-draw 2000ms 60ms forwards;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .task-trace-rect {
+          stroke-dashoffset: 0;
+          animation: task-trace-fade 1500ms 60ms ease forwards;
+        }
+      }
+    `}</style>
+  );
+}
+
+/** The rounded stroke overlay for one traced card; `nonce` re-mounts it to replay. */
+function TaskTraceRing({ nonce }: { nonce: number }) {
+  return (
+    <svg
+      key={nonce}
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-20 size-full overflow-visible"
+    >
+      <rect className="task-trace-rect" pathLength={100} />
+    </svg>
+  );
+}
 
 /** What the task asks for, at a glance — one icon per kind, all muted. */
 const KIND_ICON: Record<TaskKind, LucideIcon> = {
@@ -86,7 +141,9 @@ const KIND_ICON: Record<TaskKind, LucideIcon> = {
 
 const MIN_WIDTH = 280;
 const MAX_WIDTH = 460;
-export const RAIL_DEFAULT_WIDTH = 320;
+/** A comfortable resting width — wide enough to read a task, short of the full
+ *  pull the reader can drag to when they want it. */
+export const RAIL_DEFAULT_WIDTH = 400;
 
 /**
  * The rail remembers itself, per user, across loads.
@@ -110,8 +167,7 @@ export function useRailSection(): [
   // Server render and hydration agree on the default (the store's server
   // snapshot is null); the stored choice takes over immediately after.
   const stored = useLocalStorageValue(RAIL_SECTION_KEY);
-  const section: RailSection | null =
-    stored === CLOSED ? null : stored === "prep" ? "prep" : "tasks";
+  const section: RailSection | null = stored === CLOSED ? null : "tasks";
 
   const setSection = React.useCallback((next: RailSection | null) => {
     writeLocalStorageValue(RAIL_SECTION_KEY, next ?? CLOSED);
@@ -293,18 +349,28 @@ function TaskCard({
   task,
   verb,
   onAct,
+  onArchive,
+  traceNonce,
 }: {
   world: World;
   task: Task;
   verb: string;
   onAct: (task: Task) => void;
+  /** Put the task away — revealed beside the action on hover. */
+  onArchive?: (task: Task) => void;
+  /** When set, this card is being traced — the stroke runs, keyed by the nonce. */
+  traceNonce?: number | null;
 }) {
   const Icon = KIND_ICON[task.kind];
   const due = dueCueOf(task, new Date(world.now));
   const dense = RAIL_VARIANT === "B";
 
   return (
-    <div className={dense ? ROW_B : CARD_A}>
+    <div
+      className={dense ? ROW_B : CARD_A}
+      data-task-trace={traceNonce != null ? "1" : undefined}
+    >
+      {traceNonce != null ? <TaskTraceRing nonce={traceNonce} /> : null}
       {dense ? (
         <span aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground">
           <Icon className="size-4" />
@@ -331,23 +397,101 @@ function TaskCard({
 
       {/* Overdue is the only time signal on a task card, and it is ink, not a
           badge: a red chip on every overdue row would spend the panel's whole
-          destructive budget before the count is read. */}
-      <RowAction
-        label={verb}
-        onClick={() => onAct(task)}
-        rest={
-          due.overdue ? (
-            dense ? (
-              <span className="text-caption font-medium whitespace-nowrap tabular-nums text-destructive-ink">
-                {due.primary}
-              </span>
-            ) : (
-              <WhenBlock lead={due.primary} sub={due.date} tone="overdue" />
-            )
-          ) : undefined
-        }
-      />
+          destructive budget before the count is read. The archive control sits
+          to the right of the action, both revealed together on hover. */}
+      <div className="flex shrink-0 items-center gap-1">
+        <RowAction
+          label={verb}
+          onClick={() => onAct(task)}
+          rest={
+            due.overdue ? (
+              dense ? (
+                <span className="text-caption font-medium whitespace-nowrap tabular-nums text-destructive-ink">
+                  {due.primary}
+                </span>
+              ) : (
+                <WhenBlock lead={due.primary} sub={due.date} tone="overdue" />
+              )
+            ) : undefined
+          }
+        />
+        {onArchive ? (
+          <button
+            type="button"
+            aria-label={`Archive: ${task.title}`}
+            title="Archive"
+            onClick={(event) => {
+              event.stopPropagation();
+              onArchive(task);
+            }}
+            className="relative z-10 hidden size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors group-hover/row:flex group-focus-within/row:flex hover:bg-accent-strong hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <Archive aria-hidden="true" className="size-4" />
+          </button>
+        ) : null}
+      </div>
     </div>
+  );
+}
+
+/** One due-date bucket. Opens on its own when a trace lands inside it. */
+function TaskBucket({
+  group,
+  world,
+  locale,
+  verbOf,
+  onAct,
+  onArchive,
+  highlight,
+}: {
+  group: RailGroup;
+  world: World;
+  locale: Locale;
+  verbOf: (task: Task) => string;
+  onAct: (task: Task) => void;
+  onArchive: (task: Task) => void;
+  highlight: TaskHighlight;
+}) {
+  const hasTrace =
+    highlight != null && group.tasks.some((t) => t.caseId === highlight.caseId);
+  // Null until the reader toggles the bucket by hand; before that it opens for
+  // "today" or whenever a trace lands inside it — derived, so no effect writes
+  // state. A traced bucket therefore opens on the same render the trace arrives.
+  const [manualOpen, setManualOpen] = React.useState<boolean | null>(null);
+  const open = manualOpen ?? (group.key === "today" || hasTrace);
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setManualOpen}
+      className="flex flex-col gap-2"
+    >
+      <BucketTrigger
+        label={groupLabel(locale, group)}
+        count={group.tasks.length}
+        lead={group.key === "today"}
+      />
+      <CollapsibleContent>
+        <ul className={RAIL_VARIANT === "B" ? LIST_B : LIST_A}>
+          {group.tasks.map((task) => (
+            <li key={task.id}>
+              <TaskCard
+                world={world}
+                task={task}
+                verb={verbOf(task)}
+                onAct={onAct}
+                onArchive={onArchive}
+                traceNonce={
+                  highlight && task.caseId === highlight.caseId
+                    ? highlight.nonce
+                    : null
+                }
+              />
+            </li>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -356,22 +500,41 @@ function TasksPanel({
   locale,
   verbOf,
   onAct,
+  onArchive,
   onClose,
   onViewAll,
+  highlight,
 }: {
   world: World;
   locale: Locale;
   verbOf: (task: Task) => string;
   onAct: (task: Task) => void;
+  onArchive: (task: Task) => void;
   onClose: () => void;
   onViewAll: () => void;
+  highlight: TaskHighlight;
 }) {
   const now = Number(new Date(world.now));
   const groups = railGroups(world, now);
   const count = summaryOf(world).action;
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  // Once a trace is requested — and its bucket has had a moment to open — bring
+  // the first traced card into view so its stroke is not off-screen.
+  const nonce = highlight?.nonce;
+  React.useEffect(() => {
+    if (nonce == null) return;
+    const timer = window.setTimeout(() => {
+      scrollRef.current
+        ?.querySelector("[data-task-trace]")
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [nonce]);
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
+      <TaskTraceStyles />
       <PanelHeader
         title={pick(advHome.railTitle, locale)}
         caption={pick(advHome.railScope, locale)}
@@ -380,33 +543,21 @@ function TasksPanel({
       />
 
       {groups.length ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-3 pb-3">
+        <div
+          ref={scrollRef}
+          className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-3 pb-3"
+        >
           {groups.map((group) => (
-            <Collapsible
+            <TaskBucket
               key={group.key}
-              defaultOpen={group.key === "today"}
-              className="flex flex-col gap-2"
-            >
-              <BucketTrigger
-                label={groupLabel(locale, group)}
-                count={group.tasks.length}
-                lead={group.key === "today"}
-              />
-              <CollapsibleContent>
-                <ul className={RAIL_VARIANT === "B" ? LIST_B : LIST_A}>
-                  {group.tasks.map((task) => (
-                    <li key={task.id}>
-                      <TaskCard
-                        world={world}
-                        task={task}
-                        verb={verbOf(task)}
-                        onAct={onAct}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </CollapsibleContent>
-            </Collapsible>
+              group={group}
+              world={world}
+              locale={locale}
+              verbOf={verbOf}
+              onAct={onAct}
+              onArchive={onArchive}
+              highlight={highlight}
+            />
           ))}
         </div>
       ) : (
@@ -426,172 +577,6 @@ function TasksPanel({
           <ChevronRight aria-hidden="true" />
         </Button>
       </div>
-    </div>
-  );
-}
-
-/* ───────────────────────────── hearing prep ───────────────────────────── */
-
-/**
- * One substantial posting ahead.
- *
- * The card leads with the matter and what the posting is *for* — evidence, cross,
- * the plea, arguments — because that is what decides how much work the week
- * holds. How far away it is sits on the right, relative first ("In 6 days") and
- * dated under it, since lead time is the whole point of the section. Open
- * blocking work is a second cue on the stage line, not the reason the card
- * exists: an evidence posting three weeks out belongs here with nothing pending.
- */
-function PrepCard({
-  locale,
-  item,
-  onOpenCase,
-}: {
-  locale: Locale;
-  item: PrepItem;
-  onOpenCase: (caseId: string) => void;
-}) {
-  const date = new Intl.DateTimeFormat(locale === "ml" ? "ml-IN" : "en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(new Date(item.at));
-  const away =
-    item.inDays === 1
-      ? pick(advHome.prepTomorrow, locale)
-      : fillCopy(advHome.prepInDays, locale, { n: String(item.inDays) });
-  const pending = item.blockers.length
-    ? item.blockers.length === 1
-      ? pick(advHome.prepPendingOne, locale)
-      : fillCopy(advHome.prepPendingMany, locale, {
-          n: String(item.blockers.length),
-        })
-    : null;
-
-  const dense = RAIL_VARIANT === "B";
-
-  return (
-    <div className={dense ? ROW_B : CARD_A}>
-      {dense ? (
-        <span aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground">
-          <Gavel className="size-4" />
-        </span>
-      ) : (
-        <span aria-hidden="true" className={CARD_ICON_A}>
-          <Gavel className="size-3.5" />
-        </span>
-      )}
-
-      <div className="flex min-w-0 flex-1 flex-col items-stretch gap-0.5">
-        <button
-          type="button"
-          onClick={() => onOpenCase(item.kase.id)}
-          title={item.kase.parties}
-          className={CARD_TITLE}
-        >
-          {item.kase.parties}
-        </button>
-        {/* A matter you are meant to prepare for has to be identifiable: the
-            number you would quote at the counter, and the posting it is for. */}
-        <span className="w-full truncate text-caption text-muted-foreground">
-          <span className="font-mono">{item.kase.stNumber}</span> · {item.kase.stage}
-        </span>
-        {/* Only when something is owed. A "Ready" badge on every card is a mark
-            of the norm, and the card is here for its lead time either way. */}
-        {pending ? (
-          <span className="truncate text-caption font-medium text-warning-ink">
-            {pending}
-          </span>
-        ) : null}
-      </div>
-
-      {/* Prep keeps its relative day in both variants: lead time is the whole
-          point of this section, so "In 6 days" adds precision the group header
-          ("Next 7 days") does not. */}
-      <RowAction
-        label={pick(advHome.viewCase, locale)}
-        onClick={() => onOpenCase(item.kase.id)}
-        rest={
-          dense ? (
-            <span className="text-caption whitespace-nowrap tabular-nums text-muted-foreground">
-              {away}
-            </span>
-          ) : (
-            <WhenBlock lead={away} sub={date} tone="muted" />
-          )
-        }
-      />
-    </div>
-  );
-}
-
-function prepGroupLabel(locale: Locale, group: PrepGroup): string {
-  return group.key === "week"
-    ? pick(advHome.prepGroupWeek, locale)
-    : pick(advHome.prepGroupLater, locale);
-}
-
-function PrepPanel({
-  world,
-  locale,
-  onClose,
-  onOpenCase,
-}: {
-  world: World;
-  locale: Locale;
-  onClose: () => void;
-  onOpenCase: (caseId: string) => void;
-}) {
-  const groups = prepGroups(world, Number(new Date(world.now)));
-
-  return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
-      <PanelHeader
-        title={pick(advHome.prepTitle, locale)}
-        caption={pick(advHome.prepCaption, locale)}
-        locale={locale}
-        onClose={onClose}
-      />
-
-      {groups.length ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-3 pb-3">
-          {groups.map((group) => (
-            <Collapsible
-              key={group.key}
-              defaultOpen={group.key === "week"}
-              className="flex flex-col gap-2"
-            >
-              <BucketTrigger
-                label={prepGroupLabel(locale, group)}
-                count={group.items.length}
-                lead={group.key === "week"}
-              />
-              <CollapsibleContent>
-                <ul className={RAIL_VARIANT === "B" ? LIST_B : LIST_A}>
-                  {group.items.map((item) => (
-                    <li key={item.kase.id}>
-                      <PrepCard
-                        locale={locale}
-                        item={item}
-                        onOpenCase={onOpenCase}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </CollapsibleContent>
-            </Collapsible>
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-1 flex-col justify-center gap-1 px-6 pb-8 text-center">
-          <p className="text-body-compact font-medium">
-            {pick(advHome.prepEmptyTitle, locale)}
-          </p>
-          <p className="text-caption text-muted-foreground">
-            {pick(advHome.prepEmptyBody, locale)}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
@@ -669,9 +654,10 @@ export function CompanionRail({
   section,
   topOffset,
   onSectionChange,
+  highlight,
   verbOf,
   onAct,
-  onOpenCase,
+  onArchive,
   onViewAllTasks,
 }: {
   world: World;
@@ -681,14 +667,15 @@ export function CompanionRail({
   /** The shell top bar's height — the rail hangs below it. */
   topOffset: string;
   onSectionChange: (section: RailSection | null) => void;
+  /** A pending-flag click asking the tasks panel to trace a case's tasks. */
+  highlight: TaskHighlight;
   /** The viewer's verb for a task — resolved by the screen that owns the world. */
   verbOf: (task: Task) => string;
   onAct: (task: Task) => void;
-  onOpenCase: (caseId: string) => void;
+  onArchive: (task: Task) => void;
   onViewAllTasks: () => void;
 }) {
   const tasksCount = summaryOf(world).action;
-  const prepCount = prepAhead(world, Number(new Date(world.now))).length;
   const dragFrom = React.useRef<{ x: number; width: number } | null>(null);
 
   const clamp = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w));
@@ -737,7 +724,14 @@ export function CompanionRail({
       className="sticky hidden shrink-0 self-start border-l border-hairline bg-surface-sunken md:flex dark:bg-background"
     >
       {section ? (
-        <div className="relative flex h-full" style={{ width }}>
+        <div
+          // Keyed by section so opening the strip — or switching panels — plays a
+          // short slide-and-fade rather than snapping in, the same easing the case
+          // peek uses. Motion is suppressed for reduced-motion readers.
+          key={section}
+          className="relative flex h-full duration-200 ease-out animate-in fade-in-0 slide-in-from-right-4 motion-reduce:animate-none"
+          style={{ width }}
+        >
           {/* The resize handle: an invisible grab strip on the panel's edge with
               a visible thumb on hover — drag, or arrows when focused. */}
           <div
@@ -757,28 +751,21 @@ export function CompanionRail({
             />
           </div>
 
-          {section === "tasks" ? (
-            <TasksPanel
-              world={world}
-              locale={locale}
-              verbOf={verbOf}
-              onAct={onAct}
-              onClose={close}
-              onViewAll={onViewAllTasks}
-            />
-          ) : (
-            <PrepPanel
-              world={world}
-              locale={locale}
-              onClose={close}
-              onOpenCase={onOpenCase}
-            />
-          )}
+          <TasksPanel
+            world={world}
+            locale={locale}
+            verbOf={verbOf}
+            onAct={onAct}
+            onArchive={onArchive}
+            onClose={close}
+            onViewAll={onViewAllTasks}
+            highlight={highlight}
+          />
         </div>
       ) : null}
 
-      {/* The strip — always present, one icon per section, like Gmail's side
-          apps. The seam only appears once a panel stands beside it. */}
+      {/* The strip — always present, the one section's icon. The seam only
+          appears once the panel stands beside it. */}
       <div
         className={cn(
           "flex w-14 flex-col items-center gap-2 pt-4",
@@ -792,14 +779,6 @@ export function CompanionRail({
           countTone="destructive"
           active={section === "tasks"}
           onClick={() => toggle("tasks")}
-        />
-        <StripButton
-          icon={CalendarClock}
-          label={fillCopy(advHome.prepOpen, locale, { n: String(prepCount) })}
-          count={prepCount}
-          countTone="neutral"
-          active={section === "prep"}
-          onClick={() => toggle("prep")}
         />
       </div>
     </aside>

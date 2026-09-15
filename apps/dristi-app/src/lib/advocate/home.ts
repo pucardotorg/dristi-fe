@@ -102,6 +102,12 @@ export type HomeHearing = {
   /** The listed time (`Case.nextHearingAt`). */
   at: string;
   status: HearingStatus;
+  /**
+   * The listed time is approximate — an upcoming matter with no court-given
+   * fixed slot. A concluded or ongoing hearing is exact; a rescheduled upcoming
+   * one (`Case.timeFixed`) is exact too.
+   */
+  approxTime: boolean;
   /** Actionable blocking tasks on the case, most urgent first. */
   blockers: Task[];
   /** No open blocking task stands between the case and the hearing. */
@@ -144,11 +150,13 @@ export function hearingsOn(
     .map((kase, index) => {
       const at = kase.nextHearingAt!;
       const blockers = blockersOf(world, kase, now);
+      const status = statusOf(at, now);
       return {
         kase,
         item: index + 1,
         at,
-        status: statusOf(at, now),
+        status,
+        approxTime: status === "upcoming" && !kase.timeFixed,
         blockers,
         ready: blockers.length === 0,
       };
@@ -324,6 +332,241 @@ export function boardOf(
     upcoming: listed.filter((h) => h !== live && h.status !== "concluded"),
     concluded: listed.filter((h) => h.status === "concluded"),
   };
+}
+
+/* ───────────────────────────── timeline ───────────────────────────── */
+
+/** One hearing on the unified timeline — a `HomeHearing` with its court's short label. */
+export type TimelineHearing = HomeHearing & { court: string; courtLabel: string };
+
+/**
+ * One time slot on the day's unified timeline.
+ *
+ * A slot groups every matter listed at the same clock time, across courts. Two
+ * or more in one slot is the thing the home screen exists to surface: a
+ * double-booking, matters an advocate is due in at once, which the old
+ * court-tabbed view could only reveal by cross-referencing tabs by hand.
+ */
+export type TimeSlot = {
+  /** The slot's clock label, "10:30" — what "the same time" means to a reader. */
+  key: string;
+  /** The listed time the slot's hearings share (ISO). */
+  at: string;
+  /** Every hearing in the slot, in court then cause-list order. */
+  hearings: TimelineHearing[];
+  /** Two or more hearings share this time — a conflict. */
+  conflict: boolean;
+  /** Where the day has got to relative to this slot. */
+  phase: HearingStatus;
+  /**
+   * The slot's time is only a rough listing order, not a fixed clock time —
+   * true for an upcoming slot unless every hearing in it has a court-given fixed
+   * slot. Concluded and now slots are exact (they have happened / are happening).
+   */
+  approx: boolean;
+  /** Distinct courts represented in the slot. */
+  courts: string[];
+};
+
+/** The four counts the timeline's summary strip states. */
+export type TimelineSummary = {
+  /** Total hearings on the (filtered) timeline. */
+  total: number;
+  /** Slots holding two or more hearings. */
+  conflictSlots: number;
+  /** Hearings caught up in those conflict slots. */
+  overlap: number;
+  /** Slots holding exactly one hearing. */
+  clearSlots: number;
+  /** Distinct courts with a hearing on the (filtered) timeline. */
+  courts: number;
+};
+
+export type DayTimeline = {
+  /** Every slot, chronological. */
+  slots: TimeSlot[];
+  concluded: TimeSlot[];
+  now: TimeSlot[];
+  upcoming: TimeSlot[];
+  /** The first upcoming slot — the "next hearing" hint. */
+  next: TimeSlot | null;
+  summary: TimelineSummary;
+};
+
+/** The clock label a slot groups on — local "HH:MM", the honest "same time". */
+function slotKeyOf(at: string): string {
+  const d = new Date(at);
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+/**
+ * The whole day as one chronological timeline across every court, grouped into
+ * time slots.
+ *
+ * This is the home screen's answer to "where do I need to be, and when am I
+ * double-booked?" — a question the per-court board could not answer without the
+ * advocate assembling it tab by tab. `courts`, when non-empty, narrows the
+ * timeline to a chosen set; the summary follows the filtered view. Numbering
+ * stays the court's own: an item keeps its cause-list position, so a filtered
+ * slot still reads "item 7".
+ *
+ * Phase is decided per slot at read time: any hearing being called makes the slot
+ * "now"; all past makes it "concluded"; otherwise it is still to come.
+ */
+export function timelineOn(
+  world: World,
+  dayKey: string,
+  now: number = Date.now(),
+  courts?: readonly string[]
+): DayTimeline {
+  const rooms = courtRooms(world, dayKey, now);
+  const labels = courtLabelsOf(rooms.map((r) => r.court));
+  const wanted = courts && courts.length ? new Set(courts) : null;
+
+  const byKey = new Map<string, TimeSlot>();
+  for (const room of rooms) {
+    if (wanted && !wanted.has(room.court)) continue;
+    for (const h of hearingsOn(world, room.court, dayKey, now)) {
+      const key = slotKeyOf(h.at);
+      const hearing: TimelineHearing = {
+        ...h,
+        court: room.court,
+        courtLabel: labels.shortOf(room.court),
+      };
+      const slot = byKey.get(key);
+      if (slot) {
+        slot.hearings.push(hearing);
+        // The earliest listing in the slot carries its time — a minute's drift
+        // inside one slot should not reorder it against another.
+        if (new Date(h.at).getTime() < new Date(slot.at).getTime()) slot.at = h.at;
+      } else {
+        byKey.set(key, {
+          key,
+          at: h.at,
+          hearings: [hearing],
+          conflict: false,
+          phase: h.status,
+          approx: false,
+          courts: [],
+        });
+      }
+    }
+  }
+
+  const slots = [...byKey.values()].sort(
+    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+  );
+
+  // "Now" is one moment, not every hearing inside a window. The court calls one
+  // time-block at a time, so the now slot is the latest block that has started and
+  // is still within the live window; earlier started blocks have been called and
+  // are concluded, later ones are still to come. This is what keeps three separate
+  // clusters from all claiming to be "now".
+  let nowKey: string | null = null;
+  for (const slot of slots) {
+    const at = new Date(slot.at).getTime();
+    if (at <= now && now - at <= HEARING_WINDOW_MS) nowKey = slot.key;
+  }
+
+  for (const slot of slots) {
+    slot.hearings.sort((a, b) => a.court.localeCompare(b.court) || a.item - b.item);
+    slot.conflict = slot.hearings.length > 1;
+    slot.courts = [...new Set(slot.hearings.map((h) => h.court))];
+    const at = new Date(slot.at).getTime();
+    slot.phase =
+      slot.key === nowKey ? "now" : at > now ? "upcoming" : "concluded";
+    // Upcoming slots read as approximate unless every matter in them holds a
+    // court-given fixed slot; concluded and now slots are always exact.
+    slot.approx =
+      slot.phase === "upcoming" && !slot.hearings.every((h) => h.kase.timeFixed);
+  }
+
+  const conflictSlots = slots.filter((s) => s.conflict);
+  const summary: TimelineSummary = {
+    total: slots.reduce((n, s) => n + s.hearings.length, 0),
+    conflictSlots: conflictSlots.length,
+    overlap: conflictSlots.reduce((n, s) => n + s.hearings.length, 0),
+    clearSlots: slots.filter((s) => s.hearings.length === 1).length,
+    courts: new Set(slots.flatMap((s) => s.courts)).size,
+  };
+
+  return {
+    slots,
+    concluded: slots.filter((s) => s.phase === "concluded"),
+    now: slots.filter((s) => s.phase === "now"),
+    upcoming: slots.filter((s) => s.phase === "upcoming"),
+    next: slots.find((s) => s.phase === "upcoming") ?? null,
+    summary,
+  };
+}
+
+/** One row of the day's full cause list — every matter listed, across courts. */
+export type CauseListRow = {
+  /** Stable key + the case behind the row. */
+  id: string;
+  /** The matter's cause-list position in its own court. */
+  item: number;
+  parties: string;
+  court: string;
+  courtLabel: string;
+  /** Advocates on the matter, by name, lead first. */
+  advocates: string;
+  /** The number to quote at the counter — CNR, else the ST number. */
+  caseNumber: string;
+  /** What the matter is listed for (its stage). */
+  hearingType: string;
+  status: HearingStatus;
+  /** The listed time is a rough order, not a fixed slot (upcoming, unrescheduled). */
+  approxTime: boolean;
+  /** A matter this advocate is on — marked in the list so hers stand out. */
+  mine: boolean;
+};
+
+/**
+ * The day's full cause list across every court — the whole docket, not only the
+ * advocate's own matters, the way the court publishes it. Hers are flagged
+ * (`mine`) so they read out of the list at a glance. Ordered by court, then by
+ * each court's own cause-list position. `courts`, when given, narrows to a set.
+ */
+export function causeListOn(
+  world: World,
+  dayKey: string,
+  now: number = Date.now(),
+  courts?: readonly string[]
+): CauseListRow[] {
+  const rooms = courtRooms(world, dayKey, now);
+  const labels = courtLabelsOf(rooms.map((r) => r.court));
+  const wanted = courts && courts.length ? new Set(courts) : null;
+  const nameOf = (id: PersonId) =>
+    world.people.find((p) => p.id === id)?.name ?? id;
+
+  const rows: CauseListRow[] = [];
+  for (const room of rooms) {
+    if (wanted && !wanted.has(room.court)) continue;
+    for (const h of hearingsOn(world, room.court, dayKey, now)) {
+      rows.push({
+        id: h.kase.id,
+        item: h.item,
+        parties: h.kase.parties,
+        court: room.court,
+        courtLabel: labels.shortOf(room.court),
+        advocates: h.kase.advocates.map(nameOf).join(", "),
+        caseNumber: h.kase.cnr || h.kase.stNumber || "—",
+        hearingType: h.kase.stage,
+        status: h.status,
+        approxTime: h.approxTime,
+        // Demo stand-in for "an advocate's own matter": the hand-authored set is
+        // hers; the scale and past-day fill stand in for the rest of the docket.
+        mine: !h.kase.id.startsWith("c-sd") && !h.kase.id.startsWith("c-pd"),
+      });
+    }
+  }
+  rows.sort(
+    (a, b) => a.courtLabel.localeCompare(b.courtLabel) || a.item - b.item
+  );
+  return rows;
 }
 
 /** Total listed matters on a day across every court — the greeting's number. */

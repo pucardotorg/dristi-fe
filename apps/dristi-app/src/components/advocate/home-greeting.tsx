@@ -53,7 +53,6 @@ export function HomeGreeting({
   now,
   week,
   selectedDay,
-  matterCount,
   onSelectDay,
   onShiftWeek,
   onPickDate,
@@ -63,8 +62,6 @@ export function HomeGreeting({
   now: number;
   week: WeekCell[];
   selectedDay: string;
-  /** Listed matters on the selected day, across courts. */
-  matterCount: number;
   onSelectDay: (key: string) => void;
   /** Page the strip by whole weeks; ±1. */
   onShiftWeek: (delta: number) => void;
@@ -87,48 +84,48 @@ export function HomeGreeting({
   const weekdayFmt = new Intl.DateTimeFormat(intl, { weekday: "short" });
 
   return (
-    <div className="flex flex-col items-start justify-between gap-6 @3xl:flex-row @3xl:items-center">
+    <div className="flex flex-col items-start justify-between gap-4 @xl:flex-row @xl:items-center @3xl:gap-6">
       <div className="flex min-w-0 flex-col gap-1">
         {/* Steps down when the board gives up width to the peek or the rail —
             a 32px greeting on a 400px board wraps to three lines. */}
-        <h1 className="text-title font-semibold tracking-tight text-balance @3xl:text-title-l">
+        <h1 className="text-title font-semibold tracking-tight text-balance @xl:text-title-s @3xl:text-title-l">
           {fillCopy(greetingCopy(nowDate.getHours()), locale, { name: firstName })}
         </h1>
-        <div className="flex items-center gap-1.5">
-          {/* The due count is said here, always: the week strip states it as an
-              amber dot, and a dot that means on its own means nothing to a
-              reader who cannot see the colour. */}
-          <p className="text-body-compact text-muted-foreground @3xl:text-body">
-            {dateLine} · {mattersLine(locale, matterCount)}
-            {selected?.due ? ` · ${dueLine(locale, selected.due)}` : ""}
-          </p>
-          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={pick(advHome.pickDate, locale)}
-                className="-my-2 text-muted-foreground"
-              >
-                <CalendarDays aria-hidden="true" className="size-5" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={selected?.at ?? new Date(`${selectedDay}T12:00:00`)}
-                onSelect={(date) => {
-                  if (!date) return;
-                  setPickerOpen(false);
-                  onPickDate(date);
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
+        {/* Just the date. The due count moved to the timeline's summary strip;
+            the week strip's per-day dot still carries its own text equivalent
+            through the tooltip and the sr-only line below. */}
+        <p className="text-body-compact text-muted-foreground @3xl:text-body">
+          {dateLine}
+        </p>
       </div>
 
       <div className="flex max-w-full items-center gap-1.5 overflow-x-auto">
+        {/* The jump-to-date control sits with the week strip it drives, a step
+            larger than the paging chevrons to match the header's scale. */}
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={pick(advHome.pickDate, locale)}
+              className="shrink-0 text-muted-foreground"
+            >
+              <CalendarDays aria-hidden="true" className="size-6" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="center" className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={selected?.at ?? new Date(`${selectedDay}T12:00:00`)}
+              onSelect={(date) => {
+                if (!date) return;
+                setPickerOpen(false);
+                onPickDate(date);
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+
         {awayFromToday ? (
           <Button
             variant="outline"
@@ -163,7 +160,7 @@ export function HomeGreeting({
                       aria-pressed={isSelected}
                       onClick={() => onSelectDay(cell.key)}
                       className={cn(
-                        "flex w-11 flex-col items-center gap-1 rounded-lg py-2 transition-colors",
+                        "flex w-8 flex-col items-center gap-1 rounded-lg py-2 transition-colors @3xl:w-11",
                         // Brand tint means "today", not "selected" — a chosen day
                         // elsewhere in the week gets a neutral cue instead.
                         cell.today

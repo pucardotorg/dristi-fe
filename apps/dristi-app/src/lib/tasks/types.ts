@@ -36,6 +36,13 @@ export type Case = {
   stage: string;
   nextHearingAt?: string;
   /**
+   * The listed time is a fixed, court-given slot rather than the usual rough
+   * order. Courts rarely commit to a clock time; when a matter is specially
+   * rescheduled the bench does give one, and only then is an upcoming hearing's
+   * time exact. Absent/false means an upcoming time is approximate.
+   */
+  timeFixed?: boolean;
+  /**
    * Advocates signed on the vakalatnama, in order — the first is the main advocate.
    * Only they may complete a task (sign, pay, file).
    */

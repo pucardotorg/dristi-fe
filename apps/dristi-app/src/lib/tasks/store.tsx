@@ -21,9 +21,25 @@ const CHANNEL = "dristi-tasks";
 /** Which seed this browser holds; an older one is wiped and re-seeded on load. */
 const SEED_KEY = "dristi-tasks:seed";
 
+/** The local calendar day, as YYYY-M-D. */
+function todayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/**
+ * The stamp a seeded browser carries: the seed version and the day it was seeded.
+ * The sandbox bakes each hearing's absolute time at seed, so a browser seeded
+ * yesterday shows an empty "today". Folding the day into the stamp makes a new
+ * day reseed on the next load, exactly as a version bump does.
+ */
+function seedStamp(): string {
+  return `${SEED_VERSION}@${todayKey()}`;
+}
+
 function seedIsCurrent(): boolean {
   try {
-    return localStorage.getItem(SEED_KEY) === String(SEED_VERSION);
+    return localStorage.getItem(SEED_KEY) === seedStamp();
   } catch {
     return true;
   }
@@ -31,7 +47,7 @@ function seedIsCurrent(): boolean {
 
 function rememberSeed(): void {
   try {
-    localStorage.setItem(SEED_KEY, String(SEED_VERSION));
+    localStorage.setItem(SEED_KEY, seedStamp());
   } catch {
     /* private mode; nothing to do */
   }
