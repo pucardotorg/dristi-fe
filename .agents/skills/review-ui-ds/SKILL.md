@@ -9,12 +9,22 @@ Inputs: current task agreement, stable diff, relevant current product sources, a
 verification evidence. Never require an archived proposal or its attributes table.
 
 1. Follow `.agents/policies/pucar-design-system.md`. Establish the DS version and read
-   applicable rules and affected primitives. Reuse material already read for this state.
+   the full DS `ACCESSIBILITY.md`, Laws, design principles, applicable rules, and
+   affected primitives. Reuse material already read for this state.
 2. Map acceptance criteria to the actual implementation. Look for missing behavior,
    incorrect action scope, unsupported system claims, and relevant failure/recovery states.
 3. Review semantic tokens, typography, composition, labels, focus, keyboard access, touch,
    language/long-label behavior, and affected sibling consistency. Load the compact
    `ui-craft` checklist; select detailed references only when their subject applies.
+   For each important text region, map the owner-finalized intent or direct request to
+   the DS named role, then compare the implementation class/token with its rendered
+   computed size and line-height. Repeat for controls, spacing, surfaces, and status
+   treatment when affected. A valid DS token used for the wrong role is a discrepancy when the
+   owner-finalized design or current DS establishes another role. Report expected
+   role/value, observed role/value, source, and consequence. If no clear DS mapping
+   exists, report a governance gap rather than a fabricated violation. If owner intent
+   conflicts with a pinned DS rule, report the conflict for resolution. Never infer an
+   expected size from taste or a past example.
 4. Follow `.agents/policies/verification.md` for check evidence and render coverage.
    Reuse valid checks for the exact state, but inspect independently. If read-only
    browser/screenshot tools are available, capture the assigned screens yourself from

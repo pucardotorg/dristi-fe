@@ -16,15 +16,33 @@ every untagged stage itself, using applicable skills and a separate review pass 
 required. Preserve the owner's verification requirements without spawning a role to
 satisfy them.
 
+## Owner decision between UX and build
+
+A UX brainstorming request authorizes exploration and recommendation, not app edits.
+Return the proposed behavior and acceptance criteria to the owner and distinguish a
+recommendation from a decision the owner finalized. Do not start implementation because
+the UX agent finished, handed over a brief, or suggested a builder. A build begins only
+when the owner explicitly requests implementation; a `@ui-designer` tag additionally
+authorizes that agent. If the initial owner request already asked for a build, do not
+ask for a second approval merely because UX planning occurred.
+
+When building later, use only the owner-finalized UX agreement from this task or the
+single final brief/task the owner explicitly points to. Carry its behavior, decisions,
+and acceptance criteria into the build assignment; do not read the whole prior thread
+or search feature history to reconstruct it. If no final agreement can be identified,
+ask for that missing decision before dependent implementation while continuing safe
+independent work. A recommendation is not automatically an acceptance criterion.
+
 ## Choose the route
 
 - Explanation: answer from relevant evidence; no artifact or team by default.
 - Clear correction: build directly, verify the affected behavior and UI, then record
   a meaningful change in the feature history. File count does not determine risk:
   copy affecting deadlines, permissions, or irreversible actions merits review.
-- New feature or ambiguous redesign: resolve the relevant UX decisions, build the UI,
-  and audit the agreed behavior and DS. Invoke only the roles the owner tagged for
-  their applicable stages; the coordinator performs the rest.
+- New feature or ambiguous redesign: resolve the relevant UX decisions. Build and
+  audit the agreed behavior and DS only when the owner's request authorizes
+  implementation. Invoke only the roles the owner tagged for their applicable stages;
+  the coordinator performs the rest.
 - Bug: reproduce and trace the cause before fixing. Explore the relevant code locally
   unless the owner tagged an agent for a bounded trace; do not turn every bug into UX
   planning.
@@ -34,6 +52,7 @@ satisfy them.
 
 For substantial work, maintain this compact handoff in the task and pass it directly
 to each tagged specialist. For a small correction, the user's request may suffice.
+Mark UX decisions as proposed or owner-finalized so the builder knows which ones govern.
 
 1. Objective and agreed behavior, including scope boundaries.
 2. Confirmed decisions, their source, and relevant product/DS paths.

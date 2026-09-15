@@ -19,6 +19,23 @@ spawn lock. Rails checks confirm generated configuration, not whether a live age
 obeyed the tag rule. Do not disable subagents globally: that would also prevent the
 owner from invoking a tagged agent.
 
+## Human decision between UX and implementation — decision, 2026-09-15
+
+A request to brainstorm with `ux-designer` ends with a recommendation for the owner.
+The coordinator marks proposed choices separately from behavior the owner finalized;
+the UX agent's completion does not start `ui-designer` or authorize app edits. A build
+starts only after an explicit owner implementation request, with `@ui-designer` needed
+if the owner wants that agent to do it. An initial request that already asks for design
+and implementation is sufficient build authorization; do not ask for another approval
+solely because UX planning happened.
+
+A later build uses the owner-finalized agreement in the current task or the single
+final brief/task the owner points to. The coordinator passes only that behavior,
+decisions, criteria, and relevant source paths to the builder. If the final decision
+cannot be identified, ask for it instead of reading a whole prior thread or treating
+archived proposals as approval. A proposed UX direction never becomes a build
+requirement merely because it was handed over.
+
 ## Bounded starts and UI review evidence — decision, 2026-09-15
 
 The coordinator sends a tagged agent the current agreement, bounded responsibility,
@@ -30,10 +47,24 @@ and open the docs map only when they need to locate a missing current source. Th
 avoids repeated repository inventories and stale history shaping a new task.
 
 For Dristi UI work, resolve and verify the pinned DS, then read applicable sections of
-its `AGENTS.md` and `ACCESSIBILITY.md`. DS-repository Precedence, Commands, Recipes,
-and Definition of done do not become app tasks or mandatory Figma reads. New flows
-and consequential behavior reviews still need the complete relevant accessibility
-checklist. This keeps the DS authoritative while limiting repeated unrelated reading.
+its `AGENTS.md`. DS-repository Precedence, Commands, Recipes, and Definition of done
+do not become app tasks or mandatory Figma reads. Every build and UI review reads the
+full DS `ACCESSIBILITY.md`, Laws, and design principles, plus affected primitives and
+foundations. This keeps the DS authoritative while limiting unrelated DS-repository
+reading. Unchanged guidance may be reused within the same task and DS version.
+
+The reviewer checks whether the chosen DS role fits the content, not just whether its
+token exists. It derives the expected role from the owner-finalized design or direct
+request and current DS, then cites the implemented class, rendered computed value, and
+consequence when they disagree. When the DS does not map a region clearly, the reviewer
+reports a governance gap instead of asserting a guessed size violation. If owner intent
+conflicts with a pinned DS rule, the reviewer reports the conflict for resolution. A
+screenshot alone is too imprecise for a precise size finding. The
+existing `check:typography` catches raw type sizes and missing heading weight; it cannot
+know whether a valid named token was assigned to the wrong screen region. Repeated,
+source-backed role mistakes should later become component contracts or targeted
+automated checks, rather than guessed global font-size rules. An illustrative example
+does not itself set a new size requirement.
 
 Before a tagged UI reviewer starts, check whether its runtime has read-only browser
 and screenshot access and whether the server serves the checked checkout. A reviewer

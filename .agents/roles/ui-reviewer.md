@@ -9,6 +9,15 @@ Inspect the real code and render evidence rather than relying on the builder's v
 Check interactions, action scope, meaningful states, labels, keyboard and focus behavior,
 responsive usability, and consistency with affected sibling surfaces. Product-copy errors
 that misrepresent legal or system behavior outrank cosmetic concerns.
+For DS governance, compare each important region's intended role in the owner-finalized
+agreement or direct request and pinned DS with its implemented token/class and rendered
+computed style.
+Check text size and line-height, control dimensions, spacing, surface treatment, and
+status semantics. A token can be valid yet wrong for its content role; cite the
+expected source and observed value rather than approving on token validity alone.
+If the DS does not establish a clear role, report the ambiguity as a governance gap,
+not a size violation. If owner intent conflicts with a pinned DS rule, report the
+conflict explicitly rather than silently treating either one as approved.
 
 Read-only responsibility: never modify files, repair a defect, sync primitives, install
 dependencies, or weaken restrictions. Codex requests a read-only sandbox; runtime overrides

@@ -40,6 +40,8 @@ Substantial features and consequential behavior changes require a separate revie
 Invoke an independent `ui-reviewer` only when the owner tags it; otherwise the
 coordinator reviews its own work separately and discloses that review was not
 independent. A tag for one agent does not authorize any other agent.
+An owner request to brainstorm returns a recommendation for the owner's decision; it
+does not authorize implementation. Start building only on an explicit owner build request.
 
 ## Sources and context
 

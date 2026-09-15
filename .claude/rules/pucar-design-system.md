@@ -29,13 +29,18 @@ After resolving the DS, use headings to select only applicable Non-negotiable ru
 and token-family meanings in its `AGENTS.md`. Its Precedence, Commands, Recipes, and
 Definition of done govern the DS repo; they are not Dristi app tasks, mandatory Figma
 reads, or completion gates. Read the entire file only when changing DS source or its
-pin. For routine UI work, read the conformance target and
-Core subset in DS `ACCESSIBILITY.md`, then the checklist sections for affected
-controls and states. Read the full checklist for new flows or consequential behavior
-reviews. Do not shrink accessibility requirements to save reading time.
+pin. UX planning reads the conformance target, Core subset, and applicable checklist
+sections in DS `ACCESSIBILITY.md`. Every UI build and UI review reads the full
+`ACCESSIBILITY.md` once for the task, reusing it while the DS version remains unchanged.
+Do not shrink accessibility requirements to save reading time.
 
-Read Laws when composing screens, typography for text roles, spacing for layout, and
-the real source of affected primitives.
+Every UI build, even a small correction, goes through the pinned DS rules, full
+accessibility guidelines, DS Laws at
+`src/app/(docs)/foundations/laws/page.tsx`, and design principles at
+`src/app/(docs)/principles/page.tsx` inside the resolved DS. Read the real source of
+affected primitives, typography for text roles, and spacing for layout. Reuse unchanged
+guidance already read in the same task; do not skip the baseline because the diff is
+small. A reviewer applies the same baseline when judging the built screen.
 Read `RESPONSIVE.md` for new screens and layout changes. Load colors, elevation, radius,
 icons, or other foundations when making decisions they govern. Reuse unchanged files
 already read in this task; do not reload all foundations on each small iteration.
