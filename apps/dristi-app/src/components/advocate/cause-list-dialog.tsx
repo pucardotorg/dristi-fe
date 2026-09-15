@@ -71,6 +71,10 @@ import { RefreshIcon, useRefreshPhase } from "@/components/advocate/refresh-butt
 
 /** Court status as a chip: concluded reads "Completed", the live one "Ongoing",
  *  everything still to come "Listed" — one DS status tone each. */
+/** Pins a cause-list column header to the top of the scroll area, above the group
+ *  dividers (which pin one header-height below it). Opaque via TABLE_HEAD's fill. */
+const STICKY_HEAD = "sticky top-0 z-20";
+
 function StatusChip({ status, locale }: { status: HearingStatus; locale: Locale }) {
   // Each chip carries a defined stroke so it reads as a bounded tag on the row,
   // not a floating fill — the status solid for the ongoing tint (DS 6a), a neutral
@@ -429,7 +433,7 @@ function CauseListBody({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-6 py-4 [&>[data-slot=table-container]]:overflow-visible">
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-4 [&>[data-slot=table-container]]:overflow-visible">
         {filtered.length === 0 ? (
           <div role="status" className="flex flex-col items-center gap-4 py-12 text-center">
             <Search aria-hidden="true" className="size-8 text-muted-foreground" />
@@ -462,22 +466,26 @@ function CauseListBody({
           </div>
         ) : (
           <Table className="w-full min-w-5xl table-fixed border-separate border-spacing-0 text-body-compact">
+            {/* The column headers pin to the top (z-20); each group divider pins just
+                below them (z-10) and the next divider replaces it as the reader scrolls
+                — the docket passes under both. Both bands are opaque so nothing shows
+                through them. */}
             <TableHeader>
               <TableRow className={TABLE_HEAD_ROW}>
-                <TableHead className={cn(TABLE_HEAD, "w-16 text-right")}>{pick(advHome.colItem, locale)}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "w-1/5")}>{pick(advHome.colCase, locale)}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "w-32")}>{pick(advHome.colCourt, locale)}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "w-24 whitespace-nowrap")}>{copy("Court no.", "കോടതി നമ്പർ")}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "w-1/6")}>{pick(advHome.colAdvocates, locale)}</TableHead>
-                <TableHead className={TABLE_HEAD}>{pick(advHome.colCaseNumber, locale)}</TableHead>
-                <TableHead className={TABLE_HEAD}>{pick(advHome.colHearingType, locale)}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "w-36 text-right")}>{pick(advHome.colStatus, locale)}<span className="sr-only"> / {copy("Actions", "പ്രവർത്തനങ്ങൾ")}</span></TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-16 text-right")}>{pick(advHome.colItem, locale)}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-1/5")}>{pick(advHome.colCase, locale)}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-32")}>{pick(advHome.colCourt, locale)}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-24 whitespace-nowrap")}>{copy("Court no.", "കോടതി നമ്പർ")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-1/6")}>{pick(advHome.colAdvocates, locale)}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD)}>{pick(advHome.colCaseNumber, locale)}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD)}>{pick(advHome.colHearingType, locale)}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-36")}>{pick(advHome.colStatus, locale)}<span className="sr-only"> / {copy("Actions", "പ്രവർത്തനങ്ങൾ")}</span></TableHead>
               </TableRow>
             </TableHeader>
             {groups.map((group) => (
-              <TableBody key={group.key} className={tableBodyClass({ hover: false })}>
+              <TableBody key={group.key} className={tableBodyClass({ hover: true })}>
                 <TableRow className={tableRowClass({ hover: false })}>
-                  <td colSpan={8} className="sticky top-0 z-10 bg-background px-0 py-3">
+                  <td colSpan={8} className="sticky top-10 z-10 bg-background px-0 pt-4 pb-2">
                     {renderDivider(group)}
                   </td>
                 </TableRow>
@@ -491,7 +499,7 @@ function CauseListBody({
       </div>
 
       <div aria-live="polite" className="flex items-center gap-2 border-t border-hairline px-6 py-3 text-caption text-muted-foreground">
-        <span aria-hidden="true" className="size-2 rounded-full bg-border" />
+        <span aria-hidden="true" className="size-2 rounded-full bg-input" />
         {fillCopy(advHome.causeListMineCount, locale, { n: String(mineCount) })}
       </div>
     </>
@@ -511,14 +519,14 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
     // the one row under the pointer, so it is a reviewed exception to the plate: it
     // goes on the cells via `[&>td]:` (overriding the shared `bg-card`), never the <tr>.
     // table-plate-allow
-    <TableRow className={cn(tableRowClass({ hover: false }), "cause-row", row.mine && "[&>td]:bg-surface-sunken hover:[&>td]:bg-accent")}>
+    <TableRow className={cn(tableRowClass({ hover: true }), "cause-row", row.mine && "[&>td]:bg-surface-sunken hover:[&>td]:bg-accent")}>
       <td className={cn(cell, "text-right tabular-nums text-muted-foreground")}>{row.item}</td>
       <td className={cn(cell, "font-medium text-foreground")}>
         <span className="flex min-w-0 flex-col gap-1">
           <span className="truncate" title={row.parties}>{row.parties}</span>
           {row.mine ? (
             <span className="inline-flex w-fit items-center gap-1.5 text-caption font-normal text-muted-foreground">
-              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-border" />
+              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-input" />
               {pick(advHome.causeListMine, locale)}
             </span>
           ) : null}
@@ -529,11 +537,12 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
       <td className={cn(cell, "text-muted-foreground")}><span className="block truncate" title={row.advocates}>{row.advocates}</span></td>
       <td className={cn(cell, "text-muted-foreground")}><span className="block truncate" title={row.caseNumber}>{row.caseNumber}</span></td>
       <td className={cell}><span className="block truncate" title={row.hearingType}>{row.hearingType}</span></td>
-      {/* Only an ongoing hearing can be joined. On hover the status chip fades and a
-          green Join slides in from the right — absolute, so it reserves no column
-          width at rest (the "Court no." header stays on one line). */}
+      {/* The status tag is left-aligned like the other columns' content. Only an
+          ongoing hearing can be joined: on hover its chip fades and a green Join
+          slides in from the right — absolute, so it reserves no column width at rest
+          (the "Court no." header stays on one line). */}
       <td className={cn(cell, "relative")}>
-        <div className="flex items-center justify-end">
+        <div className="flex items-center">
           <span className={cn("inline-flex", row.status === "now" && "cause-status")}>
             <StatusChip status={row.status} locale={locale} />
           </span>
@@ -576,7 +585,7 @@ function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale;
       </div>
       {row.mine ? (
         <span className="inline-flex w-fit items-center gap-1.5 text-caption text-muted-foreground">
-          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-border" />
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-input" />
           {pick(advHome.causeListMine, locale)}
         </span>
       ) : null}

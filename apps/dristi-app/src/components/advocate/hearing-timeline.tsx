@@ -754,7 +754,7 @@ function ConcludedSlot({
       <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-0.5 bg-input" />
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger className="group/collapsible flex min-h-10 w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-muted">
-          <span className="w-16 shrink-0 text-caption tabular-nums">{timeOf(slot.at)}</span>
+          <span className="w-16 shrink-0 text-caption font-semibold tabular-nums text-foreground">{timeOf(slot.at)}</span>
           <span aria-hidden="true">·</span>
           <SlotCount slot={slot} locale={locale} />
           <ChevronDown

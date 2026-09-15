@@ -42,7 +42,9 @@ export function JoinHearingDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      {/* Don't auto-focus the first Join button — its focus ring read as a stray box
+          around the button on open; focus rests on the dialog itself instead. */}
+      <DialogContent className="max-w-md" onOpenAutoFocus={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{pick(advHome.joinDialogTitle, locale)}</DialogTitle>
           <DialogDescription>{pick(advHome.joinDialogBody, locale)}</DialogDescription>
