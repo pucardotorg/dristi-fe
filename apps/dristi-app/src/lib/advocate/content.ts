@@ -203,12 +203,18 @@ export const advHome = {
   moreAdvocates: t("More advocates", "കൂടുതൽ അഭിഭാഷകർ"),
   /** Per-court: the court's full official day cause list, all matters. */
   viewCauseList: t("View cause list", "കോസ് ലിസ്റ്റ് കാണുക"),
-  joinCourtroom: t("Join hearing", "വിചാരണയിൽ ചേരുക"),
-  /** The "Join hearing" picker: only the advocate's own hearings being called now. */
-  joinDialogTitle: t("Join a hearing", "ഒരു വിചാരണയിൽ ചേരുക"),
+  /** Signals it joins one of the advocate's OWN hearings, not a generic courtroom. */
+  joinCourtroom: t("Join your hearing", "നിങ്ങളുടെ വിചാരണയിൽ ചേരുക"),
+  /** The "Join your hearing" picker: only the advocate's own hearings being called now. */
+  joinDialogTitle: t("Join your hearing", "നിങ്ങളുടെ വിചാരണയിൽ ചേരുക"),
   joinDialogBody: t(
-    "Choose which of your hearings being called now to join.",
-    "ഇപ്പോൾ വിളിക്കുന്ന നിങ്ങളുടെ ഏത് വിചാരണയിൽ ചേരണമെന്ന് തിരഞ്ഞെടുക്കുക.",
+    "Your hearings being called right now.",
+    "നിങ്ങളുടെ വിചാരണകൾ ഇപ്പോൾ വിളിക്കുന്നു.",
+  ),
+  /** Footer note pointing to the cause list for any hearing that isn't the advocate's. */
+  joinDialogOther: t(
+    "To join any other hearing, open the cause list.",
+    "മറ്റേതെങ്കിലും വിചാരണയിൽ ചേരാൻ കോസ് ലിസ്റ്റ് തുറക്കുക.",
   ),
   joinDialogEmpty: t(
     "None of your hearings are being called right now.",

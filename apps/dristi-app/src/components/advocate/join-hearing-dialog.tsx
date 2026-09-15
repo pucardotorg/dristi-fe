@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarClock, Video } from "lucide-react";
+import { CalendarClock, ChevronRight, Info, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,7 +44,7 @@ export function JoinHearingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Don't auto-focus the first Join button — its focus ring read as a stray box
           around the button on open; focus rests on the dialog itself instead. */}
-      <DialogContent className="max-w-md" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <DialogContent className="sm:max-w-lg" onOpenAutoFocus={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{pick(advHome.joinDialogTitle, locale)}</DialogTitle>
           <DialogDescription>{pick(advHome.joinDialogBody, locale)}</DialogDescription>
@@ -53,35 +53,48 @@ export function JoinHearingDialog({
           // min-w-0: the dialog is a grid, so the list must be allowed to shrink to
           // the dialog width — otherwise a long matter title pushes the cards (and
           // their Join buttons) past the dialog's right edge.
-          <ul className="flex min-w-0 flex-col gap-2">
-            {hearings.map((hearing) => {
-              const number = courtNumberFor(hearing.court, hearing.kase.courtNumber);
-              const name = courtIdentity(hearing.courtLabel).name;
-              return (
-                <li
-                  key={hearing.kase.id}
-                  className="flex items-center gap-3 rounded-lg border border-hairline bg-card p-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-foreground">{hearing.kase.parties}</p>
-                    <p className="truncate text-caption text-muted-foreground">
-                      {name}
-                      {number ? ` · ${number}` : ""} · {hearing.kase.stage}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => onJoin(hearing)}
-                    aria-label={`${pick(advHome.joinAction, locale)}: ${hearing.kase.parties}`}
+          <div className="flex min-w-0 flex-col gap-3">
+            <ul className="flex min-w-0 flex-col gap-2">
+              {hearings.map((hearing) => {
+                const number = courtNumberFor(hearing.court, hearing.kase.courtNumber);
+                const name = courtIdentity(hearing.courtLabel).name;
+                return (
+                  <li
+                    key={hearing.kase.id}
+                    className="flex items-center gap-3 rounded-lg border border-hairline bg-card p-3"
                   >
-                    <Video aria-hidden="true" />
-                    {pick(advHome.joinAction, locale)}
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-foreground">{hearing.kase.parties}</p>
+                      <p className="truncate text-caption text-muted-foreground">
+                        {name}
+                        {number ? ` · ${number}` : ""} · {hearing.kase.stage}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => onJoin(hearing)}
+                      aria-label={`${pick(advHome.joinAction, locale)}: ${hearing.kase.parties}`}
+                    >
+                      <Video aria-hidden="true" />
+                      {pick(advHome.joinAction, locale)}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+            {/* Any other hearing — one that isn't the advocate's, or isn't ongoing —
+                lives in the cause list; this note says so and jumps there. */}
+            <button
+              type="button"
+              onClick={onViewCauseList}
+              className="flex w-full items-center gap-2 rounded-lg border border-hairline bg-muted px-3 py-2 text-left text-caption text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <Info aria-hidden="true" className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1">{pick(advHome.joinDialogOther, locale)}</span>
+              <ChevronRight aria-hidden="true" className="size-4 shrink-0" />
+            </button>
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <CalendarClock aria-hidden="true" className="size-8 text-muted-foreground" />
