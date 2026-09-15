@@ -1,63 +1,41 @@
 /* The per-row "Join hearing" reveal in the cause list.
  *
- * The docket can run to hundreds of rows across dozens of courts, so a single
- * shared "join online" control was ambiguous — which of the hundreds? Instead the
- * control belongs to the row: hovering a row (or moving keyboard focus into it)
- * opens space at the row's right edge and eases the button in. The space and the
- * button ride their own curves, and the button also travels a few pixels, so the
- * reveal reads as one considered motion rather than a constant-rate wipe.
- *
- * The column animates with `grid-template-columns` 0fr -> 1fr, the smooth way to
- * animate an auto width (max-width would ease toward a clamp the content never
- * reaches, so it appears to finish early and hold). The button stays in the tab
- * order while collapsed — opacity, not display/visibility — so keyboard and
- * screen-reader users reach every row's join and reveal it on focus. On a touch
- * pointer there is no hover to reveal it, so it stays available; reduced-motion
- * keeps the reveal but drops the travel.
+ * The docket runs to hundreds of rows across dozens of courts, so a single shared
+ * "join online" control was ambiguous — which of the hundreds? Instead the control
+ * belongs to the row, and only to an ongoing one. On hover (or keyboard focus in
+ * the row) the row's status chip fades and a green Join eases in from the right, so
+ * the row appears to make room for it; moving away restores the status. The Join is
+ * absolutely placed, so it reserves no column width at rest — the header row stays
+ * uncramped. The button keeps its place in the tab order (opacity, not display), so
+ * keyboard and screen-reader users reach every ongoing row's Join and reveal it on
+ * focus. Reduced motion keeps the reveal but drops the travel.
  */
-.cause-join {
-  display: grid;
-  grid-template-columns: 0fr;
-  transition: grid-template-columns 260ms cubic-bezier(0.22, 1, 0.36, 1);
+.cause-status {
+  transition: opacity 160ms ease-out;
 }
-.cause-join-clip {
-  overflow: hidden;
-}
-.cause-join-inner {
-  padding-left: 0.5rem; /* the gap from the status chip, revealed with the button */
+.cause-row:hover .cause-status,
+.cause-row:focus-within .cause-status {
   opacity: 0;
-  transform: translateX(0.375rem);
+}
+
+.cause-join {
+  opacity: 0;
+  transform: translateX(0.75rem);
+  pointer-events: none;
   transition:
-    opacity 180ms ease-out 40ms,
-    transform 280ms cubic-bezier(0.22, 1, 0.36, 1) 40ms;
+    opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-@media (hover: hover) and (pointer: fine) {
-  .cause-row:hover .cause-join,
-  .cause-row:focus-within .cause-join {
-    grid-template-columns: 1fr;
-  }
-  .cause-row:hover .cause-join-inner,
-  .cause-row:focus-within .cause-join-inner {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* No hover (touch): the button has no hover to reveal it, so it is always shown. */
-@media not all and (hover: hover) {
-  .cause-join {
-    grid-template-columns: 1fr;
-  }
-  .cause-join-inner {
-    opacity: 1;
-    transform: none;
-  }
+.cause-row:hover .cause-join,
+.cause-row:focus-within .cause-join {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cause-join,
-  .cause-join-inner {
+  .cause-status,
+  .cause-join {
     transition: none;
   }
 }

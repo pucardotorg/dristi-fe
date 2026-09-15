@@ -3,23 +3,42 @@ import test from "node:test";
 import { groupCauseList, searchCauseList } from "./cause-list-groups";
 import type { CauseListRow } from "./home";
 
-const row = (id: string, item: number, court: string, courtNumber: string, hearingType = "Evidence"): CauseListRow => ({
-  id, item, court, courtNumber, courtLabel: "JMFC Court", hearingType,
+const row = (
+  id: string,
+  item: number,
+  courtLabel: string,
+  court: string,
+  hearingType = "Evidence",
+): CauseListRow => ({
+  id, item, court, courtNumber: "1", courtLabel, hearingType,
   parties: `${id} v. Company`, caseNumber: `CNR-${id}`, advocates: "Anjali Nair",
   status: "upcoming", approxTime: true, mine: id === "a",
 });
-const rows = [row("a", 10, "court-1", "1"), row("b", 2, "court-2", "2"), row("c", 2, "court-1", "1", "Arguments")];
+// a & c are the same court by name (two JMFC courtrooms); b is a different court.
+const rows = [
+  row("a", 10, "JMFC Court", "JMFC Court 1, Kollam"),
+  row("b", 2, "CJM Court", "CJM Court, Kollam"),
+  row("c", 2, "JMFC Court", "JMFC Court 2, Kollam", "Arguments"),
+];
 
 test("item groups sort numerically and keep matters across courts together", () => {
   const groups = groupCauseList(rows, "item");
   assert.deepEqual(groups.map((group) => group.key), ["2", "10"]);
-  assert.deepEqual(groups[0].rows.map((matter) => matter.id), ["c", "b"]);
+  // Within item 2, matters order by court name (CJM before JMFC).
+  assert.deepEqual(groups[0].rows.map((matter) => matter.id), ["b", "c"]);
   assert.deepEqual(rows.map((matter) => matter.id), ["a", "b", "c"]);
 });
 
-test("court grouping separates courts with identical display names and preserves scope", () => {
-  assert.deepEqual(groupCauseList(rows, "court").map((group) => [group.key, group.rows.length]), [["court-1", 2], ["court-2", 1]]);
-  assert.deepEqual(groupCauseList(rows.filter((matter) => matter.court === "court-2"), "court").map((group) => group.key), ["court-2"]);
+test("court grouping is by court name, not court number, and preserves scope", () => {
+  // The two JMFC courtrooms group under one "JMFC Court"; grouping never splits by number.
+  assert.deepEqual(
+    groupCauseList(rows, "court").map((group) => [group.key, group.rows.length]),
+    [["CJM Court", 1], ["JMFC Court", 2]],
+  );
+  assert.deepEqual(
+    groupCauseList(rows.filter((matter) => matter.courtLabel === "CJM Court"), "court").map((group) => group.key),
+    ["CJM Court"],
+  );
 });
 
 test("hearing type groups are stable and support search before grouping", () => {

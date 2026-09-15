@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import "./hearing-timeline.css";
 import {
   ChevronDown,
   ChevronRight,
@@ -34,6 +33,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Locale } from "@/lib/onboarding/content";
 import { pick } from "@/lib/onboarding/content";
 import { advHome, fillCopy } from "@/lib/advocate/content";
@@ -105,7 +109,7 @@ function CourtBadge({ court, label, number, className }: {
 }) {
   const identity = courtIdentity(court, courtNumberFor(court, number));
   return (
-    <Badge variant="secondary" title={court} className={cn("max-w-full bg-foreground text-background", className)}>
+    <Badge variant="secondary" title={court} className={cn("max-w-full", className)}>
       <span className="truncate">{identity.number ? courtIdentity(label, number).name : label}</span>
       <span aria-hidden="true">·</span>
       <span className="shrink-0 tabular-nums">{identity.number ?? "N/A"}</span>
@@ -225,30 +229,40 @@ function Toolbar({
         onChange={onCourtsChange}
         locale={locale}
       />
-      {/* Only on the tightest board (the rail open with the side nav expanded,
-          below @3xl) do the two actions fall to icons; from @3xl up they keep
-          their labels — the rail-open-with-nav-collapsed band has room for the
-          text once the stats compact. The All-courts filter keeps its label
-          throughout. */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onViewCauseList}
-        aria-label={pick(advHome.viewCauseList, locale)}
-        className="home-toolbar-action gap-0 px-2.5 @4xl:gap-1 @4xl:px-3"
-      >
-        <ScrollText aria-hidden="true" />
-        <span className="home-toolbar-label grid grid-cols-[0fr] @4xl:grid-cols-[1fr]"><span className="overflow-hidden"><span className="pl-1">{pick(advHome.viewCauseList, locale)}</span></span></span>
-      </Button>
-      <Button
-        size="sm"
-        onClick={onJoinCourt}
-        aria-label={pick(advHome.joinCourtroom, locale)}
-        className="home-toolbar-action gap-0 px-2.5 @4xl:gap-1 @4xl:px-3"
-      >
-        <Video aria-hidden="true" />
-        <span className="home-toolbar-label grid grid-cols-[0fr] @4xl:grid-cols-[1fr]"><span className="overflow-hidden"><span className="pl-1">{pick(advHome.joinCourtroom, locale)}</span></span></span>
-      </Button>
+      {/* In the compact band — the rail open on a desktop, so the board is @xl–@4xl
+          wide — the two actions drop to icons with a tooltip, keeping the stats and
+          actions on one line. They keep their labels on a phone (below @xl, no hover
+          to reveal a tooltip) and on a wide board (@4xl up). The All-courts filter
+          keeps its label throughout. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onViewCauseList}
+            aria-label={pick(advHome.viewCauseList, locale)}
+            className="gap-1.5 px-3 @xl:gap-0 @xl:px-2.5 @4xl:gap-1.5 @4xl:px-3"
+          >
+            <ScrollText aria-hidden="true" />
+            <span className="@xl:hidden @4xl:inline">{pick(advHome.viewCauseList, locale)}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{pick(advHome.viewCauseList, locale)}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            onClick={onJoinCourt}
+            aria-label={pick(advHome.joinCourtroom, locale)}
+            className="gap-1.5 px-3 @xl:gap-0 @xl:px-2.5 @4xl:gap-1.5 @4xl:px-3"
+          >
+            <Video aria-hidden="true" />
+            <span className="@xl:hidden @4xl:inline">{pick(advHome.joinCourtroom, locale)}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{pick(advHome.joinCourtroom, locale)}</TooltipContent>
+      </Tooltip>
       {/* The day's-list refresh — always an icon, to the right of Join, with the
           three-beat gesture and the last-refreshed reveal. */}
       <HomeRefreshButton onRefresh={onRefresh} locale={locale} />
@@ -737,7 +751,7 @@ function ConcludedSlot({
 
   return (
     <div className="relative overflow-hidden rounded-lg border border-hairline bg-card">
-      <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-0.5 bg-border" />
+      <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-0.5 bg-input" />
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger className="group/collapsible flex min-h-10 w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-muted">
           <span className="w-16 shrink-0 text-caption tabular-nums">{timeOf(slot.at)}</span>
@@ -805,7 +819,6 @@ function ConcludedBlock({
           />
         )}
         <CollapsibleTrigger className="group/collapsible relative flex min-h-10 w-full items-center gap-2.5 rounded-xl bg-surface-sunken px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-accent-strong">
-          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-0.5 rounded-l-xl bg-border" />
           <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-body-compact">{summaryLine}</span>
           <ChevronDown

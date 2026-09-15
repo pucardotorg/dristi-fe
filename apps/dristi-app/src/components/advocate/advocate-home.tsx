@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { CauseListRow } from "@/lib/advocate/home";
+import type { CauseListRow, TimelineHearing } from "@/lib/advocate/home";
+import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 import { CloudAlert, RotateCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ import {
   type CourtOption,
 } from "@/components/advocate/hearing-timeline";
 import { CauseListDialog } from "@/components/advocate/cause-list-dialog";
+import { JoinHearingDialog } from "@/components/advocate/join-hearing-dialog";
 
 /** The shell top bar is `h-14`; the sticky rail hangs below it. */
 const TOP_BAR = "3.5rem";
@@ -226,16 +228,34 @@ function HomeBody({
   // The full day cause list opens in a near-fullscreen modal over the board.
   const [causeListOpen, setCauseListOpen] = React.useState(false);
   const onViewCauseList = React.useCallback(() => setCauseListOpen(true), []);
-  // No courtroom URL is supplied yet. Keep the selected hearing explicit.
-  const onJoinHearing = React.useCallback((row: CauseListRow) => {
-    toast.info(pick({ en: "Hearing link unavailable", ml: "വിചാരണ ലിങ്ക് ലഭ്യമല്ല" }, locale), {
-      description: `${row.parties} · ${row.courtLabel} · ${row.courtNumber ?? "N/A"}`,
-    });
-  }, [locale]);
-  const onJoinCourt = React.useCallback(() => {
-    toast.info(pick({ en: "Choose a hearing from the cause list", ml: "കോസ് ലിസ്റ്റിൽ നിന്ന് ഒരു വിചാരണ തിരഞ്ഞെടുക്കുക" }, locale));
-    setCauseListOpen(true);
-  }, [locale]);
+  // The "Join hearing" button opens a picker of the advocate's own hearings being
+  // called now; the cause list is the wider door (any ongoing hearing). No courtroom
+  // URL is supplied yet (§16.6 Q11), so a join is an honest, explicit stub.
+  const [joinOpen, setJoinOpen] = React.useState(false);
+  const onJoinCourt = React.useCallback(() => setJoinOpen(true), []);
+  const announceJoin = React.useCallback(
+    (parties: string, courtLabel: string, courtNumber: string | null) => {
+      toast.info(pick({ en: "Hearing link unavailable", ml: "വിചാരണ ലിങ്ക് ലഭ്യമല്ല" }, locale), {
+        description: `${parties} · ${courtLabel}${courtNumber ? ` · ${courtNumber}` : ""}`,
+      });
+    },
+    [locale]
+  );
+  const onJoinHearing = React.useCallback(
+    (row: CauseListRow) => announceJoin(row.parties, row.courtLabel, row.courtNumber),
+    [announceJoin]
+  );
+  const onJoinFromModal = React.useCallback(
+    (hearing: TimelineHearing) => {
+      setJoinOpen(false);
+      announceJoin(
+        hearing.kase.parties,
+        courtIdentity(hearing.courtLabel).name,
+        courtNumberFor(hearing.court, hearing.kase.courtNumber)
+      );
+    },
+    [announceJoin]
+  );
 
   // The courts the filter offers: those with a matter listed on the day. A court
   // with nothing today is not worth offering — selecting it would only empty the
@@ -446,6 +466,18 @@ function HomeBody({
         now={now}
         day={selectedDay}
         onJoin={onJoinHearing}
+        locale={locale}
+      />
+
+      <JoinHearingDialog
+        open={joinOpen}
+        onOpenChange={setJoinOpen}
+        hearings={timeline.now.flatMap((slot) => slot.hearings)}
+        onJoin={onJoinFromModal}
+        onViewCauseList={() => {
+          setJoinOpen(false);
+          setCauseListOpen(true);
+        }}
         locale={locale}
       />
 

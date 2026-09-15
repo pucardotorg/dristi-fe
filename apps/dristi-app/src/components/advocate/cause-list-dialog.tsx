@@ -72,13 +72,16 @@ import { RefreshIcon, useRefreshPhase } from "@/components/advocate/refresh-butt
 /** Court status as a chip: concluded reads "Completed", the live one "Ongoing",
  *  everything still to come "Listed" — one DS status tone each. */
 function StatusChip({ status, locale }: { status: HearingStatus; locale: Locale }) {
+  // Each chip carries a defined stroke so it reads as a bounded tag on the row,
+  // not a floating fill — the status solid for the ongoing tint (DS 6a), a neutral
+  // edge for the others.
   if (status === "concluded") {
-    return <Badge variant="secondary">{pick(advHome.statusCompleted, locale)}</Badge>;
+    return <Badge variant="secondary" className="border-border">{pick(advHome.statusCompleted, locale)}</Badge>;
   }
   if (status === "now") {
-    return <Badge variant="success">{pick(advHome.statusOngoing, locale)}</Badge>;
+    return <Badge variant="success" className="border-success">{pick(advHome.statusOngoing, locale)}</Badge>;
   }
-  return <Badge variant="outline">{pick(advHome.statusListed, locale)}</Badge>;
+  return <Badge variant="outline" className="border-border">{pick(advHome.statusListed, locale)}</Badge>;
 }
 
 /**
@@ -206,7 +209,6 @@ function CauseListBody({
   const [query, setQuery] = React.useState("");
   const [selectedCourts, setSelectedCourts] = React.useState<string[]>([]);
   const [groupBy, setGroupBy] = React.useState<CauseListGroupBy>("item");
-  const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const groupRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const jumpTarget = React.useRef<string | null>(null);
   const copy = (en: string, ml: string) => locale === "ml" ? ml : en;
@@ -249,8 +251,10 @@ function CauseListBody({
   const mineCount = React.useMemo(() => filtered.filter((r) => r.mine).length, [filtered]);
   const groups = React.useMemo(() => groupCauseList(filtered, groupBy, intl).map(({ key, rows: items }) => ({
     key,
+    // Item groups read "Item 3"; court groups are the court alone (grouping is by
+    // court, not by court number); hearing-type groups are the stage itself.
     label: groupBy === "item" ? `${pick(advHome.colItem, locale)} ${key}` :
-      groupBy === "court" ? `${items[0].courtLabel} · ${locale === "ml" ? "കോടതി നമ്പർ" : "Court no."} ${items[0].courtNumber ?? "N/A"}` : key,
+      groupBy === "court" ? items[0].courtLabel : key,
     rows: items,
   })), [filtered, groupBy, intl, locale]);
   const groupLabels = {
@@ -262,14 +266,8 @@ function CauseListBody({
     setQuery("");
     setSelectedCourts([]);
     setGroupBy("item");
-    setCollapsed(new Set());
   };
   const jump = (key: string) => {
-    setCollapsed((previous) => {
-      const next = new Set(previous);
-      next.delete(key);
-      return next;
-    });
     jumpTarget.current = key;
   };
   const focusJumpTarget = (event: Event) => {
@@ -297,44 +295,35 @@ function CauseListBody({
     timeStyle: "medium",
   }).format(new Date(refreshedAt));
 
-  // The floating group divider — a labelled pill on a hairline rule that both
-  // collapses its own group and jumps to another. Shared by the desktop table
-  // (inside a spanning cell) and the phone card list (as a plain block).
+  // The floating group divider — a labelled pill on a hairline rule. It only
+  // jumps (to another group); there is no per-group collapse. Shared by the
+  // desktop table (inside a spanning cell) and the phone card list.
   const renderDivider = (group: { key: string; label: string; rows: CauseListRow[] }) => (
     <div className="flex items-center gap-3">
       <span className="h-px flex-1 bg-hairline" />
-      <div className="flex max-w-full items-center rounded-full border border-hairline bg-card shadow-raised">
-        <Button
-          ref={(node) => { if (node) groupRefs.current.set(group.key, node); else groupRefs.current.delete(group.key); }}
-          variant="ghost" size="sm" className="max-w-full rounded-full"
-          aria-expanded={!collapsed.has(group.key)}
-          onClick={() => setCollapsed((previous) => {
-            const next = new Set(previous);
-            if (next.has(group.key)) next.delete(group.key); else next.add(group.key);
-            return next;
-          })}
-        >
-          <ChevronDown aria-hidden="true" className={cn("shrink-0", collapsed.has(group.key) && "-rotate-90")} />
-          <span className="truncate" title={group.label}>{group.label}</span>
-          <span className="tabular-nums text-muted-foreground">({group.rows.length})</span>
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="rounded-full" aria-label={copy(`Jump to another ${groupLabels[groupBy].toLowerCase()} group`, "മറ്റൊരു ഗ്രൂപ്പിലേക്ക് പോകുക")}>
-              <ChevronDown aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="max-h-72 w-64" onCloseAutoFocus={focusJumpTarget}>
-            <DropdownMenuLabel>{copy("Jump to…", "ഇതിലേക്ക് പോകുക…")}</DropdownMenuLabel>
-            {groups.map((target) => (
-              <DropdownMenuItem key={target.key} onSelect={() => jump(target.key)}>
-                <span className="min-w-0 flex-1 truncate">{target.label}</span>
-                <span className="tabular-nums text-muted-foreground">{target.rows.length}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            ref={(node) => { if (node) groupRefs.current.set(group.key, node); else groupRefs.current.delete(group.key); }}
+            variant="ghost" size="sm"
+            className="max-w-full rounded-full border border-hairline bg-card shadow-raised"
+            aria-label={copy(`Jump to another ${groupLabels[groupBy].toLowerCase()} group`, "മറ്റൊരു ഗ്രൂപ്പിലേക്ക് പോകുക")}
+          >
+            <span className="truncate" title={group.label}>{group.label}</span>
+            <span className="tabular-nums text-muted-foreground">({group.rows.length})</span>
+            <ChevronDown aria-hidden="true" className="shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="max-h-72 w-56 text-caption" onCloseAutoFocus={focusJumpTarget}>
+          <DropdownMenuLabel className="text-caption text-muted-foreground">{copy("Jump to…", "ഇതിലേക്ക് പോകുക…")}</DropdownMenuLabel>
+          {groups.map((target) => (
+            <DropdownMenuItem key={target.key} className="text-caption" onSelect={() => jump(target.key)}>
+              <span className="min-w-0 flex-1 truncate">{target.label}</span>
+              <span className="tabular-nums text-muted-foreground">{target.rows.length}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <span className="h-px flex-1 bg-hairline" />
     </div>
   );
@@ -414,10 +403,7 @@ function CauseListBody({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56">
-                <DropdownMenuRadioGroup value={groupBy} onValueChange={(value) => {
-                  setGroupBy(value as typeof groupBy);
-                  setCollapsed(new Set());
-                }}>
+                <DropdownMenuRadioGroup value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
                   {(["item", "court", "hearingType"] as const).map((value) => (
                     <DropdownMenuRadioItem key={value} value={value}>
                       {groupLabels[value]}
@@ -426,14 +412,6 @@ function CauseListBody({
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={reset}
-              disabled={!query && !selectedCourts.length && groupBy === "item" && !collapsed.size}
-            >
-              {pick(advHome.causeListReset, locale)}
-            </Button>
           </div>
           {/* A refresh button to the left of the stamp, running the three-beat
               gesture; the stamp updates when it lands. */}
@@ -474,13 +452,11 @@ function CauseListBody({
             {groups.map((group) => (
               <div key={group.key} className="flex flex-col gap-2">
                 {renderDivider(group)}
-                {!collapsed.has(group.key) && (
-                  <div className="flex flex-col gap-2">
-                    {group.rows.map((row) => (
-                      <CauseCard key={row.id} row={row} locale={locale} onJoin={onJoin} />
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-col gap-2">
+                  {group.rows.map((row) => (
+                    <CauseCard key={row.id} row={row} locale={locale} onJoin={onJoin} />
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -491,11 +467,11 @@ function CauseListBody({
                 <TableHead className={cn(TABLE_HEAD, "w-16 text-right")}>{pick(advHome.colItem, locale)}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, "w-1/5")}>{pick(advHome.colCase, locale)}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, "w-32")}>{pick(advHome.colCourt, locale)}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "w-20 whitespace-normal")}>{copy("Court no.", "കോടതി നമ്പർ")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "w-24 whitespace-nowrap")}>{copy("Court no.", "കോടതി നമ്പർ")}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, "w-1/6")}>{pick(advHome.colAdvocates, locale)}</TableHead>
                 <TableHead className={TABLE_HEAD}>{pick(advHome.colCaseNumber, locale)}</TableHead>
                 <TableHead className={TABLE_HEAD}>{pick(advHome.colHearingType, locale)}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "w-56")}>{pick(advHome.colStatus, locale)}<span className="sr-only"> / {copy("Actions", "പ്രവർത്തനങ്ങൾ")}</span></TableHead>
+                <TableHead className={cn(TABLE_HEAD, "w-36 text-right")}>{pick(advHome.colStatus, locale)}<span className="sr-only"> / {copy("Actions", "പ്രവർത്തനങ്ങൾ")}</span></TableHead>
               </TableRow>
             </TableHeader>
             {groups.map((group) => (
@@ -505,7 +481,7 @@ function CauseListBody({
                     {renderDivider(group)}
                   </td>
                 </TableRow>
-                {!collapsed.has(group.key) && group.rows.map((row) => (
+                {group.rows.map((row) => (
                   <CauseRow key={row.id} row={row} locale={locale} onJoin={onJoin} />
                 ))}
               </TableBody>
@@ -529,13 +505,13 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
   const joinLabel = locale === "ml" ? "ഹിയറിംഗിൽ ചേരുക" : "Join hearing";
   return (
     // A matter the advocate is on wears a soft warm-neutral fill so it reads out of
-    // the whole docket without the pull of a brand colour. Unlike the plate's own
-    // states this one is flat (no rounded band) and persistent, marking "yours"
-    // across the run rather than the one row under the pointer, so it is a reviewed
-    // exception to the plate rather than a new shared state: it goes on the cells
-    // via `[&>td]:` (overriding the shared `bg-card`) and never on the <tr>.
+    // the whole docket without the pull of a brand colour: a light warm fill at
+    // rest, deepening one step on hover. Unlike the plate's own states this is flat
+    // (no rounded band) and persistent, marking "yours" across the run rather than
+    // the one row under the pointer, so it is a reviewed exception to the plate: it
+    // goes on the cells via `[&>td]:` (overriding the shared `bg-card`), never the <tr>.
     // table-plate-allow
-    <TableRow className={cn(tableRowClass({ hover: false }), "cause-row", row.mine && "[&>td]:bg-accent")}>
+    <TableRow className={cn(tableRowClass({ hover: false }), "cause-row", row.mine && "[&>td]:bg-surface-sunken hover:[&>td]:bg-accent")}>
       <td className={cn(cell, "text-right tabular-nums text-muted-foreground")}>{row.item}</td>
       <td className={cn(cell, "font-medium text-foreground")}>
         <span className="flex min-w-0 flex-col gap-1">
@@ -553,21 +529,26 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
       <td className={cn(cell, "text-muted-foreground")}><span className="block truncate" title={row.advocates}>{row.advocates}</span></td>
       <td className={cn(cell, "text-muted-foreground")}><span className="block truncate" title={row.caseNumber}>{row.caseNumber}</span></td>
       <td className={cell}><span className="block truncate" title={row.hearingType}>{row.hearingType}</span></td>
-      <td className={cell}>
-        <div className="flex min-w-0 items-center justify-end">
-          <span className="min-w-0 flex-1 overflow-hidden"><StatusChip status={row.status} locale={locale} /></span>
-          {row.status !== "concluded" && (
-            <span className="cause-join">
-              <span className="cause-join-clip">
-                <span className="cause-join-inner block">
-                  <Button variant="outline" size="sm" onClick={() => onJoin(row)} aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}>
-                    <Video aria-hidden="true" />{joinLabel}
-                  </Button>
-                </span>
-              </span>
-            </span>
-          )}
+      {/* Only an ongoing hearing can be joined. On hover the status chip fades and a
+          green Join slides in from the right — absolute, so it reserves no column
+          width at rest (the "Court no." header stays on one line). */}
+      <td className={cn(cell, "relative")}>
+        <div className="flex items-center justify-end">
+          <span className={cn("inline-flex", row.status === "now" && "cause-status")}>
+            <StatusChip status={row.status} locale={locale} />
+          </span>
         </div>
+        {row.status === "now" ? (
+          <span className="cause-join absolute inset-y-0 right-4 flex items-center">
+            <Button
+              size="sm"
+              onClick={() => onJoin(row)}
+              aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}
+            >
+              <Video aria-hidden="true" />{joinLabel}
+            </Button>
+          </span>
+        ) : null}
       </td>
     </TableRow>
   );
@@ -579,7 +560,7 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
 function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; onJoin: (row: CauseListRow) => void }) {
   const joinLabel = locale === "ml" ? "ഹിയറിംഗിൽ ചേരുക" : "Join hearing";
   return (
-    <div className={cn("flex flex-col gap-2 rounded-lg border border-hairline p-3", row.mine ? "bg-accent" : "bg-card")}>
+    <div className={cn("flex flex-col gap-2 rounded-lg border border-hairline p-3", row.mine ? "bg-surface-sunken" : "bg-card")}>
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 font-medium text-foreground">{row.parties}</p>
         <StatusChip status={row.status} locale={locale} />
@@ -599,9 +580,8 @@ function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale;
           {pick(advHome.causeListMine, locale)}
         </span>
       ) : null}
-      {row.status !== "concluded" ? (
+      {row.status === "now" ? (
         <Button
-          variant="outline"
           className="mt-1 w-full"
           onClick={() => onJoin(row)}
           aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}

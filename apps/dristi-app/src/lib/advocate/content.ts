@@ -203,7 +203,22 @@ export const advHome = {
   moreAdvocates: t("More advocates", "കൂടുതൽ അഭിഭാഷകർ"),
   /** Per-court: the court's full official day cause list, all matters. */
   viewCauseList: t("View cause list", "കോസ് ലിസ്റ്റ് കാണുക"),
-  joinCourtroom: t("Join this courtroom", "ഈ കോടതിമുറിയിൽ ചേരുക"),
+  joinCourtroom: t("Join hearing", "വിചാരണയിൽ ചേരുക"),
+  /** The "Join hearing" picker: only the advocate's own hearings being called now. */
+  joinDialogTitle: t("Join a hearing", "ഒരു വിചാരണയിൽ ചേരുക"),
+  joinDialogBody: t(
+    "Choose which of your hearings being called now to join.",
+    "ഇപ്പോൾ വിളിക്കുന്ന നിങ്ങളുടെ ഏത് വിചാരണയിൽ ചേരണമെന്ന് തിരഞ്ഞെടുക്കുക.",
+  ),
+  joinDialogEmpty: t(
+    "None of your hearings are being called right now.",
+    "നിങ്ങളുടെ വിചാരണകളൊന്നും ഇപ്പോൾ വിളിക്കുന്നില്ല.",
+  ),
+  joinDialogEmptyHint: t(
+    "Open the cause list to see every hearing being called across the courts.",
+    "എല്ലാ കോടതികളിലും വിളിക്കുന്ന വിചാരണകൾ കാണാൻ കോസ് ലിസ്റ്റ് തുറക്കുക.",
+  ),
+  joinAction: t("Join", "ചേരുക"),
   emptyDayTitle: t("Nothing listed this day", "ഈ ദിവസം ഒന്നും പട്ടികയിലില്ല"),
   /** Board-level since the courts stack: the empty state is the whole day's,
       not one court's, and no court can be selected away from any more. */

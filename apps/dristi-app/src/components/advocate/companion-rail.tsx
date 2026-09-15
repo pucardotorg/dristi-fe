@@ -160,12 +160,11 @@ const DEFAULT_WIDTH = 100;
  *
  * Which panel is open is a working preference, not a per-visit question: someone
  * who closes the rail should find it closed next time, and today they did not.
- * Width goes with it, since resizing it is the same kind of choice. On first run
- * the tasks panel opens — §138 runs on clocks a missed day does not give back,
- * so the obligation surface is what an unconfigured rail shows.
+ * On first run the tasks panel opens — §138 runs on clocks a missed day does not
+ * give back, so the obligation surface is what an unconfigured rail shows. The
+ * width, by contrast, is not remembered: the rail always opens at its default.
  */
 const RAIL_SECTION_KEY = "dristi.advocate-rail-section";
-const RAIL_WIDTH_KEY = "dristi.advocate-rail-width-spacing-v2";
 
 /** The closed rail, written down — `null` is not a storable value. */
 const CLOSED = "closed";
@@ -697,17 +696,24 @@ export function CompanionRail({
 
   const clamp = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w));
 
-  // The stored width is the resting truth; `dragging` holds the live value only
-  // while the pointer is down, so a drag is one write on release rather than one
-  // per pixel of travel.
-  const stored = useLocalStorageValue(RAIL_WIDTH_KEY);
+  // The rail always opens at the comfortable default width. A drag holds while the
+  // panel is open (`dragging` is the live value; `restingWidth` the committed one),
+  // but the width is deliberately NOT remembered across opens: closing and reopening
+  // returns to the default rather than the last width the reader dragged to.
+  const [restingWidth, setRestingWidth] = React.useState(DEFAULT_WIDTH);
   const [dragging, setDragging] = React.useState<number | null>(null);
-  const restingWidth = clamp(Number(stored) || DEFAULT_WIDTH);
+  // Reset to the default whenever the panel opens or closes — adjusted from a
+  // `section` change during render (the React pattern, not an effect), so a reopen
+  // always starts at the default while a drag (which does not change `section`) holds.
+  const [widthEpoch, setWidthEpoch] = React.useState(section);
+  if (section !== widthEpoch) {
+    setWidthEpoch(section);
+    setRestingWidth(DEFAULT_WIDTH);
+    if (dragging !== null) setDragging(null);
+  }
   const width = dragging ?? restingWidth;
 
-  const commitWidth = React.useCallback((w: number) => {
-    writeLocalStorageValue(RAIL_WIDTH_KEY, String(w));
-  }, []);
+  const commitWidth = React.useCallback((w: number) => setRestingWidth(w), []);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.button !== 0 || !panelRef.current) return;
