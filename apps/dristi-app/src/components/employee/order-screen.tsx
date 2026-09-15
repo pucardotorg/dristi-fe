@@ -265,14 +265,21 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   const [signOpen, setSignOpen] = React.useState(false);
   /* Orders by default: it is the work this screen exists for, and the applications tab
      can say for itself that something is waiting. */
-  /* Opens on the applications when one is standing in the matter, because that is the
-     thing on this screen with a party waiting on the answer. With none pending there is
-     nothing to answer, and the panel opens where the sitting actually starts. */
-  const [section, setSection] = React.useState<SectionId | null>(() =>
-    applicationsForListing(hearing.id).length > 0
-      ? "applications"
-      : "attendance",
-  );
+  /**
+   * Opens on the roll, always (owner, 2026-09-15).
+   *
+   * It used to open on the applications whenever one was standing, on the reasoning that
+   * a party waiting for an answer outranks everything else on the screen. True about the
+   * *matter* and wrong about the *work*: a typist arrives at this composer to record a
+   * sitting that has just happened, and the first thing they have in hand is who
+   * answered the call. Opening on the strip made the common case — a roll to mark and no
+   * application to decide — start with a press.
+   *
+   * Nothing is hidden by it. The Applications row states its own count while closed
+   * ("2 pending"), which is the whole reason the sections carry summaries, and answering
+   * the last one still walks the panel on to the roll (D59).
+   */
+  const [section, setSection] = React.useState<SectionId | null>("attendance");
   const [announcement, setAnnouncement] = React.useState("");
 
   /**
