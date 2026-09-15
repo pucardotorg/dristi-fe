@@ -42,9 +42,14 @@ export function JoinHearingDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Don't auto-focus the first Join button — its focus ring read as a stray box
-          around the button on open; focus rests on the dialog itself instead. */}
-      <DialogContent className="sm:max-w-lg" onOpenAutoFocus={(event) => event.preventDefault()}>
+      {/* Sizes to its content — as wide as the longest matter/court needs, up to a
+          cap where names truncate (an edge case). `w-fit` overrides the dialog's own
+          `w-full`; the DS keeps the mobile margin cap. Don't auto-focus the first
+          Join button — its focus ring read as a stray box; focus rests on the dialog. */}
+      <DialogContent
+        className="w-fit max-w-[calc(100%-2rem)] sm:max-w-2xl"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>{pick(advHome.joinDialogTitle, locale)}</DialogTitle>
           <DialogDescription>{pick(advHome.joinDialogBody, locale)}</DialogDescription>
@@ -54,7 +59,7 @@ export function JoinHearingDialog({
           // the dialog width — otherwise a long matter title pushes the cards (and
           // their Join buttons) past the dialog's right edge.
           <div className="flex min-w-0 flex-col gap-3">
-            <ul className="flex min-w-0 flex-col gap-2">
+            <ul className="flex max-h-[60svh] min-w-0 flex-col gap-2 overflow-y-auto">
               {hearings.map((hearing) => {
                 const number = courtNumberFor(hearing.court, hearing.kase.courtNumber);
                 const name = courtIdentity(hearing.courtLabel).name;
