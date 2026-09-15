@@ -19,6 +19,31 @@ spawn lock. Rails checks confirm generated configuration, not whether a live age
 obeyed the tag rule. Do not disable subagents globally: that would also prevent the
 owner from invoking a tagged agent.
 
+## Bounded starts and UI review evidence — decision, 2026-09-15
+
+The coordinator sends a tagged agent the current agreement, bounded responsibility,
+exact relevant paths, and checked revision. In Codex `spawn_agent`, set
+`fork_turns: "none"` when the prompt and artifact paths suffice; use the smallest
+positive turn count only for essential inline evidence that cannot be passed by path.
+The omitted default forwards the full conversation. Agents start at supplied paths
+and open the docs map only when they need to locate a missing current source. This
+avoids repeated repository inventories and stale history shaping a new task.
+
+For Dristi UI work, resolve and verify the pinned DS, then read applicable sections of
+its `AGENTS.md` and `ACCESSIBILITY.md`. DS-repository Precedence, Commands, Recipes,
+and Definition of done do not become app tasks or mandatory Figma reads. New flows
+and consequential behavior reviews still need the complete relevant accessibility
+checklist. This keeps the DS authoritative while limiting repeated unrelated reading.
+
+Before a tagged UI reviewer starts, check whether its runtime has read-only browser
+and screenshot access and whether the server serves the checked checkout. A reviewer
+with access captures its own labeled screens. Otherwise the coordinator supplies
+actual screenshots with absolute paths or inline images, route/state/width/theme/time,
+and checkout revision before handoff. The reviewer independently judges code and
+screens; a builder's summary or a screenshot from another checkout cannot substitute.
+Missing render or interaction evidence remains **verification pending** for that
+criterion. See [verification](../.agents/policies/verification.md) for the packet.
+
 ## Sources and generated files
 
 | Edit here | Generated or consumed there |
@@ -59,9 +84,12 @@ not reasoning quality. Human review of source changes remains necessary.
 - Codex UX/reviewer adapters request `sandbox_mode = "read-only"`; live permission
   overrides may change effective behavior. This migration validates configuration, not
   a running session's sandbox. The builder inherits existing session permissions.
-- Claude UX/reviewer adapters omit Bash, Write, and Edit. Commands and new render evidence
-  are obtained by the coordinator where necessary. Do not treat a skill as authorization
-  to bypass the role's non-writing responsibility.
+- Claude UX/reviewer adapters omit Bash, Write, and Edit. The current Claude reviewer
+  tool list has no browser/screenshot tool, so the coordinator must supply images for
+  that adapter. Codex and other runtimes may expose read-only computer-use tools, but
+  role instructions alone do not grant them; check the live tool inventory. Commands
+  and unavailable render states go to the coordinator. Do not weaken read-only access
+  to make a screenshot path work.
 - Cursor role rules are advisory and do not enforce filesystem isolation.
 - Existing model choices are preserved: Claude roles use their previous `opus` choice;
   Codex roles inherit the session. No model or global permission settings are changed.
@@ -82,7 +110,9 @@ not interrupt an ongoing task. Configuration checks do not prove live discovery.
 Rollback is a revert of the cleanup commit through a PR. Product code, the DS pin,
 dependency versions, launch configuration, and historical feature records are unchanged.
 No performance percentage is claimed: extended feature/latency trials were intentionally
-excluded; validation covers configuration, generation, and regression detection.
+excluded; validation covers configuration, generation, and regression detection. These
+bounded-start and evidence instructions still need a real tagged UI task to measure
+reading, screenshot availability, and end-to-end elapsed time.
 
 ## Decisions behind this change — owner, 2026-09-13
 

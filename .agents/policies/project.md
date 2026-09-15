@@ -4,7 +4,8 @@ DRISTI is PUCAR's platform for running cheque-dishonour (NI Act §138) cases thr
 Indian courts. One shared core is deployed per state with local rules and languages.
 
 All paths in agent instructions are relative to the repository root unless explicitly
-described as skill-relative. Start with `docs/README.md` for the docs map.
+described as skill-relative. Use `docs/README.md` when you need to locate a current
+source; when the task gives exact paths, start there instead of reading the whole map.
 
 ## Working safely
 

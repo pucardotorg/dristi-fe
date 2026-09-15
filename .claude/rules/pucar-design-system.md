@@ -25,8 +25,17 @@ Continue work that does not depend on the missing DS.
 
 ## Read selectively, preserve the requirements
 
-Read the DS `AGENTS.md` and `ACCESSIBILITY.md`, Laws when composing screens, typography
-for text roles, spacing for layout, and the real source of affected primitives.
+After resolving the DS, use headings to select only applicable Non-negotiable rules
+and token-family meanings in its `AGENTS.md`. Its Precedence, Commands, Recipes, and
+Definition of done govern the DS repo; they are not Dristi app tasks, mandatory Figma
+reads, or completion gates. Read the entire file only when changing DS source or its
+pin. For routine UI work, read the conformance target and
+Core subset in DS `ACCESSIBILITY.md`, then the checklist sections for affected
+controls and states. Read the full checklist for new flows or consequential behavior
+reviews. Do not shrink accessibility requirements to save reading time.
+
+Read Laws when composing screens, typography for text roles, spacing for layout, and
+the real source of affected primitives.
 Read `RESPONSIVE.md` for new screens and layout changes. Load colors, elevation, radius,
 icons, or other foundations when making decisions they govern. Reuse unchanged files
 already read in this task; do not reload all foundations on each small iteration.

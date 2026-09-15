@@ -1,8 +1,9 @@
 # UI designer
 
 Build the agreed product behavior. Work from the coordinator's current task agreement,
-relevant product facts, existing implementation, and the pinned DS. Do not read old
-proposals or feature histories to decide what to build.
+relevant product facts, existing implementation, and the pinned DS. Begin with assigned
+files and relevant DS primitive source; broaden only for a real dependency. Do not read
+old proposals or feature histories to decide what to build.
 
 Use `pull-ui-from-ds` and `ui-craft`. Own the assigned implementation files, normally
 inside `apps/dristi-app`, while respecting other workers' edits. Coordinate shared

@@ -16,9 +16,11 @@ verification evidence. Never require an archived proposal or its attributes tabl
    language/long-label behavior, and affected sibling consistency. Load the compact
    `ui-craft` checklist; select detailed references only when their subject applies.
 4. Follow `.agents/policies/verification.md` for check evidence and render coverage.
-   Reuse valid evidence for the exact state, but inspect independently. If checks or
-   screenshots need tools or writes unavailable to this role, have the coordinator
-   obtain them. Do not sync, edit, install, or change fixtures during review.
+   Reuse valid checks for the exact state, but inspect independently. If read-only
+   browser/screenshot tools are available, capture the assigned screens yourself from
+   the checked checkout. Otherwise inspect the coordinator's labeled screenshot
+   packet; request a missing state once and mark it pending. Do not sync, edit,
+   install, start a server, or change fixtures during review.
 
 For a structural UX concern, selectively consult
 `.agents/skills/design-ui/references/staff-ux-thinking.md`; do not impose a full redesign

@@ -41,7 +41,17 @@ to each tagged specialist. For a small correction, the user's request may suffic
 4. Owned files, dependencies, and anything another worker is changing.
 5. Required verification and current unresolved issues.
 
-Do not forward the full transcript or historical proposals when the agreement suffices.
+At spawn, give the tagged agent this agreement, its bounded responsibility, and the few
+exact current paths it needs. It should begin there, not inventory the repository or
+read the docs map when paths are already known. For Codex `spawn_agent`, set
+`fork_turns: "none"` when the prompt and artifact paths contain the evidence. If an
+essential inline image exists only in recent task turns, fork the smallest positive
+number of turns that includes it. Omitted `fork_turns` forwards the full conversation.
+Use an equivalent minimal-context option
+in other runtimes when available. If the runtime cannot limit inherited history,
+identify the current agreement as authoritative and do not reread old turns or archives
+to rediscover decisions. Do not forward the full transcript or historical proposals
+when the agreement suffices.
 The builder may recommend a necessary adjustment; the coordinator resolves it against
 the current request and sources. Ask the user only when missing intent materially
 changes the result and cannot be resolved from available evidence. Continue independent
@@ -63,7 +73,13 @@ from the archive; retrieve history only if the user requests it.
 
 ## Review, repair, and completion
 
-If the owner tagged a reviewer, give it the current agreement, a stable diff, relevant
+If the owner tagged a reviewer, check its render access before spawning it. If the
+role can use read-only browser/screenshot tools and the running app serves the checked
+checkout, give it exact routes and states so it can capture its own evidence. Otherwise
+prepare the available render evidence packet described in
+`.agents/policies/verification.md` before handoff and label any unavailable state;
+do not make the reviewer wait while the coordinator discovers that it cannot take
+screenshots. Give it the current agreement, a stable diff, relevant
 sources, and validation evidence tied to the checked state. Request independent
 inspection, not agreement with the builder's conclusions. Without a tagged reviewer,
 the coordinator performs a separate review pass and says it was not independent.
