@@ -113,8 +113,10 @@ function CourtBadge({ court, label, number, className }: {
   );
 }
 
-function SlotCount({ slot, locale }: { slot: TimeSlot; locale: Locale }) {
-  return <span className="min-w-0 flex-1 text-body-compact text-muted-foreground">
+function SlotCount({ slot, locale, className }: { slot: TimeSlot; locale: Locale; className?: string }) {
+  // Stays one unit ("N hearings across M courts") rather than shrinking to wrap
+  // mid-phrase; on a narrow slot header it drops to its own line intact.
+  return <span className={cn("whitespace-nowrap text-body-compact text-muted-foreground", className)}>
     {fillCopy(advHome.slotAcrossCourts, locale, {
       n: String(slot.hearings.length), courts: String(slot.courts.length),
     })}
@@ -213,7 +215,10 @@ function Toolbar({
   locale: Locale;
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    // On a phone the actions wrap onto a second line rather than overflowing the
+    // screen; from @xl (the board wide enough to hold them) they stay one line and
+    // hold their size beside the stats, as the rail-open desktop header needs.
+    <div className="flex flex-wrap items-center gap-2 @xl:flex-nowrap @xl:shrink-0">
       <CourtFilter
         courts={courts}
         selected={selected}
@@ -467,38 +472,46 @@ function HearingRow({
       )}
     >
       <ItemChip item={hearing.item} size="lg" surface={boxSurface} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5 pt-0.5">
-        <button
-          type="button"
-          onClick={() => onOpenCase(hearing.kase.id)}
-          className="text-left text-body font-semibold text-balance after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
-        >
-          {hearing.kase.parties}
-        </button>
-        <span className="truncate text-body-compact text-muted-foreground">
-          {hearing.kase.stage}
-          {" · "}
-          <span className="tabular-nums">{hearing.kase.cnr || hearing.kase.stNumber}</span>
-        </span>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1.5 self-center">
-        <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:justify-end">
-          <PendingChip
-            count={hearing.blockers.length}
-            taskIds={hearing.blockers.map((task) => task.id)}
-            caseId={hearing.kase.id}
-            locale={locale}
-          />
-          <CourtBadge court={hearing.court} label={hearing.courtLabel} number={hearing.kase.courtNumber} className="relative z-10" />
+      {/* When the board is narrow — a phone, or a tablet with the nav open — the
+          matter takes the full width and its flag + court badge sit on their own
+          line below it; once the board itself is wide enough (@xl) they return to a
+          right-hand column centred against the two-line matter. The threshold is the
+          board's own width (a container query), not the viewport, because the rail
+          and side nav narrow the board without narrowing the screen. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <button
+            type="button"
+            onClick={() => onOpenCase(hearing.kase.id)}
+            className="text-left text-body font-semibold text-balance after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
+          >
+            {hearing.kase.parties}
+          </button>
+          <span className="truncate text-body-compact text-muted-foreground">
+            {hearing.kase.stage}
+            {" · "}
+            <span className="tabular-nums">{hearing.kase.cnr || hearing.kase.stNumber}</span>
+          </span>
         </div>
-        {showTime ? (
-          <HearingTime
-            at={hearing.at}
-            approx={hearing.approxTime}
-            locale={locale}
-            className="text-caption text-muted-foreground"
-          />
-        ) : null}
+        <div className="flex shrink-0 flex-col items-start gap-1.5 @xl:items-end">
+          <div className="flex flex-wrap items-center gap-1.5 @xl:flex-nowrap @xl:justify-end">
+            <PendingChip
+              count={hearing.blockers.length}
+              taskIds={hearing.blockers.map((task) => task.id)}
+              caseId={hearing.kase.id}
+              locale={locale}
+            />
+            <CourtBadge court={hearing.court} label={hearing.courtLabel} number={hearing.kase.courtNumber} className="relative z-10" />
+          </div>
+          {showTime ? (
+            <HearingTime
+              at={hearing.at}
+              approx={hearing.approxTime}
+              locale={locale}
+              className="text-caption text-muted-foreground"
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -535,14 +548,15 @@ function HearingBody({
 
 /** A small status tag — "Ongoing" (teal) or "Conflict" (amber) — on white so it
  *  reads on the slot's own tint without adding to it. */
-function StatusTag({ tone, label }: { tone: "now" | "conflict"; label: string }) {
+function StatusTag({ tone, label, className }: { tone: "now" | "conflict"; label: string; className?: string }) {
   return (
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-2 py-0.5 text-caption font-medium",
         tone === "now"
           ? "border-brand-accent text-brand-muted-foreground"
-          : "border-warning text-warning-ink"
+          : "border-warning text-warning-ink",
+        className
       )}
     >
       <span
@@ -576,13 +590,13 @@ function NowSlot({
     <div className="flex overflow-hidden rounded-xl bg-brand-muted shadow-raised">
       <span aria-hidden="true" className="w-0.5 shrink-0 bg-brand-accent" />
       <div className="min-w-0 flex-1 p-1.5">
-        <div className="flex items-center gap-3 px-3 py-2.5">
-          <span className="text-body font-semibold tabular-nums text-brand-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
+          <span className="shrink-0 text-body font-semibold tabular-nums text-brand-muted-foreground">
             {timeOf(slot.at)}
           </span>
           <span aria-hidden="true" className="text-muted-foreground">·</span>
           <SlotCount slot={slot} locale={locale} />
-          <StatusTag tone="now" label={pick(advHome.ongoingTag, locale)} />
+          <StatusTag tone="now" label={pick(advHome.ongoingTag, locale)} className="ml-auto" />
         </div>
         <HearingBody
           hearings={slot.hearings}
@@ -625,7 +639,7 @@ function ConflictSlot({
         <Collapsible open={open} onOpenChange={setOpen}>
           <CollapsibleTrigger
             aria-label={fillCopy(advHome.slotExpand, locale, { time: slot.key })}
-            className="group/collapsible flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent-strong"
+            className="group/collapsible flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-left transition-colors hover:bg-accent-strong"
           >
             <HearingTime
               at={slot.at}
@@ -635,7 +649,7 @@ function ConflictSlot({
             />
             <span aria-hidden="true" className="text-muted-foreground">·</span>
             <SlotCount slot={slot} locale={locale} />
-            <StatusTag tone="conflict" label={pick(advHome.conflictTag, locale)} />
+            <StatusTag tone="conflict" label={pick(advHome.conflictTag, locale)} className="ml-auto" />
             <ChevronDown
               aria-hidden="true"
               className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-180"
@@ -725,13 +739,13 @@ function ConcludedSlot({
     <div className="relative overflow-hidden rounded-lg border border-hairline bg-card">
       <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-0.5 bg-border" />
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger className="group/collapsible flex min-h-10 w-full items-center gap-3 px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-muted">
+        <CollapsibleTrigger className="group/collapsible flex min-h-10 w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-muted">
           <span className="w-16 shrink-0 text-caption tabular-nums">{timeOf(slot.at)}</span>
           <span aria-hidden="true">·</span>
           <SlotCount slot={slot} locale={locale} />
           <ChevronDown
             aria-hidden="true"
-            className="size-4 shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180"
+            className="ml-auto size-4 shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180"
           />
         </CollapsibleTrigger>
         <CollapsibleContent>

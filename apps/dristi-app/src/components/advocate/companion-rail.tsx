@@ -27,6 +27,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Tooltip,
   TooltipContent,
@@ -689,6 +691,7 @@ export function CompanionRail({
   onViewAllTasks: () => void;
 }) {
   const tasksCount = summaryOf(world).action;
+  const isMobile = useIsMobile();
   const panelRef = React.useRef<HTMLDivElement>(null);
   const dragFrom = React.useRef<{ x: number; width: number; unit: number } | null>(null);
 
@@ -743,12 +746,13 @@ export function CompanionRail({
   const close = () => onSectionChange(null);
 
   return (
+    <>
     <aside
       aria-label={pick(advHome.railTitle, locale)}
       style={{ top: topOffset, height: `calc(100svh - ${topOffset})` }}
       className="sticky hidden shrink-0 self-start border-l border-hairline bg-surface-sunken md:flex dark:bg-background"
     >
-      {section ? (
+      {section && !isMobile ? (
         <div
           // Keyed by section so opening the strip — or switching panels — plays a
           // short slide-and-fade rather than snapping in, the same easing the case
@@ -813,5 +817,46 @@ export function CompanionRail({
         />
       </div>
     </aside>
+
+      {/* On a phone the rail has no room to stand beside the board, so it becomes a
+          bottom-sheet Drawer: opened by a hearing's blocking-task flag (with the
+          trace) or by this floating trigger — the strip's job, on a phone. */}
+      <button
+        type="button"
+        aria-label={fillCopy(advHome.railOpen, locale, { n: String(tasksCount) })}
+        onClick={() => onSectionChange("tasks")}
+        className="fixed right-4 bottom-4 z-40 flex size-12 items-center justify-center rounded-full border border-hairline bg-card text-muted-foreground shadow-modal transition-colors hover:bg-accent md:hidden"
+      >
+        <ListChecks aria-hidden="true" className="size-5" />
+        {tasksCount ? (
+          <span className="absolute -top-1 -right-1 flex min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-caption font-medium text-destructive-foreground tabular-nums">
+            {tasksCount}
+          </span>
+        ) : null}
+      </button>
+
+      <Drawer
+        open={isMobile && section === "tasks"}
+        onOpenChange={(open) => {
+          if (!open) onSectionChange(null);
+        }}
+      >
+        <DrawerContent>
+          <DrawerTitle className="sr-only">{pick(advHome.railTitle, locale)}</DrawerTitle>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <TasksPanel
+              world={world}
+              locale={locale}
+              verbOf={verbOf}
+              onAct={onAct}
+              onArchive={onArchive}
+              onClose={() => onSectionChange(null)}
+              onViewAll={onViewAllTasks}
+              highlight={highlight}
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
+    </>
   );
 }

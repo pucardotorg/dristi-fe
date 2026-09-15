@@ -11,6 +11,11 @@
   grid-template-columns: 1fr;
   transition: none;
 }
+/* A touch pointer cannot hover to reveal the label, so the compact actions show
+   it outright rather than reading as bare, ambiguous icons on a phone. */
+@media not all and (hover: hover) {
+  .home-toolbar-label { grid-template-columns: 1fr; }
+}
 @media (prefers-reduced-motion: reduce) {
   .home-toolbar-label { transition: none; }
 }

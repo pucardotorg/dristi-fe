@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import "./cause-list.css";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowDownWideNarrow,
   CalendarDays,
@@ -200,6 +201,7 @@ function CauseListBody({
   locale: Locale;
 }) {
   const intl = locale === "ml" ? "ml-IN" : "en-IN";
+  const isMobile = useIsMobile();
   const [date, setDate] = React.useState(day);
   const [query, setQuery] = React.useState("");
   const [selectedCourts, setSelectedCourts] = React.useState<string[]>([]);
@@ -295,6 +297,48 @@ function CauseListBody({
     timeStyle: "medium",
   }).format(new Date(refreshedAt));
 
+  // The floating group divider — a labelled pill on a hairline rule that both
+  // collapses its own group and jumps to another. Shared by the desktop table
+  // (inside a spanning cell) and the phone card list (as a plain block).
+  const renderDivider = (group: { key: string; label: string; rows: CauseListRow[] }) => (
+    <div className="flex items-center gap-3">
+      <span className="h-px flex-1 bg-hairline" />
+      <div className="flex max-w-full items-center rounded-full border border-hairline bg-card shadow-raised">
+        <Button
+          ref={(node) => { if (node) groupRefs.current.set(group.key, node); else groupRefs.current.delete(group.key); }}
+          variant="ghost" size="sm" className="max-w-full rounded-full"
+          aria-expanded={!collapsed.has(group.key)}
+          onClick={() => setCollapsed((previous) => {
+            const next = new Set(previous);
+            if (next.has(group.key)) next.delete(group.key); else next.add(group.key);
+            return next;
+          })}
+        >
+          <ChevronDown aria-hidden="true" className={cn("shrink-0", collapsed.has(group.key) && "-rotate-90")} />
+          <span className="truncate" title={group.label}>{group.label}</span>
+          <span className="tabular-nums text-muted-foreground">({group.rows.length})</span>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" className="rounded-full" aria-label={copy(`Jump to another ${groupLabels[groupBy].toLowerCase()} group`, "മറ്റൊരു ഗ്രൂപ്പിലേക്ക് പോകുക")}>
+              <ChevronDown aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="max-h-72 w-64" onCloseAutoFocus={focusJumpTarget}>
+            <DropdownMenuLabel>{copy("Jump to…", "ഇതിലേക്ക് പോകുക…")}</DropdownMenuLabel>
+            {groups.map((target) => (
+              <DropdownMenuItem key={target.key} onSelect={() => jump(target.key)}>
+                <span className="min-w-0 flex-1 truncate">{target.label}</span>
+                <span className="tabular-nums text-muted-foreground">{target.rows.length}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <span className="h-px flex-1 bg-hairline" />
+    </div>
+  );
+
   return (
     <>
       <div className="flex flex-col gap-4 border-b border-hairline px-6 pt-6 pb-4">
@@ -346,8 +390,8 @@ function CauseListBody({
               onChange={setSelectedCourts}
               locale={locale}
             />
-            <label htmlFor="cause-list-search" className="text-caption text-muted-foreground">{copy("Search", "തിരയുക")}</label>
-            <div className="relative min-w-56 flex-1 sm:max-w-96">
+            <label htmlFor="cause-list-search" className="sr-only">{copy("Search", "തിരയുക")}</label>
+            <div className="relative order-first w-full min-w-0 sm:order-none sm:w-auto sm:min-w-56 sm:flex-1 sm:max-w-96">
               <Search
                 aria-hidden="true"
                 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -423,6 +467,23 @@ function CauseListBody({
               <Button variant="outline" onClick={reset}>{copy("Clear search and filters", "തിരയലും ഫിൽട്ടറുകളും നീക്കുക")}</Button>
             )}
           </div>
+        ) : isMobile ? (
+          // A phone reads the docket as a stack of cards, not a wide table it has
+          // to scroll sideways; the group dividers and the per-matter join stay.
+          <div className="flex flex-col gap-6">
+            {groups.map((group) => (
+              <div key={group.key} className="flex flex-col gap-2">
+                {renderDivider(group)}
+                {!collapsed.has(group.key) && (
+                  <div className="flex flex-col gap-2">
+                    {group.rows.map((row) => (
+                      <CauseCard key={row.id} row={row} locale={locale} onJoin={onJoin} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         ) : (
           <Table className="w-full min-w-5xl table-fixed border-separate border-spacing-0 text-body-compact">
             <TableHeader>
@@ -441,42 +502,7 @@ function CauseListBody({
               <TableBody key={group.key} className={tableBodyClass({ hover: false })}>
                 <TableRow className={tableRowClass({ hover: false })}>
                   <td colSpan={8} className="sticky top-0 z-10 bg-background px-0 py-3">
-                    <div className="flex items-center gap-3">
-                      <span className="h-px flex-1 bg-hairline" />
-                      <div className="flex max-w-full items-center rounded-full border border-hairline bg-card shadow-raised">
-                        <Button
-                          ref={(node) => { if (node) groupRefs.current.set(group.key, node); else groupRefs.current.delete(group.key); }}
-                          variant="ghost" size="sm" className="max-w-full rounded-full"
-                          aria-expanded={!collapsed.has(group.key)}
-                          onClick={() => setCollapsed((previous) => {
-                            const next = new Set(previous);
-                            if (next.has(group.key)) next.delete(group.key); else next.add(group.key);
-                            return next;
-                          })}
-                        >
-                          <ChevronDown aria-hidden="true" className={cn("shrink-0", collapsed.has(group.key) && "-rotate-90")} />
-                          <span className="truncate" title={group.label}>{group.label}</span>
-                          <span className="tabular-nums text-muted-foreground">({group.rows.length})</span>
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm" className="rounded-full" aria-label={copy(`Jump to another ${groupLabels[groupBy].toLowerCase()} group`, "മറ്റൊരു ഗ്രൂപ്പിലേക്ക് പോകുക")}>
-                              <ChevronDown aria-hidden="true" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent className="max-h-72 w-64" onCloseAutoFocus={focusJumpTarget}>
-                            <DropdownMenuLabel>{copy("Jump to…", "ഇതിലേക്ക് പോകുക…")}</DropdownMenuLabel>
-                            {groups.map((target) => (
-                              <DropdownMenuItem key={target.key} onSelect={() => jump(target.key)}>
-                                <span className="min-w-0 flex-1 truncate">{target.label}</span>
-                                <span className="tabular-nums text-muted-foreground">{target.rows.length}</span>
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      <span className="h-px flex-1 bg-hairline" />
-                    </div>
+                    {renderDivider(group)}
                   </td>
                 </TableRow>
                 {!collapsed.has(group.key) && group.rows.map((row) => (
@@ -544,5 +570,45 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
         </div>
       </td>
     </TableRow>
+  );
+}
+
+/** One matter as a card — the phone form of a cause-list row. Own matters carry
+ *  the same soft beige fill, and the join is shown outright since a phone cannot
+ *  hover to reveal it. */
+function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; onJoin: (row: CauseListRow) => void }) {
+  const joinLabel = locale === "ml" ? "ഹിയറിംഗിൽ ചേരുക" : "Join hearing";
+  return (
+    <div className={cn("flex flex-col gap-2 rounded-lg border border-hairline p-3", row.mine ? "bg-accent" : "bg-card")}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 font-medium text-foreground">{row.parties}</p>
+        <StatusChip status={row.status} locale={locale} />
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
+        <span className="tabular-nums">{pick(advHome.colItem, locale)} {row.item}</span>
+        <span>{row.courtLabel} · {row.courtNumber ?? "N/A"}</span>
+        <span>{row.hearingType}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
+        <span className="tabular-nums">{row.caseNumber}</span>
+        <span className="min-w-0 truncate">{row.advocates}</span>
+      </div>
+      {row.mine ? (
+        <span className="inline-flex w-fit items-center gap-1.5 text-caption text-muted-foreground">
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-border" />
+          {pick(advHome.causeListMine, locale)}
+        </span>
+      ) : null}
+      {row.status !== "concluded" ? (
+        <Button
+          variant="outline"
+          className="mt-1 w-full"
+          onClick={() => onJoin(row)}
+          aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}
+        >
+          <Video aria-hidden="true" />{joinLabel}
+        </Button>
+      ) : null}
+    </div>
   );
 }
