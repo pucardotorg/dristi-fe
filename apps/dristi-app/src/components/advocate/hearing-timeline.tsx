@@ -109,7 +109,7 @@ function CourtBadge({ court, label, number, className }: {
 }) {
   const identity = courtIdentity(court, courtNumberFor(court, number));
   return (
-    <Badge variant="secondary" title={court} className={cn("max-w-full", className)}>
+    <Badge variant="secondary" title={court} className={cn("max-w-full border border-border bg-accent-strong", className)}>
       <span className="truncate">{identity.number ? courtIdentity(label, number).name : label}</span>
       <span aria-hidden="true">·</span>
       <span className="shrink-0 tabular-nums">{identity.number ?? "N/A"}</span>

@@ -50,7 +50,10 @@ export function JoinHearingDialog({
           <DialogDescription>{pick(advHome.joinDialogBody, locale)}</DialogDescription>
         </DialogHeader>
         {hearings.length ? (
-          <ul className="flex flex-col gap-2">
+          // min-w-0: the dialog is a grid, so the list must be allowed to shrink to
+          // the dialog width — otherwise a long matter title pushes the cards (and
+          // their Join buttons) past the dialog's right edge.
+          <ul className="flex min-w-0 flex-col gap-2">
             {hearings.map((hearing) => {
               const number = courtNumberFor(hearing.court, hearing.kase.courtNumber);
               const name = courtIdentity(hearing.courtLabel).name;

@@ -256,15 +256,22 @@ function CauseListBody({
   const groups = React.useMemo(() => groupCauseList(filtered, groupBy, intl).map(({ key, rows: items }) => ({
     key,
     // Item groups read "Item 3"; court groups are the court alone (grouping is by
-    // court, not by court number); hearing-type groups are the stage itself.
+    // court, not by court number); status groups read as the status word; hearing-type
+    // groups are the stage itself.
     label: groupBy === "item" ? `${pick(advHome.colItem, locale)} ${key}` :
-      groupBy === "court" ? items[0].courtLabel : key,
+      groupBy === "court" ? items[0].courtLabel :
+      groupBy === "status" ? pick(
+        items[0].status === "now" ? advHome.statusOngoing :
+        items[0].status === "upcoming" ? advHome.statusListed : advHome.statusCompleted,
+        locale
+      ) : key,
     rows: items,
   })), [filtered, groupBy, intl, locale]);
   const groupLabels = {
     item: pick(advHome.colItem, locale),
     court: pick(advHome.colCourt, locale),
     hearingType: pick(advHome.colHearingType, locale),
+    status: pick(advHome.colStatus, locale),
   };
   const reset = () => {
     setQuery("");
@@ -408,7 +415,7 @@ function CauseListBody({
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56">
                 <DropdownMenuRadioGroup value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
-                  {(["item", "court", "hearingType"] as const).map((value) => (
+                  {(["item", "court", "hearingType", "status"] as const).map((value) => (
                     <DropdownMenuRadioItem key={value} value={value}>
                       {groupLabels[value]}
                     </DropdownMenuRadioItem>
