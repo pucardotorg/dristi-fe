@@ -1085,7 +1085,7 @@ function ApplicationsTable({
             <TableCell
               className={cn(
                 cellClass,
-                "min-w-0 font-mono whitespace-normal text-muted-foreground"
+                "min-w-0 font-sans whitespace-normal text-muted-foreground"
               )}
             >
               <SubmissionIdValue submission={submission} />
@@ -1194,7 +1194,7 @@ function ApplicationsItemList({
               {/* No column header to lean on here, so the ID names itself. */}
               <p className="text-body-compact text-muted-foreground">
                 ID{" "}
-                <span className="font-mono">
+                <span className="font-sans">
                   <SubmissionIdValue submission={submission} />
                 </span>
               </p>

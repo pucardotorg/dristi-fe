@@ -70,7 +70,7 @@ export function CaseHeader({
             the label, the way a record number does above a document title;
             the sr-only text keeps the semantics the strip's <dt> gave. */}
         {hasParties ? (
-          <p className="font-mono text-title-s font-semibold text-foreground">
+          <p className="font-sans text-title-s font-semibold text-foreground">
             <span className="sr-only">Case number </span>
             {record.caseNumber}
             {/* The registry's other number for the same matter, on the same
@@ -188,7 +188,7 @@ function HeaderFact({
       <dd
         className={cn(
           "flex min-h-10 items-center text-body font-medium text-foreground",
-          mono && "font-mono"
+          mono && "font-sans"
         )}
       >
         {children}

@@ -14,6 +14,7 @@
  * outcome rather than inventing one.
  */
 
+import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 import { CASES as CASE_RECORDS } from "@/lib/cases/fixtures";
 import type { CaseRecord } from "@/lib/cases/types";
 import type { Case, Person, PersonId, Task } from "@/lib/tasks/types";
@@ -511,6 +512,7 @@ export type CauseListRow = {
   parties: string;
   court: string;
   courtLabel: string;
+  courtNumber: string | null;
   /** Advocates on the matter, by name, lead first. */
   advocates: string;
   /** The number to quote at the counter — CNR, else the ST number. */
@@ -551,7 +553,8 @@ export function causeListOn(
         item: h.item,
         parties: h.kase.parties,
         court: room.court,
-        courtLabel: labels.shortOf(room.court),
+        courtLabel: courtIdentity(labels.shortOf(room.court)).name,
+        courtNumber: courtNumberFor(room.court, h.kase.courtNumber),
         advocates: h.kase.advocates.map(nameOf).join(", "),
         caseNumber: h.kase.cnr || h.kase.stNumber || "—",
         hearingType: h.kase.stage,

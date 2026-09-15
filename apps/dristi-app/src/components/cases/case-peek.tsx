@@ -227,7 +227,7 @@ function CasePeekBody({
               {title}
             </h2>
             <p className="text-body-compact text-muted-foreground">
-              <span className="font-mono">{record.caseNumber}</span>
+              <span className="font-sans">{record.caseNumber}</span>
               {extras.altCaseNumber ? (
                 <>
                   <span aria-hidden> · </span>

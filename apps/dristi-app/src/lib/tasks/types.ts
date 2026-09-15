@@ -33,6 +33,8 @@ export type Case = {
   /** "Sreekumar N. v. Vismaya Traders". */
   parties: string;
   court: string;
+  /** Court-issued room/designation, when available. */
+  courtNumber?: string;
   stage: string;
   nextHearingAt?: string;
   /**

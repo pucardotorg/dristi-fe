@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import "./hearing-timeline.css";
 import {
   ChevronDown,
   ChevronRight,
@@ -45,25 +46,14 @@ import { cn } from "@/lib/utils";
 import { ItemChip } from "@/components/advocate/home-bits";
 import { HomeRefreshButton } from "@/components/advocate/refresh-button";
 import type { AvatarSurface } from "@/components/tasks/person-avatar";
-import { peekExtras } from "@/lib/cases/peek";
-
-/**
- * The pending count a hearing row flags. The peek states the same "Pending
- * before the hearing" list from the case's authored sidecar, so the flag counts
- * that list — the number on the row and the number in the peek then agree. A
- * matter with no authored pending work (the scale and past-day fill) flags
- * nothing. `Case.id` bridges to the peek record as `tw-<id>`.
- */
-function pendingCountFor(caseId: string): number {
-  return peekExtras(`tw-${caseId}`).tasks?.length ?? 0;
-}
+import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 
 /**
  * Clicking a hearing's pending flag opens the tasks rail and traces its tasks.
  * Threaded by context rather than through every slot component down to the row.
  * Null when the screen wires no handler — the flag then renders as a plain tag.
  */
-const OpenTasksContext = React.createContext<((caseId: string) => void) | null>(
+const OpenTasksContext = React.createContext<((caseId: string, taskIds: string[]) => void) | null>(
   null
 );
 
@@ -107,107 +97,28 @@ function HearingTime({
   );
 }
 
-/**
- * A court's badge tint, chosen by name so the same court always reads the same.
- * Past four courts the hues cycle; the badge text, not the colour, identifies it.
- */
-const COURT_TINTS = [
-  "bg-brand-muted text-brand-muted-foreground",
-  "bg-info-muted text-info-muted-foreground",
-  "bg-success-muted text-success-muted-foreground",
-  "bg-secondary text-secondary-foreground",
-] as const;
-
-function courtTint(court: string): string {
-  let hash = 0;
-  for (let i = 0; i < court.length; i += 1) {
-    hash = (hash * 31 + court.charCodeAt(i)) >>> 0;
-  }
-  return COURT_TINTS[hash % COURT_TINTS.length];
-}
-
-function CourtBadge({
-  court,
-  label,
-  className,
-}: {
+function CourtBadge({ court, label, number, className }: {
   court: string;
   label: string;
+  number?: string;
   className?: string;
 }) {
+  const identity = courtIdentity(court, courtNumberFor(court, number));
   return (
-    <Badge variant="secondary" className={cn(courtTint(court), className)}>
-      {label}
+    <Badge variant="secondary" title={court} className={cn("max-w-full bg-foreground text-background", className)}>
+      <span className="truncate">{identity.number ? courtIdentity(label, number).name : label}</span>
+      <span aria-hidden="true">·</span>
+      <span className="shrink-0 tabular-nums">{identity.number ?? "N/A"}</span>
     </Badge>
   );
 }
 
-/** The distinct court labels across a set of hearings, in first-seen order. */
-function distinctCourts(hearings: TimelineHearing[]): string[] {
-  return [...new Set(hearings.map((h) => h.courtLabel))];
-}
-
-/**
- * The courts a slot spans on one line, filling the width it is given and folding
- * only the overflow into "+N more" — measured with a hidden span, re-measured on
- * resize. `className` sets its colour for the surface it sits on.
- */
-function CourtOverflow({
-  labels,
-  locale,
-  className,
-}: {
-  labels: string[];
-  locale: Locale;
-  className?: string;
-}) {
-  const wrapRef = React.useRef<HTMLSpanElement>(null);
-  const measureRef = React.useRef<HTMLSpanElement>(null);
-  const [count, setCount] = React.useState(labels.length);
-
-  React.useEffect(() => {
-    const wrap = wrapRef.current;
-    const measure = measureRef.current;
-    if (!wrap || !measure) return;
-    const fit = () => {
-      const width = wrap.clientWidth;
-      if (width <= 0) return;
-      let n = labels.length;
-      while (n > 1) {
-        const shown = labels.slice(0, n).join(" · ");
-        const suffix =
-          n < labels.length
-            ? ` ${fillCopy(advHome.courtFilterMore, locale, { n: String(labels.length - n) })}`
-            : "";
-        measure.textContent = shown + suffix;
-        if (measure.scrollWidth <= width) break;
-        n -= 1;
-      }
-      setCount(n);
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(wrap);
-    return () => observer.disconnect();
-  }, [labels, locale]);
-
-  const extra = labels.length - count;
-  return (
-    <span
-      ref={wrapRef}
-      className={cn("relative min-w-0 flex-1 truncate text-caption", className)}
-    >
-      {labels.slice(0, count).join(" · ")}
-      {extra > 0
-        ? ` ${fillCopy(advHome.courtFilterMore, locale, { n: String(extra) })}`
-        : ""}
-      <span
-        ref={measureRef}
-        aria-hidden="true"
-        className="invisible absolute left-0 whitespace-nowrap"
-      />
-    </span>
-  );
+function SlotCount({ slot, locale }: { slot: TimeSlot; locale: Locale }) {
+  return <span className="min-w-0 flex-1 text-body-compact text-muted-foreground">
+    {fillCopy(advHome.slotAcrossCourts, locale, {
+      n: String(slot.hearings.length), courts: String(slot.courts.length),
+    })}
+  </span>;
 }
 
 /* ─────────────────────────── summary strip ─────────────────────────── */
@@ -319,19 +230,19 @@ function Toolbar({
         size="sm"
         onClick={onViewCauseList}
         aria-label={pick(advHome.viewCauseList, locale)}
-        className="px-2.5 @4xl:px-3"
+        className="home-toolbar-action gap-0 px-2.5 @4xl:gap-1 @4xl:px-3"
       >
         <ScrollText aria-hidden="true" />
-        <span className="hidden @4xl:inline">{pick(advHome.viewCauseList, locale)}</span>
+        <span className="home-toolbar-label grid grid-cols-[0fr] @4xl:grid-cols-[1fr]"><span className="overflow-hidden"><span className="pl-1">{pick(advHome.viewCauseList, locale)}</span></span></span>
       </Button>
       <Button
         size="sm"
         onClick={onJoinCourt}
         aria-label={pick(advHome.joinCourtroom, locale)}
-        className="px-2.5 @4xl:px-3"
+        className="home-toolbar-action gap-0 px-2.5 @4xl:gap-1 @4xl:px-3"
       >
         <Video aria-hidden="true" />
-        <span className="hidden @4xl:inline">{pick(advHome.joinCourtroom, locale)}</span>
+        <span className="home-toolbar-label grid grid-cols-[0fr] @4xl:grid-cols-[1fr]"><span className="overflow-hidden"><span className="pl-1">{pick(advHome.joinCourtroom, locale)}</span></span></span>
       </Button>
       {/* The day's-list refresh — always an icon, to the right of Join, with the
           three-beat gesture and the last-refreshed reveal. */}
@@ -482,10 +393,12 @@ function TimelineRow({
 function PendingChip({
   count,
   caseId,
+  taskIds,
   locale,
 }: {
   count: number;
   caseId: string;
+  taskIds: string[];
   locale: Locale;
 }) {
   const onOpenTasks = React.useContext(OpenTasksContext);
@@ -511,7 +424,7 @@ function PendingChip({
       aria-label={pick(advHome.pendingOpen, locale)}
       onClick={(event) => {
         event.stopPropagation();
-        onOpenTasks(caseId);
+        onOpenTasks(caseId, taskIds);
       }}
       className="relative z-10 inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-warning bg-warning-muted px-1.5 text-caption font-medium text-warning-muted-foreground transition-colors hover:bg-warning-muted-hover focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
@@ -565,17 +478,18 @@ function HearingRow({
         <span className="truncate text-body-compact text-muted-foreground">
           {hearing.kase.stage}
           {" · "}
-          <span className="font-mono">{hearing.kase.cnr || hearing.kase.stNumber}</span>
+          <span className="tabular-nums">{hearing.kase.cnr || hearing.kase.stNumber}</span>
         </span>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5 self-center">
         <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:justify-end">
           <PendingChip
-            count={pendingCountFor(hearing.kase.id)}
+            count={hearing.blockers.length}
+            taskIds={hearing.blockers.map((task) => task.id)}
             caseId={hearing.kase.id}
             locale={locale}
           />
-          <CourtBadge court={hearing.court} label={hearing.courtLabel} className="relative z-10" />
+          <CourtBadge court={hearing.court} label={hearing.courtLabel} number={hearing.kase.courtNumber} className="relative z-10" />
         </div>
         {showTime ? (
           <HearingTime
@@ -666,13 +580,8 @@ function NowSlot({
           <span className="text-body font-semibold tabular-nums text-brand-muted-foreground">
             {timeOf(slot.at)}
           </span>
-          <span className="min-w-0 flex-1 text-body-compact text-brand-muted-foreground">
-            {slot.hearings.length}{" "}
-            {pick(
-              slot.hearings.length === 1 ? advHome.statHearingOne : advHome.statHearingMany,
-              locale
-            )}
-          </span>
+          <span aria-hidden="true" className="text-muted-foreground">·</span>
+          <SlotCount slot={slot} locale={locale} />
           <StatusTag tone="now" label={pick(advHome.ongoingTag, locale)} />
         </div>
         <HearingBody
@@ -724,14 +633,8 @@ function ConflictSlot({
               locale={locale}
               className="shrink-0 text-body-compact font-medium text-foreground"
             />
-            <span className="shrink-0 text-caption text-muted-foreground">
-              {fillCopy(advHome.conflictPill, locale, { n: String(slot.hearings.length) })}
-            </span>
-            <CourtOverflow
-              labels={distinctCourts(slot.hearings)}
-              locale={locale}
-              className="text-muted-foreground"
-            />
+            <span aria-hidden="true" className="text-muted-foreground">·</span>
+            <SlotCount slot={slot} locale={locale} />
             <StatusTag tone="conflict" label={pick(advHome.conflictTag, locale)} />
             <ChevronDown
               aria-hidden="true"
@@ -819,18 +722,13 @@ function ConcludedSlot({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-hairline bg-card">
+    <div className="relative overflow-hidden rounded-lg border border-hairline bg-card">
+      <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-0.5 bg-border" />
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger className="group/collapsible flex min-h-10 w-full items-center gap-3 px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-muted">
           <span className="w-16 shrink-0 text-caption tabular-nums">{timeOf(slot.at)}</span>
-          <span className="shrink-0 text-caption font-medium">
-            {fillCopy(advHome.conflictPill, locale, { n: String(slot.hearings.length) })}
-          </span>
-          <CourtOverflow
-            labels={distinctCourts(slot.hearings)}
-            locale={locale}
-            className="text-muted-foreground"
-          />
+          <span aria-hidden="true">·</span>
+          <SlotCount slot={slot} locale={locale} />
           <ChevronDown
             aria-hidden="true"
             className="size-4 shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180"
@@ -893,6 +791,7 @@ function ConcludedBlock({
           />
         )}
         <CollapsibleTrigger className="group/collapsible relative flex min-h-10 w-full items-center gap-2.5 rounded-xl bg-surface-sunken px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-accent-strong">
+          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-0.5 rounded-l-xl bg-border" />
           <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-body-compact">{summaryLine}</span>
           <ChevronDown
@@ -962,7 +861,7 @@ export function HearingTimeline({
   selectedCaseId: string | null;
   onOpenCase: (caseId: string) => void;
   /** Open the tasks rail and trace this case's tasks (the pending-flag click). */
-  onOpenTasks: (caseId: string) => void;
+  onOpenTasks: (caseId: string, taskIds: string[]) => void;
   locale: Locale;
 }) {
   const { concluded, now, upcoming, summary } = timeline;

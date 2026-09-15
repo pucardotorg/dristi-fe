@@ -88,7 +88,7 @@ export function HomeGreeting({
       <div className="flex min-w-0 flex-col gap-1">
         {/* Steps down when the board gives up width to the peek or the rail —
             a 32px greeting on a 400px board wraps to three lines. */}
-        <h1 className="text-title font-semibold tracking-tight text-balance @xl:text-title-s @3xl:text-title-l">
+        <h1 className="text-title font-semibold tracking-tight text-balance @xl:text-title-s @3xl:text-title">
           {fillCopy(greetingCopy(nowDate.getHours()), locale, { name: firstName })}
         </h1>
         {/* Just the date. The due count moved to the timeline's summary strip;

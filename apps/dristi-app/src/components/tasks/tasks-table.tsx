@@ -45,7 +45,7 @@ function CaseCell({ kase }: { kase: Case }) {
       <span className="text-body-compact text-foreground">{kase.parties}</span>
       <span className="text-caption text-muted-foreground">
         {kase.stNumber ? (
-          <span className="font-mono tabular-nums">{kase.stNumber}</span>
+          <span className="font-sans tabular-nums">{kase.stNumber}</span>
         ) : (
           "Not yet numbered"
         )}

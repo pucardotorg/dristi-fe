@@ -38,6 +38,7 @@ import { advHome, fillCopy } from "@/lib/advocate/content";
 import {
   railCaseLineOf,
   railGroups,
+  railTasks,
   type RailGroup,
 } from "@/lib/advocate/home";
 import { dueCueOf } from "@/lib/tasks/format";
@@ -70,7 +71,13 @@ import { RowAction } from "@/components/advocate/home-bits";
 export type RailSection = "tasks";
 
 /** A request to trace a case's tasks in the rail; the nonce re-triggers it. */
-export type TaskHighlight = { caseId: string; nonce: number } | null;
+export type TaskHighlight = { caseId: string; taskIds: string[]; nonce: number } | null;
+
+type TaskPanelGroup = { key: RailGroup["key"] | "related"; tasks: Task[] };
+
+function matchesHighlight(task: Task, highlight: TaskHighlight): boolean {
+  return !!highlight && task.caseId === highlight.caseId && highlight.taskIds.includes(task.id);
+}
 
 /**
  * The stroke that traces a highlighted task's card. A rounded rect drawn once
@@ -139,11 +146,12 @@ const KIND_ICON: Record<TaskKind, LucideIcon> = {
   draft: FileClock,
 };
 
-const MIN_WIDTH = 280;
-const MAX_WIDTH = 460;
-/** A comfortable resting width — wide enough to read a task, short of the full
- *  pull the reader can drag to when they want it. */
-export const RAIL_DEFAULT_WIDTH = 400;
+const MIN_WIDTH = 70;
+const MAX_WIDTH = 120;
+/** Widths are multiples of the DS spacing unit. The default is a comfortable
+ *  reading width — wide enough for a task title on one line, short of the full
+ *  pull the reader can drag to. It is never the panel's full width. */
+const DEFAULT_WIDTH = 100;
 
 /**
  * The rail remembers itself, per user, across loads.
@@ -155,7 +163,7 @@ export const RAIL_DEFAULT_WIDTH = 400;
  * so the obligation surface is what an unconfigured rail shows.
  */
 const RAIL_SECTION_KEY = "dristi.advocate-rail-section";
-const RAIL_WIDTH_KEY = "dristi.advocate-rail-width";
+const RAIL_WIDTH_KEY = "dristi.advocate-rail-width-spacing-v2";
 
 /** The closed rail, written down — `null` is not a storable value. */
 const CLOSED = "closed";
@@ -257,7 +265,8 @@ function WhenBlock({
   );
 }
 
-function groupLabel(locale: Locale, group: RailGroup): string {
+function groupLabel(locale: Locale, group: TaskPanelGroup): string {
+  if (group.key === "related") return pick({ en: "Other tasks for this hearing", ml: "ഈ ഹിയറിങ്ങിന്റെ മറ്റ് ജോലികൾ" }, locale);
   if (group.key === "today") return pick(advHome.groupToday, locale);
   if (group.key === "soon") return pick(advHome.groupSoon, locale);
   return pick(advHome.groupWeek, locale);
@@ -313,7 +322,7 @@ function BucketTrigger({
   lead?: boolean;
 }) {
   return (
-    <CollapsibleTrigger className="group/bucket flex h-9 w-full shrink-0 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-accent-strong">
+    <CollapsibleTrigger className="group/bucket flex h-9 w-full shrink-0 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <span
         className={cn(
           "text-caption font-semibold",
@@ -444,7 +453,7 @@ function TaskBucket({
   onArchive,
   highlight,
 }: {
-  group: RailGroup;
+  group: TaskPanelGroup;
   world: World;
   locale: Locale;
   verbOf: (task: Task) => string;
@@ -452,18 +461,19 @@ function TaskBucket({
   onArchive: (task: Task) => void;
   highlight: TaskHighlight;
 }) {
-  const hasTrace =
-    highlight != null && group.tasks.some((t) => t.caseId === highlight.caseId);
-  // Null until the reader toggles the bucket by hand; before that it opens for
-  // "today" or whenever a trace lands inside it — derived, so no effect writes
-  // state. A traced bucket therefore opens on the same render the trace arrives.
-  const [manualOpen, setManualOpen] = React.useState<boolean | null>(null);
-  const open = manualOpen ?? (group.key === "today" || hasTrace);
+  const hasTrace = group.tasks.some((task) => matchesHighlight(task, highlight));
+  const traceNonce = hasTrace ? highlight?.nonce : undefined;
+  // A reader's choice lasts until a new targeted alert arrives. Deriving this
+  // from the request avoids a post-paint reopen and still permits manual collapse.
+  const [manual, setManual] = React.useState<{ nonce: number | undefined; open: boolean } | null>(null);
+  const open = manual && manual.nonce === traceNonce
+    ? manual.open
+    : group.key === "today" || hasTrace;
 
   return (
     <Collapsible
       open={open}
-      onOpenChange={setManualOpen}
+      onOpenChange={(open) => setManual({ nonce: traceNonce, open })}
       className="flex flex-col gap-2"
     >
       <BucketTrigger
@@ -482,7 +492,7 @@ function TaskBucket({
                 onAct={onAct}
                 onArchive={onArchive}
                 traceNonce={
-                  highlight && task.caseId === highlight.caseId
+                  highlight && matchesHighlight(task, highlight)
                     ? highlight.nonce
                     : null
                 }
@@ -515,7 +525,10 @@ function TasksPanel({
   highlight: TaskHighlight;
 }) {
   const now = Number(new Date(world.now));
-  const groups = railGroups(world, now);
+  const groups: TaskPanelGroup[] = railGroups(world, now);
+  const visibleIds = new Set(groups.flatMap((group) => group.tasks.map((task) => task.id)));
+  const related = railTasks(world).filter((task) => matchesHighlight(task, highlight) && !visibleIds.has(task.id));
+  if (related.length) groups.unshift({ key: "related", tasks: related });
   const count = summaryOf(world).action;
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
@@ -527,7 +540,7 @@ function TasksPanel({
     const timer = window.setTimeout(() => {
       scrollRef.current
         ?.querySelector("[data-task-trace]")
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        ?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "nearest" });
     }, 120);
     return () => window.clearTimeout(timer);
   }, [nonce]);
@@ -537,7 +550,7 @@ function TasksPanel({
       <TaskTraceStyles />
       <PanelHeader
         title={pick(advHome.railTitle, locale)}
-        caption={pick(advHome.railScope, locale)}
+        caption={related.length ? pick({ en: "Due in the next 7 days and tasks for this hearing", ml: "അടുത്ത 7 ദിവസത്തെ ജോലികളും ഈ ഹിയറിങ്ങിന്റെ ജോലികളും" }, locale) : pick(advHome.railScope, locale)}
         locale={locale}
         onClose={onClose}
       />
@@ -609,7 +622,7 @@ function StripButton({
           aria-pressed={active}
           onClick={onClick}
           className={cn(
-            "relative flex size-10 items-center justify-center rounded-lg transition-colors",
+            "relative flex size-10 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             active
               ? "bg-brand-muted text-brand-muted-foreground"
               : "text-muted-foreground hover:bg-accent-strong"
@@ -676,7 +689,8 @@ export function CompanionRail({
   onViewAllTasks: () => void;
 }) {
   const tasksCount = summaryOf(world).action;
-  const dragFrom = React.useRef<{ x: number; width: number } | null>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const dragFrom = React.useRef<{ x: number; width: number; unit: number } | null>(null);
 
   const clamp = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w));
 
@@ -685,7 +699,7 @@ export function CompanionRail({
   // per pixel of travel.
   const stored = useLocalStorageValue(RAIL_WIDTH_KEY);
   const [dragging, setDragging] = React.useState<number | null>(null);
-  const restingWidth = clamp(Number(stored) || RAIL_DEFAULT_WIDTH);
+  const restingWidth = clamp(Number(stored) || DEFAULT_WIDTH);
   const width = dragging ?? restingWidth;
 
   const commitWidth = React.useCallback((w: number) => {
@@ -693,24 +707,35 @@ export function CompanionRail({
   }, []);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    dragFrom.current = { x: e.clientX, width };
+    if (e.button !== 0 || !panelRef.current) return;
+    dragFrom.current = { x: e.clientX, width, unit: panelRef.current.getBoundingClientRect().width / width };
     setDragging(width);
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!dragFrom.current) return;
     // The panel sits on the right, so dragging left grows it.
-    setDragging(clamp(dragFrom.current.width + (dragFrom.current.x - e.clientX)));
+    setDragging(clamp(dragFrom.current.width + (dragFrom.current.x - e.clientX) / dragFrom.current.unit));
   }
   function onPointerUp() {
     if (dragFrom.current && dragging !== null) commitWidth(dragging);
     dragFrom.current = null;
     setDragging(null);
   }
+  function cancelResize() {
+    dragFrom.current = null;
+    setDragging(null);
+  }
   function onHandleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    // Discrete steps, so each one is worth writing down on its own.
-    if (e.key === "ArrowLeft") commitWidth(clamp(width + 16));
-    if (e.key === "ArrowRight") commitWidth(clamp(width - 16));
+    const next = e.key === "ArrowLeft" ? width + 4
+      : e.key === "ArrowRight" ? width - 4
+      : e.key === "Home" ? MIN_WIDTH
+      : e.key === "End" ? MAX_WIDTH : null;
+    if (e.key === "Escape") cancelResize();
+    if (next !== null) {
+      e.preventDefault();
+      commitWidth(clamp(next));
+    }
   }
 
   const toggle = (next: RailSection) =>
@@ -729,21 +754,27 @@ export function CompanionRail({
           // short slide-and-fade rather than snapping in, the same easing the case
           // peek uses. Motion is suppressed for reduced-motion readers.
           key={section}
+          ref={panelRef}
           className="relative flex h-full duration-200 ease-out animate-in fade-in-0 slide-in-from-right-4 motion-reduce:animate-none"
-          style={{ width }}
+          style={{ width: `calc(var(--spacing) * ${width})` }}
         >
           {/* The resize handle: an invisible grab strip on the panel's edge with
               a visible thumb on hover — drag, or arrows when focused. */}
           <div
             role="separator"
             aria-orientation="vertical"
+            aria-valuemin={MIN_WIDTH}
+            aria-valuemax={MAX_WIDTH}
+            aria-valuenow={width}
             aria-label={pick(advHome.railResize, locale)}
             tabIndex={0}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={cancelResize}
+            onLostPointerCapture={cancelResize}
             onKeyDown={onHandleKeyDown}
-            className="group/handle absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize outline-none"
+            className="group/handle absolute inset-y-0 left-0 z-10 w-2 touch-none cursor-col-resize outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <span
               aria-hidden="true"

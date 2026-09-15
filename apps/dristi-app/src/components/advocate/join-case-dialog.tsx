@@ -675,7 +675,7 @@ export function AdvocateJoinCaseDialog({
                 </p>
                 <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
                 <p className="text-caption text-muted-foreground">
-                  <span className="font-mono tabular-nums">
+                  <span className="font-sans tabular-nums">
                     {joinCase.caseNumber}
                   </span>
                   <span aria-hidden> · </span>

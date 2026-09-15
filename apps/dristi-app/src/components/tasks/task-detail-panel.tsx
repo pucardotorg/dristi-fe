@@ -239,7 +239,7 @@ function TaskDetail({
               {kase.stNumber ? (
                 <>
                   {" · "}
-                  <span className="font-mono tabular-nums">{kase.stNumber}</span>
+                  <span className="font-sans tabular-nums">{kase.stNumber}</span>
                 </>
               ) : (
                 " · Not yet numbered"

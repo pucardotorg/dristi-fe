@@ -174,7 +174,7 @@ function DocumentBody({
           <span className="font-mono">{document.id}</span>
         </RecordRow>
         <RecordRow term="Case number">
-          <span className="font-mono">{file.caseNumber}</span>
+          <span className="font-sans">{file.caseNumber}</span>
         </RecordRow>
         <RecordRow term="Document type">
           {documentTypeLabel(document.type)}
@@ -207,7 +207,7 @@ function DocumentBody({
         ) : null}
         {document.linkedApplication ? (
           <RecordRow term="Filed with">
-            <span className="font-mono">{document.linkedApplication.id}</span>
+            <span className="font-sans">{document.linkedApplication.id}</span>
             <span className="text-muted-foreground">
               {" "}
               ({document.linkedApplication.label})

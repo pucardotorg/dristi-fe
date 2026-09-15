@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import type { CauseListRow } from "@/lib/advocate/home";
 import { CloudAlert, RotateCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -200,12 +202,13 @@ function HomeBody({
   // to be resolved with the team.)
   const [taskHighlight, setTaskHighlight] = React.useState<{
     caseId: string;
+    taskIds: string[];
     nonce: number;
   } | null>(null);
   const openTasksForCase = React.useCallback(
-    (caseId: string) => {
+    (caseId: string, taskIds: string[]) => {
       setRailSection("tasks");
-      setTaskHighlight({ caseId, nonce: Date.now() });
+      setTaskHighlight({ caseId, taskIds, nonce: Date.now() });
     },
     [setRailSection]
   );
@@ -223,11 +226,16 @@ function HomeBody({
   // The full day cause list opens in a near-fullscreen modal over the board.
   const [causeListOpen, setCauseListOpen] = React.useState(false);
   const onViewCauseList = React.useCallback(() => setCauseListOpen(true), []);
-  // Joining the courtroom is a real feature with no endpoint yet (§16.6 Q11):
-  // an honest no-op stub rather than hidden until the backend lands.
+  // No courtroom URL is supplied yet. Keep the selected hearing explicit.
+  const onJoinHearing = React.useCallback((row: CauseListRow) => {
+    toast.info(pick({ en: "Hearing link unavailable", ml: "വിചാരണ ലിങ്ക് ലഭ്യമല്ല" }, locale), {
+      description: `${row.parties} · ${row.courtLabel} · ${row.courtNumber ?? "N/A"}`,
+    });
+  }, [locale]);
   const onJoinCourt = React.useCallback(() => {
-    /* TODO(Q11): open the court's virtual courtroom. */
-  }, []);
+    toast.info(pick({ en: "Choose a hearing from the cause list", ml: "കോസ് ലിസ്റ്റിൽ നിന്ന് ഒരു വിചാരണ തിരഞ്ഞെടുക്കുക" }, locale));
+    setCauseListOpen(true);
+  }, [locale]);
 
   // The courts the filter offers: those with a matter listed on the day. A court
   // with nothing today is not worth offering — selecting it would only empty the
@@ -420,7 +428,10 @@ function HomeBody({
         locale={locale}
         section={railSection}
         topOffset={TOP_BAR}
-        onSectionChange={setRailSection}
+        onSectionChange={(section) => {
+          setTaskHighlight(null);
+          setRailSection(section);
+        }}
         highlight={taskHighlight}
         verbOf={verbOf}
         onAct={actOn}
@@ -434,7 +445,7 @@ function HomeBody({
         world={world}
         now={now}
         day={selectedDay}
-        onJoin={onJoinCourt}
+        onJoin={onJoinHearing}
         locale={locale}
       />
 

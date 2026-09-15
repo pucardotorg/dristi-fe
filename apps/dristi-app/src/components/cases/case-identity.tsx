@@ -51,7 +51,7 @@ export function CasePeekTrigger({
       aria-controls={expanded ? CASE_PEEK_ID : undefined}
       onClick={() => open(record, { hideLongPendingFlag })}
       className={cn(
-        "w-fit cursor-pointer rounded-sm p-0 text-left font-mono outline-none after:absolute after:inset-0 focus-visible:ring-3 focus-visible:ring-focus-ring",
+        "w-fit cursor-pointer rounded-sm p-0 text-left font-sans outline-none after:absolute after:inset-0 focus-visible:ring-3 focus-visible:ring-focus-ring",
         IDENTITY_TONE[tone]
       )}
     >
