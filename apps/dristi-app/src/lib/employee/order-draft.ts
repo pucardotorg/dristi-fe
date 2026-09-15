@@ -21,7 +21,7 @@ import {
   type ListingApplication,
   type ListingApplicationDecision,
 } from "./listing-applications";
-import { orderItemLabel, type OrderItemDraft } from "./order-items";
+import type { OrderItemDraft } from "./order-items";
 import type { OrderTemplateFacts } from "./order-templates";
 import {
   CAUSE_LIST,
@@ -205,13 +205,28 @@ export type OrderDraft = {
   nextPurpose: CourtHearingPurposeId | "";
   nextDate: string | null;
   /**
-   * What the court passed today, in the order it is written.
+   * **The order itself: one body of text, not a list of boxes** (owner, 2026-09-15).
    *
-   * A list, because an order routinely carries more than one — cognizance and the
-   * summons that follows it, an adjournment and the cost imposed for it — and the
-   * reference's own "Add item" says so. Position is the paragraph number: item two is
-   * paragraph two of the order, which is how the signing queue already prints one
-   * (`sign-order-dialog.tsx`).
+   * It was `items[]`, each rendered as its own editor on the paper, and the paper
+   * therefore grew a second box every time a template was added. A sheet of paper does
+   * not work that way — the court writes one passage and the templates are where its
+   * words come from — so the page carries one editor and adding a template appends into
+   * it. From that point the words are the typist's: they are edited, split, joined and
+   * deleted as text, and nothing tries to map a sentence back to the form it came from.
+   *
+   * `items` below is what was *inserted*, which is a different fact and still needed.
+   */
+  body: ItemText;
+  /**
+   * Which templates the typist pulled in, in the order they were pulled.
+   *
+   * **Provenance, not structure.** Since the words merged into `body` this list no
+   * longer says how the order is shaped — it says where it came from, which is what the
+   * catalogue reads to gate the forms it offers (cognizance taken in *this* draft puts
+   * the case on file for the rest of it) and what the panel lists back. Each entry keeps
+   * the text it contributed at the moment it was added; that snapshot is history and
+   * goes stale the instant the typist edits the box, so nothing may read it as the
+   * current state of the order. Ask `body` for that.
    */
   items: readonly OrderItemDraft[];
 };
@@ -222,6 +237,7 @@ export const EMPTY_ORDER_DRAFT: OrderDraft = {
   next: "list",
   nextPurpose: "",
   nextDate: null,
+  body: { html: "", text: "" },
   items: [],
 };
 
@@ -245,25 +261,6 @@ export type OrderBlock = {
    * have to unpick them out of one paragraph. The last line may be the pending note.
    */
   sentences?: { text: string; pending: boolean }[];
-  /**
-   * Items only. The order's numbered paragraphs, so the document and the paper can
-   * print an `<ol>` rather than a run-on block of everything the court passed.
-   */
-  items?: OrderItemEntry[];
-};
-
-/** One item as the order carries it — its number, its name, and its words. */
-export type OrderItemEntry = {
-  id: string;
-  /** The paragraph number, from position. Item three is paragraph three. */
-  number: number;
-  /** The catalogue's name for it — "Summons" — as the composer heads the well. */
-  heading: string;
-  /** The plain words, and what "written" is measured on. */
-  body: string;
-  html: string;
-  /** Chosen, but nothing written in it yet. */
-  pending: boolean;
 };
 
 export type AttendanceEntry = {
@@ -419,43 +416,24 @@ export function assembleNextListing(
 }
 
 /**
- * The items as the order carries them.
+ * What the court passed, as the one passage it now is.
  *
- * On the text, not the markup: an empty editor still holds a `<br>`, and an item whose
- * standing words were deleted and never replaced is an item nobody wrote.
+ * Was `assembleItems`, which numbered a list of drafts into paragraphs. There is no list
+ * any more (`OrderDraft.body`): the typist writes one passage and numbers it themselves
+ * with the editor's own list marks if the order wants numbering, so this reports the
+ * passage rather than inventing a structure over it.
  *
- * An item that has been chosen but not written is *pending, not absent*. The court
- * passed it — the typist said so by adding it — and an order that quietly dropped the
- * paragraph would be the screen deciding which of the day's items were worth printing.
+ * `pending` is still measured on the plain text, never on the markup — an editor that
+ * has been focused and left carries `<p><br></p>` and that is not a written order.
  */
-export function assembleItems(items: readonly OrderItemDraft[]): OrderBlock {
-  if (items.length === 0) {
-    return {
-      id: "item",
-      heading: "Item text",
-      body: "No item has been added.",
-      pending: true,
-    };
-  }
-
-  const entries: OrderItemEntry[] = items.map((item, index) => {
-    const body = item.text.text.trim();
-    return {
-      id: item.id,
-      number: index + 1,
-      heading: orderItemLabel(item.type),
-      body: body || `${orderItemLabel(item.type)} — nothing has been written.`,
-      html: body ? item.text.html : "",
-      pending: !body,
-    };
-  });
-
+export function assembleBody(body: ItemText): OrderBlock {
+  const text = body.text.trim();
   return {
     id: "item",
     heading: "Item text",
-    body: entries.map((entry) => entry.body).join(" "),
-    pending: entries.some((entry) => entry.pending),
-    items: entries,
+    body: text || "No order has been written.",
+    html: text ? body.html : "",
+    pending: !text,
   };
 }
 
@@ -485,7 +463,7 @@ export function assembleOrder(
           draft.applications,
         ),
       ),
-      assembleItems(draft.items),
+      assembleBody(draft.body),
       assembleNextListing(draft),
     ],
   };
@@ -563,11 +541,10 @@ export type OrderDocument = {
    */
   applications: { text: string; pending: boolean }[];
   /**
-   * The order's numbered paragraphs. Empty when nothing has been added — the paper then
-   * says so in its muted voice rather than printing a blank list. An entry's `html` is
-   * empty while it is unwritten, and the plain line is what prints instead.
+   * What the court passed, as one passage. `pending` while nothing has been written —
+   * the paper then says so in its muted voice rather than printing an empty region.
    */
-  items: OrderItemEntry[];
+  body: { html: string; text: string; pending: boolean };
   /** The next listing, as it closes the order. */
   closing: string;
   dated: string;
@@ -594,7 +571,11 @@ export function buildOrderDocument(
         draft.applications,
       )?.sentences ?? []
     ).filter((sentence) => !sentence.pending),
-    items: assembleItems(draft.items).items ?? [],
+    body: {
+      html: draft.body.html,
+      text: draft.body.text.trim(),
+      pending: !draft.body.text.trim(),
+    },
     closing: assembleNextListing(draft).body,
     dated: formatCourtDay(day),
     signature: "Pending the signature of the magistrate.",

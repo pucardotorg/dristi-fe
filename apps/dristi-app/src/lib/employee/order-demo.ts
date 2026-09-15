@@ -34,6 +34,7 @@ import {
   type OrderDraft,
 } from "./order-draft";
 import {
+  appendRichText,
   createOrderItem,
   richTextFromPlain,
   type OrderItemDraft,
@@ -225,11 +226,21 @@ export function initialOrderDraft(
     next: nextPurpose ? "list" : "none",
     nextPurpose: nextPurpose ?? "",
     nextDate: nextPurpose ? nextSittingDay(today) : null,
+    body: { html: "", text: "" },
     items: [],
   };
 
+  /* The same two passes a live sitting makes, in the same order: the templates are
+     chosen, then their words land in the one box. `items` stays the record of what was
+     pulled in and `body` is what the bench would be reading — a fixture that filled one
+     without the other would be showing a state the composer cannot actually reach. */
+  const items = itemsOf(hearing, orderTemplateFacts(hearing, sitting, today));
   return {
     ...sitting,
-    items: itemsOf(hearing, orderTemplateFacts(hearing, sitting, today)),
+    items,
+    body: items.reduce(
+      (written, item) => appendRichText(written, item.text),
+      sitting.body,
+    ),
   };
 }

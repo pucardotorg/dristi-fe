@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAUSE_LIST } from "./hearings";
-import { createOrderItem } from "./order-items";
+import { appendRichText } from "./order-items";
 import { applicationsForListing } from "./listing-applications";
 import {
   appearancesFor,
   assembleApplications,
   assembleAttendance,
-  assembleItems,
+  assembleBody,
   assembleNextListing,
   assembleOrder,
   EMPTY_ORDER_DRAFT,
@@ -77,63 +77,52 @@ describe("assembleNextListing", () => {
   });
 });
 
-describe("assembleItems", () => {
-  it("says so when the order has no item, rather than printing nothing", () => {
-    const block = assembleItems([]);
+describe("assembleBody", () => {
+  it("says so when nothing has been written, rather than printing nothing", () => {
+    const block = assembleBody({ html: "", text: "" });
     assert.equal(block.pending, true);
-    assert.equal(block.body, "No item has been added.");
-    assert.equal(block.items, undefined);
-  });
-
-  it("numbers the items by position — item two is paragraph two", () => {
-    const block = assembleItems([
-      createOrderItem("issue-of-summons", "a"),
-      createOrderItem("cost", "b"),
-    ]);
-    assert.deepEqual(
-      block.items?.map((entry) => [entry.number, entry.heading]),
-      [
-        [1, "Issue of summons"],
-        [2, "Cost"],
-      ],
-    );
-    assert.equal(block.pending, false);
+    assert.equal(block.body, "No order has been written.");
+    assert.equal(block.html, "");
   });
 
   it("is pending on the text, not the markup — an empty editor still holds a break", () => {
-    const block = assembleItems([
-      { id: "a", type: "others", text: { html: "<br>", text: "   " } },
-    ]);
+    const block = assembleBody({ html: "<br>", text: "   " });
     assert.equal(block.pending, true);
-    assert.equal(block.items?.[0].pending, true);
-    assert.equal(block.items?.[0].html, "");
-    assert.match(block.items?.[0].body ?? "", /nothing has been written/);
+    assert.equal(block.html, "");
   });
 
-  it("keeps a chosen item in the order even before it is written", () => {
-    /* The court passed it — the typist said so by adding it. An order that dropped the
-       paragraph would be the screen deciding which items are worth printing. */
-    const block = assembleItems([
-      createOrderItem("issue-of-summons", "a"),
-      { id: "b", type: "others", text: { html: "", text: "" } },
-    ]);
-    assert.equal(block.items?.length, 2);
-    assert.equal(block.items?.[1].number, 2);
+  it("keeps the formatting the typist put in the box", () => {
+    const block = assembleBody({
+      html: "<ol><li>Notice to the accused.</li></ol>",
+      text: "Notice to the accused.",
+    });
+    assert.equal(block.pending, false);
+    assert.equal(block.html, "<ol><li>Notice to the accused.</li></ol>");
+    assert.equal(block.body, "Notice to the accused.");
+  });
+});
+
+describe("appendRichText", () => {
+  it("joins two directions as separate passages, never as one sentence", () => {
+    const joined = appendRichText(
+      { html: "<p>Cognizance is taken.</p>", text: "Cognizance is taken." },
+      { html: "<p>Issue summons.</p>", text: "Issue summons." },
+    );
+    assert.equal(
+      joined.html,
+      "<p>Cognizance is taken.</p><p>Issue summons.</p>",
+    );
+    assert.equal(joined.text, "Cognizance is taken.\n\nIssue summons.");
   });
 
-  it("keeps the formatting the typist put inside one item", () => {
-    const block = assembleItems([
-      {
-        id: "a",
-        type: "issue-of-notice",
-        text: {
-          html: "<ol><li>Notice to the accused.</li></ol>",
-          text: "Notice to the accused.",
-        },
-      },
-    ]);
-    assert.equal(block.items?.[0].html, "<ol><li>Notice to the accused.</li></ol>");
-    assert.equal(block.items?.[0].body, "Notice to the accused.");
+  it("leaves the box alone when the template has no standing words", () => {
+    const written = { html: "<p>Heard.</p>", text: "Heard." };
+    assert.deepEqual(appendRichText(written, { html: "", text: "" }), written);
+  });
+
+  it("does not open the order on a blank line", () => {
+    const first = { html: "<p>Heard.</p>", text: "Heard." };
+    assert.deepEqual(appendRichText({ html: "", text: "" }, first), first);
   });
 });
 
@@ -148,16 +137,10 @@ describe("assembleOrder", () => {
     assert.ok(bare);
     const order = assembleOrder(bare, {
       ...EMPTY_ORDER_DRAFT,
-      items: [
-        {
-          id: "a",
-          type: "issue-of-notice",
-          text: {
-            html: "<p>Notice to the accused.</p>",
-            text: "Notice to the accused.",
-          },
-        },
-      ],
+      body: {
+        html: "<p>Notice to the accused.</p>",
+        text: "Notice to the accused.",
+      },
     });
     assert.deepEqual(
       order.blocks.map((block) => block.heading),

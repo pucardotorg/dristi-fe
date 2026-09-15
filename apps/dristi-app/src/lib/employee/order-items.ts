@@ -106,6 +106,30 @@ export function richTextFromPlain(value: string): RichTextValue {
   return { html: `<p>${escaped}</p>`, text: value };
 }
 
+/**
+ * Join what a template contributes onto what the order already says.
+ *
+ * A blank line between passages, not a space: the templates are whole directions and
+ * running two of them into one paragraph would make the court say something neither of
+ * them says. An empty side returns the other unchanged, so inserting `others` — which
+ * has no standing words — leaves the box exactly as the typist left it.
+ *
+ * `text` is joined on the plain side and `html` on the markup side, because the two
+ * halves answer different questions (`RichTextValue`): the markup is what the editor
+ * shows, the text is what "has anything been written" is measured on.
+ */
+export function appendRichText(
+  current: RichTextValue,
+  addition: RichTextValue
+): RichTextValue {
+  if (!addition.text && !addition.html) return current;
+  if (!current.text && !current.html) return addition;
+  return {
+    html: `${current.html}${addition.html}`,
+    text: `${current.text}\n\n${addition.text}`,
+  };
+}
+
 /** One order in the draft: what it is, and the words it carries. */
 export type OrderItemDraft = {
   id: string;

@@ -3,8 +3,13 @@ import { describe, it } from "node:test";
 
 import {
   addDays,
+  boardAfterMoves,
+  buildRescheduleOrder,
+  earliestNewListing,
   filterReschedulable,
+  listedOn,
   reschedulableHearings,
+  rescheduleOrderText,
 } from "./bulk-reschedule";
 
 const TODAY = "2026-09-14";
@@ -82,5 +87,139 @@ describe("filterReschedulable", () => {
       query: "zainaba musthafa",
     });
     assert.equal(rows.length, 0);
+  });
+});
+
+describe("a board with this session's moves written over it", () => {
+  const board = reschedulableHearings(TODAY);
+  const first = board[0];
+  const NEW_DAY = addDays(TODAY, 60);
+  const moved = boardAfterMoves(TODAY, { [first.id]: NEW_DAY });
+  const row = moved.find((candidate) => candidate.id === first.id)!;
+
+  it("keeps the day the matter was listed on beside the day it moves to", () => {
+    /* Both ends, because the board has to show the bench what it just did. Writing the
+       new day over the old one leaves a move with nothing to compare against. */
+    assert.equal(row.date, first.date);
+    assert.equal(row.newDate, NEW_DAY);
+    assert.equal(listedOn(row), NEW_DAY);
+  });
+
+  it("leaves every other matter alone, and unmarked", () => {
+    const untouched = moved.filter((candidate) => candidate.id !== first.id);
+    assert.equal(untouched.length, board.length - 1);
+    assert.ok(untouched.every((candidate) => candidate.newDate === undefined));
+  });
+
+  it("re-sorts the moved matter into the day it now sits on", () => {
+    /* A matter moved two months out belongs at the end of the board, not in the block
+       it was pulled from. */
+    assert.equal(moved[moved.length - 1].id, first.id);
+  });
+
+  it("does not mark a move onto the day the matter is already on", () => {
+    const same = boardAfterMoves(TODAY, { [first.id]: first.date });
+    assert.equal(same.find((c) => c.id === first.id)!.newDate, undefined);
+  });
+
+  it("keeps a moved matter on the board it was moved from", () => {
+    /* The new day is always past the span the bench asked for, so a row judged only on
+       where it now stands would vanish out of the range at the moment of the act — the
+       one row that most needs to be seen. */
+    const span = { from: first.date, to: first.date, query: "" };
+    const inRange = filterReschedulable(moved, span);
+
+    assert.ok(inRange.some((candidate) => candidate.id === first.id));
+    assert.ok(NEW_DAY > span.to, "the new day is outside the span, as it must be");
+  });
+
+  it("also pulls in a matter moved into the span from outside it", () => {
+    const span = { from: NEW_DAY, to: NEW_DAY, query: "" };
+    const inRange = filterReschedulable(moved, span);
+
+    assert.deepEqual(
+      inRange.map((candidate) => candidate.id),
+      [first.id],
+    );
+  });
+
+  it("floors a second move on where the matter now stands", () => {
+    /* Not on the day it was listed on — that day is behind the court once the first
+       move has landed, and the calendar would offer it again. */
+    assert.equal(
+      earliestNewListing([row], null, TODAY),
+      addDays(NEW_DAY, 1),
+    );
+  });
+});
+
+describe("the order a bulk move is passed by", () => {
+  const board = reschedulableHearings(TODAY);
+  const moving = board.slice(0, 3);
+  const NEW_DAY = addDays(TODAY, 4);
+
+  it("covers every matter in the run, from where it is to where it goes", () => {
+    const order = buildRescheduleOrder(moving, NEW_DAY, TODAY);
+
+    assert.equal(order.matters.length, moving.length);
+    assert.deepEqual(
+      order.matters.map((matter) => matter.caseNumber),
+      moving.map((row) => row.caseNumber),
+    );
+    /* One order for the whole run, so every line lands on the same new day. */
+    assert.equal(new Set(order.matters.map((m) => m.to)).size, 1);
+  });
+
+  it("says it is unsigned until it is signed, and by whom when it is", () => {
+    /* The blank-rule trap: a signature block that printed nothing would read as a
+       signature that failed to render rather than as one that has not been given. */
+    const unsigned = buildRescheduleOrder(moving, NEW_DAY, TODAY);
+    assert.match(unsigned.signature, /Pending the signature/);
+
+    const signed = buildRescheduleOrder(moving, NEW_DAY, TODAY, TODAY);
+    assert.match(signed.signature, /^Signed by /);
+    assert.doesNotMatch(signed.signature, /Pending/);
+  });
+
+  it("recites no ground, and orders nothing at the parties", () => {
+    /* The screen never asks why the court is not sitting, and this build sends no
+       notification. An order that said either would be the app writing the bench's
+       words, or claiming an act nothing performed. */
+    const text = rescheduleOrderText(
+      buildRescheduleOrder(moving, NEW_DAY, TODAY, TODAY),
+    );
+    assert.doesNotMatch(text, /leave|holiday|transfer|strike/i);
+    assert.doesNotMatch(text, /notif|inform|intimat|serve/i);
+  });
+
+  it("writes the matters, the new date and the date it is passed", () => {
+    const text = rescheduleOrderText(
+      buildRescheduleOrder(moving, NEW_DAY, TODAY),
+    );
+
+    assert.match(text, /Order rescheduling listed hearings/);
+    assert.match(text, new RegExp(`Matters \\(${moving.length}\\)`));
+    for (const row of moving) assert.ok(text.includes(row.caseNumber));
+    assert.match(text, /Dated this the /);
+  });
+
+  it("reads a matter this session already moved from where it now stands", () => {
+    /* A second move is measured from the day the first one put it on, not from the
+       fixture's day — otherwise the order would recite a date the board left behind. */
+    const first = board[0];
+    const once = boardAfterMoves(TODAY, { [first.id]: addDays(TODAY, 2) })
+      .find((row) => row.id === first.id)!;
+    const order = buildRescheduleOrder([once], addDays(TODAY, 9), TODAY);
+    const asListed = buildRescheduleOrder(
+      [{ ...first, date: addDays(TODAY, 2) }],
+      addDays(TODAY, 9),
+      TODAY,
+    );
+
+    assert.equal(order.matters[0].from, asListed.matters[0].from);
+    assert.notEqual(
+      order.matters[0].from,
+      buildRescheduleOrder([first], addDays(TODAY, 9), TODAY).matters[0].from,
+    );
   });
 });

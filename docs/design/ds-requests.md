@@ -809,3 +809,28 @@ ui-craft's own rule is that a tint's foreground belongs on that tint.
 *lower* contrast than `brand-solid` in light mode (4.56:1), so the ramp position that
 reads as "the text one" is not the one to take. And in dark mode `--brand-solid` becomes
 `--brand-10` (`#0eb39e`), so the pair has to be chosen per theme rather than by ramp index.
+
+## 24. §8's `after:` inset remedy is silent about the row it lands in
+
+`ACCESSIBILITY.md` §8 tells a consumer that a small control "must expand hit area
+(padding / `after:` inset) to meet **40×40px**", and `checkbox.tsx` already does it:
+`after:-inset-x-3 after:-inset-y-3` around a `size-4` box claims 16 + 24 = exactly 40px.
+So a screen can follow the rule, pass every gate, and still mis-aim.
+
+Found on `/employee/hearings/[hearingId]/order`: eight checkbox options at a **32px
+pitch** — a 20px row (`text-body-compact`, 14/20) plus a 12px gap. Each box claimed its
+40px correctly, so **consecutive claims overlapped by 8px**, and the winner of an overlap
+is paint order rather than aim. A tap near a boundary could mark the complainant's
+advocate present when the complainant was meant — a wrong line in a court record, which is
+the expensive kind of mis-tap. Widening the rows to a 40px pitch made the claims tile
+exactly.
+
+Nothing catches this. The primitive cannot see the row it was put in; `check:spacing`
+reads the ladder, not geometry; and the rendered box measures 40px under any tool that
+asks the control rather than its neighbours.
+
+**Request:** one sentence in §8 — *the row or list that holds the control must be at least
+as tall as the claim, or the insets overlap.* Optionally state the corollary, since it is
+the fix that is not obvious: once every row is a 40px target the gap between rows is
+redundant, so meeting the floor in a dense list costs less height than it looks
+(`4×20 + 3×12 = 116px` became `4×40 = 160px`, not 196px).

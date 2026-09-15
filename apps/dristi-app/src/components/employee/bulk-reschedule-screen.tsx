@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   CalendarDaysIcon,
   CalendarX2Icon,
-  CircleCheckIcon,
+  CheckIcon,
   SearchXIcon,
   XIcon,
 } from "lucide-react";
@@ -15,11 +15,18 @@ import { OVERLAY_RISE, RESOLVE_IN_PLACE } from "@/components/chrome/motion";
 import { BulkRescheduleTable } from "@/components/employee/bulk-reschedule-table";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { DateRange } from "react-day-picker";
+import {
+  DescriptionDetails,
+  DescriptionList,
+  DescriptionRow,
+  DescriptionTerm,
+} from "@/components/ui/description-list";
 import {
   Dialog,
   DialogClose,
@@ -156,9 +163,12 @@ function nextRangeFromPick(
  * what was picked, and the one button opens an overlay that asks for the date and
  * commits. One flow, one date, one commitment.
  *
- * **The move is a demo move.** Confirming writes the new date onto the matters for this
- * session, so the board reads back what the bench did and the flow can be walked end to
- * end. Nothing further happens: no notification is drawn up for the parties, nobody is
+ * **The move is a demo move, and the board shows it.** Confirming writes the new date
+ * onto the matters for this session, and the rows stay on the board they were picked out
+ * of, now carrying both ends of the change — the day each was listed on, and the day it
+ * goes to. That is the whole of the feedback for an act that touches twenty matters at
+ * once, so it belongs on the thing that was acted on rather than only in the overlay that
+ * closes over it. Nothing further happens: no notification is drawn up for the parties, nobody is
  * told, and a reload puts the board back. The settled stage of the overlay says so, in
  * the place it matters, rather than letting the screen imply the act is finished.
  */
@@ -242,8 +252,12 @@ export function BulkRescheduleScreen() {
 
   /**
    * The act, as far as this build performs it: the matters take the new date and the
-   * selection is spent. Matters already listed on that day are not passed in — they were
-   * never a move, and the overlay has already said so.
+   * selection is spent.
+   *
+   * It says nothing. The overlay reports what happened on its own confirmation — the
+   * product's success panel, the one the advocate submission and every court-side signing
+   * queue end on — and the board behind it carries the durable half in the Current / New
+   * hearing date pair. A toast here was a third report nobody asked for.
    */
   function reschedule(day: string, moving: ReschedulableHearing[]) {
     setMoved((current) => {
@@ -308,10 +322,9 @@ export function BulkRescheduleScreen() {
       </section>
 
       {/* Mounted whatever the board is holding, including nothing. It used to be gated on
-          the board having rows, which is fine until the act empties the board — moving
-          everything in range to a date outside it does exactly that — and the overlay
-          reporting what just happened went down with the bar it was mounted in. Chrome
-          does not vanish from the layout (ui-craft §2). */}
+          the board having rows, and the overlay reporting what had just happened went down
+          with the bar it was mounted in the moment the board emptied. Chrome does not
+          vanish from the layout (ui-craft §2). */}
       <CommitBar
         selected={selectedRows}
         total={rows.length}
@@ -695,6 +708,13 @@ function NothingToMove({
  * A board read on a phone is still the cause, its number and the day it stands listed on.
  * The columns that only support scanning (stage, hearing type) drop to a caption line
  * rather than forcing a six-column table through a 375px screen.
+ *
+ * A matter this session has moved carries both ends of the change here too. The table
+ * answers that with a second column; a stacked item has no columns, so the two dates are
+ * one line — the old day struck through and muted, an arrow, the new day in the
+ * foreground — which is the same sentence the pair of columns makes, read across instead
+ * of down. The strike-through is decoration over a fact the words already carry, so the
+ * line names both days aloud for a reader that cannot see it.
  */
 function RescheduleItemList({
   rows,
@@ -735,9 +755,26 @@ function RescheduleItemList({
                 {courtCaseStageLabel(row.stage)} ·{" "}
                 {courtHearingPurposeLabel(row.purpose)}
               </p>
-              <p className="text-body-compact tabular-nums text-muted-foreground">
-                {formatListingDate(row.date)}
-              </p>
+              {row.newDate ? (
+                <p className="text-body-compact tabular-nums">
+                  <span className="sr-only">
+                    {`Rescheduled from ${formatListingDate(row.date)} to ${formatListingDate(row.newDate)}`}
+                  </span>
+                  <span aria-hidden="true">
+                    <span className="text-muted-foreground line-through">
+                      {formatListingDate(row.date)}
+                    </span>{" "}
+                    <span className="text-muted-foreground">→</span>{" "}
+                    <span className="font-medium">
+                      {formatListingDate(row.newDate)}
+                    </span>
+                  </span>
+                </p>
+              ) : (
+                <p className="text-body-compact tabular-nums text-muted-foreground">
+                  {formatListingDate(row.date)}
+                </p>
+              )}
             </div>
           </li>
         );
@@ -821,15 +858,37 @@ function CommitBar({
   );
 }
 
-/** What the act did, kept by the overlay so its last stage survives the spent selection. */
-type Outcome = { day: string; moved: number };
+/** What the act committed, read before it spends the selection that says so. */
+type Outcome = { day: string; moved: number; cases: number };
 
 /**
- * The act: how many are moving, what date they move to, and the commitment.
+ * The act: how many are moving, what date they move to, and the signature.
  *
- * **One overlay, two stages, no dialog on a dialog** (ui-craft §7). Asking for the date
- * and reporting what happened are stages of the same window; the second resolves in place
- * rather than sliding, because the bench is looking at the thing that changed.
+ * **One overlay, three stages, no dialog on a dialog** (ui-craft §7). Asking for the
+ * date, taking the signature and reporting what happened are stages of the same window.
+ *
+ * The last one is **the product's own success confirmation**, not a shape invented here:
+ * the solid `bg-success` panel carrying the heading with the tick beneath it, and the
+ * facts in a sunken well under that. It is what the advocate side ends a submission on
+ * (`cases/add-signature-dialog.tsx`) and what every court-side signing queue ends on
+ * (`sign-bulk-confirm-dialog.tsx`). Signing off a bulk act and signing a submission are
+ * the same beat of the same product and must not end on two different kinds of object —
+ * which a toast of my own invention was (owner, 2026-09-15).
+ *
+ * **The signature is the finalisation, and nothing moves before it.** Anshumanth's note
+ * (2026-09-15) is that a bulk reschedule needs a document drawn up and signed before it
+ * is finalised — which is how the act actually works: a court moves twenty matters by
+ * passing one order, and the order is what the files carry. So picking a date commits
+ * nothing; the matters move when the signature goes on.
+ *
+ * **It is an e-sign, and it asks for nothing.** No method group, because there is no
+ * second route to choose between — the order is drawn up by the court at the moment of
+ * the act, so there is no paper to upload — and no code, because the bench is not
+ * authenticating a document it has opened. Pressing Sign signs, the way the court's own
+ * bulk path does (`sign-bulk-confirm-dialog.tsx`, which asks for neither).
+ *
+ * The order document itself (`bulk-reschedule.ts`) is drawn up and tested but has no
+ * surface on this screen: the bench is not offered a copy before signing or after it.
  *
  * **The calendar is composed here rather than hidden behind a picker trigger.** Three
  * things fall out of that, and each was a defect on the version this replaces. A day
@@ -855,19 +914,46 @@ function RescheduleOverlay({
   onReturnFocus: () => void;
 }) {
   const [day, setDay] = React.useState<string | null>(null);
+  /** Which of the two questions is on screen. */
+  const [stage, setStage] = React.useState<"day" | "sign">("day");
+  /**
+   * What the act did, captured at the moment it ran.
+   *
+   * The confirmation reports the selection the act consumed, which by then is no longer
+   * live: signing empties it, so `rows` is `[]` on the very next render and every live
+   * figure is zero. These are the ones that were committed.
+   */
   const [outcome, setOutcome] = React.useState<Outcome | null>(null);
   const titleRef = React.useRef<HTMLHeadingElement>(null);
 
   const count = rows.length;
+
+  /* The fact the signing stage states, named so the dialog can be described by it rather
+     than by a second sentence written to have something to point at. */
+  const factId = React.useId();
+
+  /* Whether the act is what closed this, rather than Cancel, Escape or the X. The two
+     want different things afterwards and the dialog cannot tell them apart on its own —
+     it is unmounted by a parent that has already spent the selection. */
+  const committed = React.useRef(false);
   /* The days the calendar will not offer — the span the bench asked the board for, and
      everything in it. See `earliestNewListing`. */
   const earliestNewDay = earliestNewListing(rows, range.to, today);
 
   /* Focus follows the stage: the title is the line that rewrites itself, so it is what
-     announces the outcome. */
+     announces each change. Swapping a stage replaces the whole body, and focus left on a
+     control that has just been unmounted drops to the document.
+
+     Not on the first render — the overlay's own `onOpenAutoFocus` has already put focus
+     on the title, and re-running it here would be the same move twice. */
+  const opened = React.useRef(false);
   React.useEffect(() => {
-    if (outcome) titleRef.current?.focus();
-  }, [outcome]);
+    if (!opened.current) {
+      opened.current = true;
+      return;
+    }
+    titleRef.current?.focus();
+  }, [stage, outcome]);
 
   return (
     <ChromeDialogContent
@@ -875,6 +961,14 @@ function RescheduleOverlay({
         "flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md",
         OVERLAY_RISE,
       )}
+      /* The signing stage carries no `DialogDescription`; the fact in its card is what
+         describes this window, so it is pointed at directly. Left unset the primitive
+         would go looking for a description that is deliberately not there. */
+      aria-describedby={stage === "sign" && !outcome ? factId : undefined}
+      /* The DS places a small ghost X top-right, which lands on the success panel's solid
+         fill and disappears into it — the reason the advocate confirmation draws its own.
+         Here the footer's Done is the way out, so that stage goes without one. */
+      showCloseButton={!outcome}
       /* The question, not the first control the overlay happens to contain — which is
          the calendar's previous-month arrow, and a ring around that on open reads as a
          starting point the bench does not have. */
@@ -887,33 +981,37 @@ function RescheduleOverlay({
          to the body with nothing to say — it goes to the count instead, which is the
          line that just changed. */
       onCloseAutoFocus={(event) => {
-        if (!outcome) return;
+        if (!committed.current) return;
         event.preventDefault();
         onReturnFocus();
       }}
     >
-      <DialogHeader className="shrink-0 gap-2 border-b border-hairline p-6 pr-16">
-        <DialogTitle
-          ref={titleRef}
-          tabIndex={-1}
-          className="text-title-s font-semibold outline-none"
-        >
-          {outcome
-            ? `${outcome.moved} ${plural(outcome.moved, "hearing", "hearings")} rescheduled`
-            : `Reschedule ${count} ${plural(count, "hearing", "hearings")}`}
-        </DialogTitle>
-        {/* What the overlay does, not a fact the board has already given. It carried an
-            empty-selection pair until the span control left the card — nothing inside the
-            overlay can empty the selection any more, and the button that opens it is off
-            at nothing, so the branch was unreachable copy telling the bench to change
-            dates it can no longer reach from here. On the settled stage this is the one
-            line that reports the act. */}
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          {outcome
-            ? `Now listed on ${formatCourtDay(outcome.day)}.`
-            : "Everything selected moves to one new date."}
-        </DialogDescription>
-      </DialogHeader>
+      {/* The confirmation carries its own heading inside the success panel, which is
+          what the product's confirmations do — so this bordered header belongs to the two
+          stages that ask a question, and goes when the asking is over. */}
+      {outcome ? null : (
+        <DialogHeader className="shrink-0 gap-2 border-b border-hairline p-6 pr-16">
+          <DialogTitle
+            ref={titleRef}
+            tabIndex={-1}
+            className="text-title-s font-semibold outline-none"
+          >
+            {stage === "sign"
+              ? "Sign the rescheduling order"
+              : `Reschedule ${count} ${plural(count, "hearing", "hearings")}`}
+          </DialogTitle>
+          {/* The signing stage has no line here. What the bench needs at that moment is
+              the one fact below — how many matters, and the day they go to — and a
+              sentence above it restating that a signature signs things was the header
+              talking over the only thing it had to say. The dialog is described by that
+              fact instead (`aria-describedby` above). */}
+          {stage === "day" ? (
+            <DialogDescription className="text-body-compact text-muted-foreground">
+              Everything selected moves to one new date.
+            </DialogDescription>
+          ) : null}
+        </DialogHeader>
+      )}
 
       {/* The stage: a tinted canvas under a white card, with the chrome above and below
           it left white so the tint reads as the surface the work sits on rather than as a
@@ -922,7 +1020,9 @@ function RescheduleOverlay({
       <div className="min-h-0 flex-1 overflow-y-auto bg-muted p-4 sm:p-6 dark:bg-background">
         <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
           {outcome ? (
-            <Settled outcome={outcome} />
+            <Signed outcome={outcome} titleRef={titleRef} />
+          ) : stage === "sign" && day !== null ? (
+            <SignOrder count={count} day={day} factId={factId} />
           ) : (
             <PickDay day={day} onDayChange={setDay} earliest={earliestNewDay} />
           )}
@@ -933,11 +1033,39 @@ function RescheduleOverlay({
           muted stage the two would merge into one grey band. */}
       <DialogFooter className="mx-0 mb-0 shrink-0 border-hairline bg-card">
         {outcome ? (
+          /* One way out, and it is the way back to the board — where the rows the act
+             moved are now carrying both of their dates. */
           <DialogClose asChild>
-            <Button type="button" variant="outline">
-              Done
-            </Button>
+            <Button type="button">Done</Button>
           </DialogClose>
+        ) : stage === "sign" ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStage("day")}
+            >
+              Back
+            </Button>
+            {/* The act, and the finalisation: nothing has moved until this, and this asks
+                for nothing further. */}
+            <Button
+              type="button"
+              disabled={day === null}
+              onClick={() => {
+                if (day === null) return;
+                committed.current = true;
+                setOutcome({
+                  day,
+                  moved: rows.length,
+                  cases: new Set(rows.map((row) => row.caseNumber)).size,
+                });
+                onReschedule(day, rows);
+              }}
+            >
+              Sign
+            </Button>
+          </>
         ) : (
           <>
             <DialogClose asChild>
@@ -946,17 +1074,17 @@ function RescheduleOverlay({
               </Button>
             </DialogClose>
             {/* Off until a day is held. Nothing else can be wrong with it: the calendar
-                offers no day that any of these matters is already on or past. */}
+                offers no day that any of these matters is already on or past.
+
+                It says what the flow does rather than what this press does, because the
+                press is the commitment and the signature is the last thing it asks for
+                (owner, 2026-09-15). Nothing is moved by it. */}
             <Button
               type="button"
               disabled={day === null}
-              onClick={() => {
-                if (day === null) return;
-                onReschedule(day, rows);
-                setOutcome({ day, moved: rows.length });
-              }}
+              onClick={() => setStage("sign")}
             >
-              Reschedule hearings
+              Reschedule and sign
             </Button>
           </>
         )}
@@ -1049,41 +1177,123 @@ function PickDay({
 }
 
 /**
- * What the act did — the same card, settled.
+ * What the act did — **the product's success confirmation, not a new one.**
  *
- * It fades and lifts a few pixels in place rather than sliding a new scene in: the bench
- * is looking at the thing that changed, and a window that slides after a button press
- * reads as somewhere else having opened (ui-craft §8).
+ * The solid `bg-success` panel carrying the heading, with the outcome under it and the
+ * tick beneath that, and the facts in a sunken well below. That composition is the
+ * advocate side's (`cases/add-signature-dialog.tsx`, where a submission ends) and every
+ * court-side signing queue's (`sign-bulk-confirm-dialog.tsx`). Signing off twenty
+ * listings is the same beat of the same product as signing a submission, and the two must
+ * not end on two different kinds of object. A toast written for this screen alone was
+ * exactly that, and it is gone (owner, 2026-09-15).
  *
- * The last line is the half of the truth the screen would otherwise be implying. Moving a
- * day's board is communicated to the parties by a notification the court draws up — the
- * register carries the type — and this build draws none.
+ * The heading is the `DialogTitle` on this stage — the bordered header above has gone
+ * with the question it belonged to — so focus lands here and a screen reader hears what
+ * happened rather than the question it just answered. The outcome is a live region for
+ * the same reason `SignBulkConfirmDialog` makes it one: `aria-describedby` sits on the
+ * dialog and does not fire again when the description underneath it is swapped.
+ *
+ * The panel says what happened; the well carries the two facts that are not in it. There
+ * is no third thing. The last line is the half of the truth the screen would otherwise
+ * imply — moving a day's board is communicated to the parties by a notification the court
+ * draws up, and this build draws none.
  */
-function Settled({ outcome }: { outcome: Outcome }) {
+function Signed({
+  outcome,
+  titleRef,
+}: {
+  outcome: Outcome;
+  titleRef: React.RefObject<HTMLHeadingElement | null>;
+}) {
   return (
-    <Card
-      size="sm"
-      className={cn("border-hairline px-4 shadow-raised", RESOLVE_IN_PLACE)}
-    >
-      <div className="flex items-center gap-2 rounded-md bg-success-muted px-3 py-2 text-body-compact text-success-muted-foreground">
-        <CircleCheckIcon aria-hidden className="size-4 shrink-0" />
-        <span role="status" className="font-medium">
-          Rescheduled
+    <div className={cn("flex flex-col gap-4", RESOLVE_IN_PLACE)}>
+      <div className="flex flex-col items-center gap-4 rounded-lg bg-success p-6 text-center">
+        <div className="flex flex-col gap-1.5">
+          <DialogTitle
+            ref={titleRef}
+            tabIndex={-1}
+            className="text-title-s font-semibold text-balance tabular-nums text-success-foreground outline-none"
+          >
+            {outcome.moved} {plural(outcome.moved, "hearing", "hearings")}{" "}
+            rescheduled
+          </DialogTitle>
+          <DialogDescription
+            role="status"
+            className="text-body-compact text-pretty text-success-foreground"
+          >
+            The rescheduling order has been signed.
+          </DialogDescription>
+        </div>
+        <span className="flex size-10 items-center justify-center rounded-full bg-success-foreground">
+          <CheckIcon className="size-6 text-success" aria-hidden />
         </span>
       </div>
 
-      <p className="text-body text-pretty">
-        {outcome.moved} {plural(outcome.moved, "matter", "matters")} now{" "}
-        {plural(outcome.moved, "stands", "stand")} listed on{" "}
-        <span className="font-medium tabular-nums">
-          {formatCourtDay(outcome.day)}
-        </span>
-        .
-      </p>
+      <DescriptionList className="rounded-lg bg-surface-sunken px-4 py-1">
+        <DescriptionRow className="grid-cols-[1fr_auto] items-center border-hairline">
+          <DescriptionTerm className="text-body">
+            New hearing date
+          </DescriptionTerm>
+          <DescriptionDetails className="text-body tabular-nums">
+            {formatListingDate(outcome.day)}
+          </DescriptionDetails>
+        </DescriptionRow>
+        <DescriptionRow className="grid-cols-[1fr_auto] items-center border-hairline">
+          <DescriptionTerm className="text-body">Cases</DescriptionTerm>
+          <DescriptionDetails className="text-body tabular-nums">
+            {outcome.cases === 1 ? "1 case" : `${outcome.cases} cases`}
+          </DescriptionDetails>
+        </DescriptionRow>
+      </DescriptionList>
 
       <p className="text-caption text-muted-foreground">
         No notification has gone to the parties yet.
       </p>
-    </Card>
+    </div>
   );
 }
+
+/**
+ * What the signature covers. It asks for nothing.
+ *
+ * **An e-sign, not a credential ceremony.** This stage briefly carried the six-digit code
+ * the signing queues take, which was the wrong pattern borrowed from the wrong path
+ * (owner, 2026-09-15). Those queues ask because they offer a *choice* — e-sign or a paper
+ * somebody signed by hand — and a chosen route that showed nothing would look finished
+ * when it was not. There is no choice here and no code: pressing Sign e-signs the order,
+ * the way the court's own bulk path signs a queue (`SignBulkConfirmDialog`, which asks
+ * for no method either).
+ *
+ * So the stage is the one fact the bench cannot get anywhere else at this moment, having
+ * come from a board it has already scrolled away from: how many matters, and the day they
+ * go to. It sits on the tinted stage directly rather than inside the white card the
+ * calendar needs — a card holding a single tinted strip is a box inside a box, and this
+ * stage has nothing for a card to hold together (ui-craft §4).
+ *
+ * The `Banner` is the DS element for "what the next control will act on", which is
+ * exactly what this is, and it is what the dialog is described by — so the one sentence
+ * on this stage is read once, by everybody.
+ */
+function SignOrder({
+  count,
+  day,
+  factId,
+}: {
+  count: number;
+  day: string;
+  /** Named so the dialog can point `aria-describedby` at the fact rather than at prose. */
+  factId: string;
+}) {
+  return (
+    /* Written as the move it is, not as a recital of the act the button performs. It read
+       "You are signing one order listing 29 matters on Tuesday, 22 September 2026" —
+       which puts the reader in the sentence, names the paperwork before the fact, and
+       leaves "on Tuesday" hanging between the matters and the listing so it could be
+       either. */
+    <Banner variant="info" id={factId} className={cn(RESOLVE_IN_PLACE, "tabular-nums")}>
+      {count} {plural(count, "hearing", "hearings")}{" "}
+      {plural(count, "moves", "move")} to {formatCourtDay(day)}.
+    </Banner>
+  );
+}
+

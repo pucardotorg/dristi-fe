@@ -69,7 +69,32 @@ describe("initialOrderDraft", () => {
     assert.ok(!draft.items[1].text.text.includes(cognizance.parties.accused));
   });
 
-  it("keeps an item's id stable, so the editor is not remounted under the typist", () => {
+  it("writes every template it pulled in into the one box, in order", () => {
+    /* The invariant the composer itself keeps (`addItem`): what the panel pulled in is
+       what the paper reads. A fixture that set `items` without `body` would show a
+       state the screen cannot reach — a list of orders standing over an empty page. */
+    for (const row of CAUSE_LIST) {
+      const draft = initialOrderDraft(row, "completed", today);
+      assert.equal(
+        draft.body.text,
+        draft.items.map((item) => item.text.text).join("\n\n"),
+        `${row.caseNumber} has a body its items do not account for`,
+      );
+      for (const item of draft.items) {
+        assert.ok(
+          draft.body.html.includes(item.text.html),
+          `${row.caseNumber} lost ${item.type} on the way into the box`,
+        );
+      }
+    }
+  });
+
+  it("opens the box on words, never on a blank line before them", () => {
+    const draft = initialOrderDraft(hearing, "completed", today);
+    assert.equal(draft.body.text, draft.body.text.trimStart());
+  });
+
+  it("keeps an item's id stable, so a row does not jump under the typist", () => {
     const first = initialOrderDraft(hearing, "completed", today);
     const second = initialOrderDraft(hearing, "completed", today);
     assert.deepEqual(

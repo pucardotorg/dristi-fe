@@ -27,12 +27,20 @@ import { cn } from "@/lib/utils";
 /**
  * The matters in range, and which of them the bench has picked.
  *
- * **The board is a board, not a worksheet.** It used to carry a New hearing date column
- * that read back what a picker above the table had written into it — a column that was an
- * em dash on every row until something was applied, and an em dash again the moment the
- * range moved. The date is asked for once, in the overlay the act opens, so the table is
- * left holding what it is actually good at: what is listed, where it stands, and what is
- * checked.
+ * **The New hearing date column appears when there is a new hearing date, and not
+ * before.** It used to stand there permanently, reading back what a date picker above the
+ * table had written into it: an em dash on every row until something was applied, and an
+ * em dash again the moment the range moved. That column went out with the picker. The
+ * date is asked for once, inside the overlay the act opens — and then the answer has to
+ * land somewhere the bench can see it, because a move whose only trace is the dialog that
+ * closed is a move the board never admits to. So the pair comes back the other way round:
+ * the moment any matter on screen has been moved, the board carries both ends of the
+ * change — the day it was listed on, and the day it now goes to (owner, 2026-09-15).
+ *
+ * The two dates are not the same kind of fact and are not drawn as though they were. The
+ * day the matter was listed on is settled and muted; the day it moves to is what changed,
+ * so it carries the foreground and the weight. A row nobody has moved has no new date,
+ * and says so rather than borrowing its old one.
  *
  * Picking is the one thing that happens here, so a picked row carries the design system's
  * own selection band (`tableRowClass({ selectable })`) and a run of them paints as one
@@ -55,6 +63,12 @@ export function BulkRescheduleTable({
 }) {
   const selectedHere = rows.filter((row) => selected.has(row.id)).length;
   const allChecked = selectedHere === rows.length;
+
+  /* Asked of what is on screen, not of the session: a column belongs to the board the
+     bench is looking at. Narrow the range past every matter this session moved and the
+     column goes with them, which is right — there is no change left to show. */
+  const showsNewDate = rows.some((row) => row.newDate !== undefined);
+  const columns = showsNewDate ? 7 : 6;
 
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
@@ -86,8 +100,13 @@ export function BulkRescheduleTable({
             Hearing type
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
-            Hearing date
+            {showsNewDate ? "Current hearing date" : "Hearing date"}
           </TableHead>
+          {showsNewDate ? (
+            <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
+              New hearing date
+            </TableHead>
+          ) : null}
         </TableRow>
       </TableHeader>
       <TableBody className={tableBodyClass({ hover: false, selectable: true })}>
@@ -96,7 +115,7 @@ export function BulkRescheduleTable({
             `border-separate` has no per-edge row gap, so the gap is one inert row held
             out of the accessibility tree. */}
         <tr aria-hidden="true">
-          <td colSpan={6} className="h-2 p-0" />
+          <td colSpan={columns} className="h-2 p-0" />
         </tr>
         {rows.map((row) => {
           const isSelected = selected.has(row.id);
@@ -138,6 +157,28 @@ export function BulkRescheduleTable({
               >
                 {formatListingDate(row.date)}
               </TableCell>
+              {showsNewDate ? (
+                <TableCell
+                  className={cn(
+                    TABLE_CELL,
+                    "font-medium tabular-nums whitespace-nowrap",
+                  )}
+                >
+                  {row.newDate ? (
+                    formatListingDate(row.newDate)
+                  ) : (
+                    /* A row in a range where others moved. The rule is drawn for the
+                       eye, which reads a gap in a column of dates as a loading cell;
+                       the reader that cannot see it is told the fact instead. */
+                    <>
+                      <span aria-hidden="true" className="text-muted-foreground">
+                        —
+                      </span>
+                      <span className="sr-only">Not rescheduled</span>
+                    </>
+                  )}
+                </TableCell>
+              ) : null}
             </TableRow>
           );
         })}

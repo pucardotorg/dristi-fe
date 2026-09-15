@@ -24,9 +24,11 @@
  * leaves the screen permanently empty; an offset is right whenever the screen is opened.
  */
 
+import { CURRENT_STAFF, PRESIDING_MAGISTRATE } from "./content";
 import {
   CAUSE_LIST,
   causeTitle,
+  formatOrderDate,
   isoDay,
   parseIsoDay,
   type CourtCaseStage,
@@ -42,9 +44,29 @@ export type ReschedulableHearing = {
   stage: CourtCaseStage;
   /** What this sitting is listed for. Not the same fact as the stage. */
   purpose: CourtHearingPurposeId;
-  /** The date the matter currently stands listed for, `YYYY-MM-DD`. */
+  /** The day the court's board has this matter on, `YYYY-MM-DD`. */
   date: string;
+  /**
+   * Where this session's bulk move has put it — absent on a matter nobody has moved.
+   *
+   * Held beside `date` rather than written over it, because a move is a change and a
+   * change has two ends. A board that only ever showed where a matter now stands could
+   * not tell the bench what it had just done: twenty rows would quietly take a new day
+   * and the act that moved them would leave no mark on the thing it acted on. So the
+   * day the matter was listed on stays where it is, this is the day it goes to, and the
+   * board shows the pair (owner, 2026-09-15).
+   */
+  newDate?: string;
 };
+
+/**
+ * The day a matter actually sits on — where this session moved it, else where it was
+ * listed. Everything that asks *when* asks this; only the board, which shows the change
+ * itself, reads the two fields apart.
+ */
+export function listedOn(row: ReschedulableHearing): string {
+  return row.newDate ?? row.date;
+}
 
 /** A listing on a day the court has already fixed, held as a distance from today. */
 type UpcomingListing = Omit<ReschedulableHearing, "date"> & { offset: number };
@@ -247,7 +269,8 @@ export function addDays(day: string, count: number): string {
  */
 function byListing(a: ReschedulableHearing, b: ReschedulableHearing): number {
   return (
-    a.date.localeCompare(b.date) || a.caseNumber.localeCompare(b.caseNumber)
+    listedOn(a).localeCompare(listedOn(b)) ||
+    a.caseNumber.localeCompare(b.caseNumber)
   );
 }
 
@@ -290,7 +313,14 @@ export function boardAfterMoves(
   moved: Readonly<Record<string, string>>,
 ): ReschedulableHearing[] {
   return reschedulableHearings(today)
-    .map((row) => (moved[row.id] ? { ...row, date: moved[row.id] } : row))
+    .map((row) => {
+      const to = moved[row.id];
+      /* A move onto the day the matter is already on is not a move, and a row carrying
+         a new date equal to its old one would put a second date on the board saying
+         nothing. The overlay's calendar cannot offer that day, so this is a floor under
+         the data rather than a case the screen reaches. */
+      return to && to !== row.date ? { ...row, newDate: to } : row;
+    })
     .sort(byListing);
 }
 
@@ -316,11 +346,22 @@ export function filterReschedulable(
   filters: RescheduleFilters,
 ): ReschedulableHearing[] {
   const query = filters.query.trim().toLowerCase();
+
+  /* ISO days sort as strings, so each bound is a plain comparison — no Date per row.
+     A `null` end is not a bound at all rather than a bound at today. */
+  const inSpan = (day: string) =>
+    (filters.from === null || day >= filters.from) &&
+    (filters.to === null || day <= filters.to);
+
   return rows.filter((row) => {
-    /* ISO days sort as strings, so each bound is a plain comparison — no Date per row.
-       A `null` end is not a bound at all rather than a bound at today. */
-    if (filters.from !== null && row.date < filters.from) return false;
-    if (filters.to !== null && row.date > filters.to) return false;
+    /* Either end of the move keeps the row on the board, and the first one is why.
+       A new date always lands *after* the span the bench asked for — `earliestNewListing`
+       makes sure of it — so a row judged on where it now stands would leave the range
+       the instant it was moved. The bench would press Reschedule and watch twenty
+       matters vanish from the list it had just picked them out of, which is the one
+       reading of that act nobody wants. The row stays where the work was done, showing
+       the day it was listed on and the day it goes to. */
+    if (!inSpan(row.date) && !inSpan(listedOn(row))) return false;
     if (!query) return true;
     return `${row.title} ${row.caseNumber}`.toLowerCase().includes(query);
   });
@@ -329,7 +370,10 @@ export function filterReschedulable(
 /** The last day any of these matters currently stands listed on. */
 function lastListedDay(rows: ReschedulableHearing[]): string | null {
   let last: string | null = null;
-  for (const row of rows) if (last === null || row.date > last) last = row.date;
+  for (const row of rows) {
+    const day = listedOn(row);
+    if (last === null || day > last) last = day;
+  }
   return last;
 }
 
@@ -364,4 +408,117 @@ export function earliestNewListing(
   if (last !== null && last > floor) floor = last;
   if (spanEnd !== null && spanEnd > floor) floor = spanEnd;
   return addDays(floor, 1);
+}
+
+/**
+ * The order a bulk move is passed by.
+ *
+ * A court does not move twenty matters by editing twenty rows: it passes one order, and
+ * the order is what the case files carry afterwards. The screen used to commit the move
+ * the moment a date was picked, which made the act a database edit wearing a calendar —
+ * nothing was drawn up, so there was nothing to sign and nothing for the files to hold.
+ * The bench now signs this before anything moves (Anshumanth, 2026-09-15).
+ *
+ * One order for the whole run rather than one per case. That is the act as the bench
+ * performs it — a single direction naming the matters it covers — and it is what makes
+ * the signature a single signature rather than twenty.
+ *
+ * **What it does not say.** It gives no reason. This screen never asks for one — leave,
+ * transfer, a holiday declared late are all the same picked date to it — and an order
+ * that recited a ground the court never entered would be the app writing the bench's
+ * words for it. It also directs nothing at the parties: no notification is drawn up on
+ * this branch, so the paper does not pretend to order one.
+ */
+export type RescheduleOrder = {
+  /** "Before the JMFC Court 1, Kollam". */
+  court: string;
+  title: string;
+  /** The operative words. */
+  paragraphs: string[];
+  /** What the order covers, one line each. */
+  matters: { caseNumber: string; matter: string; from: string; to: string }[];
+  dated: string;
+  /** Who signs, and whether they have. */
+  signature: string;
+};
+
+export function buildRescheduleOrder(
+  rows: ReschedulableHearing[],
+  /** The day the matters are being listed on. */
+  day: string,
+  /** The day the order is passed. */
+  today: string,
+  /**
+   * Present once the signature has gone on, absent before it.
+   *
+   * The signature block is the one part of the paper that is not the same before and
+   * after the act, and it must be read at the moment it is written: a copy taken on the
+   * signing step and handed back on the settled step would print "Pending the signature
+   * of the magistrate" across an order the bench has just signed — the same trap
+   * `sign-process` documents on its own bundle.
+   */
+  signedOn?: string,
+): RescheduleOrder {
+  return {
+    court: `Before the ${CURRENT_STAFF.court}`,
+    title: "Order rescheduling listed hearings",
+    paragraphs: [
+      `The matters listed below stand adjourned from the dates shown against them.`,
+      `They are listed for hearing before this court on ${formatOrderDate(day)}.`,
+    ],
+    matters: rows.map((row) => ({
+      caseNumber: row.caseNumber,
+      matter: row.title,
+      from: formatOrderDate(listedOn(row)),
+      to: formatOrderDate(day),
+    })),
+    dated: formatOrderDate(today),
+    signature: signedOn
+      ? `Signed by ${PRESIDING_MAGISTRATE.name}, ${PRESIDING_MAGISTRATE.designation}, ${CURRENT_STAFF.court}, on ${formatOrderDate(signedOn)}.`
+      : "Pending the signature of the magistrate.",
+  };
+}
+
+/** The order as a plain-text facsimile — the shape every other court paper here takes. */
+export function rescheduleOrderText(order: RescheduleOrder): string {
+  return [
+    order.court,
+    "",
+    order.title,
+    "",
+    ...order.paragraphs.map((paragraph, index) => `${index + 1}. ${paragraph}`),
+    "",
+    `Matters (${order.matters.length})`,
+    ...order.matters.map(
+      (matter) =>
+        `${matter.caseNumber} · ${matter.matter} · ${matter.from} → ${matter.to}`,
+    ),
+    "",
+    `Dated this the ${order.dated}.`,
+    "",
+    order.signature,
+  ].join("\n");
+}
+
+export function rescheduleOrderFilename(order: RescheduleOrder): string {
+  return `reschedule-order-${order.matters.length}-matters.txt`;
+}
+
+/**
+ * Put the order in the bench's hands.
+ *
+ * Offered on the signing step, where the paper is off screen and the bench is one click
+ * from committing, and again once it is signed — the two moments the reference offers a
+ * court paper. Same blob-and-anchor the process and application documents use; nothing
+ * is filed and no record is minted.
+ */
+export function downloadRescheduleOrder(order: RescheduleOrder): void {
+  const url = URL.createObjectURL(
+    new Blob([rescheduleOrderText(order)], { type: "text/plain" }),
+  );
+  const anchor = window.document.createElement("a");
+  anchor.href = url;
+  anchor.download = rescheduleOrderFilename(order);
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

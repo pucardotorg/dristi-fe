@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   EllipsisVerticalIcon,
   FileCheckIcon,
+  FilePenLineIcon,
   FileTextIcon,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ import {
   tableRowClass,
 } from "@/components/chrome/table-plate";
 import { CounselCell } from "@/components/employee/counsel-cell";
+import { useOrderDrafts } from "@/components/employee/use-order-draft";
 import {
   rowActivation,
   rowOpener,
@@ -119,6 +121,19 @@ const SESSION_SLOT_CLASS = "min-w-32";
  */
 const ACTION_COLUMN_CLASS = "w-52 min-w-52";
 const ORDERS_COLUMN_CLASS = "w-18";
+/**
+ * A listing already being written on, marked in the Orders column it was always in.
+ *
+ * **A second column was built for this and thrown out** (owner, 2026-09-15: *"we don't
+ * need a draft column"*). It was the wrong instrument twice over. It put the answer in
+ * *which* of two adjacent 72px columns an icon sat in, which is a single channel and the
+ * weakest one — the reader has to track a row back to a header to read it — and it cost
+ * 72px of a table whose width is already measured to the pixel, which is why it could
+ * only be given to one of the two seats. Marking the glyph costs no width, so **both
+ * seats get it**, and the mark is on the thing you were already looking at.
+ */
+const DRAFT_MARK_CLASS =
+  "rounded-lg bg-destructive-muted text-destructive-muted-foreground hover:bg-destructive-muted-hover hover:text-destructive-muted-foreground";
 
 /**
  * The cause title, as the way into that matter's case overview.
@@ -448,6 +463,7 @@ export function HearingOrdersButton({
   hearing,
   seat,
   named = false,
+  drafted = false,
   onOpen,
   className,
 }: {
@@ -455,16 +471,28 @@ export function HearingOrdersButton({
   seat: CourtRole;
   /** Carry the words rather than the glyph — a row with no column header over it. */
   named?: boolean;
+  /**
+   * There is work in progress on this listing — a key in the draft store.
+   *
+   * It changes the glyph and the words, not just which column the button sits in.
+   * Position alone is a single channel, and on a phone row there is no column at all.
+   */
+  drafted?: boolean;
   onOpen?: (hearing: CourtHearing) => void;
   className?: string;
 }) {
-  const label = `Order for item ${hearing.item}, ${causeTitle(hearing)}`;
+  const label = drafted
+    ? `Resume draft order for item ${hearing.item}, ${causeTitle(hearing)}`
+    : `Order for item ${hearing.item}, ${causeTitle(hearing)}`;
   /* One column, two preconditions — see above. */
   const open = seatHasBenchControls(seat)
     ? canDraftOrder(hearing.status)
     : canTypeOrder(hearing.status);
   /* Whether this listing has an order on it — see the note above on why `completed` is
-     the honest test for that and not a stand-in for one. */
+     the honest test for that and not a stand-in for one.
+     A started draft outranks it in the glyph: a typist who has been editing a completed
+     listing needs to know the editing is what is unsaved, which is the more urgent of
+     the two facts. */
   const recorded = hearing.status === "completed";
   const dressClass = named
     ? cn(SESSION_SLOT_CLASS, className)
@@ -474,13 +502,44 @@ export function HearingOrdersButton({
            `hover:text-foreground` would otherwise drop the mark under the pointer — the
            one moment the reader is asking about this row. It wins the merge: the DS
            Button appends `className` last (`button.tsx`). */
-        recorded
-          ? "text-success-ink hover:text-success-ink"
-          : "text-muted-foreground",
+        /* **The draft is the one state that gets a plate**, on the owner's instruction: the
+           same paper glyph the row has always had, on a rounded square in the red family.
+           It is the DS `destructive` button's own pair — `destructive-muted` under
+           `destructive-muted-foreground` — so the glyph measures 4.54:1 on its own fill in
+           light and 7.75:1 in dark, and the hover comes with it rather than being invented.
+           Applied as classes rather than by switching the button to `variant="destructive"`
+           so the control stays a quiet `ghost` in every other state and only the plate is
+           added; the variant would also have swapped the focus ring for the destructive
+           one, which says "this press destroys something" about a press that opens a draft.
+
+           The glyph changes with it: a page with a pen on it (owner, 2026-09-15), which is
+           the one of the three that says *being written* rather than naming a state you
+           have to already know. So the column reads without the plate too — three glyphs,
+           one per state — and the plate is emphasis on the one state that wants it rather
+           than the only thing carrying it. A mark that needs its colour to be read is a
+           mark that fails for the reader who cannot see the colour (ACCESSIBILITY §3).
+
+           *Noted for the owner, once:* red here is the destructive family, and a draft is
+           unfinished rather than wrong. The mark is unmistakable, which is what was asked
+           for, and this is the one place the word for the state disagrees with its colour.
+
+           Recorded keeps `success-ink` and no plate — it reports an outcome, and two
+           plates in one column would stop either of them meaning anything. */
+        drafted
+          ? DRAFT_MARK_CLASS
+          : recorded
+            ? "text-success-ink hover:text-success-ink"
+            : "text-muted-foreground",
         className,
       );
   const content = named ? (
-    "Open order"
+    drafted ? (
+      "Resume draft"
+    ) : (
+      "Open order"
+    )
+  ) : drafted ? (
+    <FilePenLineIcon aria-hidden />
   ) : recorded ? (
     <FileCheckIcon aria-hidden />
   ) : (
@@ -558,6 +617,10 @@ export function HearingRowActions({
   className?: string;
 }) {
   const ordersIsTheRow = !seatHasBenchControls(seat);
+  /* The phone row has no columns to move between, so the state has to be in the control
+     itself: this is where "Open order" becomes "Resume draft". */
+  const drafts = useOrderDrafts();
+  const drafted = Boolean(drafts[hearing.id]);
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
@@ -577,6 +640,7 @@ export function HearingRowActions({
         hearing={hearing}
         seat={seat}
         named={ordersIsTheRow}
+        drafted={drafted}
         onOpen={onOpenOrder}
         className={ordersIsTheRow ? "min-w-0 flex-1" : undefined}
       />
@@ -621,6 +685,7 @@ export function HearingsTable({
      spacer that spans the wrong number of columns leaves the well's rounded corner
      hanging over open table. */
   const hasSessionColumn = seatHasBenchControls(seat);
+  const drafts = useOrderDrafts();
   const columnCount = hasSessionColumn ? 8 : 7;
 
   return (
@@ -654,7 +719,11 @@ export function HearingsTable({
               it, and absent where there is nothing to put in it. */}
           {hasSessionColumn ? (
             <TableHead
-              className={cn(TABLE_HEAD, ACTION_COLUMN_CLASS, "whitespace-nowrap")}
+              className={cn(
+                TABLE_HEAD,
+                ACTION_COLUMN_CLASS,
+                "whitespace-nowrap",
+              )}
             >
               Action
             </TableHead>
@@ -672,14 +741,20 @@ export function HearingsTable({
         {rows.map((hearing) => (
           <TableRow key={hearing.id} {...rowActivation(tableRowClass())}>
             <TableCell
-              className={cn(TABLE_CELL, "w-16 tabular-nums text-muted-foreground")}
+              className={cn(
+                TABLE_CELL,
+                "w-16 tabular-nums text-muted-foreground",
+              )}
             >
               {hearing.item}
             </TableCell>
             {/* The row's one emphasised cell, and the row's opener: it reads this
                 matter's case overview over the list, without calling the matter. */}
             <TableCell
-              className={cn(TABLE_CELL, "min-w-40 font-medium whitespace-normal")}
+              className={cn(
+                TABLE_CELL,
+                "min-w-40 font-medium whitespace-normal",
+              )}
             >
               {/* Fills the cell so the target is the row's height, not the 20px
                   line box the text happens to occupy (`ACCESSIBILITY.md` §8) —
@@ -692,7 +767,9 @@ export function HearingsTable({
                 className="flex items-center"
               />
             </TableCell>
-            <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
+            <TableCell
+              className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+            >
               {hearing.caseNumber}
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-nowrap")}>
@@ -718,19 +795,28 @@ export function HearingsTable({
               </Badge>
             </TableCell>
             <TableCell
-              className={cn(TABLE_CELL, ORDERS_COLUMN_CLASS, "whitespace-nowrap")}
+              className={cn(
+                TABLE_CELL,
+                ORDERS_COLUMN_CLASS,
+                "whitespace-nowrap",
+              )}
             >
               <div className="flex justify-center">
                 <HearingOrdersButton
                   hearing={hearing}
                   seat={seat}
+                  drafted={Boolean(drafts[hearing.id])}
                   onOpen={onOpenOrder}
                 />
               </div>
             </TableCell>
             {hasSessionColumn ? (
               <TableCell
-                className={cn(TABLE_CELL, ACTION_COLUMN_CLASS, "whitespace-nowrap")}
+                className={cn(
+                  TABLE_CELL,
+                  ACTION_COLUMN_CLASS,
+                  "whitespace-nowrap",
+                )}
               >
                 <div className="flex items-center gap-2">
                   <HearingSessionButton

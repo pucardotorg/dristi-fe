@@ -43,7 +43,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { CourtRole } from "@/lib/employee/content";
-import { seatHasBenchControls } from "@/lib/employee/court-role";
 import {
   markHearingEnded,
   markHearingOngoing,
@@ -158,25 +157,29 @@ export function HearingsScreen() {
     setLiveMessage(`Hearing started for ${causeTitle(hearing)}`);
   }
 
-  /**
-   * The typist walking into a listing's order.
+  /*
+   * **Opening an order marks nothing, since 2026-09-15.**
    *
-   * For the bench, opening the composer is just navigation — the sitting is ended from
-   * the row, deliberately, and a trip to type an order must not do it by accident.
+   * The typist's trip into a listing used to mark the matter heard on the way in, so the
+   * row would read Completed when the trail brought them back. Two things were wrong with
+   * it, and the owner hit the second: *"whenever I click on an order icon and land in the
+   * order page, on default the order is already typed out. That shouldn't happen."*
    *
-   * The typist has no session controls at all, so the trip is the whole sitting: the
-   * matter is marked heard on the way in, which is what makes the row read Completed
-   * when the trail brings them back. Marking it here rather than on the order screen is
-   * what keeps the composer honest — it opens already knowing the sitting is over, so
-   * the order it opens on is the finished one (`order-demo.ts`) rather than an empty
-   * composer that fills in underneath the typing.
+   * It was doing exactly that, and this line was why. `initialOrderDraft` opens a
+   * **completed** listing on a written order (D23) — the roll called, the applications
+   * allowed, a paragraph per purpose — and it reads the *live* status, which this made
+   * `completed` at the instant of arrival. So the typist reached a composer that had
+   * already written the order they came to type, and the words were not theirs.
    *
-   * Still not a court record. It is the same screen mark End hearing makes.
+   * The other thing was quieter and worse: Completed is a claim about a sitting, and
+   * opening a screen is not a sitting. "What a court record must not do is quietly imply a
+   * fact nobody entered" is this area's own rule, and a status set by navigation breaks it.
+   *
+   * Nothing takes its place, because nothing needs to: a listing the typist has actually
+   * dictated on now carries the draft mark in the Orders column (`hearings-table.tsx`), so
+   * the trail is drawn by work that exists rather than by a trip that happened. A listing
+   * opened and left shows no mark, which is the truth about it.
    */
-  function openOrder(hearing: CourtHearing) {
-    if (seatHasBenchControls(seat)) return;
-    markHearingEnded(hearing.id);
-  }
 
   function endHearing(hearing: CourtHearing) {
     markHearingEnded(hearing.id);
@@ -200,7 +203,8 @@ export function HearingsScreen() {
   /* Read from `listed`, not from `rows`: a filter set to Scheduled drops the matter
      the bench has just called out of the filtered list, and the overlay reading it
      should not close because of that. */
-  const openHearing = listed.find((hearing) => hearing.id === openHearingId) ?? null;
+  const openHearing =
+    listed.find((hearing) => hearing.id === openHearingId) ?? null;
 
   function changeFilters(next: HearingFilters) {
     setFilters(next);
@@ -270,7 +274,6 @@ export function HearingsScreen() {
                   onStartHearing={startHearing}
                   onEndHearing={endHearing}
                   onPassOver={passOverHearing}
-                  onOpenOrder={openOrder}
                 />
               </div>
               <div className="md:hidden">
@@ -281,7 +284,6 @@ export function HearingsScreen() {
                   onStartHearing={startHearing}
                   onEndHearing={endHearing}
                   onPassOver={passOverHearing}
-                  onOpenOrder={openOrder}
                 />
               </div>
             </div>
@@ -371,8 +373,8 @@ function HearingsFilters({
 }) {
   return (
     <form
-    className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-    onSubmit={(event) => event.preventDefault()}
+      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
+      onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 flex-col gap-2">
         <Label htmlFor="hearings-status" className="w-fit text-body">
@@ -562,7 +564,8 @@ function HearingsItemList({
   onStartHearing: (hearing: CourtHearing) => void;
   onEndHearing: (hearing: CourtHearing) => void;
   onPassOver: (hearing: CourtHearing) => void;
-  onOpenOrder: (hearing: CourtHearing) => void;
+  /** Optional, and unsupplied: see the note where `openOrder` used to be. */
+  onOpenOrder?: (hearing: CourtHearing) => void;
 }) {
   return (
     <ul className="flex flex-col gap-3">
@@ -572,7 +575,9 @@ function HearingsItemList({
         return (
           <li
             key={hearing.id}
-            {...rowActivation("flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+            {...rowActivation(
+              "flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong",
+            )}
           >
             {/* The serial and the cause stay one reading — a block opener would orphan
                 the number on a line of its own. It is a flex row rather than inline
