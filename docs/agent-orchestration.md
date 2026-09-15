@@ -4,6 +4,21 @@ The owner’s intent is a thinking partner, a DS-based builder, and an independe
 Current task decisions travel in a concise agreement; historical feature documents are
 maintained for the owner and are not automatically loaded as build instructions.
 
+## Owner-controlled agents — decision, 2026-09-15
+
+The owner invokes an agent only by explicitly tagging its name in the active task,
+for example `@ux-designer`, `@ui-designer`, or `@ui-reviewer`. The tag authorizes that
+named role for the task, including focused follow-ups to an existing spawned agent.
+One tag never authorizes another role or an automatic UX → build → review chain.
+The coordinator performs untagged stages and a separate review pass when needed;
+it identifies that pass as non-independent. Skills may still guide the coordinator
+without spawning an agent.
+
+This is an instruction boundary in `.agents/policies/`, not a tool-level conditional
+spawn lock. Rails checks confirm generated configuration, not whether a live agent
+obeyed the tag rule. Do not disable subagents globally: that would also prevent the
+owner from invoking a tagged agent.
+
 ## Sources and generated files
 
 | Edit here | Generated or consumed there |

@@ -29,7 +29,8 @@ to the coordinator and continue unaffected work. Do not silently change action s
 
 Use `.agents/policies/verification.md` for completion checks and render evidence. Report
 changed files, criteria met, commands and results, examined widths/themes/states, and
-unverified items. The coordinator arranges independent review when the task calls for it.
+unverified items. The coordinator performs a separate review pass or invokes a reviewer
+only when the owner tagged that role.
 
 Fix required review findings and rerun affected checks; do not expand into unrelated
 polish. Return decision changes and implementation status for the owner's history, which

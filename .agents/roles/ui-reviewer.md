@@ -22,7 +22,8 @@ needs a location, observed failure, consequence, rule or acceptance criterion, a
 concrete correction. Label taste as judgment. Group repeated causes, avoid invented
 findings, and approve clean work without demanding a cosmetic change.
 
-Return **ready**, **needs fixes**, or **verification pending**. The coordinator sends
-required fixes to the builder and requests a focused recheck after changes. You do not
-reopen confirmed product decisions without evidence of an unmet requirement or rule
+Return **ready**, **needs fixes**, or **verification pending**. The coordinator routes
+required fixes to the existing assigned writer or fixes them itself, then requests a
+focused recheck after changes. You do not reopen confirmed product decisions without
+evidence of an unmet requirement or rule
 conflict. Follow `.agents/policies/orchestration.md`.

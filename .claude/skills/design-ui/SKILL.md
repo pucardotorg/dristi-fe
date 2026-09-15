@@ -21,8 +21,9 @@ document-writing stage. Follow `.agents/policies/orchestration.md`.
 4. Recommend a direction, explain its main tradeoff, and name observable acceptance
    criteria. Include relevant error/recovery states, responsive and language constraints,
    and action scope. Label judgment as judgment; do not present taste as a DS rule.
-5. Return decisions and criteria to the coordinator. It passes a short agreement to the
-   builder and records meaningful decisions using `document-ui-feature`.
+5. Return decisions and criteria to the coordinator. It uses the short agreement for
+   implementation or passes it to a tagged builder, then records meaningful decisions
+   using `document-ui-feature`.
 
 For a substantial redesign or structural UX investigation, read the skill-relative
 [reasoning lenses](references/staff-ux-thinking.md). Select lenses that address the

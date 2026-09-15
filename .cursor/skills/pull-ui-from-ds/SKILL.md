@@ -18,8 +18,8 @@ description: "Build or change Dristi UI using the pinned Pucar DS: inspect relev
    system actions or user roles. Historical proposals are not required inputs.
 5. Verify using `.agents/policies/verification.md` and the craft render checklist.
    Return changed files, acceptance results, commands/evidence, necessary deviations,
-   and remaining issues. The coordinator routes independent review when appropriate
-   and records decisions/results through `document-ui-feature`.
+   and remaining issues. The coordinator performs a separate review pass or invokes a
+   tagged reviewer, then records decisions/results through `document-ui-feature`.
 
 If a DS capability is missing, first inspect supported variants and composition. Report
 a genuine gap and recommend a supported approach; continue unaffected work. Do not

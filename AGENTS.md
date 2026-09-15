@@ -22,19 +22,23 @@ described as skill-relative. Start with `docs/README.md` for the docs map.
 ## Route the task
 
 The coordinating agent owns completion and follows `.agents/policies/orchestration.md`.
-Use the smallest workflow justified by consequence, uncertainty, and scope:
+Only an explicit owner-authored `@<agent-name>` tag authorizes spawning that named agent
+for the current task. Complexity, a skill invocation, or a role named in these files
+does not authorize spawning. Use the smallest workflow justified by consequence,
+uncertainty, and scope; the coordinator performs untagged stages:
 
-| Work | Role / skill |
+| Work | Tagged role / skill |
 |---|---|
 | Understand a product problem, brainstorm, choose a direction | `ux-designer` / `design-ui` |
 | Implement agreed behavior | `ui-designer` / `pull-ui-from-ds` + `ui-craft` |
 | Independently review behavior, DS consistency, accessibility | `ui-reviewer` / `review-ui-ds` |
 | Record decisions and results for the owner | coordinator / `document-ui-feature` |
 
-Explanations need no agent team. Clear, small corrections can start with the builder.
-Substantial features and consequential behavior changes require independent review.
-When subagents are available, delegate those stages as bounded tasks; when unavailable,
-perform separate passes and disclose that review was not independent.
+Explanations need no agent team. Clear, small corrections can be built directly.
+Substantial features and consequential behavior changes require a separate review pass.
+Invoke an independent `ui-reviewer` only when the owner tags it; otherwise the
+coordinator reviews its own work separately and discloses that review was not
+independent. A tag for one agent does not authorize any other agent.
 
 ## Sources and context
 
