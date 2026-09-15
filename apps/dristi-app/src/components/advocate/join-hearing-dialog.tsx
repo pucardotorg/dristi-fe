@@ -66,7 +66,7 @@ export function JoinHearingDialog({
                 return (
                   <li
                     key={hearing.kase.id}
-                    className="flex items-center gap-6 rounded-lg border border-hairline bg-card p-3"
+                    className="flex items-center gap-8 rounded-lg border border-hairline bg-card p-3"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-foreground">{hearing.kase.parties}</p>
