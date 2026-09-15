@@ -55,9 +55,16 @@ import {
  * the day and sits in that panel; **Sign** is what the dialog exists for and sits in the
  * footer, the one teal action in view.
  *
- * **The paper shows what is saved, not what is being typed.** The facsimile above renders
- * the recorded business, and the editor holds the draft, so Save is a visible act — the
- * document changes under it — rather than a button whose effect has already happened.
+ * **The paper is the order the court passed that day** (owner, 2026-09-15), not a second
+ * rendering of the register line. A diary entry is signed against the day it records, and
+ * what that day produced is an order — so the frame holds an order sheet, built on the one
+ * the order composer prints. See `ADiaryOrderFacsimile`.
+ *
+ * **The paper shows what is saved, not what is being typed.** The order's operative
+ * passage is the recorded business and the editor holds the draft, so Save is a visible
+ * act — the document changes under it — rather than a button whose effect has already
+ * happened. The two can be one field because an order sheet's composed passage *is* the
+ * business of the day.
  *
  * **Signing takes the field as it stands.** A bench that corrected the wording and went
  * straight for the signature meant to sign the correction, not to lose it, so Sign
@@ -281,14 +288,14 @@ function SignADiaryBody({
           surface="card"
           className="min-h-96 shadow-raised lg:min-h-0"
           height="fill"
-          title={`A-Diary dated ${formatADiaryDate(entry.dated)}`}
+          title={document.title}
           source={{
             kind: "composed",
-            content: <ADiaryFacsimile document={document} />,
+            content: <ADiaryOrderFacsimile document={document} />,
           }}
           download={{
             onDownload: () => downloadADiaryDocument(entry),
-            label: `Download the A-Diary entry in ${entry.caseNumber}`,
+            label: `Download the order passed on ${formatADiaryDate(entry.dated)} in ${entry.caseNumber}`,
           }}
         />
       </div>
@@ -312,15 +319,34 @@ function SignADiaryBody({
 }
 
 /**
- * The day's entry as paper — the same facsimile treatment the other court-side overlays
- * use, plus the one thing an A-Diary has that an order and a form do not: the appearance
- * table, which is the part of the record that says the hearing happened at all.
+ * The order the court passed that day, as paper.
  *
- * The table is drawn with the paper tokens rather than the DS `Table`, for the same
- * reason the heading is: this is a facsimile of a court paper, not a product surface, and
- * the paper palette exists so a document does not inherit the screen's chrome.
+ * **What the bench came to check** (owner, 2026-09-15). The frame used to hold the
+ * register page — the same four facts, the appearance table, the business under a
+ * heading. But a diary entry is signed against the day it records, and what that day
+ * produced is an order; a bench reading its register back needs the order in front of
+ * it, not a second rendering of the sentence it is already correcting in the panel.
+ *
+ * So the page is built on the order sheet the order composer prints (`order-screen.tsx`)
+ * rather than on a shape of its own: the court, the cause and the date, the offence every
+ * case here is prosecuted for, the order's own title, who appeared, the operative
+ * passage, and the block that signs it. Two screens that both draw an order must draw the
+ * same one.
+ *
+ * Three things it keeps from the register page it replaced, and each for a reason:
+ *
+ * - **The appearance table.** The reference's own drawing, and the part of the day's
+ *   record that says the hearing happened at all. The order composer's page states the
+ *   same fact as two rolls; here it is already a table the owner has approved, and a
+ *   bordered table is what a court paper puts appearances in.
+ * - **The operative passage is `entry.business`** — the very string the editor corrects.
+ *   That is what keeps Save a visible act: the paper changes under it. An order sheet's
+ *   composed passage *is* the business of the day, which is why the two can be one field.
+ * - **The paper tokens.** This is a facsimile of a court paper inside a document frame,
+ *   not a product surface, so the table and the heading are drawn with the paper palette
+ *   rather than the DS `Table` — the same treatment `SignOrderDialog` gives its order.
  */
-function ADiaryFacsimile({ document }: { document: ADiaryDocument }) {
+function ADiaryOrderFacsimile({ document }: { document: ADiaryDocument }) {
   return (
     <article className="flex flex-col gap-6 rounded-md bg-paper p-6 text-paper-foreground">
       <header className="flex flex-col gap-2 text-center">
@@ -332,39 +358,80 @@ function ADiaryFacsimile({ document }: { document: ADiaryDocument }) {
           In the matter of {document.matter}
         </p>
         <p className="text-body font-semibold">Dated {document.dated}</p>
+        {/* The offence, held back to the paper's quiet ink: an order sheet prints it
+            above the operative part, and it is standing furniture — true of every case
+            on this platform — rather than anything this order decided. */}
+        <p className="text-caption text-paper-muted-foreground">
+          {document.offence}
+        </p>
       </header>
 
-      <table className="w-full border-collapse text-left">
-        <caption className="sr-only">
-          Appearances in {document.caseNumber}
-        </caption>
-        <tbody>
-          {document.appearances.map(({ label, value }, index) => (
-            <tr key={`${label}-${index}`}>
-              <th
-                scope="row"
-                className="w-2/5 border border-paper-border px-4 py-3 align-top text-body font-normal"
-              >
-                {label}
-              </th>
-              <td className="border border-paper-border px-4 py-3 align-top text-body">
-                {value}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Which order this is. Centred over the operative part, the way the order
+          composer's own page heads it and the way `SignOrderDialog` heads its order. */}
+      <h3 className="text-center text-body font-semibold">{document.title}</h3>
 
-      <section className="flex flex-col gap-2">
-        <h3 className="text-body font-semibold">Business of the day</h3>
-        {/* `whitespace-pre-line` because the bench types this: a record broken into
-            paragraphs should stay broken where it was broken. */}
-        <p className="text-body whitespace-pre-line">{document.business}</p>
+      {/* Who was before the court: the table that names them, then the recital that says
+          who of them actually turned up and what the matter was called for. One block,
+          `gap-4`, because they are one fact told two ways — the order composer's page
+          states it as two rolls, and splitting these across the sheet would read as two
+          unrelated claims about the same sitting. */}
+      <section className="flex flex-col gap-4">
+        <table className="w-full border-collapse text-left">
+          <caption className="sr-only">
+            Appearances before this court in {document.caseNumber}
+          </caption>
+          <tbody>
+            {document.appearances.map(({ label, value }, index) => (
+              <tr key={`${label}-${index}`}>
+                <th
+                  scope="row"
+                  className="w-2/5 border border-paper-border px-4 py-3 align-top text-body font-normal"
+                >
+                  {label}
+                </th>
+                <td className="border border-paper-border px-4 py-3 align-top text-body">
+                  {value}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <p className="text-body">{document.attendance}</p>
       </section>
+
+      <OperativePassage paragraphs={document.paragraphs} />
 
       <p className="text-body text-paper-muted-foreground">
         {document.signature}
       </p>
     </article>
+  );
+}
+
+/**
+ * What the court ordered — numbered, the way an order sheet numbers its paragraphs.
+ *
+ * **Unless there is only one, in which case it is a paragraph.** The bench can flatten
+ * the passage into a single block in the editor beside this, and a numbered list holding
+ * one item is a "1." with nothing to be first of — it reads as a document that lost the
+ * rest of itself. A list of one is not a list, so it is rendered as the paragraph it is.
+ */
+function OperativePassage({ paragraphs }: { paragraphs: string[] }) {
+  if (paragraphs.length <= 1) {
+    /* `whitespace-pre-line` because the bench types this: a passage broken by a single
+       newline should stay broken where it was broken. */
+    return (
+      <p className="text-body whitespace-pre-line">{paragraphs.join("")}</p>
+    );
+  }
+  return (
+    <ol className="flex list-decimal flex-col gap-3 ps-6">
+      {paragraphs.map((paragraph, index) => (
+        <li key={index} className="text-body whitespace-pre-line">
+          {paragraph}
+        </li>
+      ))}
+    </ol>
   );
 }

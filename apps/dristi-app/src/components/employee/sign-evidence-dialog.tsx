@@ -261,24 +261,12 @@ function DetailsStep({
               onBusinessOfTheDayChange(row.id, event.target.value)
             }
           />
-          <FieldDescription className="text-body-compact">
-            The line this marking goes on the day&apos;s record with. The court
-            drafts it from the exhibit number; write over it if the bench said
-            something else.
-          </FieldDescription>
           {blank ? (
             <FieldError className="text-body-compact">
               Write what the court did with this document before signing it.
             </FieldError>
           ) : null}
         </Field>
-
-        {/* What the act means, and what this build does not do — said at the moment of
-            the act rather than left for the bench to discover. */}
-        <p className="text-caption text-muted-foreground">
-          E-signing endorses the exhibit and cannot be reversed. Not part of
-          this build — nothing is signed or written to the record.
-        </p>
       </div>
 
       <DialogFooter>
