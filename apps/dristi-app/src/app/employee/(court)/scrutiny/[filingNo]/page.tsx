@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { CASE } from "@/lib/employee/scrutiny/history";
-import { findFiling } from "@/lib/employee/scrutiny/queue";
+import { scrutinyCaseFor } from "@/lib/employee/scrutiny/case";
 import { CaseWorkbench } from "@/components/employee/scrutiny/case-workbench";
 
 export const metadata: Metadata = { title: "Case review" };
@@ -11,9 +10,10 @@ export const metadata: Metadata = { title: "Case review" };
  * The scrutiny workbench for one filing: filed fields, the document bundle, and the
  * decision to send back or register.
  *
- * Only `CASE.filingNo` has a bundle behind it today; every other row in the queue is a
- * filing without documents, so it 404s rather than opening an empty workbench. When a
- * registry service is real, this is where the case is fetched.
+ * Every real filing opens. The one hand-authored case brings its own rich bundle; every
+ * other row is assembled from what the queue knows about it (`case.ts`), so no row in the
+ * queue is a dead link. Only an id that names no filing at all 404s. When a registry
+ * service is real, `scrutinyCaseFor` is where the case is fetched instead of derived.
  */
 export default async function EmployeeScrutinyCasePage({
   params,
@@ -21,9 +21,8 @@ export default async function EmployeeScrutinyCasePage({
   params: Promise<{ filingNo: string }>;
 }) {
   const { filingNo } = await params;
-  const decoded = decodeURIComponent(filingNo);
-  const filing = findFiling(decoded);
-  if (!filing || decoded !== CASE.filingNo) notFound();
+  const caseData = scrutinyCaseFor(decodeURIComponent(filingNo));
+  if (!caseData) notFound();
 
-  return <CaseWorkbench filingNo={decoded} />;
+  return <CaseWorkbench caseData={caseData} />;
 }

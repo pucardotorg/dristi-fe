@@ -4,6 +4,8 @@ import Link from "next/link";
 
 import { waitTone } from "@/lib/employee/scrutiny/queue";
 import type { Filing } from "@/lib/employee/scrutiny/types";
+import { rowActivation, rowOpener } from "@/lib/employee/row-activation";
+import { markArrival } from "@/components/employee/use-arrival";
 import { cn } from "@/lib/utils";
 import {
   TABLE_CELL,
@@ -12,6 +14,7 @@ import {
   tableBodyClass,
   tableRowClass,
 } from "@/components/chrome/table-plate";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
   Table,
   TableBody,
@@ -50,22 +53,20 @@ export function WaitingCell({ filing }: { filing: Filing }) {
 }
 
 /**
- * The filing number, and whether it goes anywhere.
+ * The filing number — the link into the workbench.
  *
- * Only one filing in this prototype has a bundle behind it, so only that row is a real
- * `Link`. The rest are plain text — an underline that opens nothing would promise the
- * officer a screen that is not there, and a row-level `onClick` would promise it to
- * every row at once. A link also restores what a hand-rolled row handler took away:
- * middle-click, ⌘-click and open-in-new-tab.
+ * Every filing opens: the one hand-authored case brings its own rich bundle, and every
+ * other row is assembled from what the queue knows about it (`scrutiny/case.ts`), so no
+ * row is a dead line. A real `Link` rather than a row-level `onClick` restores what a
+ * hand-rolled handler took away — middle-click, ⌘-click and open-in-new-tab.
  */
 function FilingNo({ filing }: { filing: Filing }) {
-  if (!filing.openable) {
-    return <span className="tabular-nums">{filing.no}</span>;
-  }
   return (
     <Link
       href={`/employee/scrutiny/${encodeURIComponent(filing.no)}`}
-      className="flex min-h-10 w-full items-center rounded-sm tabular-nums underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+      onClick={() => markArrival("next")}
+      {...rowOpener}
+      className="flex min-h-10 w-full items-center rounded-sm tabular-nums underline-offset-4 outline-none group-hover/row:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
     >
       <span className="sr-only">Scrutinise </span>
       {filing.no}
@@ -83,6 +84,10 @@ function FilingNo({ filing }: { filing: Filing }) {
  * There is no Stage chip either. `stageVariant` keyed off who holds the ball, which is
  * exactly what the tab above the table already filters by, so a chip on every row of a
  * tab said one thing thirty times in colour. The words stay; the badge goes.
+ *
+ * The whole row opens the filing — the same clickable row every other court queue carries
+ * (`rowActivation`), now that every filing opens a real workbench and none is a dead line.
+ * The filing number is the named opener; the row is the pointer shortcut on top of it.
  *
  * The panel shell (border, fill, shadow) lives on the screen around this, so the table
  * is one panel rather than a box inside a box.
@@ -117,7 +122,7 @@ export function ScrutinyQueueTable({ rows }: { rows: Filing[] }) {
           </TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody className={tableBodyClass({ hover: false })}>
+      <TableBody className={tableBodyClass()}>
         {/* The header is a well, not a band welded to the rows — it needs the panel's
             fill under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held
@@ -126,11 +131,7 @@ export function ScrutinyQueueTable({ rows }: { rows: Filing[] }) {
           <td colSpan={COLUMN_COUNT} className="h-2 p-0" />
         </tr>
         {rows.map((filing) => (
-          /* `hover:bg-card`, not nothing: the DS TableRow ships `hover:bg-accent`, and
-             accent is the transient-hover role — a fill that says something under the
-             pointer is live. The row is not; only the filing number is, and it carries
-             its own hover. */
-          <TableRow key={filing.no} className={tableRowClass({ hover: false })}>
+          <TableRow key={filing.no} {...rowActivation(tableRowClass())}>
             <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
               <FilingNo filing={filing} />
             </TableCell>
@@ -189,10 +190,7 @@ export function ScrutinyQueueItemList({ rows }: { rows: Filing[] }) {
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((filing) => (
-        <li
-          key={filing.no}
-          className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-4"
-        >
+        <QueueItemRow key={filing.no} className="flex flex-col gap-2">
           <div className="text-body-compact font-medium">
             <FilingNo filing={filing} />
           </div>
@@ -211,7 +209,7 @@ export function ScrutinyQueueItemList({ rows }: { rows: Filing[] }) {
             {" · waiting "}
             <WaitingCell filing={filing} />
           </p>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );
