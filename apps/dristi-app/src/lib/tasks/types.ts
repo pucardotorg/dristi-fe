@@ -45,6 +45,12 @@ export type Case = {
    */
   timeFixed?: boolean;
   /**
+   * The listed hearing was passed over — reached in the cause list but not taken
+   * up (adjourned without being heard) rather than completed. Only meaningful once
+   * the hearing is concluded; absent/false means a concluded hearing was completed.
+   */
+  passedOver?: boolean;
+  /**
    * Advocates signed on the vakalatnama, in order — the first is the main advocate.
    * Only they may complete a task (sign, pay, file).
    */

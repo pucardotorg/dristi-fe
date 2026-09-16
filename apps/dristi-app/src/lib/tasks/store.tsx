@@ -28,13 +28,17 @@ function todayKey(): string {
 }
 
 /**
- * The stamp a seeded browser carries: the seed version and the day it was seeded.
- * The sandbox bakes each hearing's absolute time at seed, so a browser seeded
- * yesterday shows an empty "today". Folding the day into the stamp makes a new
- * day reseed on the next load, exactly as a version bump does.
+ * The stamp a seeded browser carries: the seed version, the day it was seeded, and
+ * a signature of the seed's size. The sandbox bakes each hearing's absolute time at
+ * seed, so a browser seeded yesterday shows an empty "today"; folding the day in
+ * makes a new day reseed on the next load, as a version bump does. Folding the
+ * people/case counts in makes *adding or removing* fixture matters (say, more of
+ * the court docket) reseed on its own — without waiting for a matching SEED_VERSION
+ * bump, which is easy to forget or to land a moment after the data and leave a
+ * browser stamped current on incomplete data.
  */
 function seedStamp(): string {
-  return `${SEED_VERSION}@${todayKey()}`;
+  return `${SEED_VERSION}@${todayKey()}@${PEOPLE.length}x${CASES.length}`;
 }
 
 function seedIsCurrent(): boolean {

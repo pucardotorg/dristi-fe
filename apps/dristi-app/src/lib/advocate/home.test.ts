@@ -19,9 +19,11 @@ import {
   advocateRosterOn,
   boardOf,
   caseRecordFor,
+  causeListOn,
   courtLabelsOf,
   courtRooms,
   dayKeyOf,
+  daySlotsOn,
   hearingsOn,
   holdsVakalatnama,
   matterCountOn,
@@ -35,6 +37,7 @@ import {
   weekOf,
   weightOf,
 } from "./home";
+import { V1_LAUNCH, V1_TWO_SITTINGS, V3_FULL } from "./config";
 
 const NOW_MS = new Date(NOW).getTime();
 
@@ -113,6 +116,20 @@ describe("hearingsOn", () => {
     assert.deepEqual(blocked.blockers.map((t) => t.id), ["t-block"]);
     assert.equal(blocked.ready, false);
     assert.equal(clear.ready, true);
+  });
+});
+
+describe("passedOver", () => {
+  it("carries a matter's passed-over flag onto the hearing and cause-list row", () => {
+    const w = world([
+      { ...listed("po", 0, 6), passedOver: true },
+      listed("done", 0, 6),
+    ]);
+    const day = dayKeyOf(at(0, 12));
+    const items = hearingsOn(w, kase.court, day, NOW_MS);
+    assert.equal(items.find((h) => h.kase.id === "po")?.passedOver, true);
+    assert.equal(items.find((h) => h.kase.id === "done")?.passedOver, false);
+    assert.equal(causeListOn(w, day, NOW_MS).find((r) => r.id === "po")?.passedOver, true);
   });
 });
 
@@ -657,5 +674,84 @@ describe("timelineOn", () => {
     const all = timelineOn(scene(), day, NOW_MS);
     const none = timelineOn(scene(), day, NOW_MS, []);
     assert.equal(none.summary.total, all.summary.total);
+  });
+});
+
+describe("daySlotsOn", () => {
+  const startedJustNow = new Date(NOW_MS - 10 * 60 * 1000).toISOString();
+  const day = dayKeyOf(at(0, 12));
+  // A day across two courts: a concluded pair (06:00), one matter being called
+  // now, a clear upcoming matter (22:00), and an upcoming pair sharing a clock
+  // time (23:00). Hours are picked to bracket NOW in any daytime timezone, as the
+  // other selector tests do.
+  const scene = () =>
+    world([
+      listed("c1", 0, 6, "Court A"),
+      listed("c2", 0, 6, "Court B"),
+      { ...listed("live", 0, 12, "Court A"), nextHearingAt: startedJustNow },
+      listed("u1", 0, 22, "Court A"),
+      listed("x1", 0, 23, "Court A"),
+      listed("x2", 0, 23, "Court B"),
+    ]);
+
+  it("builds one flat board for a single sitting — ongoing grouped, the rest one slot each", () => {
+    const slots = daySlotsOn(scene(), day, NOW_MS, V1_LAUNCH);
+    assert.equal(slots.length, 1); // one sitting → one slot, no tab bar
+    const { board } = slots[0];
+    // Concluded and upcoming are single-hearing slots (a flat list), even where
+    // two share a clock time — x1/x2 at 23:00 are NOT merged.
+    assert.equal(board.concluded.length, 2);
+    assert.ok(board.concluded.every((s) => s.hearings.length === 1));
+    assert.equal(board.upcoming.length, 3);
+    assert.ok(board.upcoming.every((s) => s.hearings.length === 1));
+    // The matters being called now are the one group.
+    assert.equal(board.now.length, 1);
+    assert.deepEqual(board.now[0].hearings.map((h) => h.kase.id), ["live"]);
+    // No conflict is surfaced in the flat view.
+    assert.equal(board.summary.conflictSlots, 0);
+    assert.equal(board.summary.total, 6);
+  });
+
+  it("restores time-grouping and conflicts under the full config", () => {
+    const slots = daySlotsOn(scene(), day, NOW_MS, V3_FULL);
+    assert.equal(slots.length, 1);
+    const { board } = slots[0];
+    // 23:00 is now one shared slot with both matters — a conflict.
+    const conflict = board.upcoming.find((s) => s.key === "23:00")!;
+    assert.equal(conflict.hearings.length, 2);
+    assert.equal(conflict.conflict, true);
+    assert.ok(board.summary.conflictSlots > 0);
+  });
+
+  it("splits the day into two sittings, nothing dropped", () => {
+    const slots = daySlotsOn(scene(), day, NOW_MS, V1_TWO_SITTINGS);
+    assert.equal(slots.length, 2);
+    const idsIn = (i: number) =>
+      slots[i].board.slots.flatMap((sl) => sl.hearings.map((h) => h.kase.id));
+    // Matters outside both windows join the nearest sitting, so the concluded
+    // pair (06:00) lands in the morning and the upcoming trio (22:00/23:00) in
+    // the afternoon.
+    assert.ok(["c1", "c2"].every((id) => idsIn(0).includes(id)));
+    assert.ok(["u1", "x1", "x2"].every((id) => idsIn(1).includes(id)));
+  });
+
+  it("marks the sitting the clock is inside as live, today only", () => {
+    // A window built around NOW's own local hour so it holds the clock whatever
+    // the timezone; a second window that cannot.
+    const h = new Date(NOW_MS).getHours();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const config = {
+      ...V1_LAUNCH,
+      sittings: [
+        { start: `${pad(h)}:00`, end: `${pad(h)}:59` },
+        { start: "00:00", end: "00:01" },
+      ],
+    };
+    const today = daySlotsOn(scene(), day, NOW_MS, config);
+    assert.equal(today[0].live, true);
+    assert.equal(today[1].live, false);
+    // A past day is over, so no sitting throbs even where the clock's hour falls.
+    const past = daySlotsOn(scene(), dayKeyOf(at(-1, 12)), NOW_MS, config);
+    assert.ok(past.every((s) => !s.live));
   });
 });

@@ -2,19 +2,37 @@ import type { CauseListRow } from "./home";
 
 export type CauseListGroupBy = "item" | "court" | "hearingType" | "status";
 
-/** Status groups read most-active first: ongoing, then listed, then completed. */
-const STATUS_ORDER: Record<string, number> = { now: 0, upcoming: 1, concluded: 2 };
+/** The cause list splits a concluded hearing into two statuses — passed over
+ *  (reached but not taken up) and completed. With ongoing and listed, those are
+ *  the four the status column and its sort read. */
+export type CauseStatusKey = "now" | "upcoming" | "passed-over" | "completed";
+export function causeStatusKey(row: CauseListRow): CauseStatusKey {
+  if (row.status === "now") return "now";
+  if (row.status === "upcoming") return "upcoming";
+  return row.passedOver ? "passed-over" : "completed";
+}
+
+/** Status groups read most-active first: ongoing, listed, then passed-over ahead
+ *  of completed (a passed-over matter is the one still owed a hearing). */
+const STATUS_ORDER: Record<CauseStatusKey, number> = {
+  now: 0,
+  upcoming: 1,
+  "passed-over": 2,
+  completed: 3,
+};
 
 /** Group only the current filtered scope; numeric item ordering works beyond 9.
- * "court" groups by the court itself (its name), not by court number. */
+ * "court" groups by the court itself (its name), not by court number; "status"
+ * by the four-way cause-list status. */
 export function groupCauseList(rows: readonly CauseListRow[], by: CauseListGroupBy, locale = "en-IN") {
   const grouped = new Map<string, CauseListRow[]>();
-  const keyOf = (row: CauseListRow) => (by === "court" ? row.courtLabel : String(row[by]));
+  const keyOf = (row: CauseListRow) =>
+    by === "court" ? row.courtLabel : by === "status" ? causeStatusKey(row) : String(row[by]);
   const compareCourt = (a: CauseListRow, b: CauseListRow) =>
     a.courtLabel.localeCompare(b.courtLabel, locale, { numeric: true }) ||
     a.court.localeCompare(b.court, locale);
   const compareStatus = (a: CauseListRow, b: CauseListRow) =>
-    (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+    (STATUS_ORDER[causeStatusKey(a)] ?? 9) - (STATUS_ORDER[causeStatusKey(b)] ?? 9);
   const primary = (a: CauseListRow, b: CauseListRow) =>
     by === "item" ? a.item - b.item :
     by === "court" ? compareCourt(a, b) :

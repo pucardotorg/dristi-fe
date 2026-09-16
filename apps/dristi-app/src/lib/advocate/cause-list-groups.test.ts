@@ -12,7 +12,7 @@ const row = (
 ): CauseListRow => ({
   id, item, court, courtNumber: "1", courtLabel, hearingType,
   parties: `${id} v. Company`, caseNumber: `CNR-${id}`, advocates: "Anjali Nair",
-  status: "upcoming", approxTime: true, mine: id === "a",
+  status: "upcoming", approxTime: true, passedOver: false, mine: id === "a",
 });
 // a & c are the same court by name (two JMFC courtrooms); b is a different court.
 const rows = [
@@ -39,6 +39,23 @@ test("court grouping is by court name, not court number, and preserves scope", (
     groupCauseList(rows.filter((matter) => matter.courtLabel === "CJM Court"), "court").map((group) => group.key),
     ["CJM Court"],
   );
+});
+
+test("status grouping splits concluded into passed-over and completed, most-active first", () => {
+  const mk = (id: string, status: CauseListRow["status"], passedOver = false): CauseListRow => ({
+    id, item: 1, court: "X", courtNumber: "1", courtLabel: "X", hearingType: "Evidence",
+    parties: `${id} v. Co`, caseNumber: `CNR-${id}`, advocates: "A",
+    status, approxTime: false, passedOver, mine: false,
+  });
+  const mixed = [
+    mk("done", "concluded"),
+    mk("passed", "concluded", true),
+    mk("live", "now"),
+    mk("next", "upcoming"),
+  ];
+  const groups = groupCauseList(mixed, "status");
+  assert.deepEqual(groups.map((group) => group.key), ["now", "upcoming", "passed-over", "completed"]);
+  assert.deepEqual(groups.map((group) => group.rows[0].id), ["live", "next", "passed", "done"]);
 });
 
 test("hearing type groups are stable and support search before grouping", () => {

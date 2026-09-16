@@ -15,6 +15,7 @@
  */
 
 import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
+import type { AdvocateHomeConfig, Sitting } from "@/lib/advocate/config";
 import { CASES as CASE_RECORDS } from "@/lib/cases/fixtures";
 import type { CaseRecord } from "@/lib/cases/types";
 import type { Case, Person, PersonId, Task } from "@/lib/tasks/types";
@@ -109,6 +110,8 @@ export type HomeHearing = {
    * one (`Case.timeFixed`) is exact too.
    */
   approxTime: boolean;
+  /** A concluded hearing that was passed over, not completed (from the case). */
+  passedOver: boolean;
   /** Actionable blocking tasks on the case, most urgent first. */
   blockers: Task[];
   /** No open blocking task stands between the case and the hearing. */
@@ -132,14 +135,15 @@ function blockersOf(world: World, kase: Case, now: number): Task[] {
     .sort((a, b) => compareUrgency(a, b, new Date(now)));
 }
 
-/** Every listed matter on `dayKey` in one court, numbered in time order. */
-export function hearingsOn(
+/** Map a set of the day's cases in one court into numbered hearings, in time order. */
+function hearingsFrom(
   world: World,
+  cases: Case[],
   court: string,
   dayKey: string,
-  now: number = Date.now()
+  now: number
 ): HomeHearing[] {
-  return viewableCases(world)
+  return cases
     .filter(
       (c) => c.court === court && c.nextHearingAt && dayKeyOf(c.nextHearingAt) === dayKey
     )
@@ -158,10 +162,48 @@ export function hearingsOn(
         at,
         status,
         approxTime: status === "upcoming" && !kase.timeFixed,
+        passedOver: kase.passedOver === true,
         blockers,
         ready: blockers.length === 0,
       };
     });
+}
+
+/** Every listed matter on `dayKey` in one court the advocate can see, in time order. */
+export function hearingsOn(
+  world: World,
+  court: string,
+  dayKey: string,
+  now: number = Date.now()
+): HomeHearing[] {
+  return hearingsFrom(world, viewableCases(world), court, dayKey, now);
+}
+
+/**
+ * The whole court docket for one court on `dayKey` — every matter listed, not only
+ * the advocate's own, numbered across all of them the way the court publishes it.
+ * The board reads `hearingsOn` (her matters); the cause list reads this.
+ */
+function docketHearingsOn(
+  world: World,
+  court: string,
+  dayKey: string,
+  now: number
+): HomeHearing[] {
+  return hearingsFrom(world, world.cases, court, dayKey, now);
+}
+
+/** Every court with a matter listed that day — the whole docket, flagship ON first. */
+function docketCourtsOn(world: World, dayKey: string): string[] {
+  const courts = new Set<string>();
+  for (const c of world.cases) {
+    if (c.nextHearingAt && dayKeyOf(c.nextHearingAt) === dayKey) courts.add(c.court);
+  }
+  return [...courts].sort((a, b) => {
+    const aOn = a.startsWith("24×7") ? 0 : 1;
+    const bOn = b.startsWith("24×7") ? 0 : 1;
+    return aOn - bOn || a.localeCompare(b);
+  });
 }
 
 export type CourtRoom = {
@@ -402,57 +444,70 @@ function slotKeyOf(at: string): string {
   return `${h}:${m}`;
 }
 
-/**
- * The whole day as one chronological timeline across every court, grouped into
- * time slots.
- *
- * This is the home screen's answer to "where do I need to be, and when am I
- * double-booked?" — a question the per-court board could not answer without the
- * advocate assembling it tab by tab. `courts`, when non-empty, narrows the
- * timeline to a chosen set; the summary follows the filtered view. Numbering
- * stays the court's own: an item keeps its cause-list position, so a filtered
- * slot still reads "item 7".
- *
- * Phase is decided per slot at read time: any hearing being called makes the slot
- * "now"; all past makes it "concluded"; otherwise it is still to come.
- */
-export function timelineOn(
+/** Every listed matter on the day as a timeline row (court label attached), narrowed to `courts`. */
+function timelineHearingsFor(
   world: World,
   dayKey: string,
-  now: number = Date.now(),
+  now: number,
   courts?: readonly string[]
-): DayTimeline {
+): TimelineHearing[] {
   const rooms = courtRooms(world, dayKey, now);
   const labels = courtLabelsOf(rooms.map((r) => r.court));
   const wanted = courts && courts.length ? new Set(courts) : null;
-
-  const byKey = new Map<string, TimeSlot>();
+  const out: TimelineHearing[] = [];
   for (const room of rooms) {
     if (wanted && !wanted.has(room.court)) continue;
     for (const h of hearingsOn(world, room.court, dayKey, now)) {
-      const key = slotKeyOf(h.at);
-      const hearing: TimelineHearing = {
-        ...h,
-        court: room.court,
-        courtLabel: labels.shortOf(room.court),
-      };
-      const slot = byKey.get(key);
-      if (slot) {
-        slot.hearings.push(hearing);
-        // The earliest listing in the slot carries its time — a minute's drift
-        // inside one slot should not reorder it against another.
-        if (new Date(h.at).getTime() < new Date(slot.at).getTime()) slot.at = h.at;
-      } else {
-        byKey.set(key, {
-          key,
-          at: h.at,
-          hearings: [hearing],
-          conflict: false,
-          phase: h.status,
-          approx: false,
-          courts: [],
-        });
-      }
+      out.push({ ...h, court: room.court, courtLabel: labels.shortOf(room.court) });
+    }
+  }
+  return out;
+}
+
+/** The zones and summary a set of finalized slots resolves to — shared assembly. */
+function assembleTimeline(slots: TimeSlot[]): DayTimeline {
+  const conflictSlots = slots.filter((s) => s.conflict);
+  const summary: TimelineSummary = {
+    total: slots.reduce((n, s) => n + s.hearings.length, 0),
+    conflictSlots: conflictSlots.length,
+    overlap: conflictSlots.reduce((n, s) => n + s.hearings.length, 0),
+    clearSlots: slots.filter((s) => s.hearings.length === 1).length,
+    courts: new Set(slots.flatMap((s) => s.courts)).size,
+  };
+  return {
+    slots,
+    concluded: slots.filter((s) => s.phase === "concluded"),
+    now: slots.filter((s) => s.phase === "now"),
+    upcoming: slots.filter((s) => s.phase === "upcoming"),
+    next: slots.find((s) => s.phase === "upcoming") ?? null,
+    summary,
+  };
+}
+
+/**
+ * Group hearings into shared time slots across courts — the full, time-grouped
+ * board, where two or more matters at one clock time is a conflict.
+ */
+function groupByTimeSlots(hearings: TimelineHearing[], now: number): DayTimeline {
+  const byKey = new Map<string, TimeSlot>();
+  for (const hearing of hearings) {
+    const key = slotKeyOf(hearing.at);
+    const slot = byKey.get(key);
+    if (slot) {
+      slot.hearings.push(hearing);
+      // The earliest listing in the slot carries its time — a minute's drift
+      // inside one slot should not reorder it against another.
+      if (new Date(hearing.at).getTime() < new Date(slot.at).getTime()) slot.at = hearing.at;
+    } else {
+      byKey.set(key, {
+        key,
+        at: hearing.at,
+        hearings: [hearing],
+        conflict: false,
+        phase: hearing.status,
+        approx: false,
+        courts: [],
+      });
     }
   }
 
@@ -484,23 +539,200 @@ export function timelineOn(
       slot.phase === "upcoming" && !slot.hearings.every((h) => h.kase.timeFixed);
   }
 
-  const conflictSlots = slots.filter((s) => s.conflict);
-  const summary: TimelineSummary = {
-    total: slots.reduce((n, s) => n + s.hearings.length, 0),
-    conflictSlots: conflictSlots.length,
-    overlap: conflictSlots.reduce((n, s) => n + s.hearings.length, 0),
-    clearSlots: slots.filter((s) => s.hearings.length === 1).length,
-    courts: new Set(slots.flatMap((s) => s.courts)).size,
-  };
+  return assembleTimeline(slots);
+}
 
+/**
+ * A flat board: the matters being called now grouped into one slot, and every
+ * concluded or upcoming matter as its own single-hearing slot — a plain list,
+ * no time grouping and no conflicts. This is the launch view: without listed
+ * times there is nothing to group upcoming/concluded matters by, and only
+ * "these are being called now" is a grouping worth keeping.
+ */
+function buildFlatBoard(hearings: TimelineHearing[]): DayTimeline {
+  const chrono = [...hearings].sort(
+    (a, b) =>
+      new Date(a.at).getTime() - new Date(b.at).getTime() ||
+      a.court.localeCompare(b.court) ||
+      a.item - b.item
+  );
+  // Each concluded/upcoming matter is a slot of one, so the existing slot
+  // renderers draw it as a single flat row.
+  const single = (h: TimelineHearing): TimeSlot => ({
+    key: h.kase.id,
+    at: h.at,
+    hearings: [h],
+    conflict: false,
+    phase: h.status,
+    approx: false,
+    courts: [h.court],
+  });
+  const concluded = chrono.filter((h) => h.status === "concluded").map(single);
+  const upcoming = chrono.filter((h) => h.status === "upcoming").map(single);
+  const nowHearings = chrono
+    .filter((h) => h.status === "now")
+    .sort((a, b) => a.court.localeCompare(b.court) || a.item - b.item);
+  const nowSlots: TimeSlot[] = nowHearings.length
+    ? [
+        {
+          key: "now",
+          at: nowHearings[0].at,
+          hearings: nowHearings,
+          conflict: false,
+          phase: "now",
+          approx: false,
+          courts: [...new Set(nowHearings.map((h) => h.court))],
+        },
+      ]
+    : [];
+
+  const slots = [...concluded, ...nowSlots, ...upcoming];
+  const summary: TimelineSummary = {
+    total: hearings.length,
+    // Conflicts are not surfaced in the flat view — there is no listed time to
+    // collide on — so the conflict counts are zero rather than counting the
+    // ongoing group as one.
+    conflictSlots: 0,
+    overlap: 0,
+    clearSlots: 0,
+    courts: new Set(hearings.map((h) => h.court)).size,
+  };
   return {
     slots,
-    concluded: slots.filter((s) => s.phase === "concluded"),
-    now: slots.filter((s) => s.phase === "now"),
-    upcoming: slots.filter((s) => s.phase === "upcoming"),
-    next: slots.find((s) => s.phase === "upcoming") ?? null,
+    concluded,
+    now: nowSlots,
+    upcoming,
+    next: upcoming[0] ?? null,
     summary,
   };
+}
+
+/**
+ * The whole day as one chronological timeline across every court, grouped into
+ * time slots — the full, time-grouped board with conflict detection.
+ *
+ * This is the home screen's answer to "where do I need to be, and when am I
+ * double-booked?" — a question the per-court board could not answer without the
+ * advocate assembling it tab by tab. `courts`, when non-empty, narrows the
+ * timeline to a chosen set; the summary follows the filtered view. Numbering
+ * stays the court's own: an item keeps its cause-list position, so a filtered
+ * slot still reads "item 7".
+ *
+ * Phase is decided per slot at read time: any hearing being called makes the slot
+ * "now"; all past makes it "concluded"; otherwise it is still to come.
+ */
+export function timelineOn(
+  world: World,
+  dayKey: string,
+  now: number = Date.now(),
+  courts?: readonly string[]
+): DayTimeline {
+  return groupByTimeSlots(timelineHearingsFor(world, dayKey, now, courts), now);
+}
+
+/* ───────────────────────────── day slots (sittings) ───────────────────────────── */
+
+/** One court sitting on the day — a tab on the board, with its own timeline. */
+export type DaySlot = {
+  key: string;
+  /** The sitting's clock window. */
+  window: Sitting;
+  /** The window formatted for the tab and the summary's slot stat ("9:00 am – 5:00 pm"). */
+  label: string;
+  /** A matter is being called in this sitting right now — the tab throbs. */
+  live: boolean;
+  /** The sitting's board — time-grouped or flat per config. */
+  board: DayTimeline;
+};
+
+/** Local minutes-past-midnight of a "HH:MM" sitting bound. */
+function minutesOf(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+/** Local minutes-past-midnight of an ISO listing time. */
+function localMinutes(at: string): number {
+  const d = new Date(at);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** "09:00" → "9:00 am", in the reader's clock convention. */
+function formatClock(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m || 0, 0, 0);
+  return new Intl.DateTimeFormat("en-IN", { timeStyle: "short" }).format(d);
+}
+
+function labelOfSitting(s: Sitting): string {
+  return `${formatClock(s.start)} – ${formatClock(s.end)}`;
+}
+
+/** The sitting whose edge is closest to a stray time, so nothing is dropped. */
+function nearestSitting(sittings: readonly Sitting[], t: number): number {
+  let best = 0;
+  let bestDist = Infinity;
+  sittings.forEach((s, i) => {
+    const dist = t < minutesOf(s.start) ? minutesOf(s.start) - t : t - minutesOf(s.end);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  });
+  return best;
+}
+
+/**
+ * The day split into court sittings — each a tab on the board with its own
+ * timeline. Every matter falls into the sitting whose window covers its listed
+ * time; a matter outside all of them joins the nearest, so none is dropped. Each
+ * sitting's board is built as the config asks — the full time-grouped view, or
+ * the flat launch list with only the ongoing matters grouped. A day with one
+ * sitting is a single slot (the board then shows no tab bar).
+ */
+export function daySlotsOn(
+  world: World,
+  dayKey: string,
+  now: number,
+  config: AdvocateHomeConfig,
+  courts?: readonly string[]
+): DaySlot[] {
+  const hearings = timelineHearingsFor(world, dayKey, now, courts);
+  const sittings = config.sittings.length
+    ? config.sittings
+    : [{ start: "00:00", end: "23:59" }];
+
+  const buckets: TimelineHearing[][] = sittings.map(() => []);
+  for (const h of hearings) {
+    const t = localMinutes(h.at);
+    let idx = sittings.findIndex(
+      (s) => t >= minutesOf(s.start) && t <= minutesOf(s.end)
+    );
+    if (idx === -1) idx = nearestSitting(sittings, t);
+    buckets[idx].push(h);
+  }
+
+  // The live sitting is the one the clock is inside, and only on today — a past
+  // day is over and a future one has not begun, so neither throbs a tab.
+  const isToday = dayKeyOf(now) === dayKey;
+  const nowMinutes = new Date(now).getHours() * 60 + new Date(now).getMinutes();
+
+  return sittings.map((window, i) => {
+    const board = config.groupByTime
+      ? groupByTimeSlots(buckets[i], now)
+      : buildFlatBoard(buckets[i]);
+    return {
+      key: `sitting-${i}`,
+      window,
+      label: labelOfSitting(window),
+      live:
+        isToday &&
+        nowMinutes >= minutesOf(window.start) &&
+        nowMinutes <= minutesOf(window.end),
+      board,
+    };
+  });
 }
 
 /** One row of the day's full cause list — every matter listed, across courts. */
@@ -522,6 +754,8 @@ export type CauseListRow = {
   status: HearingStatus;
   /** The listed time is a rough order, not a fixed slot (upcoming, unrescheduled). */
   approxTime: boolean;
+  /** A concluded hearing that was passed over rather than completed. */
+  passedOver: boolean;
   /** A matter this advocate is on — marked in the list so hers stand out. */
   mine: boolean;
 };
@@ -538,31 +772,34 @@ export function causeListOn(
   now: number = Date.now(),
   courts?: readonly string[]
 ): CauseListRow[] {
-  const rooms = courtRooms(world, dayKey, now);
-  const labels = courtLabelsOf(rooms.map((r) => r.court));
+  const docketCourts = docketCourtsOn(world, dayKey);
+  const labels = courtLabelsOf(docketCourts);
   const wanted = courts && courts.length ? new Set(courts) : null;
   const nameOf = (id: PersonId) =>
     world.people.find((p) => p.id === id)?.name ?? id;
 
   const rows: CauseListRow[] = [];
-  for (const room of rooms) {
-    if (wanted && !wanted.has(room.court)) continue;
-    for (const h of hearingsOn(world, room.court, dayKey, now)) {
+  for (const court of docketCourts) {
+    if (wanted && !wanted.has(court)) continue;
+    // The whole court docket — every advocate's matters, not just the viewer's —
+    // numbered across all of them, so an item keeps its real cause-list position.
+    for (const h of docketHearingsOn(world, court, dayKey, now)) {
       rows.push({
         id: h.kase.id,
         item: h.item,
         parties: h.kase.parties,
-        court: room.court,
-        courtLabel: courtIdentity(labels.shortOf(room.court)).name,
-        courtNumber: courtNumberFor(room.court, h.kase.courtNumber),
+        court,
+        courtLabel: courtIdentity(labels.shortOf(court)).name,
+        courtNumber: courtNumberFor(court, h.kase.courtNumber),
         advocates: h.kase.advocates.map(nameOf).join(", "),
         caseNumber: h.kase.cnr || h.kase.stNumber || "—",
         hearingType: h.kase.stage,
         status: h.status,
         approxTime: h.approxTime,
-        // Demo stand-in for "an advocate's own matter": the hand-authored set is
-        // hers; the scale and past-day fill stand in for the rest of the docket.
-        mine: !h.kase.id.startsWith("c-sd") && !h.kase.id.startsWith("c-pd"),
+        passedOver: h.passedOver,
+        // The real flag now that the docket carries other advocates' matters: a
+        // matter reads as the viewer's when she is on it.
+        mine: canView(world.user, h.kase),
       });
     }
   }

@@ -13,8 +13,10 @@
 import { SCRUTINY_DEFECTS, SCRUTINY_DRAFT_ID } from "./scrutiny-return";
 import type { Case, Defect, Person, Task } from "./types";
 
-/** Bump when the seed's shape changes; a browser holding an older seed is re-seeded. */
-export const SEED_VERSION = 18;
+/** Bump when the seed's shape changes; a browser holding an older seed is re-seeded.
+ *  (The seed stamp also folds in the people/case counts, so adding or removing
+ *  fixture matters reseeds on its own even without a bump — see store.tsx.) */
+export const SEED_VERSION = 23;
 
 /**
  * A defect on a filing that was made outside this app, so there is no draft to open and
@@ -43,6 +45,15 @@ export const PEOPLE: Person[] = [
   { id: "p-dv", name: "Deepa Varghese", initials: "DV", role: "senior" },
   { id: "p-rm", name: "R. Manoj", initials: "RM", role: "senior" },
   { id: "p-ri", name: "Rahul Iyer", initials: "RI", role: "junior" },
+  // Other advocates on the court docket — they carry the matters that are not the
+  // viewer's, so the cause list reads as the court's full published list, not only
+  // hers. The viewer is on none of these, so they never reach her board.
+  { id: "p-o1", name: "Meera Pillai", initials: "MP", role: "senior" },
+  { id: "p-o2", name: "Anil George", initials: "AG", role: "senior" },
+  { id: "p-o3", name: "Joseph Mathew", initials: "JM", role: "senior" },
+  { id: "p-o4", name: "Reena Thomas", initials: "RT", role: "junior" },
+  { id: "p-o5", name: "Sunil Kumar", initials: "SK", role: "senior" },
+  { id: "p-o6", name: "Fathima Latheef", initials: "FL", role: "junior" },
 ];
 
 /** Who the sandbox signs in as until the account menu says otherwise. */
@@ -65,13 +76,14 @@ function hearing(days: number): string {
 }
 
 /* ─────────────────────────── scale fixture ───────────────────────────
- * A Gujarat-scale day for stress-testing the home timeline: ~20 courts and a few
- * dozen matters listed today, spread across the day and snapped to the same
- * 30-minute grid as the hand-written list, so many fall in one slot across courts
- * and the conflict view is exercised under real load. This is demo scaffolding —
- * being cases, these also swell Your Cases and the calendar; remove the block to
- * return to the small hand-authored day. Anjali (p-an) is on all of them, so the
- * whole set reaches her board. */
+ * A realistic Kollam day for the home timeline: a dozen courts and ~two dozen
+ * matters listed today, spread across the day. The hand-authored cases sit in
+ * three courts (nearly all in the ON court), so this fill gives the board its
+ * spread of courts. Kept within a launch-day size — roughly 10–30 matters across
+ * 10–15 courts — rather than the earlier stress-test scale. This is demo
+ * scaffolding: being cases, these also swell Your Cases and the calendar; remove
+ * the block to return to the small hand-authored day. Anjali (p-an) is on all of
+ * them, so the whole set reaches her board. */
 const SCALE_COURTS = [
   "24×7 ON Court, Kollam",
   "CJM Court, Kollam",
@@ -79,19 +91,11 @@ const SCALE_COURTS = [
   "JMFC Court 1, Kollam",
   "JMFC Court 2, Kollam",
   "JMFC Court 3, Kollam",
-  "JMFC Court 4, Kollam",
-  "JMFC Court 5, Kollam",
-  "JMFC Court 6, Kollam",
   "Sessions Court, Kollam",
   "Addl. Sessions I, Kollam",
-  "Addl. Sessions II, Kollam",
   "Sub Court 1, Kollam",
-  "Sub Court 2, Kollam",
   "Munsiff Court 1, Kollam",
-  "Munsiff Court 2, Kollam",
-  "Munsiff Court 3, Kollam",
   "Family Court, Kollam",
-  "MACT, Kollam",
   "NI Act Court, Kollam",
 ];
 
@@ -112,9 +116,11 @@ const SCALE_STAGES = [
 ];
 const SCALE_EXTRAS = ["p-sp", "p-rm", "p-dv", "p-ri"] as const;
 
-/** How many extra matters to list today for the scale test. With the 17
- *  hand-authored today matters this keeps the day between ~10 and 50 hearings. */
-const SCALE_COUNT = 28;
+/** How many extra matters to list today, filling courts the hand-authored set
+ *  (mostly the ON court) does not reach. Six, so the day is 17 hand-authored + 6
+ *  = 23 matters — the launch-day size the board states (12 concluded, 4 now, 7
+ *  upcoming). Their placement into those zones is authored in `todaySchedule`. */
+const SCALE_COUNT = 6;
 
 type CaseSeed = Omit<Case, "nextHearingAt">;
 
@@ -135,37 +141,33 @@ const SCALE_SEEDS: CaseSeed[] = Array.from({ length: SCALE_COUNT }, (_, i) => {
 });
 
 /**
- * Every matter listed today. The hand-authored cases that owe work before the
- * hearing (they carry blocking tasks) are placed into the now / early-upcoming
- * band so their "pending" flag lands where it is still actionable, not on a
- * hearing already concluded. The scale set fills in behind them.
+ * Today's board, authored to a launch-day size: 12 concluded, 4 being called now,
+ * 7 upcoming — 23 matters in all, the counts the screen states. The three matters
+ * carrying blocking tasks are split so the flag lands where work is still worth
+ * doing: one (c-hd3) among the four ongoing, two (c-hd5, c-hd8) in the upcoming
+ * band. The scale set (c-sd0–5) fills courts the hand-authored matters, clustered
+ * in the ON court, do not reach.
  */
-const PREP_IDS = ["c-hd3", "c-hd5", "c-hd8"];
-const OTHER_HD = Array.from({ length: 17 }, (_, i) => `c-hd${i + 1}`).filter(
-  (id) => !PREP_IDS.includes(id)
-);
-const TODAY_IDS = [
-  ...OTHER_HD.slice(0, 8),
-  ...PREP_IDS,
-  ...OTHER_HD.slice(8),
-  ...SCALE_SEEDS.map((seed) => seed.id),
-];
+const NOW_IDS = ["c-hd3", "c-hd1", "c-hd6", "c-hd9"]; // c-hd3 is the one blocking matter here
+const CONCLUDED_IDS = [
+  "c-sd0", "c-sd1", "c-sd2",
+  "c-hd2", "c-hd4", "c-hd7", "c-hd10", "c-hd11", "c-hd12", "c-hd13", "c-hd14", "c-hd15",
+]; // 12
+const UPCOMING_IDS = [
+  "c-hd5", "c-hd8", // the two blocking matters, still worth preparing for
+  "c-sd3", "c-sd4", "c-sd5", "c-hd16", "c-hd17",
+]; // 7
 
 /**
  * Today's cause list, built when the sandbox is seeded.
  *
- * A real court day runs on the clock — matters are called at block times from the
- * morning through late afternoon — so the list is placed on a fixed 10:00–17:00
- * grid, not proportionally around the moment the app happens to be opened. Which
- * block is being called "now" is then decided at read time against the home's
- * clock (see the demo clock in `advocate-home`), so the day always reads as one
- * in progress without pushing hearings to unrealistic hours.
- *
- * Distribution is deliberately uneven, the way a real diary is: every block gets
- * at least one matter so the whole day is populated, then the surplus piles onto
- * the morning-through-early-afternoon blocks. The result is dense conflict
- * clusters when the courts are busy and quieter single-hearing slots later — a
- * realistic mix rather than a wall of collisions or a flat spread.
+ * Roles are assigned by list, not left to emerge from a grid: the zone counts are
+ * exact (the board states them), so each group is placed deliberately around the
+ * home's 14:10 demo clock — the morning concluded, ~2 pm being called now, the
+ * afternoon upcoming. The backend keeps these times; the launch view hides them
+ * (config `lib/advocate/config`) and only their zone shows, but a fuller config
+ * surfaces and groups by them. Which matters read as "now" is still decided at
+ * read time against the clock, so the day always reads as one in progress.
  */
 function todaySchedule(): Record<string, string> {
   const base = new Date();
@@ -173,19 +175,20 @@ function todaySchedule(): Record<string, string> {
   const slotAt = (minutes: number) =>
     new Date(base.getTime() + minutes * 60 * 1000).toISOString();
 
-  // 10:00 to 17:00 on a 30-minute grid.
-  const blocks: number[] = [];
-  for (let m = 10 * 60; m <= 17 * 60; m += 30) blocks.push(m);
-  // The busy stretch the surplus piles onto: 10:00 to 15:30, leaving the late
-  // afternoon (16:00–17:00) as quiet single-hearing slots. This keeps a mix of
-  // conflicts and clear slots across concluded, now, and upcoming alike.
-  const busy = blocks.slice(0, 12);
-
   const schedule: Record<string, string> = {};
-  TODAY_IDS.forEach((id, i) => {
-    const block =
-      i < blocks.length ? blocks[i] : busy[(i - blocks.length) % busy.length];
-    schedule[id] = slotAt(block);
+  // Concluded: the morning in pairs on a 30-minute grid from 09:00 — a shared
+  // time is invisible in the flat launch view and gives a fuller config a
+  // conflict to show. All fall before the ~12:40 edge of the live window.
+  CONCLUDED_IDS.forEach((id, i) => {
+    schedule[id] = slotAt(9 * 60 + Math.floor(i / 2) * 30);
+  });
+  // Now: inside the 90-minute live window that ends at the 14:10 demo clock.
+  NOW_IDS.forEach((id, i) => {
+    schedule[id] = slotAt(13 * 60 + i * 20);
+  });
+  // Upcoming: the afternoon, after the live window through the sitting's end.
+  UPCOMING_IDS.forEach((id, i) => {
+    schedule[id] = slotAt(14 * 60 + 30 + i * 20);
   });
   return schedule;
 }
@@ -249,6 +252,49 @@ function pastCases(): Case[] {
 /** Concluded matters on the recent past days, so those days are not empty. */
 const PAST_CASES: Case[] = pastCases();
 
+/* ─────────── other advocates' matters (the rest of today's docket) ───────────
+ * Matters listed today that the viewer (Anjali) is NOT on. They never reach her
+ * board — the board is her own cases — but they fill the court's published cause
+ * list, so it reads as the whole day's docket across advocates, courts, stages and
+ * statuses rather than only her matters. Being outside her cases, they add nothing
+ * to Your Cases, the calendar, or the board's counts; they surface in the cause
+ * list alone. */
+const OTHER_ADVOCATES = ["p-o1", "p-o2", "p-o3", "p-o4", "p-o5", "p-o6"] as const;
+const OTHER_COUNT = 24;
+
+function otherCases(): Case[] {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  // Spread across 09:00–17:00 so the docket carries other advocates' matters in
+  // every status — concluded through the morning, one being called around the
+  // demo clock, the rest upcoming.
+  const span = 17 * 60 - 9 * 60;
+  return Array.from({ length: OTHER_COUNT }, (_, i) => {
+    const year = 2025 + (i % 2);
+    const code = String((i % 6) + 1).padStart(2, "0");
+    const seq = String(2000 + i * 19).padStart(6, "0");
+    const minutes = 9 * 60 + Math.round((i / (OTHER_COUNT - 1)) * span);
+    const lead = OTHER_ADVOCATES[i % OTHER_ADVOCATES.length];
+    const second = OTHER_ADVOCATES[(i + 2) % OTHER_ADVOCATES.length];
+    return {
+      id: `c-ot${i}`,
+      stNumber: `ST ${300 + i}/${year}`,
+      cnr: `KLKL${code}-${seq}-${year}`,
+      parties: `${SCALE_NAMES[(i * 3) % SCALE_NAMES.length]} v. ${SCALE_ORGS[(i * 7) % SCALE_ORGS.length]}`,
+      court: SCALE_COURTS[i % SCALE_COURTS.length],
+      stage: SCALE_STAGES[i % SCALE_STAGES.length],
+      // Every third matter reads as passed over; it only shows once concluded.
+      passedOver: i % 3 === 0,
+      signatories: [lead],
+      advocates: [lead, second],
+      nextHearingAt: new Date(base.getTime() + minutes * 60 * 1000).toISOString(),
+    };
+  });
+}
+
+/** The rest of the day's docket — other advocates' matters, cause list only. */
+const OTHER_CASES: Case[] = otherCases();
+
 function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
@@ -297,15 +343,15 @@ export const CASES: Case[] = [
   // is a signatory on most; four (c-hd4, c-hd7, c-hd12, c-hd15) she can see but
   // not act on — the vakalatnama split the home screen marks on the card itself.
   { id: "c-hd1", stNumber: "ST 268/2025", cnr: "KLKL01-000268-2025", parties: "Prakash Kumar v. Malabar Traders", court: ON, stage: "Evidence of the complainant", nextHearingAt: listedToday("c-hd1"), signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
-  { id: "c-hd2", stNumber: "ST 743/2025", cnr: "KLKL01-000743-2025", parties: "Divya Suresh v. K. Salim", court: ON, stage: "Plea", nextHearingAt: listedToday("c-hd2"), signatories: ["p-an", "p-rm"], advocates: ["p-an", "p-rm"] },
+  { id: "c-hd2", stNumber: "ST 743/2025", cnr: "KLKL01-000743-2025", parties: "Divya Suresh v. K. Salim", court: ON, stage: "Plea", nextHearingAt: listedToday("c-hd2"), passedOver: true, signatories: ["p-an", "p-rm"], advocates: ["p-an", "p-rm"] },
   { id: "c-hd3", stNumber: "ST 512/2025", cnr: "KLKL01-000512-2025", parties: "Gopinathan Nair v. Chaithanya Agencies", court: ON, stage: "Evidence of the complainant", nextHearingAt: listedToday("c-hd3"), signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
   { id: "c-hd4", stNumber: "ST 391/2026", cnr: "KLKL01-000391-2026", parties: "Mariyam Bee v. Anwar Sadath", court: ON, stage: "Appearance", nextHearingAt: listedToday("c-hd4"), signatories: ["p-dv"], advocates: ["p-dv", "p-an"] },
   { id: "c-hd5", stNumber: "ST 129/2026", cnr: "KLKL01-000129-2026", parties: "Ravi Chandran v. Sea Pearl Exports", court: ON, stage: "Evidence of the complainant", nextHearingAt: listedToday("c-hd5"), signatories: ["p-an", "p-dv"], advocates: ["p-an", "p-dv", "p-sp"] },
   { id: "c-hd6", stNumber: "ST 84/2026", cnr: "KLKL02-000084-2026", parties: "Salini Mohan v. Grand Textiles", court: JMFC1, stage: "Plea", nextHearingAt: listedToday("c-hd6"), signatories: ["p-an"], advocates: ["p-an", "p-ri"] },
-  { id: "c-hd7", stNumber: "ST 610/2025", cnr: "KLKL02-000610-2025", parties: "Peter Varghese v. Nila Finance", court: JMFC1, stage: "Arguments", nextHearingAt: listedToday("c-hd7"), signatories: ["p-rm"], advocates: ["p-rm", "p-an"] },
+  { id: "c-hd7", stNumber: "ST 610/2025", cnr: "KLKL02-000610-2025", parties: "Peter Varghese v. Nila Finance", court: JMFC1, stage: "Arguments", nextHearingAt: listedToday("c-hd7"), passedOver: true, signatories: ["p-rm"], advocates: ["p-rm", "p-an"] },
   { id: "c-hd8", stNumber: "ST 233/2025", cnr: "KLKL02-000233-2025", parties: "Asha Kumari v. Vel Murugan Stores", court: JMFC1, stage: "Evidence of the complainant", nextHearingAt: listedToday("c-hd8"), signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
   { id: "c-hd9", stNumber: "ST 47/2025", cnr: "KLKL04-000047-2025", parties: "Krishnan Kutty v. Sree Devi Traders", court: CJM, stage: "Arguments", nextHearingAt: listedToday("c-hd9"), signatories: ["p-an"], advocates: ["p-an"] },
-  { id: "c-hd10", stNumber: "ST 902/2025", cnr: "KLKL04-000902-2025", parties: "Noor Jahan v. Kadavil Motors", court: CJM, stage: "Appearance", nextHearingAt: listedToday("c-hd10"), signatories: ["p-dv", "p-an"], advocates: ["p-dv", "p-an"] },
+  { id: "c-hd10", stNumber: "ST 902/2025", cnr: "KLKL04-000902-2025", parties: "Noor Jahan v. Kadavil Motors", court: CJM, stage: "Appearance", nextHearingAt: listedToday("c-hd10"), passedOver: true, signatories: ["p-dv", "p-an"], advocates: ["p-dv", "p-an"] },
   // Seven more in the ON court, so the flagship board runs twelve deep — enough
   // to see how the day scales, and how a matter reads when three or four
   // advocates share it: some sign together, some only have case access.
@@ -339,6 +385,8 @@ export const CASES: Case[] = [
   ...SCALE_CASES,
   // ── Concluded boards on the recent past days, so a past day is not empty ──
   ...PAST_CASES,
+  // ── Other advocates' matters today — the rest of the court docket (cause list only) ──
+  ...OTHER_CASES,
   // Matters before filing — no ST number, no CNR yet; the statutory clocks live here.
   { id: "c-sainaba", stNumber: "", cnr: "", parties: "Sainaba K. v. Riyas M.", court: ON, stage: "Pre-filing", signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
   { id: "c-arun", stNumber: "", cnr: "", parties: "Arun K. v. Meera Enterprises", court: ON, stage: "Pre-filing", signatories: ["p-rm"], advocates: ["p-rm", "p-sp"] },

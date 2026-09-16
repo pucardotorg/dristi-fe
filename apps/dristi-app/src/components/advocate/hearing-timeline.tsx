@@ -34,6 +34,12 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -42,6 +48,7 @@ import type { Locale } from "@/lib/onboarding/content";
 import { pick } from "@/lib/onboarding/content";
 import { advHome, fillCopy } from "@/lib/advocate/content";
 import type {
+  DaySlot,
   DayTimeline,
   TimelineHearing,
   TimeSlot,
@@ -60,6 +67,24 @@ import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 const OpenTasksContext = React.createContext<((caseId: string, taskIds: string[]) => void) | null>(
   null
 );
+
+/**
+ * Whether the board surfaces listed times. Off in the launch view: a hearing is a
+ * plain list item and the slot headers drop their clock label. Threaded by context
+ * so every row and slot header need not take the flag as a prop. On (the full
+ * view) it restores the times everywhere.
+ */
+const ShowTimesContext = React.createContext<boolean>(true);
+function useShowTimes(): boolean {
+  return React.useContext(ShowTimesContext);
+}
+
+/**
+ * Opens the cause list and traces this matter's row there — the per-hearing "where
+ * does my matter stand in the docket?" jump. Threaded by context so every row can
+ * reach it. Null when the screen wires no handler (the icon then does not render).
+ */
+const ViewInCauseListContext = React.createContext<((caseId: string) => void) | null>(null);
 
 /** A court the filter can offer — its full name, short label, and day count. */
 export type CourtOption = { court: string; label: string; count: number };
@@ -119,10 +144,17 @@ function CourtBadge({ court, label, number, className }: {
 
 function SlotCount({ slot, locale, className }: { slot: TimeSlot; locale: Locale; className?: string }) {
   // Stays one unit ("N hearings across M courts") rather than shrinking to wrap
-  // mid-phrase; on a narrow slot header it drops to its own line intact.
+  // mid-phrase; on a narrow slot header it drops to its own line intact. The
+  // nouns are pluralised for the counts so it reads right at one ("1 hearing
+  // across 1 court").
+  const n = slot.hearings.length;
+  const c = slot.courts.length;
   return <span className={cn("whitespace-nowrap text-body-compact text-muted-foreground", className)}>
     {fillCopy(advHome.slotAcrossCourts, locale, {
-      n: String(slot.hearings.length), courts: String(slot.courts.length),
+      n: String(n),
+      hw: pick(n === 1 ? advHome.statHearingOne : advHome.statHearingMany, locale),
+      c: String(c),
+      cw: pick(c === 1 ? advHome.statCourtOne : advHome.statCourtMany, locale),
     })}
   </span>;
 }
@@ -132,15 +164,25 @@ function SlotCount({ slot, locale, className }: { slot: TimeSlot; locale: Locale
 /** The day at a glance, inline on the page with hairline dividers — no cards,
  *  so the numbers carry their own weight without wells of empty space. */
 function SummaryStrip({
-  summary,
-  tasksDue,
+  total,
+  courts,
+  slots,
+  blocking,
+  showConflicts,
+  conflictSlots,
   locale,
 }: {
-  summary: DayTimeline["summary"];
-  tasksDue: number;
+  total: number;
+  courts: number;
+  /** The count of the day's sittings — the exact range lives in the slot tab. */
+  slots: number;
+  /** Matters that owe blocking work before their hearing today. */
+  blocking: number;
+  /** The full view states conflicts here; the launch view states the slot count. */
+  showConflicts: boolean;
+  conflictSlots: number;
   locale: Locale;
 }) {
-  const { total, conflictSlots, courts } = summary;
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @5xl:gap-x-6">
       <Stat
@@ -153,18 +195,22 @@ function SummaryStrip({
         label={pick(courts === 1 ? advHome.statCourtOne : advHome.statCourtMany, locale)}
       />
       <Sep />
-      <Stat
-        value={conflictSlots}
-        label={pick(
-          conflictSlots === 1 ? advHome.statConflictOne : advHome.statConflictMany,
-          locale
-        )}
-        warning={conflictSlots > 0}
-      />
+      {showConflicts ? (
+        <Stat
+          value={conflictSlots}
+          label={pick(
+            conflictSlots === 1 ? advHome.statConflictOne : advHome.statConflictMany,
+            locale
+          )}
+          warning={conflictSlots > 0}
+        />
+      ) : (
+        <Stat value={slots} label={pick(slots === 1 ? advHome.slotOne : advHome.slotMany, locale)} />
+      )}
       <Sep />
       <Stat
-        value={tasksDue}
-        label={pick(tasksDue === 1 ? advHome.statDueOne : advHome.statDueMany, locale)}
+        value={blocking}
+        label={pick(blocking === 1 ? advHome.statBlockingOne : advHome.statBlockingMany, locale)}
       />
     </div>
   );
@@ -455,9 +501,39 @@ function PendingChip({
 }
 
 /**
+ * The quiet bordered icon button at a hearing's right edge that opens the cause
+ * list and traces this matter's row there — so an advocate can jump from the board
+ * to where the matter stands in the day's full docket, without hunting for it. The
+ * hairline stroke marks it as pressable. Renders nothing when no handler is wired.
+ */
+function ViewInCauseListButton({ caseId, locale }: { caseId: string; locale: Locale }) {
+  const onView = React.useContext(ViewInCauseListContext);
+  if (!onView) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={pick(advHome.viewOnCauseList, locale)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onView(caseId);
+          }}
+          className="relative z-10 inline-flex size-7 shrink-0 items-center justify-center self-center rounded-md border border-hairline bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+          <ScrollText aria-hidden="true" className="size-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{pick(advHome.viewOnCauseList, locale)}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
  * One hearing, two lines beside its cause-list item box: the matter (bold), then
  * the stage and case number. The court badge and time sit on the right, with a
- * pending flag when the matter still owes work.
+ * pending flag when the matter still owes work, and a quiet cause-list jump at the
+ * top-right corner.
  */
 function HearingRow({
   hearing,
@@ -477,6 +553,7 @@ function HearingRow({
   boxSurface?: AvatarSurface;
   className?: string;
 }) {
+  const showTimes = useShowTimes();
   return (
     <div
       className={cn(
@@ -494,13 +571,22 @@ function HearingRow({
           and side nav narrow the board without narrowing the screen. */}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <button
-            type="button"
-            onClick={() => onOpenCase(hearing.kase.id)}
-            className="text-left text-body font-semibold text-balance after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
-          >
-            {hearing.kase.parties}
-          </button>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <button
+              type="button"
+              onClick={() => onOpenCase(hearing.kase.id)}
+              className="text-left text-body font-semibold text-balance after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
+            >
+              {hearing.kase.parties}
+            </button>
+            {/* Concluded means completed, so only a passed-over matter is tagged —
+                reached in the list but not taken up. */}
+            {hearing.status === "concluded" && hearing.passedOver ? (
+              <span className="inline-flex shrink-0 items-center rounded-full border border-warning px-2 py-0.5 text-caption font-medium text-warning-ink">
+                {pick(advHome.statusPassedOver, locale)}
+              </span>
+            ) : null}
+          </div>
           <span className="truncate text-body-compact text-muted-foreground">
             {hearing.kase.stage}
             {" · "}
@@ -517,7 +603,7 @@ function HearingRow({
             />
             <CourtBadge court={hearing.court} label={hearing.courtLabel} number={hearing.kase.courtNumber} className="relative z-10" />
           </div>
-          {showTime ? (
+          {showTime && showTimes ? (
             <HearingTime
               at={hearing.at}
               approx={hearing.approxTime}
@@ -527,6 +613,10 @@ function HearingRow({
           ) : null}
         </div>
       </div>
+      {/* Center-right, in flow so it never overlaps the badge: a bordered icon
+          button (the stroke says it is pressable) that jumps to this matter's row
+          in the cause list. */}
+      <ViewInCauseListButton caseId={hearing.kase.id} locale={locale} />
     </div>
   );
 }
@@ -600,16 +690,28 @@ function NowSlot({
   onOpenCase: (caseId: string) => void;
   locale: Locale;
 }) {
+  const showTimes = useShowTimes();
   return (
     <div className="flex overflow-hidden rounded-xl bg-brand-muted shadow-raised">
       <span aria-hidden="true" className="w-0.5 shrink-0 bg-brand-accent" />
       <div className="min-w-0 flex-1 p-1.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
-          <span className="shrink-0 text-body font-semibold tabular-nums text-brand-muted-foreground">
-            {timeOf(slot.at)}
-          </span>
-          <span aria-hidden="true" className="text-muted-foreground">·</span>
-          <SlotCount slot={slot} locale={locale} />
+          {showTimes ? (
+            <>
+              <span className="shrink-0 text-body font-semibold tabular-nums text-brand-muted-foreground">
+                {timeOf(slot.at)}
+              </span>
+              <span aria-hidden="true" className="text-muted-foreground">·</span>
+              <SlotCount slot={slot} locale={locale} />
+            </>
+          ) : (
+            // With times off, the count is the heading, so it carries the weight.
+            <SlotCount
+              slot={slot}
+              locale={locale}
+              className="text-body font-semibold text-brand-muted-foreground"
+            />
+          )}
           <StatusTag tone="now" label={pick(advHome.ongoingTag, locale)} className="ml-auto" />
         </div>
         <HearingBody
@@ -796,18 +898,23 @@ function ConcludedBlock({
   // slot, so it stays collapsed until asked for.
   const isPast = dayPhase === "past";
   const [open, setOpen] = React.useState(isPast);
+  const showTimes = useShowTimes();
   const hearings = slots.flatMap((s) => s.hearings);
   const courts = new Set(hearings.map((h) => h.court)).size;
-  const range =
-    hearings.length > 1
-      ? `${timeOf(hearings[0].at)} – ${timeOf(hearings[hearings.length - 1].at)}`
-      : timeOf(hearings[0].at);
-  const summaryLine = [
-    range,
-    `${hearings.length} ${pick(advHome.concludedWord, locale)}`,
-    `${slots.length} ${pick(slots.length === 1 ? advHome.slotOne : advHome.slotMany, locale)}`,
-    `${courts} ${pick(courts === 1 ? advHome.statCourtOne : advHome.statCourtMany, locale)}`,
-  ].join(" · ");
+  const concludedPart = `${hearings.length} ${pick(advHome.concludedWord, locale)}`;
+  const courtsPart = `${courts} ${pick(courts === 1 ? advHome.statCourtOne : advHome.statCourtMany, locale)}`;
+  // The full view leads with the time range and slot count; the launch view has
+  // neither (no times, one matter per slot), so it states just the two counts.
+  const summaryLine = showTimes
+    ? [
+        hearings.length > 1
+          ? `${timeOf(hearings[0].at)} – ${timeOf(hearings[hearings.length - 1].at)}`
+          : timeOf(hearings[0].at),
+        concludedPart,
+        `${slots.length} ${pick(slots.length === 1 ? advHome.slotOne : advHome.slotMany, locale)}`,
+        courtsPart,
+      ].join(" · ")
+    : [concludedPart, courtsPart].join(" · ");
 
   return (
     <TimelineRow tone="neutral">
@@ -844,25 +951,140 @@ function ConcludedBlock({
   );
 }
 
-/** The heading that opens the upcoming zone — a quiet rule extending right. */
-function UpcomingSeparator({ label }: { label: string }) {
+/** The heading that opens the upcoming zone — a quiet rule extending right, with
+ *  a count of how many matters sit under it. */
+function UpcomingSeparator({ label, count }: { label: string; count: number }) {
   return (
     <TimelineRow dot={false}>
-      <div className="flex items-center gap-3 pt-2 pb-1">
+      <div className="flex items-center gap-2.5 pt-2 pb-1">
         <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">
           {label}
         </span>
+        <Badge variant="secondary" className="tabular-nums">{count}</Badge>
         <span aria-hidden="true" className="h-px flex-1 bg-hairline" />
       </div>
     </TimelineRow>
   );
 }
 
+/* ─────────────────────────── the board ─────────────────────────── */
+
+/**
+ * One sitting's timeline: the concluded pile, the ongoing group, then upcoming.
+ * The same board whether it stands alone (one sitting) or under a slot tab.
+ */
+function Board({
+  board,
+  dayPhase,
+  selectedCaseId,
+  onOpenCase,
+  locale,
+}: {
+  board: DayTimeline;
+  dayPhase: "past" | "today" | "future";
+  selectedCaseId: string | null;
+  onOpenCase: (caseId: string) => void;
+  locale: Locale;
+}) {
+  const { concluded, now, upcoming } = board;
+  return (
+    <div className="relative flex flex-col gap-3">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-4 bottom-4 left-1.5 w-px -translate-x-1/2 bg-hairline"
+      />
+
+      {concluded.length ? (
+        // Keyed by phase so the pile re-mounts when the day moves between today
+        // and a past day — that is what lets its open-by-default state (expanded
+        // on a past day, collapsed on today) take effect.
+        <ConcludedBlock
+          key={dayPhase}
+          slots={concluded}
+          dayPhase={dayPhase}
+          selectedCaseId={selectedCaseId}
+          onOpenCase={onOpenCase}
+          locale={locale}
+        />
+      ) : null}
+
+      {now.length ? (
+        now.map((slot) => (
+          <TimelineRow key={slot.key} tone="now">
+            <NowSlot
+              slot={slot}
+              selectedCaseId={selectedCaseId}
+              onOpenCase={onOpenCase}
+              locale={locale}
+            />
+          </TimelineRow>
+        ))
+      ) : dayPhase === "today" ? (
+        // "Nothing is being called" only makes sense on a day in progress. A past
+        // day is wholly concluded and a future day wholly upcoming, so neither
+        // carries a live "now" gap to explain.
+        <TimelineRow dot={false}>
+          <p className="px-4 py-2 text-body-compact text-muted-foreground">
+            {pick(upcoming.length ? advHome.nowEmpty : advHome.noUpcoming, locale)}
+          </p>
+        </TimelineRow>
+      ) : null}
+
+      {upcoming.length ? (
+        <>
+          <UpcomingSeparator
+            label={pick(advHome.zoneUpcoming, locale)}
+            count={upcoming.reduce((n, s) => n + s.hearings.length, 0)}
+          />
+          {upcoming.map((slot) => (
+            <TimelineRow key={slot.key} tone={slot.conflict ? "conflict" : "neutral"}>
+              {slot.conflict ? (
+                <ConflictSlot
+                  slot={slot}
+                  selectedCaseId={selectedCaseId}
+                  onOpenCase={onOpenCase}
+                  locale={locale}
+                />
+              ) : (
+                <ClearSlotRow
+                  slot={slot}
+                  selectedCaseId={selectedCaseId}
+                  onOpenCase={onOpenCase}
+                  locale={locale}
+                />
+              )}
+            </TimelineRow>
+          ))}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** Shown when a court filter narrows the day to nothing. */
+function EmptyBoard({ locale, onClear }: { locale: Locale; onClear: () => void }) {
+  return (
+    <Empty className="bg-surface-sunken">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <SlidersHorizontal aria-hidden="true" />
+        </EmptyMedia>
+        <EmptyTitle>{pick(advHome.emptyCourtsTitle, locale)}</EmptyTitle>
+        <EmptyDescription>{pick(advHome.emptyCourtsBody, locale)}</EmptyDescription>
+      </EmptyHeader>
+      <Button variant="outline" size="sm" onClick={onClear}>
+        {pick(advHome.courtFilterAll, locale)}
+      </Button>
+    </Empty>
+  );
+}
+
 /* ─────────────────────────── the timeline ─────────────────────────── */
 
 export function HearingTimeline({
-  timeline,
-  tasksDue,
+  daySlots,
+  showTimes,
+  showConflicts,
   dayPhase,
   courts,
   selectedCourts,
@@ -873,10 +1095,15 @@ export function HearingTimeline({
   selectedCaseId,
   onOpenCase,
   onOpenTasks,
+  onViewInCauseList,
   locale,
 }: {
-  timeline: DayTimeline;
-  tasksDue: number;
+  /** The day's sittings — one tab each. Version 0 has one. */
+  daySlots: DaySlot[];
+  /** Surface each hearing's listed time (full view) or not (launch). */
+  showTimes: boolean;
+  /** State conflicts in the summary (full view) or the slot count instead (launch). */
+  showConflicts: boolean;
   /** Where the selected day sits relative to today. */
   dayPhase: "past" | "today" | "future";
   courts: CourtOption[];
@@ -889,117 +1116,106 @@ export function HearingTimeline({
   onOpenCase: (caseId: string) => void;
   /** Open the tasks rail and trace this case's tasks (the pending-flag click). */
   onOpenTasks: (caseId: string, taskIds: string[]) => void;
+  /** Open the cause list and trace this matter's row (the per-hearing icon). */
+  onViewInCauseList: (caseId: string) => void;
   locale: Locale;
 }) {
-  const { concluded, now, upcoming, summary } = timeline;
+  // The day at a glance, aggregated across every sitting.
+  const total = daySlots.reduce((n, s) => n + s.board.summary.total, 0);
+  const courtCount = new Set(
+    daySlots.flatMap((s) => s.board.slots.flatMap((slot) => slot.courts))
+  ).size;
+  const conflictSlots = daySlots.reduce((n, s) => n + s.board.summary.conflictSlots, 0);
+  const hasHearings = daySlots.some((s) => s.board.slots.length > 0);
+  // Matters that owe blocking work before their hearing today, across the board.
+  const blocking = daySlots.reduce(
+    (n, s) =>
+      n +
+      s.board.slots.reduce(
+        (m, slot) => m + slot.hearings.reduce((k, h) => k + h.blockers.length, 0),
+        0
+      ),
+    0
+  );
+
+  // The sitting being called now leads; on a past or future day, the first.
+  const liveSlot = daySlots.find((s) => s.live) ?? daySlots[0];
 
   return (
     <OpenTasksContext.Provider value={onOpenTasks}>
-    <div className="flex flex-col gap-6 pt-2 pb-8">
-      <RailStyles />
-      {/* From @xl up the row never wraps: the toolbar keeps the top line
-          (shrink-0) and the stats take the rest, so the actions never fall
-          under the stats. On a phone it still stacks. The extra bottom margin
-          holds the refresh button's hover/refreshed caption clear of the board. */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 @xl:flex-nowrap">
-        <SummaryStrip summary={summary} tasksDue={tasksDue} locale={locale} />
-        <Toolbar
-          courts={courts}
-          selected={selectedCourts}
-          onCourtsChange={onCourtsChange}
-          onViewCauseList={onViewCauseList}
-          onJoinCourt={onJoinCourt}
-          onRefresh={onRefresh}
-          locale={locale}
-        />
-      </div>
-
-      {timeline.slots.length === 0 ? (
-        <Empty className="bg-surface-sunken">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SlidersHorizontal aria-hidden="true" />
-            </EmptyMedia>
-            <EmptyTitle>{pick(advHome.emptyCourtsTitle, locale)}</EmptyTitle>
-            <EmptyDescription>{pick(advHome.emptyCourtsBody, locale)}</EmptyDescription>
-          </EmptyHeader>
-          <Button variant="outline" size="sm" onClick={() => onCourtsChange([])}>
-            {pick(advHome.courtFilterAll, locale)}
-          </Button>
-        </Empty>
-      ) : (
-        <div className="relative flex flex-col gap-3">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute top-4 bottom-4 left-1.5 w-px -translate-x-1/2 bg-hairline"
-          />
-
-          {concluded.length ? (
-            // Keyed by phase so the pile re-mounts when the day moves between
-            // today and a past day — that is what lets its open-by-default state
-            // (expanded on a past day, collapsed on today) take effect.
-            <ConcludedBlock
-              key={dayPhase}
-              slots={concluded}
-              dayPhase={dayPhase}
-              selectedCaseId={selectedCaseId}
-              onOpenCase={onOpenCase}
+      <ShowTimesContext.Provider value={showTimes}>
+      <ViewInCauseListContext.Provider value={onViewInCauseList}>
+        <div className="flex flex-col gap-3 pt-2 pb-8">
+          <RailStyles />
+          {/* From @xl up the row never wraps: the toolbar keeps the top line
+              (shrink-0) and the stats take the rest, so the actions never fall
+              under the stats. On a phone it still stacks. The extra bottom margin
+              holds the refresh button's hover/refreshed caption clear of the board. */}
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 @xl:flex-nowrap">
+            <SummaryStrip
+              total={total}
+              courts={courtCount}
+              slots={daySlots.length}
+              blocking={blocking}
+              showConflicts={showConflicts}
+              conflictSlots={conflictSlots}
               locale={locale}
             />
-          ) : null}
+            <Toolbar
+              courts={courts}
+              selected={selectedCourts}
+              onCourtsChange={onCourtsChange}
+              onViewCauseList={onViewCauseList}
+              onJoinCourt={onJoinCourt}
+              onRefresh={onRefresh}
+              locale={locale}
+            />
+          </div>
 
-          {now.length ? (
-            now.map((slot) => (
-              <TimelineRow key={slot.key} tone="now">
-                <NowSlot
-                  slot={slot}
-                  selectedCaseId={selectedCaseId}
-                  onOpenCase={onOpenCase}
-                  locale={locale}
-                />
-              </TimelineRow>
-            ))
-          ) : dayPhase === "today" ? (
-            // "Nothing is being called" only makes sense on a day in progress. A
-            // past day is wholly concluded and a future day wholly upcoming, so
-            // neither carries a live "now" gap to explain.
-            <TimelineRow dot={false}>
-              <p className="px-4 py-2 text-body-compact text-muted-foreground">
-                {pick(upcoming.length ? advHome.nowEmpty : advHome.noUpcoming, locale)}
-              </p>
-            </TimelineRow>
-          ) : null}
-
-          {upcoming.length ? (
-            <>
-              <UpcomingSeparator label={pick(advHome.zoneUpcoming, locale)} />
-              {upcoming.map((slot) => (
-                <TimelineRow
-                  key={slot.key}
-                  tone={slot.conflict ? "conflict" : "neutral"}
-                >
-                  {slot.conflict ? (
-                    <ConflictSlot
-                      slot={slot}
-                      selectedCaseId={selectedCaseId}
-                      onOpenCase={onOpenCase}
-                      locale={locale}
-                    />
-                  ) : (
-                    <ClearSlotRow
-                      slot={slot}
-                      selectedCaseId={selectedCaseId}
-                      onOpenCase={onOpenCase}
-                      locale={locale}
-                    />
-                  )}
-                </TimelineRow>
+          {!hasHearings ? (
+            <EmptyBoard locale={locale} onClear={() => onCourtsChange([])} />
+          ) : (
+            // The day's sittings as underline tabs at the top of the board, the
+            // live one throbbing. Version 0 has one sitting, so one tab naming its
+            // hours; when a day is split, switching a tab shows that sitting's own
+            // timeline.
+            <Tabs key={dayPhase} defaultValue={liveSlot.key} className="gap-6">
+              <TabsList variant="line" className="flex-wrap">
+                {daySlots.map((slot) => (
+                  <TabsTrigger
+                    key={slot.key}
+                    value={slot.key}
+                    className="flex-none gap-2 px-3"
+                  >
+                    <span className="tabular-nums">{slot.label}</span>
+                    {slot.live ? (
+                      <>
+                        <span
+                          aria-hidden="true"
+                          className="now-dot size-2 shrink-0 rounded-full bg-primary"
+                        />
+                        <span className="sr-only">{pick(advHome.slotLive, locale)}</span>
+                      </>
+                    ) : null}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {daySlots.map((slot) => (
+                <TabsContent key={slot.key} value={slot.key}>
+                  <Board
+                    board={slot.board}
+                    dayPhase={dayPhase}
+                    selectedCaseId={selectedCaseId}
+                    onOpenCase={onOpenCase}
+                    locale={locale}
+                  />
+                </TabsContent>
               ))}
-            </>
-          ) : null}
+            </Tabs>
+          )}
         </div>
-      )}
-    </div>
+      </ViewInCauseListContext.Provider>
+      </ShowTimesContext.Provider>
     </OpenTasksContext.Provider>
   );
 }

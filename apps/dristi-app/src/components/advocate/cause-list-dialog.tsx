@@ -55,13 +55,11 @@ import {
 } from "@/components/chrome/table-plate";
 import {
   causeListOn,
-  courtLabelsOf,
-  courtRooms,
   dayKeyOf,
   type CauseListRow,
   type HearingStatus,
 } from "@/lib/advocate/home";
-import { groupCauseList, searchCauseList, type CauseListGroupBy } from "@/lib/advocate/cause-list-groups";
+import { causeStatusKey, groupCauseList, searchCauseList, type CauseListGroupBy } from "@/lib/advocate/cause-list-groups";
 import type { World } from "@/lib/tasks/selectors";
 import { advHome, fillCopy } from "@/lib/advocate/content";
 import type { Locale } from "@/lib/onboarding/content";
@@ -69,17 +67,29 @@ import { pick } from "@/lib/onboarding/content";
 import { cn } from "@/lib/utils";
 import { RefreshIcon, useRefreshPhase } from "@/components/advocate/refresh-button";
 
-/** Court status as a chip: concluded reads "Completed", the live one "Ongoing",
- *  everything still to come "Listed" — one DS status tone each. */
+/** Court status as a chip: a concluded matter reads "Completed", or "Passed over"
+ *  when it was reached but not taken up; the live one "Ongoing"; everything still
+ *  to come "Listed" — one DS status tone each. */
 /** Pins a cause-list column header to the top of the scroll area, above the group
  *  dividers (which pin one header-height below it). Opaque via TABLE_HEAD's fill. */
 const STICKY_HEAD = "sticky top-0 z-20";
 
-function StatusChip({ status, locale }: { status: HearingStatus; locale: Locale }) {
+function StatusChip({
+  status,
+  passedOver = false,
+  locale,
+}: {
+  status: HearingStatus;
+  passedOver?: boolean;
+  locale: Locale;
+}) {
   // Each chip carries a defined stroke so it reads as a bounded tag on the row,
   // not a floating fill — the status solid for the ongoing tint (DS 6a), a neutral
-  // edge for the others.
+  // edge for completed and listed, an amber edge for a passed-over matter.
   if (status === "concluded") {
+    if (passedOver) {
+      return <Badge variant="outline" className="border-warning text-warning-ink">{pick(advHome.statusPassedOver, locale)}</Badge>;
+    }
     return <Badge variant="secondary" className="border-border">{pick(advHome.statusCompleted, locale)}</Badge>;
   }
   if (status === "now") {
@@ -87,6 +97,14 @@ function StatusChip({ status, locale }: { status: HearingStatus; locale: Locale 
   }
   return <Badge variant="outline" className="border-border">{pick(advHome.statusListed, locale)}</Badge>;
 }
+
+/** The status-group heading copy, keyed by the four-way cause-list status. */
+const STATUS_GROUP_LABEL = {
+  now: advHome.statusOngoing,
+  upcoming: advHome.statusListed,
+  "passed-over": advHome.statusPassedOver,
+  completed: advHome.statusCompleted,
+} as const;
 
 /**
  * The court filter — multi-select, since "All courts" (no selection) is one of
@@ -163,6 +181,7 @@ export function CauseListDialog({
   world,
   now,
   day,
+  highlight,
   onJoin,
   locale,
 }: {
@@ -172,6 +191,8 @@ export function CauseListDialog({
   now: number;
   /** The day the board is on when the list opens; the modal pages from here. */
   day: string;
+  /** A matter to scroll to and trace when the list opens (the per-hearing jump). */
+  highlight?: { caseId: string; nonce: number } | null;
   onJoin: (row: CauseListRow) => void;
   locale: Locale;
 }) {
@@ -186,6 +207,7 @@ export function CauseListDialog({
           world={world}
           now={now}
           day={day}
+          highlight={highlight}
           onJoin={onJoin}
           locale={locale}
         />
@@ -198,12 +220,14 @@ function CauseListBody({
   world,
   now,
   day,
+  highlight,
   onJoin,
   locale,
 }: {
   world: World;
   now: number;
   day: string;
+  highlight?: { caseId: string; nonce: number } | null;
   onJoin: (row: CauseListRow) => void;
   locale: Locale;
 }) {
@@ -212,7 +236,9 @@ function CauseListBody({
   const [date, setDate] = React.useState(day);
   const [query, setQuery] = React.useState("");
   const [selectedCourts, setSelectedCourts] = React.useState<string[]>([]);
-  const [groupBy, setGroupBy] = React.useState<CauseListGroupBy>("item");
+  // Status is the default order for the launch view: without listed times the
+  // most useful cut is what is being called now, then what is listed, then done.
+  const [groupBy, setGroupBy] = React.useState<CauseListGroupBy>("status");
   const groupRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const jumpTarget = React.useRef<string | null>(null);
   const copy = (en: string, ml: string) => locale === "ml" ? ml : en;
@@ -220,11 +246,54 @@ function CauseListBody({
   const [refreshedAt, setRefreshedAt] = React.useState(() => Date.now());
   const { phase, trigger } = useRefreshPhase(() => setRefreshedAt(Date.now()));
 
-  // The courts sitting that day, for the filter — no selection means all of them.
+  // Trace the highlighted matter's row when the list opens from a hearing's icon.
+  // Imperative — measure the row inside the scroll area and drive an overlay stroke
+  // over it — so it works over the table as well as the cards and needs no state
+  // that would re-render the docket. The stroke mirrors the pending-task trace.
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const traceRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!highlight) return;
+    const container = scrollRef.current;
+    const overlay = traceRef.current;
+    if (!container || !overlay) return;
+    const row = container.querySelector<HTMLElement>(
+      `[data-cause-row="${CSS.escape(highlight.caseId)}"]`
+    );
+    if (!row) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    // After the scroll settles, place the overlay over the row and re-arm the draw.
+    const place = window.setTimeout(() => {
+      const cr = container.getBoundingClientRect();
+      const rr = row.getBoundingClientRect();
+      overlay.style.top = `${rr.top - cr.top + container.scrollTop}px`;
+      overlay.style.left = `${rr.left - cr.left + container.scrollLeft}px`;
+      overlay.style.width = `${rr.width}px`;
+      overlay.style.height = `${rr.height}px`;
+      overlay.hidden = false;
+      overlay.classList.remove("cause-trace-run");
+      void overlay.offsetWidth;
+      overlay.classList.add("cause-trace-run");
+    }, reduced ? 0 : 280);
+    const clear = window.setTimeout(() => {
+      if (traceRef.current) traceRef.current.hidden = true;
+    }, 2900);
+    return () => {
+      window.clearTimeout(place);
+      window.clearTimeout(clear);
+    };
+  }, [highlight]);
+
+  // Every court on the day's docket, for the filter — the whole published list,
+  // not only the viewer's courts, so a court with only other advocates' matters is
+  // still offered. Derived from the unfiltered cause list; no selection means all.
   const courtOptions = React.useMemo(() => {
-    const rooms = courtRooms(world, date, now).filter((r) => r.count > 0);
-    const labels = courtLabelsOf(rooms.map((r) => r.court));
-    return rooms.map((r) => ({ court: r.court, label: labels.shortOf(r.court) }));
+    const seen = new Map<string, string>();
+    for (const r of causeListOn(world, date, now)) {
+      if (!seen.has(r.court)) seen.set(r.court, r.courtLabel);
+    }
+    return [...seen].map(([court, label]) => ({ court, label }));
   }, [world, date, now]);
   // The scope line names the courts, but with many picked it names the first
   // two and counts the rest, so it stays one short line and never wraps the
@@ -260,11 +329,7 @@ function CauseListBody({
     // groups are the stage itself.
     label: groupBy === "item" ? `${pick(advHome.colItem, locale)} ${key}` :
       groupBy === "court" ? items[0].courtLabel :
-      groupBy === "status" ? pick(
-        items[0].status === "now" ? advHome.statusOngoing :
-        items[0].status === "upcoming" ? advHome.statusListed : advHome.statusCompleted,
-        locale
-      ) : key,
+      groupBy === "status" ? pick(STATUS_GROUP_LABEL[causeStatusKey(items[0])], locale) : key,
     rows: items,
   })), [filtered, groupBy, intl, locale]);
   const groupLabels = {
@@ -276,7 +341,7 @@ function CauseListBody({
   const reset = () => {
     setQuery("");
     setSelectedCourts([]);
-    setGroupBy("item");
+    setGroupBy("status");
   };
   const jump = (key: string) => {
     jumpTarget.current = key;
@@ -440,7 +505,7 @@ function CauseListBody({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-6 pb-4 [&>[data-slot=table-container]]:overflow-visible">
+      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto px-6 pb-4 [&>[data-slot=table-container]]:overflow-visible">
         {filtered.length === 0 ? (
           <div role="status" className="flex flex-col items-center gap-4 py-12 text-center">
             <Search aria-hidden="true" className="size-8 text-muted-foreground" />
@@ -503,6 +568,18 @@ function CauseListBody({
             ))}
           </Table>
         )}
+        {/* The trace overlay — placed and re-armed imperatively over the
+            highlighted row (see the effect above). Hidden until a jump fires. */}
+        <div
+          ref={traceRef}
+          hidden
+          aria-hidden="true"
+          className="pointer-events-none absolute z-30"
+        >
+          <svg className="size-full overflow-visible">
+            <rect className="cause-trace-rect" pathLength={100} />
+          </svg>
+        </div>
       </div>
 
       <div aria-live="polite" className="flex items-center gap-2 border-t border-hairline px-6 py-3 text-caption text-muted-foreground">
@@ -526,7 +603,7 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
     // the one row under the pointer, so it is a reviewed exception to the plate: it
     // goes on the cells via `[&>td]:` (overriding the shared `bg-card`), never the <tr>.
     // table-plate-allow
-    <TableRow className={cn(tableRowClass({ hover: true }), "cause-row", row.mine && "[&>td]:bg-surface-sunken hover:[&>td]:bg-accent")}>
+    <TableRow data-cause-row={row.id} className={cn(tableRowClass({ hover: true }), "cause-row", row.mine && "[&>td]:bg-surface-sunken hover:[&>td]:bg-accent")}>
       <td className={cn(cell, "text-right tabular-nums text-muted-foreground")}>{row.item}</td>
       <td className={cn(cell, "font-medium text-foreground")}>
         <span className="flex min-w-0 flex-col gap-1">
@@ -551,7 +628,7 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
       <td className={cn(cell, "relative")}>
         <div className="flex items-center">
           <span className={cn("inline-flex", row.status === "now" && "cause-status")}>
-            <StatusChip status={row.status} locale={locale} />
+            <StatusChip status={row.status} passedOver={row.passedOver} locale={locale} />
           </span>
         </div>
         {row.status === "now" ? (
@@ -576,10 +653,10 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
 function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; onJoin: (row: CauseListRow) => void }) {
   const joinLabel = locale === "ml" ? "ഹിയറിംഗിൽ ചേരുക" : "Join hearing";
   return (
-    <div className={cn("flex flex-col gap-2 rounded-lg border border-hairline p-3", row.mine ? "bg-surface-sunken" : "bg-card")}>
+    <div data-cause-row={row.id} className={cn("flex flex-col gap-2 rounded-lg border border-hairline p-3", row.mine ? "bg-surface-sunken" : "bg-card")}>
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 font-medium text-foreground">{row.parties}</p>
-        <StatusChip status={row.status} locale={locale} />
+        <StatusChip status={row.status} passedOver={row.passedOver} locale={locale} />
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
         <span className="tabular-nums">{pick(advHome.colItem, locale)} {row.item}</span>

@@ -355,6 +355,8 @@ export const advHome = {
   blockingOne: t("{n} blocking task", "{n} തടസ്സ ജോലി"),
   blockingMany: t("{n} blocking tasks", "{n} തടസ്സ ജോലികൾ"),
   pendingOpen: t("Show blocking tasks for this matter", "ഈ കേസിന്റെ തടസ്സ ജോലികൾ കാണിക്കുക"),
+  /** The quiet per-hearing icon that opens the cause list and traces this matter's row. */
+  viewOnCauseList: t("View this hearing on the cause list", "ഈ വിചാരണ കോസ് ലിസ്റ്റിൽ കാണുക"),
   refreshHearings: t("Refresh hearings", "ഹിയറിംഗുകൾ പുതുക്കുക"),
   refreshedDone: t("Refreshed", "പുതുക്കി"),
   lastRefreshed: t("Last refreshed {time}", "അവസാനം പുതുക്കിയത് {time}"),
@@ -385,13 +387,19 @@ export const advHome = {
   statusCompleted: t("Completed", "പൂർത്തിയായി"),
   statusOngoing: t("Ongoing", "നടക്കുന്നു"),
   statusListed: t("Listed", "ലിസ്റ്റ് ചെയ്തു"),
+  /* A concluded hearing reached but not taken up. On the home board only the
+     passed-over concluded matters carry this tag (completed ones need none, since
+     concluded means completed); the cause list makes it a fourth status. */
+  statusPassedOver: t("Passed over", "മാറ്റിവെച്ചു"),
   approxNote: t(
     "Times are approximate unless the court has fixed a slot.",
     "കോടതി സമയം നിശ്ചയിച്ചിട്ടില്ലെങ്കിൽ സമയം ഏകദേശമാണ്.",
   ),
   ongoingTag: t("Ongoing hearings", "നടക്കുന്ന വിചാരണകൾ"),
   conflictTag: t("Conflicting hearings", "ഒരേസമയത്തെ വിചാരണകൾ"),
-  slotAcrossCourts: t("{n} hearings across {courts} courts", "{courts} കോടതികളിലായി {n} വിചാരണകൾ"),
+  /* The hearing and court nouns are filled already pluralised ({hw}/{cw}), so the
+     line reads right at one or many ("1 hearing across 1 court"). */
+  slotAcrossCourts: t("{n} {hw} across {c} {cw}", "{c} {cw}, {n} {hw}"),
   pendingHeading: t("Pending before this hearing", "ഈ ഹിയറിംഗിന് മുൻപ് ബാക്കി"),
   statClear: t("clear", "ഒഴിവ്"),
   statClearSub: t("single-hearing slots", "ഒറ്റ ഹിയറിംഗ് സ്ലോട്ടുകൾ"),
@@ -399,6 +407,16 @@ export const advHome = {
   statCourtMany: t("courts", "കോടതികൾ"),
   statDueOne: t("task due", "ജോലി അവസാനിക്കുന്നു"),
   statDueMany: t("tasks due", "ജോലികൾ അവസാനിക്കുന്നു"),
+  /* Slot stat — takes the conflict stat's place in the launch view. A single
+     sitting shows its time range ("9:00 am – 5:00 pm"); several show a count. */
+  /* Blocking-task stat — matters that owe work before their hearing today. The
+     slot stat reuses slotOne/slotMany for its count; the exact time range shows in
+     the slot tab, not the stat. */
+  statBlockingOne: t("blocking task", "തടസ്സ ജോലി"),
+  statBlockingMany: t("blocking tasks", "തടസ്സ ജോലികൾ"),
+  /* Slot tabs — the sitting's live tab throbs; this names the state for readers
+     who cannot see the dot. */
+  slotLive: t("in session", "സെഷനിൽ"),
   /* Zones */
   zoneUpcoming: t("Upcoming", "വരാനുള്ളവ"),
   nextHintOne: t("Next: {time} · 1 hearing", "അടുത്തത്: {time} · 1 ഹിയറിംഗ്"),

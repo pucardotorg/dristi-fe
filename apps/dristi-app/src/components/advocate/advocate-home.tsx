@@ -24,10 +24,11 @@ import {
   courtLabelsOf,
   courtRooms,
   dayKeyOf,
+  daySlotsOn,
   nextHearingDayAfter,
-  timelineOn,
   weekOf,
 } from "@/lib/advocate/home";
+import { ADVOCATE_HOME_CONFIG } from "@/lib/advocate/config";
 import { useTasks } from "@/lib/tasks/store";
 import { TASKS_HOME } from "@/lib/tasks/routes";
 import { caseOf, type World } from "@/lib/tasks/selectors";
@@ -228,6 +229,17 @@ function HomeBody({
   // The full day cause list opens in a near-fullscreen modal over the board.
   const [causeListOpen, setCauseListOpen] = React.useState(false);
   const onViewCauseList = React.useCallback(() => setCauseListOpen(true), []);
+  // Clicking a hearing's cause-list icon opens the list and traces that matter's
+  // row — the per-hearing "where does my matter stand in the docket?" jump. The
+  // nonce lets the same matter re-trigger the trace.
+  const [causeListHighlight, setCauseListHighlight] = React.useState<{
+    caseId: string;
+    nonce: number;
+  } | null>(null);
+  const onViewInCauseList = React.useCallback((caseId: string) => {
+    setCauseListHighlight({ caseId, nonce: Date.now() });
+    setCauseListOpen(true);
+  }, []);
   // The "Join hearing" button opens a picker of the advocate's own hearings being
   // called now; the cause list is the wider door (any ongoing hearing). No courtroom
   // URL is supplied yet (§16.6 Q11), so a join is an honest, explicit stub.
@@ -271,16 +283,19 @@ function HomeBody({
     }));
   }, [world, selectedDay, now]);
 
-  const timeline = React.useMemo(
-    () => timelineOn(world, selectedDay, now, selectedCourts),
+  // The day as court sittings — one board each, built to the launch config
+  // (flat lists, no times or conflicts) or the fuller view. One sitting shows no
+  // tab bar; the machinery is there for a day the court splits in two.
+  const daySlots = React.useMemo(
+    () => daySlotsOn(world, selectedDay, now, ADVOCATE_HOME_CONFIG, selectedCourts),
     [world, selectedDay, now, selectedCourts]
   );
 
-  // The selected day's due count — the same number the week strip's amber dot
-  // stands for, now stated in the summary strip rather than under the greeting.
-  const tasksDue = React.useMemo(
-    () => week.find((c) => c.key === selectedDay)?.due ?? 0,
-    [week, selectedDay]
+  // The advocate's hearings being called now, across every sitting — what the
+  // Join picker lists.
+  const nowHearings = React.useMemo(
+    () => daySlots.flatMap((slot) => slot.board.now.flatMap((s) => s.hearings)),
+    [daySlots]
   );
 
   // Where the selected day sits relative to today. `dayKeyOf` is a zero-padded
@@ -399,8 +414,9 @@ function HomeBody({
         {hasDay ? (
           <div className="px-4 pt-4 md:px-8">
             <HearingTimeline
-              timeline={timeline}
-              tasksDue={tasksDue}
+              daySlots={daySlots}
+              showTimes={ADVOCATE_HOME_CONFIG.showHearingTimes}
+              showConflicts={ADVOCATE_HOME_CONFIG.showConflicts}
               dayPhase={dayPhase}
               courts={courtOptions}
               selectedCourts={selectedCourts}
@@ -411,6 +427,7 @@ function HomeBody({
               selectedCaseId={selectedCaseId}
               onOpenCase={openCase}
               onOpenTasks={openTasksForCase}
+              onViewInCauseList={onViewInCauseList}
               locale={locale}
             />
           </div>
@@ -461,10 +478,14 @@ function HomeBody({
 
       <CauseListDialog
         open={causeListOpen}
-        onOpenChange={setCauseListOpen}
+        onOpenChange={(open) => {
+          setCauseListOpen(open);
+          if (!open) setCauseListHighlight(null);
+        }}
         world={world}
         now={now}
         day={selectedDay}
+        highlight={causeListHighlight}
         onJoin={onJoinHearing}
         locale={locale}
       />
@@ -472,7 +493,7 @@ function HomeBody({
       <JoinHearingDialog
         open={joinOpen}
         onOpenChange={setJoinOpen}
-        hearings={timeline.now.flatMap((slot) => slot.hearings)}
+        hearings={nowHearings}
         onJoin={onJoinFromModal}
         onViewCauseList={() => {
           setJoinOpen(false);

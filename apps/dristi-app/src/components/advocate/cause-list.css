@@ -39,3 +39,65 @@
     transition: none;
   }
 }
+
+/* The trace stroke that marks a matter's row when you jump to it from a hearing's
+ * cause-list icon — the same teal "look here" stroke the pending-task flag draws in
+ * the rail. An overlay is positioned over the row (imperatively; see the dialog),
+ * then `.cause-trace-run` arms the draw: the rounded rect strokes on once, holds,
+ * and fades. Chrome-only geometry props, fine for the demo. Reduced motion drops
+ * the travel for a plain fade. */
+.cause-trace-rect {
+  x: 1.5px;
+  y: 1.5px;
+  width: calc(100% - 3px);
+  height: calc(100% - 3px);
+  rx: 8px;
+  fill: none;
+  stroke: var(--brand-accent);
+  stroke-width: 2px;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.cause-trace-run .cause-trace-rect {
+  animation: cause-trace-draw 2000ms 60ms forwards;
+}
+@keyframes cause-trace-draw {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  55% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  74% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cause-trace-run .cause-trace-rect {
+    stroke-dashoffset: 0;
+    animation: cause-trace-fade 1500ms 60ms ease forwards;
+  }
+}
+@keyframes cause-trace-fade {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
