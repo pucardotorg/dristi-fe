@@ -16,7 +16,7 @@ import type { Case, Defect, Person, Task } from "./types";
 /** Bump when the seed's shape changes; a browser holding an older seed is re-seeded.
  *  (The seed stamp also folds in the people/case counts, so adding or removing
  *  fixture matters reseeds on its own even without a bump — see store.tsx.) */
-export const SEED_VERSION = 23;
+export const SEED_VERSION = 24;
 
 /**
  * A defect on a filing that was made outside this app, so there is no draft to open and
@@ -54,6 +54,12 @@ export const PEOPLE: Person[] = [
   { id: "p-o4", name: "Reena Thomas", initials: "RT", role: "junior" },
   { id: "p-o5", name: "Sunil Kumar", initials: "SK", role: "senior" },
   { id: "p-o6", name: "Fathima Latheef", initials: "FL", role: "junior" },
+  { id: "p-o7", name: "Rajesh Menon", initials: "RM", role: "senior" },
+  { id: "p-o8", name: "Divya Nair", initials: "DN", role: "junior" },
+  { id: "p-o9", name: "Salim Ahmed", initials: "SA", role: "senior" },
+  { id: "p-o10", name: "Latha Krishnan", initials: "LK", role: "senior" },
+  { id: "p-o11", name: "George Kurian", initials: "GK", role: "junior" },
+  { id: "p-o12", name: "Nisha Rawther", initials: "NR", role: "senior" },
 ];
 
 /** Who the sandbox signs in as until the account menu says otherwise. */
@@ -76,14 +82,14 @@ function hearing(days: number): string {
 }
 
 /* ─────────────────────────── scale fixture ───────────────────────────
- * A realistic Kollam day for the home timeline: a dozen courts and ~two dozen
- * matters listed today, spread across the day. The hand-authored cases sit in
- * three courts (nearly all in the ON court), so this fill gives the board its
- * spread of courts. Kept within a launch-day size — roughly 10–30 matters across
- * 10–15 courts — rather than the earlier stress-test scale. This is demo
- * scaffolding: being cases, these also swell Your Cases and the calendar; remove
- * the block to return to the small hand-authored day. Anjali (p-an) is on all of
- * them, so the whole set reaches her board. */
+ * The Kollam bench, and the fill that stands in for the court complex's docket.
+ * Anjali's own scale matters (SCALE_CASES) sit in the first few of these courts and
+ * reach HER board; the far larger OTHER_CASES set below (other advocates, across
+ * every court) is what makes the cause list read like the court's published list —
+ * a long docket across the whole complex, only a fraction of it hers. Her board
+ * still shows only the courts she is listed in, so widening this pool does not grow
+ * the board. Demo scaffolding: remove the OTHER_CASES/SCALE blocks to return to the
+ * small hand-authored day. */
 const SCALE_COURTS = [
   "24×7 ON Court, Kollam",
   "CJM Court, Kollam",
@@ -91,11 +97,19 @@ const SCALE_COURTS = [
   "JMFC Court 1, Kollam",
   "JMFC Court 2, Kollam",
   "JMFC Court 3, Kollam",
+  "JMFC Court 4, Kollam",
+  "JMFC Court 5, Kollam",
+  "JMFC Court 6, Kollam",
   "Sessions Court, Kollam",
   "Addl. Sessions I, Kollam",
+  "Addl. Sessions II, Kollam",
   "Sub Court 1, Kollam",
+  "Sub Court 2, Kollam",
   "Munsiff Court 1, Kollam",
+  "Munsiff Court 2, Kollam",
+  "Munsiff Court 3, Kollam",
   "Family Court, Kollam",
+  "MACT, Kollam",
   "NI Act Court, Kollam",
 ];
 
@@ -104,11 +118,19 @@ const SCALE_NAMES = [
   "Girija Kumari", "Suresh Babu", "Ambika Devi", "Noushad Ali", "Remya S.",
   "Pradeep Kumar", "Sheela George", "Vijayan Pillai", "Anita Joseph", "Basheer K.",
   "Deepa Menon", "Sudheer Raj", "Maya Krishnan", "Firoz Khan", "Leela Bai",
+  "Aravind Menon", "Shyamala Devi", "Thomas Varghese", "Nabeela P.", "Ravi Shankar",
+  "Jaya Prakash", "Meenakshi S.", "Abdul Rahiman", "Prasad Kumar", "Sarita Nair",
+  "Vinod Chandran", "Kavitha Mohan", "Shabana Iqbal", "Rekha Pillai", "Gopakumar V.",
+  "Fathima Beevi", "Sanjay Menon", "Usha Rani", "Dinesh Kartha", "Priya Lakshmi",
 ];
 const SCALE_ORGS = [
   "Coastal Traders", "Malabar Agencies", "Sea Queen Exports", "Highland Finance",
   "Kerala Motors", "Sunrise Textiles", "Green Valley Estates", "Anand Enterprises",
   "Royal Cashews", "Metro Hardwares", "Backwater Foods", "Pearl Marine",
+  "Western Ghats Timber", "Shoreline Fisheries", "Cardamom County Estates",
+  "Vembanad Traders", "Southern Spices", "Ashirvad Chits", "Meridian Motors",
+  "Palm Grove Resorts", "Kollam Cashew Co.", "Neptune Marine", "Orient Rubbers",
+  "Silverline Finance",
 ];
 const SCALE_STAGES = [
   "Appearance", "Plea", "Evidence of the complainant", "Cross-examination",
@@ -255,12 +277,16 @@ const PAST_CASES: Case[] = pastCases();
 /* ─────────── other advocates' matters (the rest of today's docket) ───────────
  * Matters listed today that the viewer (Anjali) is NOT on. They never reach her
  * board — the board is her own cases — but they fill the court's published cause
- * list, so it reads as the whole day's docket across advocates, courts, stages and
- * statuses rather than only her matters. Being outside her cases, they add nothing
- * to Your Cases, the calendar, or the board's counts; they surface in the cause
- * list alone. */
-const OTHER_ADVOCATES = ["p-o1", "p-o2", "p-o3", "p-o4", "p-o5", "p-o6"] as const;
-const OTHER_COUNT = 24;
+ * list, so it reads like a real published list: a long docket across every court,
+ * advocate, stage and status, of which her ~two dozen matters are only a small
+ * slice. Sized so the list feels the scale of a district complex's day. Being
+ * outside her cases, they add nothing to Your Cases, the calendar, or the board's
+ * counts; they surface in the cause list alone. */
+const OTHER_ADVOCATES = [
+  "p-o1", "p-o2", "p-o3", "p-o4", "p-o5", "p-o6",
+  "p-o7", "p-o8", "p-o9", "p-o10", "p-o11", "p-o12",
+] as const;
+const OTHER_COUNT = 120;
 
 function otherCases(): Case[] {
   const base = new Date();

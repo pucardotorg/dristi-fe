@@ -196,18 +196,27 @@ export function CauseListDialog({
   onJoin: (row: CauseListRow) => void;
   locale: Locale;
 }) {
+  // Sort-by lives here, above the body, so it survives close/reopen within the
+  // page session (this wrapper stays mounted while the dialog toggles). Opening the
+  // list from a hearing's "view on the cause list" jump then keeps the order the
+  // advocate last chose, so the traced row shows in that order. A full page reload
+  // resets it to the Status default; the list's own refresh does not. Date, search
+  // and court filter still reset on each open, since the body remounts.
+  const [groupBy, setGroupBy] = React.useState<CauseListGroupBy>("status");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Near full-screen, but inset from the edges so the board behind stays in
           view through the scrim — a workspace over the page, not a new page. The
           body mounts fresh each open, so its date and search start from the
-          board's day without an effect resetting them. */}
+          board's day without an effect resetting them; sort-by is held above. */}
       <DialogContent className="flex h-[calc(100svh-4rem)] w-full max-w-[calc(100%-4rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[calc(100%-4rem)]">
         <CauseListBody
           world={world}
           now={now}
           day={day}
           highlight={highlight}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
           onJoin={onJoin}
           locale={locale}
         />
@@ -221,6 +230,8 @@ function CauseListBody({
   now,
   day,
   highlight,
+  groupBy,
+  onGroupByChange,
   onJoin,
   locale,
 }: {
@@ -228,6 +239,10 @@ function CauseListBody({
   now: number;
   day: string;
   highlight?: { caseId: string; nonce: number } | null;
+  /** Sort-by is owned by the dialog wrapper so it persists across open/close;
+      the default is Status (see there). */
+  groupBy: CauseListGroupBy;
+  onGroupByChange: (next: CauseListGroupBy) => void;
   onJoin: (row: CauseListRow) => void;
   locale: Locale;
 }) {
@@ -236,9 +251,6 @@ function CauseListBody({
   const [date, setDate] = React.useState(day);
   const [query, setQuery] = React.useState("");
   const [selectedCourts, setSelectedCourts] = React.useState<string[]>([]);
-  // Status is the default order for the launch view: without listed times the
-  // most useful cut is what is being called now, then what is listed, then done.
-  const [groupBy, setGroupBy] = React.useState<CauseListGroupBy>("status");
   const groupRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const jumpTarget = React.useRef<string | null>(null);
   const copy = (en: string, ml: string) => locale === "ml" ? ml : en;
@@ -341,7 +353,7 @@ function CauseListBody({
   const reset = () => {
     setQuery("");
     setSelectedCourts([]);
-    setGroupBy("status");
+    onGroupByChange("status");
   };
   const jump = (key: string) => {
     jumpTarget.current = key;
@@ -479,7 +491,7 @@ function CauseListBody({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56">
-                <DropdownMenuRadioGroup value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
+                <DropdownMenuRadioGroup value={groupBy} onValueChange={(value) => onGroupByChange(value as CauseListGroupBy)}>
                   {(["item", "court", "hearingType", "status"] as const).map((value) => (
                     <DropdownMenuRadioItem key={value} value={value}>
                       {groupLabels[value]}
