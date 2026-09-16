@@ -38,13 +38,40 @@ export const COURT_SIGN_IN_ROLES: CourtRole[] = [
   "typist",
 ];
 
+/**
+ * One court room a staff member can be posted to, named as the rail's foot and a court
+ * document head it, with the district it sits in.
+ */
+export type Courtroom = {
+  /** e.g. `JMFC Court 1, Kollam`. */
+  name: string;
+  district: string;
+};
+
 /** One registered account, as the establishment's directory would return it. */
 export type CourtAccount = {
   username: string;
   /** The staff member's name, as the rail's foot reports it. No honorific, no rank. */
   name: string;
   role: CourtRole;
+  /**
+   * The court rooms this account is mapped to (REG-35). A magistrate, bench clerk or
+   * typist sits 1:1 with a bench, so the list is one; a scrutiny officer may cover a
+   * whole establishment, so it is several (the PRD's Gujarat case: one officer across
+   * five court rooms). Sign-in picks which of these the visit runs as — and a list of
+   * one needs no pick (REG-36). Adding or removing a room is a back-end operation, never
+   * self-service on this screen (REG-38): the list is read here, not edited.
+   */
+  courtrooms: Courtroom[];
 };
+
+/**
+ * This deployment's establishment — the Kollam JMFC courts, numbered as the bench names
+ * them. Every fixture in the build belongs to Court 1, so it leads any list it is in.
+ */
+function kollamCourt(number: number): Courtroom {
+  return { name: `JMFC Court ${number}, Kollam`, district: "Kollam" };
+}
 
 /**
  * The demo directory — one account per seat.
@@ -63,21 +90,35 @@ export const COURT_ACCOUNTS: Record<CourtRole, CourtAccount> = {
     username: "michaelGeorgeJudge",
     name: "Michael George",
     role: "magistrate",
+    /* 1:1 with the bench — a magistrate presides over one court room. */
+    courtrooms: [kollamCourt(1)],
   },
   "bench-clerk": {
     username: "uddipanBenchClerk",
     name: CURRENT_STAFF.name,
     role: "bench-clerk",
+    courtrooms: [kollamCourt(1)],
   },
   "scrutiny-officer": {
     username: "bijuScrutinyOfficer",
     name: "Biju B",
     role: "scrutiny-officer",
+    /* The one seat that covers many: the officer scrutinises for the whole
+       establishment, so the account carries every court room in it. Court 1 leads,
+       because that is where this build's cases sit. */
+    courtrooms: [
+      kollamCourt(1),
+      kollamCourt(2),
+      kollamCourt(3),
+      kollamCourt(4),
+      kollamCourt(5),
+    ],
   },
   typist: {
     username: "sreelathaTypist",
     name: "Sreelatha R",
     role: "typist",
+    courtrooms: [kollamCourt(1)],
   },
 };
 
@@ -96,46 +137,13 @@ export function accountFor(username: string): CourtAccount | undefined {
 }
 
 /**
- * Kerala's districts, as the reference screen's first select offers them.
+ * The court rooms an account may work in, ready for a select.
  *
- * Fact, not demo data — the State has these fourteen revenue districts and a district
- * court in each. Which of them this build actually holds cases for is a different
- * question, answered by the fixtures: they are all Kollam.
+ * There is no free district-then-court picker any more: a staff member does not choose a
+ * posting at the door, they arrive already mapped to one (REG-35), and the district is a
+ * fact of the room, not a separate question. So the screen reads the room straight off
+ * the account and, where there is more than one, lets them pick which to run as.
  */
-export const DISTRICTS = [
-  "Thiruvananthapuram",
-  "Kollam",
-  "Pathanamthitta",
-  "Alappuzha",
-  "Kottayam",
-  "Idukki",
-  "Ernakulam",
-  "Thrissur",
-  "Palakkad",
-  "Malappuram",
-  "Kozhikode",
-  "Wayanad",
-  "Kannur",
-  "Kasaragod",
-];
-
-/** The district this deployment's fixtures sit in — where both selects start. */
-export const DEFAULT_DISTRICT = "Kollam";
-
-/**
- * The court rooms in a district.
- *
- * **Demo data**, and the one place on this screen that is. Every Kerala district has
- * Judicial Magistrate of the First Class courts, so the shape is real; how many, and
- * what each is called, comes from the establishment's directory and is not invented
- * here beyond the two rows a select needs to be a live control rather than a label.
- *
- * `JMFC Court 1, Kollam` is `CURRENT_STAFF.court` — the court every fixture in this
- * build belongs to, and so the row a demo should stay on.
- */
-export function courtRoomsIn(district: string): string[] {
-  return [`JMFC Court 1, ${district}`, `JMFC Court 2, ${district}`];
+export function courtroomsFor(account: CourtAccount | undefined): Courtroom[] {
+  return account?.courtrooms ?? [];
 }
-
-/** Where the court-room select starts: this deployment's own bench. */
-export const DEFAULT_COURT = CURRENT_STAFF.court;

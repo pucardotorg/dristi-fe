@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, LandmarkIcon } from "lucide-react";
 
 import { BrandLockup } from "@/components/brand-lockup";
 import { CHARCOAL_PLATE } from "@/components/chrome/rail-plate";
 import { Button } from "@/components/ui/button";
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldLabel,
 } from "@/components/ui/field";
@@ -32,10 +33,7 @@ import {
   accountFor,
   COURT_ACCOUNTS,
   COURT_SIGN_IN_ROLES,
-  courtRoomsIn,
-  DEFAULT_COURT,
-  DEFAULT_DISTRICT,
-  DISTRICTS,
+  courtroomsFor,
 } from "@/lib/employee/sign-in";
 
 /**
@@ -49,11 +47,21 @@ import {
  * a fact the back end already holds. The username says which seat it is. The screen asks
  * for the username.
  *
- * So the shape is the reference screen's (owner, 2026-09-14): username, password,
- * district, court room, one button. No registration line, because court users are
- * registered by the establishment; no OTP, so no method toggle; no "forgot password",
- * because a court password is reset by the establishment and a link here would go
- * nowhere.
+ * So the shape is username, password, the court room, one button. No registration line,
+ * because court users are registered by the establishment; no OTP, so no method toggle;
+ * no "forgot password", because a court password is reset by the establishment and a link
+ * here would go nowhere.
+ *
+ * **The court room is chosen at the door, from the account's own list — not after.** An
+ * employee is mapped to one or more court rooms (REG-35), and the PRD's model is that
+ * they pick which to work in. That pick belongs *in* the sign-in, not on a step the other
+ * side of it: a second screen to choose a room before the day can start is the mess the
+ * owner asked to avoid (owner, 2026-09-16). So there is no free district-then-court
+ * picker; the room field reads straight off the account the username names. A magistrate,
+ * clerk or typist mapped to one room sees it confirmed, with nothing to pick (REG-36); a
+ * scrutiny officer across a whole establishment picks from their list. The district is a
+ * fact of the room, so it is not asked separately — it rides along with the room chosen
+ * (`session.ts`). The list is read, never edited: rooms are added by the back end (REG-38).
  *
  * **It does not look like the citizen sign-in, on purpose.** That screen's plate is the
  * deep-teal marketing canvas — it is selling access to people who may never have seen the
@@ -62,9 +70,7 @@ import {
  * narrower than the citizen plate too (a third of the page against four-ninths), because
  * it identifies rather than persuades.
  *
- * The two selects are live: what is chosen is the district and bench the rail's foot
- * reports and a court document would be headed with (`session.ts`). Signing in lands on
- * Today's hearings, which is where the court's day actually starts.
+ * Signing in lands on Today's hearings, which is where the court's day actually starts.
  *
  * Nothing here authenticates. Every court URL was reachable before it existed and is
  * still reachable now.
@@ -78,8 +84,6 @@ export function CourtSignInBlock() {
 
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [district, setDistrict] = React.useState(DEFAULT_DISTRICT);
-  const [court, setCourt] = React.useState(DEFAULT_COURT);
   const [revealed, setRevealed] = React.useState(false);
   /* Which fields failed, not what the failure reads as — the same rule the citizen
      sign-in keeps, so a message is never frozen into the state that produced it. */
@@ -87,32 +91,40 @@ export function CourtSignInBlock() {
 
   const typed = username.trim();
   const badUsername = touched && !typed;
+  /* The account the typed username names, resolved live — it is what the court-room
+     field reads from, so it cannot wait for a submit. */
+  const account = accountFor(username);
   /* Said as a fact under the field, the way the citizen screen says it of an unknown
      number. There is no offer to register: nobody registers themselves here. */
-  const unknownUsername = touched && Boolean(typed) && !accountFor(typed);
+  const unknownUsername = touched && Boolean(typed) && !account;
   const badPassword = touched && !password;
 
-  /** A district's courts are its own, so changing it cannot leave another one's bench. */
-  function changeDistrict(next: string) {
-    setDistrict(next);
-    setCourt(courtRoomsIn(next)[0]);
-  }
+  const courtrooms = courtroomsFor(account);
+  /* Which of the account's rooms the visit runs as — held by name, not index, and only
+     as an override. The room in force is derived every render: the picked name if it is
+     one of *this* account's rooms, else the top of the list (Court 1, where the fixtures
+     live). So changing the username self-corrects — a name left over from another account
+     simply falls back — and a single-room account needs no pick, it lands on its one room.
+     No effect syncs this; the fallback is the whole of it. */
+  const [courtroomName, setCourtroomName] = React.useState<string | null>(null);
+  const courtroom =
+    courtrooms.find((room) => room.name === courtroomName) ?? courtrooms[0] ?? null;
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setTouched(true);
     if (!password) return;
-    const account = accountFor(username);
-    if (!account) return;
+    if (!account || !courtroom) return;
 
     /* The username is what decides the seat. Nothing on this screen asked for it and
-       nothing on this screen can override it. */
+       nothing on this screen can override it. The court room is the account's own; its
+       district rides along with it. */
     setCourtSession({
       username: account.username,
       name: account.name,
       role: account.role,
-      district,
-      court,
+      district: courtroom.district,
+      court: courtroom.name,
     });
     router.push(AFTER_SIGN_IN);
   }
@@ -240,37 +252,56 @@ export function CourtSignInBlock() {
                 </FieldError>
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="court-district">District</FieldLabel>
-                <Select value={district} onValueChange={changeDistrict}>
-                  <SelectTrigger id="court-district" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DISTRICTS.map((name) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="court-room">Court room</FieldLabel>
-                <Select value={court} onValueChange={setCourt}>
-                  <SelectTrigger id="court-room" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courtRoomsIn(district).map((name) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
+              {/* The court room, read from the account. It appears once the username
+                  names a real account, because before that there is no list to show — a
+                  free picker here would be inviting a choice the account has already made
+                  (owner, 2026-09-16). One room is confirmed, not asked; several are
+                  offered as a select. */}
+              {account ? (
+                courtrooms.length > 1 ? (
+                  <Field>
+                    <FieldLabel htmlFor="court-room">Court room</FieldLabel>
+                    <Select
+                      value={courtroom?.name ?? undefined}
+                      onValueChange={setCourtroomName}
+                    >
+                      <SelectTrigger id="court-room" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {courtrooms.map((room) => (
+                          <SelectItem key={room.name} value={room.name}>
+                            {room.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>
+                      You cover {courtrooms.length} court rooms. Pick the one you are
+                      working in today.
+                    </FieldDescription>
+                  </Field>
+                ) : (
+                  <Field>
+                    <FieldLabel>Court room</FieldLabel>
+                    {/* A settled fact, not a control: a room the account holds alone has
+                        nothing to choose (REG-36). Shown so the person knows which bench
+                        they are about to enter, styled as a value at rest. */}
+                    <div className="flex items-center gap-2.5 rounded-md border border-input bg-surface-sunken px-3 py-2.5">
+                      <LandmarkIcon
+                        aria-hidden
+                        className="size-4 shrink-0 text-muted-foreground"
+                      />
+                      <span className="min-w-0 truncate text-body-compact font-medium">
+                        {courtroom?.name}
+                      </span>
+                    </div>
+                    <FieldDescription>
+                      You are mapped to this court room.
+                    </FieldDescription>
+                  </Field>
+                )
+              ) : null}
 
               <Button type="submit" size="lg" className="w-full">
                 Sign in

@@ -6,6 +6,7 @@ import {
   accountFor,
   COURT_ACCOUNTS,
   COURT_SIGN_IN_ROLES,
+  courtroomsFor,
 } from "./sign-in";
 import {
   readCourtRole,
@@ -48,6 +49,33 @@ describe("court seats", () => {
     for (const seat of COURT_SEATS) {
       assert.ok(COURT_ROLE_LABEL[seat]);
     }
+  });
+
+  /* REG-35/36: an account carries its own court rooms, and the sign-in picks from that
+     list. A bench seat sits 1:1 with a room, so it needs no pick; the scrutiny officer
+     covers the establishment, so it is the one that offers a choice. `CURRENT_STAFF`'s
+     court has to lead every list, because that is the only bench this build holds cases
+     for. */
+  it("maps each account to its own court rooms, several only for the officer", () => {
+    for (const seat of COURT_SEATS) {
+      const rooms = COURT_ACCOUNTS[seat].courtrooms;
+      assert.ok(rooms.length >= 1, `${seat} has no court room`);
+      assert.equal(rooms[0].name, CURRENT_STAFF.court);
+      for (const room of rooms) assert.ok(room.district, `${room.name} has no district`);
+    }
+    assert.equal(COURT_ACCOUNTS.magistrate.courtrooms.length, 1);
+    assert.equal(COURT_ACCOUNTS["bench-clerk"].courtrooms.length, 1);
+    assert.equal(COURT_ACCOUNTS.typist.courtrooms.length, 1);
+    assert.ok(COURT_ACCOUNTS["scrutiny-officer"].courtrooms.length > 1);
+  });
+
+  it("reads an account's court rooms, and nothing for no account", () => {
+    assert.deepEqual(
+      courtroomsFor(accountFor("bijuScrutinyOfficer")),
+      COURT_ACCOUNTS["scrutiny-officer"].courtrooms,
+    );
+    assert.deepEqual(courtroomsFor(undefined), []);
+    assert.deepEqual(courtroomsFor(accountFor("nobody")), []);
   });
 
   it("takes a seat, and taking the same one again is not a change", () => {
