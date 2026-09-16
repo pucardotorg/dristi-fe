@@ -274,9 +274,19 @@ function CauseListBody({
     );
     if (!row) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    row.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
-    // After the scroll settles, place the overlay over the row and re-arm the draw.
-    const place = window.setTimeout(() => {
+
+    let observer: IntersectionObserver | null = null;
+    let safetyTimer = 0;
+    let hideTimer = 0;
+    let armed = false;
+
+    // Place the overlay over the row and run the draw, measured at arm time so it
+    // sits right whatever the scroll position.
+    const arm = () => {
+      if (armed) return;
+      armed = true;
+      observer?.disconnect();
+      window.clearTimeout(safetyTimer);
       const cr = container.getBoundingClientRect();
       const rr = row.getBoundingClientRect();
       overlay.style.top = `${rr.top - cr.top + container.scrollTop}px`;
@@ -287,13 +297,38 @@ function CauseListBody({
       overlay.classList.remove("cause-trace-run");
       void overlay.offsetWidth;
       overlay.classList.add("cause-trace-run");
-    }, reduced ? 0 : 280);
-    const clear = window.setTimeout(() => {
-      if (traceRef.current) traceRef.current.hidden = true;
-    }, 2900);
+      hideTimer = window.setTimeout(() => {
+        if (traceRef.current) traceRef.current.hidden = true;
+      }, 2600);
+    };
+
+    row.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    if (reduced) {
+      arm();
+      return () => window.clearTimeout(hideTimer);
+    }
+
+    // Arm when the smooth scroll actually brings the row into view. An
+    // IntersectionObserver fires as the row reaches the viewport, so on a long
+    // docket the stroke is not spent before it arrives — and unlike a fixed delay,
+    // scroll events, or animation frames, it needs no guess at the scroll's
+    // duration and does not depend on the tab being in the foreground.
+    observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting && e.intersectionRatio >= 0.85)) {
+          arm();
+        }
+      },
+      { root: container, threshold: [0.85] }
+    );
+    observer.observe(row);
+    // A last resort so the stroke can never fail to appear.
+    safetyTimer = window.setTimeout(arm, 4000);
+
     return () => {
-      window.clearTimeout(place);
-      window.clearTimeout(clear);
+      observer?.disconnect();
+      window.clearTimeout(safetyTimer);
+      window.clearTimeout(hideTimer);
     };
   }, [highlight]);
 
