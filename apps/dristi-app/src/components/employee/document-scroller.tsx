@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { PageSheet } from "@/components/employee/page-facsimile";
+import { PageSheet, SHEET_BOX } from "@/components/employee/page-facsimile";
 import type { CaseDocumentKind } from "@/lib/employee/case-review";
 import type { ZoneRect } from "@/lib/employee/document-zones";
 import { cn } from "@/lib/utils";
@@ -83,13 +83,23 @@ export function DocumentScroller({
     <div
       ref={scrollRef}
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-4",
+        // The gutter is tuned so the white SHEET — the bright edge the eye tracks — lands
+        // on the `px-8` (32px) line the "Documents / N filed" header sits on, in both
+        // consumers (cognizance, register-case-file). The sheet is inset from this scroll
+        // by its own 8px beige mat (`p-2` below), so the scroll runs at `px-6` (24) and
+        // 24 + 8 = 32 puts the sheet under the header; the low-contrast mat carries the
+        // residual 8px, not the sheet. `px-4` here left the sheet 8px proud of the header
+        // — the right-margin stagger the owner caught (owner, 2026-09-16).
+        "flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-6 py-4",
         className,
       )}
     >
       {docs.map((doc) => {
         const on = active?.doc === doc.key;
         const zone = on ? active?.zone ?? null : null;
+        /* The frame is the kind's own box, not a shared 3:4 page, so a cheque is a wide slip
+           and a memo a short one instead of a drawing marooned in white (owner, 2026-09-15). */
+        const box = SHEET_BOX[doc.kind];
         return (
           <section
             key={doc.key}
@@ -113,17 +123,23 @@ export function DocumentScroller({
                 on && !zone && "ring-2 ring-primary",
               )}
             >
-              <div className="relative aspect-3/4 w-full overflow-hidden rounded-lg bg-paper ring-1 ring-hairline">
+              <div
+                className="relative w-full overflow-hidden rounded-lg bg-paper ring-1 ring-hairline"
+                style={{ aspectRatio: `${box.w} / ${box.h}` }}
+              >
                 <PageSheet kind={doc.kind} />
                 {zone ? (
                   <div
                     aria-hidden
                     className="pointer-events-none absolute z-2 rounded-md border-2 border-primary bg-halo ring-3 ring-halo transition-all"
+                    /* The zone is in the facsimile's drawing grid; the frame shows only the
+                       kind's `SHEET_BOX` slice of it, so a zone maps to a per-cent rect of
+                       that slice. */
                     style={{
-                      left: `${zone.x}%`,
-                      top: `${zone.y}%`,
-                      width: `${zone.w}%`,
-                      height: `${zone.h}%`,
+                      left: `${((zone.x - box.x) / box.w) * 100}%`,
+                      top: `${((zone.y - box.y) / box.h) * 100}%`,
+                      width: `${(zone.w / box.w) * 100}%`,
+                      height: `${(zone.h / box.h) * 100}%`,
                     }}
                   />
                 ) : null}

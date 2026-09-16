@@ -852,14 +852,14 @@ function DocumentPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-hairline px-6 py-4">
+      <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-hairline px-8 py-4">
         <h2 className="text-body font-semibold">Documents</h2>
         <span className="text-body-compact tabular-nums text-muted-foreground">
           {bundle.docs.length} filed
         </span>
       </div>
       {docs.length === 0 && absent.length === 0 ? (
-        <p className="px-6 py-4 text-body-compact text-muted-foreground">
+        <p className="px-8 py-4 text-body-compact text-muted-foreground">
           No document matches.
         </p>
       ) : (
