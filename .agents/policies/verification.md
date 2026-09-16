@@ -22,6 +22,29 @@ unchanged; it must still independently inspect acceptance criteria and the imple
 Rerun affected checks after relevant source, configuration, dependency, or DS changes.
 If state cannot be established, the evidence is stale.
 
+## Render evidence for a tagged reviewer
+
+Before handoff, identify the checked checkout/revision, DS pin, app URL and routes,
+relevant states, and the browser/screenshot tools available to that role. Follow
+`.agents/policies/dev-server.md`; a screenshot of another checkout is not evidence for
+the proposed change. A reviewer with read-only browser access captures its own
+screenshots and records route, state, viewport, theme, and capture time. It may inspect
+safe interactions and keyboard/focus behavior, but must not submit real actions or
+modify fixtures just to create a state.
+
+If the reviewer cannot capture a screenshot in its runtime, the coordinator captures
+actual screens before handoff and supplies an evidence packet: absolute screenshot
+paths or inline images, each labeled with route, state, width, theme, capture time,
+and checkout/revision. Include relevant interaction observations separately; static
+screenshots cannot prove keyboard behavior or a recovery path. The reviewer reads the
+images and code and makes its own judgment, rather than accepting the builder's verdict.
+For a disputed DS text role or control size, include the element/region and its
+read-only computed font size, line-height, or dimensions when the reviewer cannot
+inspect live styles; a screenshot alone cannot prove a precise size difference.
+If a required state or matching server is unavailable, label exactly that criterion
+**verification pending** and continue the source review. Do not install tools, restart
+the server, or repeatedly request the same missing screenshot.
+
 Inspect changed UI at desktop and about 375px, in both themes, using relevant empty,
 loading, error, partial-data, long-label/language, keyboard, and recovery cases. Select
 states that apply; do not invent artificial states for static copy. Confirm the running
