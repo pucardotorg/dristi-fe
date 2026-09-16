@@ -10,10 +10,12 @@ import {
 } from "lucide-react";
 
 import { useRoomInRem } from "@/hooks/use-min-width";
-import { CASE, HISTORY_ROUND } from "@/lib/employee/scrutiny/history";
-import { ALL_FIELDS, FIELD_BY_ID } from "@/lib/employee/scrutiny/sections";
-import type { Rect } from "@/lib/employee/scrutiny/types";
+import type { Rect, ScrutinyCase } from "@/lib/employee/scrutiny/types";
 import { useScrutinyState } from "@/lib/employee/scrutiny/use-scrutiny-state";
+import { ScrutinyCaseProvider } from "@/components/employee/scrutiny/scrutiny-case-context";
+import { ARRIVAL } from "@/components/chrome/motion";
+import { useArrival } from "@/components/employee/use-arrival";
+import { cn } from "@/lib/utils";
 import {
   BundleView,
   type BundleHandle,
@@ -40,8 +42,14 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { useSidebar } from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /**
  * The case review: filed fields on the left, the bundle in the centre, the document
@@ -64,15 +72,43 @@ import { TooltipProvider } from "@/components/ui/tooltip";
  * (`ACCESSIBILITY.md` §10).
  */
 export function CaseWorkbench({
-  filingNo,
+  caseData,
   aiOn = true,
 }: {
-  filingNo: string;
+  caseData: ScrutinyCase;
   /** With AI off the workbench still works; it just stops asserting readings. */
   aiOn?: boolean;
 }) {
   const router = useRouter();
-  const controller = useScrutinyState(aiOn);
+  const arrival = useArrival();
+
+  /*
+   * The court rail folds to its icon strip while the workbench is open, then restores what
+   * it was on the way out — three panes need the width, and the DS rail animates the fold,
+   * so landing here reads as the sidebar quietly collapsing rather than a jump (owner,
+   * 2026-09-15). It stays retractable: ⌘B or the rail toggle reopens it, and leaving the
+   * case gives the bench back the rail state it had before.
+   *
+   * **Run once, from refs.** The DS `setOpen` is re-created whenever `open` changes, so an
+   * effect that depends on it re-fires the moment the reader reopens the rail — and
+   * re-collapses it, which read as the sidebar being stuck shut (owner, 2026-09-15). The
+   * setter and the entry state are captured in refs and the effect has no deps, so it
+   * collapses on mount, restores on unmount, and never fights a reopen in between. A stale
+   * `setOpen` is safe here: called with a boolean, it ignores the `open` it closed over.
+   */
+  const { open, setOpen } = useSidebar();
+  const setOpenRef = React.useRef(setOpen);
+  const wasOpen = React.useRef(open);
+  React.useEffect(() => {
+    const setSidebar = setOpenRef.current;
+    const restore = wasOpen.current;
+    setSidebar(false);
+    return () => setSidebar(restore);
+  }, []);
+
+  const { party, allFields, fieldById, historyRound } = caseData;
+  const filingNo = caseData.filing.no;
+  const controller = useScrutinyState(aiOn, caseData);
   const bundle = React.useRef<BundleHandle>(null);
   const fields = React.useRef<FieldsPanelHandle>(null);
   const [historyOpen, setHistoryOpen] = React.useState(false);
@@ -89,8 +125,8 @@ export function CaseWorkbench({
   // The case title is the officer's to correct (a mis-spelt party name is exactly the
   // kind of thing scrutiny exists to catch). Local until a case service owns it.
   const [title, setTitle] = React.useState({
-    complainant: CASE.complainant,
-    accused: CASE.accused,
+    complainant: party.complainant,
+    accused: party.accused,
   });
   const [editingTitle, setEditingTitle] = React.useState(false);
 
@@ -102,14 +138,14 @@ export function CaseWorkbench({
   /** Selecting a field scrolls the bundle to the page it was read from. */
   React.useEffect(() => {
     const field = controller.selectedId
-      ? FIELD_BY_ID[controller.selectedId]
+      ? fieldById[controller.selectedId]
       : null;
     const target = field?.doc ?? field?.thumb ?? field?.docrow;
     if (target) goToDoc(target);
-  }, [controller.selectedId, goToDoc]);
+  }, [controller.selectedId, goToDoc, fieldById]);
 
   const selected = controller.selectedId
-    ? FIELD_BY_ID[controller.selectedId]
+    ? fieldById[controller.selectedId]
     : null;
   const relatedDocId = selected
     ? (selected.doc ?? selected.thumb ?? selected.docrow ?? null)
@@ -128,12 +164,12 @@ export function CaseWorkbench({
    */
   const goToItem = React.useCallback(
     (fieldId: string) => {
-      if (!FIELD_BY_ID[fieldId]) return;
+      if (!fieldById[fieldId]) return;
       setPane("fields");
       controller.selectField(fieldId);
       requestAnimationFrame(() => fields.current?.scrollToRow(fieldId));
     },
-    [controller],
+    [controller, fieldById],
   );
 
   /** The mirror of `goToItem`: a document is read on the bundle. */
@@ -154,10 +190,10 @@ export function CaseWorkbench({
     return () => document.removeEventListener("keydown", onKey);
   }, [controller]);
 
-  const corrections = ALL_FIELDS.filter(
+  const corrections = allFields.filter(
     (f) => controller.flags[f.id]?.correction,
   ).length;
-  const flagged = ALL_FIELDS.filter(
+  const flagged = allFields.filter(
     (f) => controller.flags[f.id] && !controller.flags[f.id].correction,
   ).length;
   const raised = corrections + flagged;
@@ -172,6 +208,7 @@ export function CaseWorkbench({
      * The court chrome scopes its `TooltipProvider` to the rail, so a screen that uses
      * tooltips brings its own. The bundle's zoom controls are the ones that need it.
      */
+    <ScrutinyCaseProvider value={caseData}>
     <TooltipProvider>
     {/*
      * A bounded height, not a floor. The court page is `min-h-svh` (app-chrome's
@@ -184,18 +221,32 @@ export function CaseWorkbench({
      * follows. And no `flex-1` alongside it: in a flex column `flex: 1 1 0%` overrides
      * an explicit height, which is why the first attempt still measured 5,780px.
      */}
-    <div className="flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden">
+    <div
+      className={cn(
+        "flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden",
+        // The workbench rises when it is opened from the queue — the file laid on the
+        // desk, the same arrival Register cases and Take cognizance use (`motion.ts`).
+        arrival && ARRIVAL[arrival],
+      )}
+    >
       {/* The page's own bar, on the page's own ladder: `py-2.5` is a micro step and
           micro steps belong inside controls, not under a screen's title. */}
-      <div className="flex shrink-0 flex-wrap items-start gap-3 border-b border-hairline bg-card px-6 py-4 md:px-8">
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-hairline bg-card px-6 py-4 md:px-8">
+        {/* `basis-full` until `lg`: below the room for the title and its controls on one
+            line, the controls drop to their own line rather than squeezing the cause into
+            a four-line stack beside them — the registry reads this on a tablet. From `lg`
+            they share the line again. */}
+        <div className="flex min-w-0 flex-1 basis-full flex-col gap-2 lg:basis-auto">
           {/* The eyebrow, above the title and as one sentence: three spans with `·`
               between them stranded the separators at the head of a wrapped line. The
               trail stops at the queue, so the filing number is named here — it is how
               the officer knows which of the queue's rows they are inside. */}
-          <p className="text-caption font-medium text-muted-foreground">
+          {/* The filing number and when it came in — the two facts that place this file.
+              The advocate is in the fields and on the queue row; it does not need a third
+              home in the eyebrow. */}
+          <p className="text-body-compact font-medium text-muted-foreground">
             <span className="tabular-nums">{filingNo}</span>
-            {` · ${CASE.submitted} · ${CASE.advocate}`}
+            {` · ${party.submitted}`}
           </p>
           {editingTitle ? (
             <TitleEditor
@@ -215,15 +266,20 @@ export function CaseWorkbench({
                 <span className="font-normal text-muted-foreground">v.</span>{" "}
                 {title.accused}
               </h1>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0 text-muted-foreground"
-                aria-label="Edit case title"
-                onClick={() => setEditingTitle(true)}
-              >
-                <PencilIcon />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-muted-foreground"
+                    aria-label="Edit case title"
+                    onClick={() => setEditingTitle(true)}
+                  >
+                    <PencilIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit case title</TooltipContent>
+              </Tooltip>
             </div>
           )}
         </div>
@@ -268,7 +324,7 @@ export function CaseWorkbench({
           {/* The round count does triage work at rest; the button opens the detour. */}
           <Button variant="outline" onClick={() => setHistoryOpen(true)}>
             <ClockIcon />
-            Case history · round {HISTORY_ROUND}
+            Case history · round {historyRound}
           </Button>
           <ChecksPopover />
         </div>
@@ -288,7 +344,7 @@ export function CaseWorkbench({
       {threePane ? (
         /* The floors are in `rem`, not percentages: a percentage floor is a floor on
            nothing, which is how the index rail reached 135px. */
-        <ResizablePanelGroup className="min-h-0 flex-1">
+        <ResizablePanelGroup className="min-h-0 flex-1 px-4">
           <ResizablePanel
             defaultSize="34%"
             minSize="18rem"
@@ -303,7 +359,7 @@ export function CaseWorkbench({
             />
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize="49%" minSize="22rem">
+          <ResizablePanel defaultSize="52%" minSize="22rem">
             <BundleView
               ref={bundle}
               controller={controller}
@@ -313,7 +369,9 @@ export function CaseWorkbench({
             />
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize="17%" minSize="11rem" maxSize="20rem">
+          {/* A document index is a short list, so it takes a rail's width, not a pane's:
+              the room it does not need goes to the bundle, which is the thing being read. */}
+          <ResizablePanel defaultSize="14%" minSize="10rem" maxSize="20rem">
             <IndexRail
               flags={controller.flags}
               relatedDocId={aiOn ? relatedDocId : null}
@@ -325,7 +383,7 @@ export function CaseWorkbench({
         /* One surface at a time. Only the chosen pane is mounted — both would put two
            copies of every `doc-*` anchor in the document and the bundle's own scrolling
            would land on whichever came first. */
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col px-4">
           {pane === "fields" ? (
             <FieldsPanel
               ref={fields}
@@ -353,7 +411,7 @@ export function CaseWorkbench({
          * numbers). Red because it is the officer's own error tally, and it has to
          * be findable from anywhere on the screen.
          */}
-        <span className="text-caption text-muted-foreground">
+        <span className="text-body-compact text-muted-foreground">
           {tally.length > 0 ? (
             <>
               {tally.map((t, i) => (
@@ -362,7 +420,7 @@ export function CaseWorkbench({
                   <b className="font-semibold text-destructive-ink">{t}</b>
                 </React.Fragment>
               ))}
-              {` for ${CASE.advocate}`}
+              {` for ${party.advocate}`}
             </>
           ) : null}
         </span>
@@ -406,6 +464,7 @@ export function CaseWorkbench({
       />
     </div>
     </TooltipProvider>
+    </ScrutinyCaseProvider>
   );
 }
 

@@ -10,18 +10,20 @@ import {
 
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
+import {
+  CourtFilters,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignProcessDialog } from "@/components/employee/sign-process-dialog";
 import { SignProcessTable } from "@/components/employee/sign-process-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DatePicker } from "@/components/ui/date-picker";
 import {
   Empty,
   EmptyContent,
@@ -30,18 +32,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isPendingFilterChange } from "@/lib/employee/filter-state";
 import {
   causeTitle,
+  formatListingDate,
   isoDay,
   parseIsoDay,
   PAGE_SIZE,
@@ -363,7 +358,7 @@ export function SignProcessScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Sign process
         </h1>
         {/* The supporting line belongs to the tab, not to the page: what is worth saying
@@ -398,7 +393,7 @@ export function SignProcessScreen() {
               <TabsTrigger
                 key={entry.id}
                 value={entry.id}
-                className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
+                className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
               >
                 {entry.label}
                 {/* How much is standing here. One presentation across all five, and it
@@ -648,124 +643,73 @@ function ProcessFiltersForm({
   /** Enter in the box. On the stage that reconciles covers it is the pile's fast path. */
   onSubmit: () => void;
 }) {
+  const fields: CourtFilterField[] = [
+    {
+      id: "sign-process-type",
+      label: "Process type",
+      value: filters.type,
+      all: "all",
+      allLabel: "All process types",
+      options: COURT_PROCESS_TYPES.map((type) => ({
+        value: type.id,
+        label: type.label,
+      })),
+      onApply: (value) =>
+        onChange({ ...filters, type: value as ProcessFilters["type"] }),
+    },
+  ];
+  if (stage.onlyChannel === undefined) {
+    fields.push({
+      id: "sign-process-channel",
+      label: "Delivery channel",
+      value: filters.channel,
+      all: "all",
+      allLabel: "All channels",
+      options: PROCESS_CHANNELS.map((channel) => ({
+        value: channel.id,
+        label: channel.label,
+      })),
+      onApply: (value) =>
+        onChange({ ...filters, channel: value as ProcessFilters["channel"] }),
+    });
+  }
+
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => {
-        /* A lone text input inside a `<form>` submits implicitly, and there is no submit
-           button left to catch it — so Enter is handled here or it reloads the page. */
-        event.preventDefault();
-        onSubmit();
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: stage.reconcilesCovers
+          ? "case number, then Enter"
+          : "case number",
+        onSubmit,
       }}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-process-type" className="w-fit text-body">
-          Process type
-        </Label>
-        <Select
-          value={filters.type}
-          onValueChange={(value) =>
-            onChange({ ...filters, type: value as ProcessFilters["type"] })
-          }
-        >
-          <SelectTrigger id="sign-process-type" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All process types</SelectItem>
-            {COURT_PROCESS_TYPES.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                {type.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {stage.onlyChannel === undefined ? (
-        <div className="flex min-w-0 flex-col gap-2">
-          <Label htmlFor="sign-process-channel" className="w-fit text-body">
-            Delivery channel
-          </Label>
-          <Select
-            value={filters.channel}
-            onValueChange={(value) =>
-              onChange({
-                ...filters,
-                channel: value as ProcessFilters["channel"],
-              })
-            }
-          >
-            <SelectTrigger id="sign-process-channel" className="w-full sm:w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All channels</SelectItem>
-              {PROCESS_CHANNELS.map((channel) => (
-                <SelectItem key={channel.id} value={channel.id}>
-                  {channel.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-
-      {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names a
-          group around it rather than pointing `htmlFor` at a control that does not
-          exist. The trigger still announces the date it holds.
-
-          The `key` is not decoration. `DatePicker` treats `value === undefined` as "I am
-          uncontrolled" and falls back to its own last selection, so a filter cleared back
-          to "any day" would keep showing the date it used to hold. Remounting on the
-          value is the only fix that does not edit the primitive — upstream DS bug, logged
-          in the build report. */}
-      {stage.hearingDateFilter ? (
-        <div className="flex min-w-0 flex-col gap-2">
-          <span
-            id="sign-process-hearing-label"
-            className="w-fit text-body font-medium"
-          >
-            Hearing date
-          </span>
-          <div role="group" aria-labelledby="sign-process-hearing-label">
-            <DatePicker
-              key={filters.hearingDate || "any-day"}
-              value={
-                filters.hearingDate ? parseIsoDay(filters.hearingDate) : undefined
-              }
-              placeholder="Any day"
-              onValueChange={(next) =>
+      searchRef={searchRef}
+      fields={fields}
+      date={
+        stage.hearingDateFilter
+          ? {
+              label: "Hearing date",
+              value: filters.hearingDate
+                ? parseIsoDay(filters.hearingDate)
+                : undefined,
+              active: filters.hearingDate !== "",
+              chipLabel: filters.hearingDate
+                ? formatListingDate(filters.hearingDate)
+                : "",
+              draftActive: (value) => !!value,
+              cleared: undefined,
+              onApply: (value) =>
                 onChange({
                   ...filters,
-                  hearingDate: next ? isoDay(next) : "",
-                })
-              }
-              className="w-full sm:w-52"
-            />
-          </div>
-        </div>
-      ) : null}
-
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-72"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder={
-          stage.reconcilesCovers ? "case number, then Enter" : "case number"
-        }
-      />
-
-      {/* The only button left on the row. "Clear filters" rather than the reference's
-          "Clear search": it returns the type and the date to this tab's default view as
-          well, so a label naming only the search would undersell what it does — and it
-          stays for exactly that reason, since the box's own `×` reaches the text alone. */}
-      <Button type="button" variant="ghost" onClick={onClear}>
-        Clear filters
-      </Button>
-    </form>
+                  hearingDate: value ? isoDay(value) : "",
+                }),
+            }
+          : undefined
+      }
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -1074,10 +1018,7 @@ function ProcessItemList({
         const inline = courtProcessTypeInline(process.type);
         const day = stage.dateOf(process);
         return (
-          <li
-            key={process.id}
-            {...rowActivation("flex gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
-          >
+          <QueueItemRow key={process.id} className="flex gap-3">
             {/* The DS box expands its own hit area to 40×40; the name it carries is the
                 process and its case, not the column, because a row read aloud has no
                 column header. */}
@@ -1117,7 +1058,7 @@ function ProcessItemList({
                 </span>
               </p>
             </div>
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>

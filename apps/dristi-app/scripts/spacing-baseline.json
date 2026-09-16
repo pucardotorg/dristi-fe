@@ -2,9 +2,6 @@
   "src/app/ds-audit/page.tsx": [
     "py-10"
   ],
-  "src/app/employee/login/page.tsx": [
-    "gap-5"
-  ],
   "src/components/access/cases-wireframe.tsx": [
     "py-10",
     "py-10"

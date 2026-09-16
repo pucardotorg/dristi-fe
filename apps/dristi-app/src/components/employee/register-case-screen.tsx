@@ -165,7 +165,7 @@ function ComplaintPage({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip">
       <div
         className={cn(
-          "flex w-full min-w-0 flex-1 flex-col gap-8 px-6 pt-6 pb-16 md:px-8 md:pt-8 xl:px-12",
+          "flex w-full min-w-0 flex-1 flex-col gap-8 px-6 pt-6 pb-16 md:px-8 md:pt-8",
           arrival && ARRIVAL[arrival],
         )}
       >
@@ -429,7 +429,7 @@ function ComplaintTabs({
       {/* Sticky under the 56px bar, on the canvas's own fill and bled to the page edge
           so what scrolls beneath is covered cleanly. The rule is the band's, full width,
           as a sticky bar's edge is. */}
-      <div className="sticky top-14 z-20 -mx-6 border-b border-hairline bg-muted px-6 md:-mx-8 md:px-8 xl:-mx-12 xl:px-12 dark:bg-background">
+      <div className="sticky top-14 z-20 -mx-6 border-b border-hairline bg-muted px-6 md:-mx-8 md:px-8 dark:bg-background">
         {/* The acts sit at the far end of the tab row, at the size they are in the header
             — a button that shrinks as it crosses into the bar reads as a glitch, not as a
             transition (owner, 2026-09-12). The **tabs keep their own height**: stretching
@@ -1231,7 +1231,7 @@ function ActBody({
           <p className="text-body-compact text-pretty">
             {settled
               ? "The complaint is on the register. It appears in the court's case list from today."
-              : "Registering takes cognizance of the complaint. It cannot be undone from this screen."}
+              : "Registering puts the complaint on the register and gives it a number. Taking cognizance is a separate act, and it comes after. It cannot be undone from this screen."}
           </p>
         )}
 

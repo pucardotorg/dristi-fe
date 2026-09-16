@@ -99,7 +99,7 @@ export function ReschedulingRequestScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Rescheduling request
         </h1>
         <p className="text-body text-muted-foreground">

@@ -9,7 +9,6 @@ import {
   SquareIcon,
 } from "lucide-react";
 
-import { DOC_BY_ID, DOC_ROW } from "@/lib/employee/scrutiny/bundle";
 import {
   canSaveDraft,
   docName,
@@ -22,6 +21,7 @@ import type { FlatField } from "@/lib/employee/scrutiny/types";
 import type { ScrutinyController } from "@/lib/employee/scrutiny/use-scrutiny-state";
 import { cn } from "@/lib/utils";
 import { MarkThumb } from "@/components/employee/scrutiny/mark-thumb";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +33,11 @@ import {
 } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /**
  * The composer.
@@ -58,6 +63,7 @@ export function FlagComposer({
   controller: ScrutinyController;
   onGoToItem: (fieldId: string) => void;
 }) {
+  const { docById } = useScrutinyCase();
   const { draft, pendingFocus, recordingSeconds } = controller;
   const correctionRef = React.useRef<HTMLTextAreaElement>(null);
   const noteRef = React.useRef<HTMLTextAreaElement>(null);
@@ -113,7 +119,12 @@ export function FlagComposer({
      * keep their own card fill, so the fields read as paper on the work surface.
      */
     <div
-      className="col-span-full my-1 flex flex-col gap-4 rounded-lg border border-hairline bg-surface-sunken p-3"
+      className={cn(
+        "col-span-full my-1 flex flex-col gap-4 rounded-lg border border-hairline bg-surface-sunken p-3",
+        // Unfolds in place when the row opens — the same short expand Register cases uses
+        // for a section opening, rather than snapping into the layout.
+        "animate-in fade-in-0 slide-in-from-top-1 duration-200 motion-reduce:animate-none",
+      )}
       onClick={(event) => event.stopPropagation()}
     >
       <FieldGroup className="gap-4">
@@ -169,7 +180,7 @@ export function FlagComposer({
               {draft.prefilled ? (
                 <FieldDescription>
                   Read by AI from{" "}
-                  {field.doc ? DOC_BY_ID[field.doc]?.name : "the document"} —
+                  {field.doc ? docById[field.doc]?.name : "the document"} —
                   check it before saving.
                 </FieldDescription>
               ) : null}
@@ -224,7 +235,9 @@ export function FlagComposer({
                   controller.updateDraft({ text: event.target.value })
                 }
               />
-              <div className="absolute end-1.5 top-1.5 flex items-center gap-1.5">
+              {/* `top-0.5` centres the 36px mic in the 40px single-line field (2px each
+                  side); on a grown note it stays anchored near the top, where it belongs. */}
+              <div className="absolute end-1.5 top-0.5 flex items-center gap-1.5">
                 {draft.recording ? (
                   <span className="inline-flex items-center gap-1.5 text-caption text-destructive tabular-nums">
                     <span
@@ -239,20 +252,27 @@ export function FlagComposer({
                     instead of the button: `after:-inset-1` takes a 36px control to
                     44px, the repo's own idiom for a control nested in another
                     (`tasks/act/shared.tsx`). Visually 36, reachable at 44. */}
-                <Button
-                  variant={draft.recording ? "destructive" : "ghost"}
-                  size="icon-sm"
-                  className="relative after:absolute after:-inset-1 after:content-['']"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    controller.toggleRecording();
-                  }}
-                  aria-label={
-                    draft.recording ? "Stop recording" : "Record a voice note"
-                  }
-                >
-                  {draft.recording ? <SquareIcon /> : <MicIcon />}
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={draft.recording ? "destructive" : "ghost"}
+                      size="icon-sm"
+                      className="relative after:absolute after:-inset-1 after:content-['']"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        controller.toggleRecording();
+                      }}
+                      aria-label={
+                        draft.recording ? "Stop recording" : "Record a voice note"
+                      }
+                    >
+                      {draft.recording ? <SquareIcon /> : <MicIcon />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {draft.recording ? "Stop recording" : "Record a voice note"}
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
 
@@ -290,9 +310,9 @@ export function FlagComposer({
             <MarkThumb evidence={draft.evidence} />
             <span className="min-w-0 flex-1 truncate text-body-compact">
               <span className="tabular-nums">
-                Doc {DOC_BY_ID[draft.evidence.doc]?.no}
+                Doc {docById[draft.evidence.doc]?.no}
               </span>{" "}
-              · {docName(draft.evidence.doc)}
+              · {docName(draft.evidence.doc, docById)}
             </span>
             {/* The composer's inline row keeps its density; a coarse pointer still gets
                 the 40px floor (DS Laws — the registry works on tablets). */}
@@ -446,6 +466,7 @@ function ConsequenceStrip({
   controller: ScrutinyController;
   onGoToItem: (fieldId: string) => void;
 }) {
+  const { docById, docRow } = useScrutinyCase();
   const draft = controller.draft;
   if (!draft) return null;
 
@@ -466,7 +487,7 @@ function ConsequenceStrip({
   // The field's own source document, when that document is an upload someone could be
   // asked to send again. Generated pages ARE the fields, so they have no row to flag.
   const sourceDoc = field.doc ?? null;
-  const rowId = sourceDoc ? DOC_ROW[sourceDoc] : null;
+  const rowId = sourceDoc ? docRow[sourceDoc] : null;
   const raised = !!rowId && !!controller.flags[rowId];
 
   if (!sourceDoc || !rowId) return null;
@@ -480,7 +501,7 @@ function ConsequenceStrip({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="text-caption text-muted-foreground">
         {raised
-          ? `${docName(sourceDoc)} is already flagged for re-upload.`
+          ? `${docName(sourceDoc, docById)} is already flagged for re-upload.`
           : "Is something wrong with the entire document?"}
       </span>
       <Button
@@ -526,12 +547,13 @@ function ReuploadQuestion({
   docId: string;
   controller: ScrutinyController;
 }) {
-  const doc = DOC_BY_ID[docId];
+  const { docById } = useScrutinyCase();
+  const doc = docById[docId];
   return (
     <Alert className="rounded-md border-hairline">
       <FileUpIcon />
       <AlertTitle>
-        Does the advocate need to re-upload {docName(docId)}?
+        Does the advocate need to re-upload {docName(docId, docById)}?
       </AlertTitle>
       <AlertDescription>
         This mark stays with {field.label}. Re-upload only opens if you raise it
@@ -574,6 +596,7 @@ function ReuploadQuestion({
  * the officer's behalf is the machine making the claim.
  */
 function LinkedBlock({ controller }: { controller: ScrutinyController }) {
+  const { docById } = useScrutinyCase();
   const linked = controller.draft?.linked;
   if (!linked) return null;
   const missing = !linked.reason;
@@ -591,7 +614,7 @@ function LinkedBlock({ controller }: { controller: ScrutinyController }) {
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1 text-body-compact font-medium">
-          Also raising: {docName(linked.docId)} — re-upload
+          Also raising: {docName(linked.docId, docById)} — re-upload
         </span>
         <Button
           variant="ghost"

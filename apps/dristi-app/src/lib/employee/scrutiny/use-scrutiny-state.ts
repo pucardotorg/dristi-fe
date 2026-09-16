@@ -2,8 +2,7 @@
 
 import * as React from "react"
 
-import { DOC_ROW } from "@/lib/employee/scrutiny/bundle"
-import { FIELD_BY_ID, TRANSCRIPTS, TRANSCRIPT_FALLBACK } from "@/lib/employee/scrutiny/sections"
+import { TRANSCRIPT_FALLBACK } from "@/lib/employee/scrutiny/sections"
 import { canSaveDraft, isCorrected } from "@/lib/employee/scrutiny/field"
 import type {
   BundleTool,
@@ -12,6 +11,8 @@ import type {
   FlagMap,
   LinkedDoc,
   Rect,
+  ScrutinyCase,
+  ScrutinyLookups,
 } from "@/lib/employee/scrutiny/types"
 
 /** Which control gets the caret when the composer opens — resolved once. */
@@ -57,11 +58,11 @@ const CLOSED = {
  * Saving writes the field item and, when one was linked, the document item — in one act,
  * because they were composed as one thought.
  */
-export function applySaveFlag(s: ScrutinyState): ScrutinyState {
+export function applySaveFlag(s: ScrutinyState, look: ScrutinyLookups): ScrutinyState {
   const id = s.composeField
   const draft = s.draft
   if (!id || !draft) return s
-  const field = FIELD_BY_ID[id]
+  const field = look.fieldById[id]
   if (!field || !canSaveDraft(field, draft)) return s
 
   const flags: FlagMap = { ...s.flags }
@@ -152,17 +153,25 @@ export function survivingPartner(flags: FlagMap, id: string): string | null {
  * edit it must not re-ask, and attaching a new mark always must. At most one question per
  * uploaded document per case falls out of that, with no suppression list to maintain.
  */
-export function shouldAskReupload(s: ScrutinyState, docId: string): boolean {
-  const field = s.composeField ? FIELD_BY_ID[s.composeField] : null
+export function shouldAskReupload(
+  s: ScrutinyState,
+  docId: string,
+  look: ScrutinyLookups,
+): boolean {
+  const field = s.composeField ? look.fieldById[s.composeField] : null
   if (!field || field.docrow) return false
-  const rowId = DOC_ROW[docId]
+  const rowId = look.docRow[docId]
   if (!rowId || s.flags[rowId]) return false
   return s.draft?.linked?.rowId !== rowId
 }
 
 /** Open the linked sub-composer for a document. Nothing is created until Save. */
-export function applyLinkDoc(s: ScrutinyState, docId: string): ScrutinyState {
-  const rowId = DOC_ROW[docId]
+export function applyLinkDoc(
+  s: ScrutinyState,
+  docId: string,
+  look: ScrutinyLookups,
+): ScrutinyState {
+  const rowId = look.docRow[docId]
   if (!s.draft || !rowId) return s
   return {
     ...s,
@@ -183,10 +192,18 @@ export function applyLinkDoc(s: ScrutinyState, docId: string): ScrutinyState {
  * rendering stays a pure function of this state — the HTML reference tangled
  * the two in a single script and paid for it in re-render bugs.
  */
-export function useScrutinyState(aiOn: boolean) {
+export function useScrutinyState(aiOn: boolean, caseData: ScrutinyCase) {
   const [state, setState] = React.useState<ScrutinyState>(EMPTY)
   const recordingStart = React.useRef<number>(0)
   const [recordingSeconds, setRecordingSeconds] = React.useState(0)
+
+  /* The two id→record maps the pure transitions resolve against, from this case. Built
+     once per case so the callbacks below keep a stable identity between renders. */
+  const { fieldById, docRow, transcripts } = caseData
+  const look = React.useMemo<ScrutinyLookups>(
+    () => ({ fieldById, docRow }),
+    [fieldById, docRow],
+  )
 
   const patch = React.useCallback(
     (next: Partial<ScrutinyState>) => setState((s) => ({ ...s, ...next })),
@@ -204,7 +221,7 @@ export function useScrutinyState(aiOn: boolean) {
   const openComposer = React.useCallback(
     (id: string, seed?: { evidence?: Evidence }) => {
       setState((s) => {
-        const field = FIELD_BY_ID[id]
+        const field = fieldById[id]
         if (!field) return s
         const existing = s.flags[id]
 
@@ -218,7 +235,7 @@ export function useScrutinyState(aiOn: boolean) {
             partnerId && partner
               ? {
                   rowId: partnerId,
-                  docId: FIELD_BY_ID[partnerId]?.docrow ?? "",
+                  docId: fieldById[partnerId]?.docrow ?? "",
                   reason: partner.reason,
                   note: partner.comment ?? "",
                 }
@@ -278,7 +295,7 @@ export function useScrutinyState(aiOn: boolean) {
         }
       })
     },
-    [aiOn]
+    [aiOn, fieldById]
   )
 
   const closeComposer = React.useCallback(() => {
@@ -295,9 +312,9 @@ export function useScrutinyState(aiOn: boolean) {
   }, [])
 
   const saveFlag = React.useCallback(() => {
-    setState(applySaveFlag)
+    setState((s) => applySaveFlag(s, look))
     setRecordingSeconds(0)
-  }, [])
+  }, [look])
 
   /**
    * Answers with the document item left standing, so the caller can say so. A removal
@@ -316,8 +333,8 @@ export function useScrutinyState(aiOn: boolean) {
 
   /** Open the linked sub-composer — from the question, or from the standing link. */
   const linkDoc = React.useCallback((docId: string) => {
-    setState((s) => applyLinkDoc(s, docId))
-  }, [])
+    setState((s) => applyLinkDoc(s, docId, look))
+  }, [look])
 
   const answerReupload = React.useCallback((yes: boolean) => {
     setState((s) => {
@@ -325,9 +342,9 @@ export function useScrutinyState(aiOn: boolean) {
       if (!s.draft || !docId) return s
       // "No" leaves no trace, deliberately: nothing was granted and nothing refused.
       if (!yes) return { ...s, draft: { ...s.draft, askReupload: null } }
-      return applyLinkDoc(s, docId)
+      return applyLinkDoc(s, docId, look)
     })
-  }, [])
+  }, [look])
 
   const updateLinked = React.useCallback((next: Partial<LinkedDoc>) => {
     setState((s) =>
@@ -358,7 +375,7 @@ export function useScrutinyState(aiOn: boolean) {
     setState((s) => {
       if (!s.draft || !s.composeField) return s
       if (s.draft.recording) {
-        const line = TRANSCRIPTS[s.composeField] ?? TRANSCRIPT_FALLBACK
+        const line = transcripts[s.composeField] ?? TRANSCRIPT_FALLBACK
         const text = s.draft.text.trim() ? `${s.draft.text.trim()} ${line}` : line
         return { ...s, draft: { ...s.draft, recording: false, voice: true, text } }
       }
@@ -366,7 +383,7 @@ export function useScrutinyState(aiOn: boolean) {
       return { ...s, draft: { ...s.draft, recording: true } }
     })
     setRecordingSeconds(0)
-  }, [])
+  }, [transcripts])
 
   /* ── marks on the bundle ───────────────────────────────────────────────── */
 
@@ -401,7 +418,7 @@ export function useScrutinyState(aiOn: boolean) {
               draft: {
                 ...s.draft,
                 evidence: { doc: docId, rect },
-                askReupload: shouldAskReupload(s, docId) ? docId : null,
+                askReupload: shouldAskReupload(s, docId, look) ? docId : null,
               },
               evidenceTarget: null,
               tool: "select",
@@ -422,7 +439,7 @@ export function useScrutinyState(aiOn: boolean) {
         return "attached"
       }
 
-      const row = DOC_ROW[docId]
+      const row = docRow[docId]
       if (row) {
         // The tool stays armed: marking two problems on one page is the common case.
         openComposer(row, { evidence: { doc: docId, rect } })
@@ -430,7 +447,7 @@ export function useScrutinyState(aiOn: boolean) {
       }
       return "declined"
     },
-    [state.evidenceTarget, state.composeField, state.draft, openComposer]
+    [state.evidenceTarget, state.composeField, state.draft, openComposer, docRow, look]
   )
 
   const reset = React.useCallback(() => {

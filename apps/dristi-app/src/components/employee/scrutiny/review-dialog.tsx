@@ -7,15 +7,14 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 
-import { DOC_BY_ID, DOC_ROW } from "@/lib/employee/scrutiny/bundle";
-import { docName, unlocksSentence } from "@/lib/employee/scrutiny/field";
-import { CASE } from "@/lib/employee/scrutiny/history";
-import { ALL_FIELDS, FIELD_BY_ID } from "@/lib/employee/scrutiny/sections";
+import { docName } from "@/lib/employee/scrutiny/field";
 import type {
   Flag,
   FlagMap,
   FlatField,
 } from "@/lib/employee/scrutiny/types";
+import { OVERLAY_RISE, RESOLVE_IN_PLACE } from "@/components/chrome/motion";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -33,6 +32,7 @@ import {
   RecordList,
   RecordRow,
 } from "@/components/employee/scrutiny/record-rows";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 
 export type Decision = "send-back" | "register";
 
@@ -40,7 +40,6 @@ interface Item {
   field: FlatField;
   flag: Flag;
   where: string;
-  unlocks: string;
   /** The partner item this one was raised with, if any. */
   linked: FlatField | null;
   /**
@@ -56,22 +55,26 @@ const GROUP_ORDER = [
   "Document issues — advocate re-uploads",
 ] as const;
 
-function group(flags: FlagMap): Record<string, Item[]> {
+function group(
+  flags: FlagMap,
+  allFields: FlatField[],
+  fieldById: Record<string, FlatField>,
+  docRow: Record<string, string>,
+): Record<string, Item[]> {
   const out: Record<string, Item[]> = Object.fromEntries(
     GROUP_ORDER.map((g) => [g, []]),
   );
-  for (const field of ALL_FIELDS) {
+  for (const field of allFields) {
     const flag = flags[field.id];
     if (!flag) continue;
     const partnerId = flag.linkedTo ?? flag.linkedFrom ?? null;
     const markedDoc = flag.evidence?.doc ?? null;
-    const markedRow = markedDoc ? DOC_ROW[markedDoc] : null;
+    const markedRow = markedDoc ? docRow[markedDoc] : null;
     const item: Item = {
       field,
       flag,
       where: `${field.group} · ${field.label}`,
-      unlocks: unlocksSentence(field),
-      linked: partnerId ? (FIELD_BY_ID[partnerId] ?? null) : null,
+      linked: partnerId ? (fieldById[partnerId] ?? null) : null,
       stranded:
         !field.docrow && markedDoc && markedRow && !flags[markedRow]
           ? markedDoc
@@ -104,6 +107,7 @@ export function ReviewDialog({
   /** A record you can act on: closes the dialog and lands on the item. */
   onGoToItem: (fieldId: string) => void;
 }) {
+  const { party, allFields, fieldById, docRow } = useScrutinyCase();
   const [ack, setAck] = React.useState(false);
   const [confirmed, setConfirmed] = React.useState(false);
 
@@ -118,7 +122,10 @@ export function ReviewDialog({
     }
   }
 
-  const groups = React.useMemo(() => group(flags), [flags]);
+  const groups = React.useMemo(
+    () => group(flags, allFields, fieldById, docRow),
+    [flags, allFields, fieldById, docRow],
+  );
   const total = Object.values(groups).reduce((n, v) => n + v.length, 0);
 
   if (!decision) return null;
@@ -127,7 +134,7 @@ export function ReviewDialog({
     decision === "send-back"
       ? {
           title: "Send back to advocate",
-          body: `Goes to ${CASE.advocate} as recorded. Corrections need confirmation; flags get fixed. Each item unlocks what you marked.`,
+          body: `Goes to ${party.advocate} as recorded. Corrections need confirmation; flags get fixed. Each item unlocks what you marked.`,
         }
       : {
           title: "Register case",
@@ -147,31 +154,36 @@ export function ReviewDialog({
           next — the shell `SignOrderDialog` and `ApplicationReviewOverlay` use. The
           previous build clipped the list at a fixed `52vh` inside a padded box, which
           on a laptop cut the decision the dialog exists to take. */}
-      <ChromeDialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <ChromeDialogContent
+        className={cn(
+          "flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl",
+          OVERLAY_RISE,
+        )}
+      >
         {confirmed ? (
           <>
-            <div className="flex flex-col items-center gap-3 p-6 text-center">
+            <div className={cn("flex flex-col items-center gap-3 p-6 text-center", RESOLVE_IN_PLACE)}>
               <div className="flex size-14 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground">
                 <CheckIcon className="size-7" strokeWidth={2.2} />
               </div>
               <DialogTitle>
                 {decision === "send-back"
-                  ? `Sent back to ${CASE.advocate}`
+                  ? `Sent back to ${party.advocate}`
                   : "Case registered"}
               </DialogTitle>
-              <DialogDescription>
-                {decision === "send-back"
-                  ? `${total} item${
-                      total > 1 ? "s" : ""
-                    } sent. The file returns only if the advocate changes something you didn't raise.`
-                  : `Filing ${CASE.filingNo} is on the Magistrate's list${
-                      total
-                        ? ` with ${total} open item${
-                            total > 1 ? "s" : ""
-                          } attached for reference`
-                        : ""
-                    }. The next file in your queue is ready.`}
-              </DialogDescription>
+              {/* Send back needs no explanatory line — the title says what happened. On
+                  register, say what the FSO's act sets in motion (the Magistrate takes it
+                  up) and that the queue has moved on, rather than restating the filing
+                  number back to them. */}
+              {decision === "register" ? (
+                <DialogDescription>
+                  {total
+                    ? `Registered with ${total} open item${
+                        total > 1 ? "s" : ""
+                      } attached — the Magistrate sees them when taking cognizance. Your next file is ready.`
+                    : "Registered and sent to the Magistrate for cognizance. Your next file is ready."}
+                </DialogDescription>
+              ) : null}
             </div>
             <DialogFooter className="mx-0 mb-0 shrink-0">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -277,9 +289,10 @@ function SummaryItem({
   item: Item;
   onGoToItem: (fieldId: string) => void;
 }) {
+  const { docById, docRow } = useScrutinyCase();
   const { field, flag } = item;
-  const evidenceDoc = flag.evidence ? DOC_BY_ID[flag.evidence.doc] : undefined;
-  const reuploadApplies = !field.docrow && !!field.doc && !!DOC_ROW[field.doc];
+  const evidenceDoc = flag.evidence ? docById[flag.evidence.doc] : undefined;
+  const reuploadApplies = !field.docrow && !!field.doc && !!docRow[field.doc];
 
   /*
    * The same label/value grammar the workbench record uses, so an item reads the same
@@ -297,13 +310,13 @@ function SummaryItem({
       <RecordList>
         {flag.correction ? (
           <>
-            <RecordRow label="FSO’s value">
-              <span className="font-medium">{flag.correction}</span>
-            </RecordRow>
-            <RecordRow label="Filed value">
+            <RecordRow label="Original value">
               <span className="text-muted-foreground line-through">
                 {field.value}
               </span>
+            </RecordRow>
+            <RecordRow label="FSO’s value">
+              <span className="font-medium">{flag.correction}</span>
             </RecordRow>
           </>
         ) : null}
@@ -326,7 +339,7 @@ function SummaryItem({
         {evidenceDoc ? (
           <RecordRow label="Annotation">
             <span className="tabular-nums">Doc {evidenceDoc.no}</span> ·{" "}
-            {docName(flag.evidence!.doc)}
+            {docName(flag.evidence!.doc, docById)}
           </RecordRow>
         ) : null}
 
@@ -334,7 +347,7 @@ function SummaryItem({
           <RecordRow label="Re-upload requested">
             {item.linked ? (
               <RecordLink onClick={() => onGoToItem(item.linked!.id)}>
-                Yes — {docName(item.linked.docrow ?? "")}
+                Yes — {docName(item.linked.docrow ?? "", docById)}
               </RecordLink>
             ) : (
               <span className="text-muted-foreground">No</span>
@@ -349,10 +362,6 @@ function SummaryItem({
             </RecordLink>
           </RecordRow>
         ) : null}
-
-        <RecordRow label="Unlocks">
-          <span className="text-muted-foreground">{item.unlocks}</span>
-        </RecordRow>
       </RecordList>
 
       {/*
@@ -365,7 +374,7 @@ function SummaryItem({
         <p className="flex flex-wrap items-center gap-2 text-caption text-warning-ink">
           <span className="inline-flex items-center gap-1">
             <TriangleAlertIcon className="size-3" aria-hidden="true" />
-            Marked on {docName(item.stranded)} — re-upload is not unlocked.
+            Marked on {docName(item.stranded, docById)} — re-upload is not unlocked.
           </span>
           <Button
             variant="link"

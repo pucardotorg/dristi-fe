@@ -5,19 +5,18 @@ import { FileSignatureIcon, SearchXIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { CourtFilters } from "@/components/employee/court-filters";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignOrderDialog } from "@/components/employee/sign-order-dialog";
 import { SignOrdersTable } from "@/components/employee/sign-orders-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DatePicker } from "@/components/ui/date-picker";
 import {
   Empty,
   EmptyContent,
@@ -26,16 +25,9 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   causeTitle,
+  formatListingDate,
   isoDay,
   parseIsoDay,
   PAGE_SIZE,
@@ -191,7 +183,7 @@ export function SignOrdersScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Sign orders
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
@@ -333,80 +325,41 @@ function SignOrderFiltersForm({
   onClear: () => void;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-orders-status" className="w-fit text-body">
-          Status
-        </Label>
-        <Select
-          value={filters.status}
-          onValueChange={(value) =>
-            onChange({
-              ...filters,
-              status: value as SignOrderFilters["status"],
-            })
-          }
-        >
-          <SelectTrigger id="sign-orders-status" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SIGN_ORDER_STATUSES.map((status) => (
-              <SelectItem key={status.id} value={status.id}>
-                {status.label}
-              </SelectItem>
-            ))}
-            <SelectItem value="all">All statuses</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names a
-          group around it rather than pointing `htmlFor` at a control that does not
-          exist. The trigger still announces the date it holds.
-
-          The `key` is not decoration. `DatePicker` treats `value === undefined` as "I am
-          uncontrolled" and falls back to its own last selection, so a filter cleared
-          back to "any day" would keep showing the date it used to hold. Remounting on
-          the value is the only fix that does not edit the primitive — upstream DS bug,
-          logged in the build report. */}
-      <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-orders-date-label" className="w-fit text-body font-medium">
-          Date added
-        </span>
-        <div role="group" aria-labelledby="sign-orders-date-label">
-          <DatePicker
-            key={filters.addedOn || "any-day"}
-            value={filters.addedOn ? parseIsoDay(filters.addedOn) : undefined}
-            placeholder="Any day"
-            onValueChange={(next) =>
-              onChange({ ...filters, addedOn: next ? isoDay(next) : "" })
-            }
-            className="w-full sm:w-52"
-          />
-        </div>
-      </div>
-
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-72"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name or number"
-      />
-
-      {/* The only button left on the row. It stays because it undoes more than the
-          search box's own `×` does — it returns every control here to the view the
-          screen opens on — and it is labelled for that rather than for the text it
-          also happens to clear. */}
-      <Button type="button" variant="ghost" onClick={onClear}>
-        Clear filters
-      </Button>
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name or number",
+      }}
+      searchRef={searchRef}
+      fields={[
+        {
+          id: "sign-orders-status",
+          label: "Status",
+          value: filters.status,
+          all: "all",
+          allLabel: "All statuses",
+          options: SIGN_ORDER_STATUSES.map((status) => ({
+            value: status.id,
+            label: status.label,
+          })),
+          onApply: (value) =>
+            onChange({ ...filters, status: value as SignOrderFilters["status"] }),
+        },
+      ]}
+      date={{
+        label: "Date added",
+        value: filters.addedOn ? parseIsoDay(filters.addedOn) : undefined,
+        active: filters.addedOn !== "",
+        chipLabel: filters.addedOn ? formatListingDate(filters.addedOn) : "",
+        draftActive: (value) => !!value,
+        cleared: undefined,
+        onApply: (value) =>
+          onChange({ ...filters, addedOn: value ? isoDay(value) : "" }),
+      }}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -539,9 +492,9 @@ function SignOrdersItemList({
         const pending = order.status === "pending-signature";
         const title = signOrderTypeLabel(order.type);
         return (
-          <li
+          <QueueItemRow
             key={order.id}
-            {...rowActivation("flex gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+            className="flex gap-3"
           >
             {/* The DS box expands its own hit area to 40×40; the name it carries is the
                 order and its case, not the column, because a row read aloud has no
@@ -584,7 +537,7 @@ function SignOrdersItemList({
                 {signOrderStatusLabel(order.status)}
               </Badge>
             </div>
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>

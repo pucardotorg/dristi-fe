@@ -5,18 +5,17 @@ import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { CourtFilters } from "@/components/employee/court-filters";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignFormDialog } from "@/components/employee/sign-form-dialog";
 import { SignFormsTable } from "@/components/employee/sign-forms-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DatePicker } from "@/components/ui/date-picker";
 import {
   Empty,
   EmptyContent,
@@ -25,17 +24,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   causeTitle,
+  formatListingDate,
   isoDay,
+  parseIsoDay,
   PAGE_SIZE,
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
@@ -89,9 +82,6 @@ export function SignFormsScreen() {
   );
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [open, setOpen] = React.useState<SignForm | null>(null);
-  /* Remounting is the only way to put the DS `DatePicker` back to no date — see
-     `SignFormsFilters`. Bumped by Clear. */
-  const [dateKey, setDateKey] = React.useState(0);
   const [announcement, setAnnouncement] = React.useState("");
   const searchRef = React.useRef<HTMLInputElement>(null);
   /* The bulk confirmation hands focus back here on the way out — see its `triggerRef`. */
@@ -126,11 +116,6 @@ export function SignFormsScreen() {
 
   function clearFilters() {
     changeFilters(EMPTY_SIGN_FORM_FILTERS);
-    /* The date picker holds its own selection and cannot be told to forget it, so Clear
-       remounts it — see `SignFormsFilters`. Unchanged by the move to live filtering:
-       picking a date now applies straight away, but putting the control back to "any
-       date" is still a remount. */
-    setDateKey((key) => key + 1);
   }
 
   function toggle(form: SignForm) {
@@ -192,7 +177,7 @@ export function SignFormsScreen() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 pb-0 md:p-8 md:pb-0">
         <header className="flex flex-col gap-2">
-          <h1 className="text-title text-balance font-semibold sm:text-title-l">
+          <h1 className="text-title text-balance font-semibold">
             Sign forms
           </h1>
           {/* The count is the whole point of the queue, so the supporting line carries
@@ -211,7 +196,6 @@ export function SignFormsScreen() {
         <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
           <SignFormsFilters
             filters={filters}
-            dateKey={dateKey}
             searchRef={searchRef}
             onChange={changeFilters}
             onClear={clearFilters}
@@ -368,97 +352,51 @@ export function SignFormsScreen() {
  */
 function SignFormsFilters({
   filters,
-  dateKey,
   searchRef,
   onChange,
   onClear,
 }: {
   filters: SignFormFilters;
-  /** Bumped by Clear to remount the date picker — see below. */
-  dateKey: number;
   searchRef: React.Ref<HTMLInputElement>;
   onChange: (filters: SignFormFilters) => void;
   onClear: () => void;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-forms-process" className="w-fit text-body">
-          Process type
-        </Label>
-        <Select
-          value={filters.process}
-          onValueChange={(value) =>
-            onChange({
-              ...filters,
-              process: value as SignFormFilters["process"],
-            })
-          }
-        >
-          <SelectTrigger id="sign-forms-process" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All process types</SelectItem>
-            {SIGN_FORM_PROCESSES.map((process) => (
-              <SelectItem key={process.id} value={process.id}>
-                {process.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names a
-          group around it rather than pointing `htmlFor` at a control that does not
-          exist. The trigger still announces the date it holds.
-
-          It is also left uncontrolled and remounted to reset. The primitive treats
-          `value === undefined` as "uncontrolled" rather than as "no date", so a
-          controlled empty value is not expressible — passing `undefined` hands the
-          picker back its own state instead of clearing it. Driving it from
-          `onValueChange` and remounting on Clear is the behaviour the reference's empty
-          date field needs without touching the primitive. Logged as upstream DS
-          feedback. */}
-      <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-forms-date-label" className="w-fit text-body font-medium">
-          Date created
-        </span>
-        <div role="group" aria-labelledby="sign-forms-date-label">
-          <DatePicker
-            key={dateKey}
-            placeholder="Any date"
-            onValueChange={(next) =>
-              onChange({
-                ...filters,
-                createdOn: next ? isoDay(next) : "",
-              })
-            }
-            className="w-full sm:w-52"
-          />
-        </div>
-      </div>
-
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-72"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number or advocate"
-      />
-
-      {/* The only button left on the row. It stays because it undoes more than the
-          search box's own `×` does — it returns every control here to the view the
-          screen opens on — and it is labelled for that rather than for the text it
-          also happens to clear. */}
-      <Button type="button" variant="ghost" onClick={onClear}>
-        Clear filters
-      </Button>
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or advocate",
+      }}
+      searchRef={searchRef}
+      fields={[
+        {
+          id: "sign-forms-process",
+          label: "Process type",
+          value: filters.process,
+          all: "all",
+          allLabel: "All process types",
+          options: SIGN_FORM_PROCESSES.map((process) => ({
+            value: process.id,
+            label: process.label,
+          })),
+          onApply: (value) =>
+            onChange({ ...filters, process: value as SignFormFilters["process"] }),
+        },
+      ]}
+      date={{
+        label: "Date created",
+        value: filters.createdOn ? parseIsoDay(filters.createdOn) : undefined,
+        active: filters.createdOn !== "",
+        chipLabel: filters.createdOn ? formatListingDate(filters.createdOn) : "",
+        draftActive: (value) => !!value,
+        cleared: undefined,
+        onApply: (value) =>
+          onChange({ ...filters, createdOn: value ? isoDay(value) : "" }),
+      }}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -528,9 +466,9 @@ function SignFormsItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((form) => (
-        <li
+        <QueueItemRow
           key={form.id}
-          {...rowActivation("flex items-start gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+          className="flex items-start gap-3"
         >
           <Checkbox
             checked={selectedIds.has(form.id)}
@@ -558,7 +496,7 @@ function SignFormsItemList({
               </span>
             </p>
           </div>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

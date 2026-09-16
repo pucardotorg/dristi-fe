@@ -220,7 +220,7 @@ export function BulkRescheduleScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Bulk reschedule hearings
         </h1>
         <p className="text-body text-muted-foreground">
@@ -396,7 +396,7 @@ function RangeEnd({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <span id={`${id}-label`} className="w-fit text-body font-medium">
+      <span id={`${id}-label`} className="w-fit text-body-compact font-medium">
         {label}
       </span>
       <div role="group" aria-labelledby={`${id}-label`}>

@@ -92,7 +92,7 @@ export function RegisterCasesScreen() {
       )}
     >
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Register cases
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries

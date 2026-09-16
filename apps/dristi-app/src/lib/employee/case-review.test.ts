@@ -216,8 +216,10 @@ describe("terms are attributes the file names", () => {
     }
     assert.equal(
       rendered,
-      4,
-      "the file's fact row and its documents row, and the summary's fact and span rows",
+      3,
+      "the file's fact row and the summary's fact and span rows — the documents' own " +
+        "read-from row moved to the shared DocumentScroller when the panel became a " +
+        "scroll (2026-09-14), and its terms are model-sourced there too",
     );
   });
 

@@ -62,7 +62,12 @@ export function QueueSearchField({
 
   return (
     <Field className={cn("min-w-0", className)}>
-      <FieldLabel className="text-body">{label}</FieldLabel>
+      {/* 14px, not the 16px this label used to carry. A filter's label is chrome above the
+          control, not a heading, so it sits at the staff scale (`text-body-compact`) and
+          takes its emphasis from the DS label's own `font-medium` — layered against the
+          input's regular-weight text rather than shouting a size larger than the data it
+          filters (owner, 2026-09-14). */}
+      <FieldLabel className="text-body-compact">{label}</FieldLabel>
       <InputGroup>
         <InputGroupAddon>
           <SearchIcon aria-hidden />

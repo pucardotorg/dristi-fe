@@ -162,7 +162,7 @@ export function ApproveRegistrationsScreen() {
             "Approve copy application"; the group names each queue by what it exists to
             grant. `APPROVE_REGISTRATIONS_TITLE` is shared with the rail and the tab, so the
             three can never disagree. */}
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           {APPROVE_REGISTRATIONS_TITLE}
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it

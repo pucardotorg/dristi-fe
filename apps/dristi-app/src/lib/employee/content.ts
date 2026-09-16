@@ -43,35 +43,45 @@ export const COURT_ROLE_LABEL: Record<CourtRole, string> = {
  * The seats the court side can be worked from — what the rail's settings control
  * switches between.
  *
- * Two, and not every role above: `magistrate` and `scrutiny-officer` are roles the
- * domain model names, but nobody has asked to sit in them here yet, and a switcher that
- * offered a seat with nothing behind it would be the dead control this one replaced.
+ * All four, and it is `COURT_SIGN_IN_ROLES` that decides so: a seat a person can sign in
+ * to at `/employee/login` is a seat the rail has to be able to name, and a switcher that
+ * offered two of the four would leave a signed-in magistrate looking at a radio group
+ * with nothing selected. It used to be two — `magistrate` and `scrutiny-officer` were
+ * roles the domain model named that nobody had asked to sit in — and the sign-in is the
+ * ask that changed it (owner, 2026-09-14).
  *
  * **`typist` is the owner's word, not the domain model's.** `docs/product/domain/
  * actors.md` names *Stenographer / Interpreter* for the person who records dictation and
- * has no separate typist; the owner asked for these two seats by name on 2026-09-07, and
- * an owner naming a role is the one sanctioned source for one. Whether it is the same
- * actor under a court's own vocabulary is an open question for `actors.md`, not
- * something this constant gets to settle.
+ * has no separate typist; the owner asked for that seat by name on 2026-09-07, and an
+ * owner naming a role is the one sanctioned source for one. Whether it is the same actor
+ * under a court's own vocabulary is an open question for `actors.md`, not something this
+ * constant gets to settle.
  *
  * Choosing a seat changes who the rail says you are and **what a row offers** — same
  * rail, same queues, same screens, and nothing granted or hidden: the cause list gives
  * the bench's three session controls to the seat that would use them and the typist a
  * row that ends at its order (`court-role.ts`, `hearings-table.tsx`). That is a view
- * rule and not a permission. What each seat's work actually is beyond the sitting comes
- * later, from product; until then the switch must not pretend to be a different product.
+ * rule and not a permission. What each seat's work actually is beyond the sitting is the
+ * feature split that comes next, from product; until then the switch must not pretend to
+ * be a different product.
  */
-export const COURT_SEATS: CourtRole[] = ["bench-clerk", "typist"];
+export const COURT_SEATS: CourtRole[] = [
+  "magistrate",
+  "bench-clerk",
+  "scrutiny-officer",
+  "typist",
+];
 
 /**
  * The identity the court side runs as.
  *
- * There is no sign-in on this branch, so the area is one fixed staff member on the JMFC
- * bench at Kollam. Real authentication replaces this constant with what the court
- * establishment's directory returns.
+ * The signed-out default, and nothing more. `/employee/login` establishes who the area
+ * actually runs as (`session.ts`); this is where it stands before anybody has been
+ * through it, and what the server renders and the browser hydrates against. Real
+ * authentication replaces both with what the court establishment's directory returns.
  *
- * `role` is where a seat *starts*, not where it stays: the rail's settings control
- * switches between `COURT_SEATS` for the length of a visit (`court-role.ts`), and the
+ * `role` is where a seat *starts*, not where it stays: the sign-in sets it and the
+ * rail's settings control switches between `COURT_SEATS` (`court-role.ts`), and the
  * footer reads the live one. The bench clerk is the default because that is the seat the
  * court side is built for today — the owner's call on 2026-09-07, which moved it off
  * `magistrate`.
