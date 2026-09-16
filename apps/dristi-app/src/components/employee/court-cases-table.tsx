@@ -22,6 +22,12 @@ import {
   nextHearingDay,
   type CourtCase,
 } from "@/lib/employee/cases";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
+import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { courtCaseStageLabel, formatListingDate } from "@/lib/employee/hearings";
 import { cn } from "@/lib/utils";
 
@@ -41,9 +47,10 @@ import { cn } from "@/lib/utils";
  * pressed tile above. So the chips are the neutral outline and the text carries all of
  * it (`ACCESSIBILITY` §3: status is never colour alone).
  *
- * Rows are inert: `hover: false`, and the cause title is plain text rather than a link.
- * There is no court-side case file to open yet, and a lit row or an underline would
- * promise a screen that does not exist — the same call `schedule-table` made.
+ * **The case number opens the file — which is not built yet, so it lands on the shared
+ * "not built" end state** (owner, 2026-09-15). The row is the same clickable row every
+ * other court queue carries; it is no longer left inert (which read as a dead line), and
+ * is honest instead about where it goes.
  *
  * The panel shell lives on the screen around this, so the table is one panel rather than
  * a box inside a box.
@@ -51,9 +58,11 @@ import { cn } from "@/lib/utils";
 export function CourtCasesTable({
   rows,
   today,
+  onOpen,
 }: {
   rows: CourtCase[];
   today: string;
+  onOpen: (record: CourtCase) => void;
 }) {
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
@@ -76,7 +85,7 @@ export function CourtCasesTable({
           </TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody className={tableBodyClass({ hover: false })}>
+      <TableBody className={tableBodyClass()}>
         {/* The header is a well, not a band welded to the rows — it needs the panel's
             fill under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held
@@ -87,14 +96,22 @@ export function CourtCasesTable({
         {rows.map((record) => {
           const next = nextHearingDay(record, today);
           return (
-            <TableRow key={record.id} className={tableRowClass({ hover: false })}>
+            <TableRow key={record.id} {...rowActivation(tableRowClass())}>
               <TableCell
                 className={cn(
                   TABLE_CELL,
                   "font-medium tabular-nums whitespace-nowrap",
                 )}
               >
-                {record.caseNumber}
+                <button
+                  type="button"
+                  onClick={() => onOpen(record)}
+                  {...rowOpener}
+                  className={cn(rowOpenerClass, "tabular-nums")}
+                >
+                  <span className="sr-only">Open </span>
+                  {record.caseNumber}
+                </button>
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "min-w-64 whitespace-normal")}>
                 {courtCaseTitle(record)}
@@ -144,23 +161,31 @@ export function CourtCasesTable({
 export function CourtCaseItemList({
   rows,
   today,
+  onOpen,
 }: {
   rows: CourtCase[];
   today: string;
+  onOpen: (record: CourtCase) => void;
 }) {
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((record) => {
         const next = nextHearingDay(record, today);
         return (
-          <li
+          <QueueItemRow
             key={record.id}
-            className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface-sunken p-4"
+            className="flex flex-col gap-2"
           >
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <span className="text-body-compact font-medium tabular-nums">
+              <button
+                type="button"
+                onClick={() => onOpen(record)}
+                {...rowOpener}
+                className={cn(rowOpenerClass, "w-fit tabular-nums")}
+              >
+                <span className="sr-only">Open </span>
                 {record.caseNumber}
-              </span>
+              </button>
               <span className="text-body-compact text-muted-foreground">
                 {courtCaseStageLabel(record.stage)}
               </span>
@@ -180,7 +205,7 @@ export function CourtCaseItemList({
                 ))}
               </div>
             )}
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>

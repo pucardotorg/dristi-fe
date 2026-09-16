@@ -16,6 +16,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { causeTitle, counselFor } from "@/lib/employee/hearings";
 import { caseStageLabel, type SchedulingCase } from "@/lib/employee/schedule";
 import { cn } from "@/lib/utils";
@@ -38,10 +43,21 @@ import { cn } from "@/lib/utils";
  * affordance — a control whose only content is the news that it has no content. Better to
  * leave the column out until scheduling is real than to draw furniture around a hole.
  *
+ * **The cause opens the scheduling flow — which is not built yet, so it lands on a plain
+ * "not built" end state** (owner, 2026-09-15). The row is the same clickable row every
+ * other queue has: it is no longer left inert, which read as a dead line; it is honest
+ * instead about where it goes.
+ *
  * The panel shell (border, fill, shadow) lives on the screen around this, so the table is
  * one panel rather than a box inside a box.
  */
-export function ScheduleTable({ rows }: { rows: SchedulingCase[] }) {
+export function ScheduleTable({
+  rows,
+  onOpen,
+}: {
+  rows: SchedulingCase[];
+  onOpen: (matter: SchedulingCase) => void;
+}) {
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
@@ -60,7 +76,7 @@ export function ScheduleTable({ rows }: { rows: SchedulingCase[] }) {
           </TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody className={tableBodyClass({ hover: false })}>
+      <TableBody className={tableBodyClass()}>
         {/* The header is a well, not a band welded to the rows — it needs the panel's
             fill under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held
@@ -69,16 +85,22 @@ export function ScheduleTable({ rows }: { rows: SchedulingCase[] }) {
           <td colSpan={4} className="h-2 p-0" />
         </tr>
         {rows.map((matter) => (
-          <TableRow key={matter.id} className={tableRowClass({ hover: false })}>
-            {/* The row's one emphasised cell. Not a link: the reference underlines it
-                because it opens the scheduling flow, and this build has no such flow and
-                no court-side case file to fall back on. Plain text is the honest render —
-                an underline that goes nowhere would promise the clerk a screen that is
-                not there. */}
+          <TableRow key={matter.id} {...rowActivation(tableRowClass())}>
+            {/* The row's one emphasised cell, and its opener — the same clickable cause
+                title every court queue carries. It opens the scheduling flow, which is not
+                built yet (see the screen's `NotBuiltDialog`). */}
             <TableCell
               className={cn(TABLE_CELL, "min-w-64 font-medium whitespace-normal")}
             >
-              {causeTitle(matter)}
+              <button
+                type="button"
+                onClick={() => onOpen(matter)}
+                {...rowOpener}
+                className={rowOpenerClass}
+              >
+                <span className="sr-only">Open </span>
+                {causeTitle(matter)}
+              </button>
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
               {matter.caseNumber}

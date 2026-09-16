@@ -63,9 +63,18 @@ import { cn } from "@/lib/utils";
  * class that never reaches the stylesheet.
  */
 
-/** Header cells. The strip is a well inside the panel, so it carries the sunken fill. */
+/**
+ * Header cells. The strip is a well inside the panel, so it carries the sunken fill.
+ *
+ * The label reads at `text-body-compact` (14px), the same size as the data below it, not
+ * a step smaller. 12px column headers were the last 12px left in the staff tables, and the
+ * owner does not want that size doing label work in the product (2026-09-14). The header
+ * still recedes under the data — it is `font-semibold` on the muted ink, over the sunken
+ * fill, against foreground-weight body text — so the hierarchy now comes from weight and
+ * colour rather than from a size the eye has to squint at.
+ */
 export const TABLE_HEAD =
-  "h-10 bg-surface-sunken px-4 py-3 text-caption font-semibold text-muted-foreground";
+  "h-10 bg-surface-sunken px-4 py-3 text-body-compact font-semibold text-muted-foreground";
 
 /**
  * Body cells. Add `align-top` where rows are tall enough that centring strands the
