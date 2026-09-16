@@ -199,17 +199,25 @@ describe("findingsFor", () => {
     assert.deepEqual(findingsFor(find("c-2038")), []);
   });
 
-  it("reads the limitation note off the filing date, as a note and not an error", () => {
+  it("carries every check at once on the worst-case complaint, worst first", () => {
+    /* c-2041 is the queue's showcase: filed late, notice past thirty days, branch in
+       another district — so it trips all three checks, critical before note. It is the
+       density the file layout has to hold (owner, 2026-09-16). */
     const findings = findingsFor(find("c-2041"));
-    assert.equal(findings.length, 1);
-    assert.equal(findings[0].id, "limitation");
-    assert.equal(findings[0].weight, "note");
+    assert.deepEqual(
+      findings.map((entry) => entry.id),
+      ["notice-window", "jurisdiction", "limitation"],
+    );
+    /* The limitation finding stays a note, not an error — a late complaint with a
+       condonation application on record is ordinary work, not a defect. */
+    const limitation = findings.find((entry) => entry.id === "limitation")!;
+    assert.equal(limitation.weight, "note");
     assert.equal(
-      findings[0].statement,
+      limitation.statement,
       "The complaint is outside the limitation period.",
     );
-    assert.match(findings[0].consequence, /20 days beyond the month/);
-    assert.equal(findings[0].term, "Date of complaint filing");
+    assert.match(limitation.consequence, /20 days beyond the month/);
+    assert.equal(limitation.term, "Date of complaint filing");
   });
 
   it("calls a notice sent past thirty days critical", () => {

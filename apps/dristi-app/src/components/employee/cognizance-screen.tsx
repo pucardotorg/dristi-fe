@@ -12,7 +12,7 @@ import {
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { CourtFilters } from "@/components/employee/court-filters";
 import { useArrival } from "@/components/employee/use-arrival";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,14 +23,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { rowActivation } from "@/lib/employee/row-activation";
 import {
   COGNIZANCE_DELAY_FILTERS,
@@ -108,7 +100,7 @@ export function CognizanceScreen() {
       )}
     >
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Take cognizance
         </h1>
         {/* The count is the point of a queue, so the supporting line carries it rather
@@ -124,7 +116,11 @@ export function CognizanceScreen() {
       {/* One panel: filters, list and footer are one unit of work, so they share one
           lifted sheet. Nothing inside draws a second frame. */}
       <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
-        <CognizanceFiltersRow filters={filters} onChange={changeFilters} />
+        <CognizanceFiltersRow
+          filters={filters}
+          onChange={changeFilters}
+          onClear={clearFilters}
+        />
 
         <QueueAnnouncer
           from={start + 1}
@@ -180,48 +176,38 @@ export function CognizanceScreen() {
 function CognizanceFiltersRow({
   filters,
   onChange,
+  onClear,
 }: {
   filters: CognizanceFilters;
   onChange: (filters: CognizanceFilters) => void;
+  onClear: () => void;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-80"
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number or advocate"
-      />
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="cognizance-delay" className="w-fit text-body">
-          Delay
-        </Label>
-        <Select
-          value={filters.delay}
-          onValueChange={(value) =>
-            onChange({
-              ...filters,
-              delay: value as CognizanceFilters["delay"],
-            })
-          }
-        >
-          <SelectTrigger id="cognizance-delay" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {COGNIZANCE_DELAY_FILTERS.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or advocate",
+      }}
+      fields={[
+        {
+          id: "cognizance-delay",
+          label: "Delay",
+          value: filters.delay,
+          all: "any",
+          allLabel:
+            COGNIZANCE_DELAY_FILTERS.find((option) => option.id === "any")
+              ?.label ?? "All complaints",
+          options: COGNIZANCE_DELAY_FILTERS.filter(
+            (option) => option.id !== "any",
+          ).map((option) => ({ value: option.id, label: option.label })),
+          onApply: (value) =>
+            onChange({ ...filters, delay: value as CognizanceFilters["delay"] }),
+        },
+      ]}
+      onClearAll={onClear}
+    />
   );
 }
 

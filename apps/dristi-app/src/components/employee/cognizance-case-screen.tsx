@@ -85,9 +85,14 @@ export function CognizanceCaseScreen({ caseId }: { caseId: string }) {
   if (!matter) return <CaseMissing />;
 
   return (
+    /* No `overflow-x-clip` here: in this browser `overflow: clip` makes the sticky
+       documents panel pin to the clip box rather than the viewport, which was the scroll
+       artifact the owner saw (owner, 2026-09-16). The case screen only ever arrives
+       "next" — a vertical slide — so there is no sideways entrance to clip; the "back"
+       slide plays on the queue it returns to, not here. */
     <div
       className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip",
+        "flex min-h-0 min-w-0 flex-1 flex-col",
         arrival && ARRIVAL[arrival],
       )}
     >
@@ -101,6 +106,120 @@ const EYEBROW = "text-caption font-semibold text-muted-foreground";
 
 /** A lifted white panel whose children draw their own padding and dividers. */
 const SHEET = "gap-0 overflow-hidden border-hairline py-0 shadow-raised";
+
+/* ────────────────────── the resizable document panel ─────────────────────── */
+
+/** A media query as a boolean, `false` until mounted — the DS `useIsMobile` pattern. */
+function useMediaQuery(query: string): boolean {
+  const subscribe = React.useCallback(
+    (onChange: () => void) => {
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+  return React.useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
+
+/** The panel is drag-resizable only where it exists: a mouse on a wide screen. */
+const DESKTOP_PANEL = "(min-width: 1280px) and (pointer: fine)";
+
+const DOC_PANEL_MIN = 320;
+const DOC_PANEL_DEFAULT = 384;
+const DOC_PANEL_STORE_KEY = "cognizance:doc-panel-width";
+
+const clampWidth = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(value, max));
+
+/** The widest the panel may grow — never so wide the reading cannot live beside it. */
+function docPanelMax(): number {
+  if (typeof window === "undefined") return 640;
+  return Math.min(720, Math.round(window.innerWidth * 0.6));
+}
+
+/**
+ * The grab strip on the panel's docked edge — drag it to read the documents bigger (owner,
+ * 2026-09-15). It rides the aside's left border, so it moves as the panel grows; pointer
+ * capture keeps the drag alive while the cursor is over the facsimiles, and the arrow keys
+ * widen it a rung at a time, so it is a `separator` a keyboard can work too.
+ */
+function PanelResizeHandle({
+  width,
+  onResize,
+  onCommit,
+}: {
+  width: number;
+  onResize: (width: number) => void;
+  onCommit: () => void;
+}) {
+  const drag = React.useRef<{ x: number; w: number } | null>(null);
+
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    drag.current = { x: event.clientX, w: width };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    onResize(
+      clampWidth(
+        drag.current.w + (drag.current.x - event.clientX),
+        DOC_PANEL_MIN,
+        docPanelMax(),
+      ),
+    );
+  };
+  const end = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    drag.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    onCommit();
+  };
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 48 : 16;
+    if (event.key === "ArrowLeft") {
+      onResize(clampWidth(width + step, DOC_PANEL_MIN, docPanelMax()));
+      onCommit();
+      event.preventDefault();
+    } else if (event.key === "ArrowRight") {
+      onResize(clampWidth(width - step, DOC_PANEL_MIN, docPanelMax()));
+      onCommit();
+      event.preventDefault();
+    }
+  };
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the documents panel"
+      aria-valuenow={Math.round(width)}
+      aria-valuemin={DOC_PANEL_MIN}
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={end}
+      onPointerCancel={end}
+      onKeyDown={onKeyDown}
+      className="group/resize absolute inset-y-0 left-0 z-10 flex w-3 -translate-x-1/2 cursor-col-resize touch-none items-center justify-center focus-visible:outline-none"
+    >
+      {/* A quiet grip that answers to the pointer and the keyboard, so the edge reads as
+          draggable without drawing a second border down the panel at rest. */}
+      <span
+        aria-hidden
+        className="h-8 w-1 rounded-full bg-hairline transition-colors group-hover/resize:bg-primary group-focus-visible/resize:bg-primary group-focus-visible/resize:h-12"
+      />
+    </div>
+  );
+}
 
 function CaseBody({ matter }: { matter: CognizanceCase }) {
   /* The day is the reader's, not the server's — the whole chain is worked backwards from
@@ -132,8 +251,54 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
       ? COGNIZANCE_DOCUMENTS.find((entry) => entry.key === field.source)
       : undefined;
     if (!doc) return;
-    setActive({ fieldId: field.id, doc: doc.key, zone: zoneFor(doc.kind, field.term) });
+    /* A second click on the field that is already lit puts it out again — the mark is a
+       toggle, not a one-way latch (owner, 2026-09-15). Clicking a different field moves the
+       mark to it. */
+    setActive((current) =>
+      current?.fieldId === field.id
+        ? null
+        : { fieldId: field.id, doc: doc.key, zone: zoneFor(doc.kind, field.term) },
+    );
   };
+
+  /* The docked panel's width, in px, remembered across visits. It is only live where the
+     panel is — a mouse on a wide screen — so `desktopPanel` also gates the inline column
+     width, or a hidden aside would still reserve a track on a touch tablet. A ref shadows
+     the state so the pointer-up that saves reads the width the last move set, not a value a
+     batched render has not flushed yet. */
+  const desktopPanel = useMediaQuery(DESKTOP_PANEL);
+  const [docWidth, setDocWidthState] = React.useState(DOC_PANEL_DEFAULT);
+  const docWidthRef = React.useRef(DOC_PANEL_DEFAULT);
+  const setDocWidth = React.useCallback((width: number) => {
+    docWidthRef.current = width;
+    setDocWidthState(width);
+  }, []);
+  const commitDocWidth = React.useCallback(() => {
+    try {
+      window.localStorage.setItem(
+        DOC_PANEL_STORE_KEY,
+        String(Math.round(docWidthRef.current)),
+      );
+    } catch {
+      /* private mode, blocked storage — the width just does not persist. */
+    }
+  }, []);
+  /* Hydrate the remembered width on mount, not in a lazy `useState` initialiser: the
+     server has no `localStorage`, so reading it during render would hand the client a
+     different first width than the server drew and trip a hydration mismatch. Setting it
+     once, after mount, is the SSR-safe shape — the one place the set-state-in-effect rule
+     is the right call rather than the wrong one. */
+  React.useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(DOC_PANEL_STORE_KEY);
+      if (saved) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- see the note above: client-only hydration
+        setDocWidth(clampWidth(parseInt(saved, 10), DOC_PANEL_MIN, docPanelMax()));
+      }
+    } catch {
+      /* nothing saved, or storage blocked — keep the default. */
+    }
+  }, [setDocWidth]);
 
   /** Which act is being asked about, and whether it has settled. `null` — neither. */
   const [act, setAct] = React.useState<CognizanceAct | null>(null);
@@ -148,7 +313,7 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
   const documentActive = active ? { doc: active.doc, zone: active.zone } : null;
 
   const documentsHeader = (
-    <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-hairline px-6 py-4">
+    <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-hairline px-8 py-4">
       <h2 className="text-body font-semibold">Documents</h2>
       <span className="text-body-compact tabular-nums text-muted-foreground">
         {COGNIZANCE_DOCUMENTS.length} filed
@@ -158,33 +323,53 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
 
   return (
     <>
-      {/* The register screen's own chrome: the cause and the two acts on a bar that sticks
-          under the top bar, so the decision is always on top and always reachable — no
-          bottom footer to sit over the documents and cut their scroll off (owner,
-          2026-09-14). */}
-      <div className="sticky top-14 z-20 border-b border-hairline bg-muted px-6 md:px-8 xl:px-12 dark:bg-background">
-        <div className="flex h-14 items-center justify-between gap-4">
-          <h1 className="min-w-0 truncate font-semibold text-title-s">
-            {causeTitle(matter)}
-          </h1>
-          <div className="flex shrink-0 items-center gap-3">
-            <Button type="button" variant="outline" onClick={() => ask("dismiss")}>
-              {COGNIZANCE_ACTS.dismiss.label}
-            </Button>
-            <Button type="button" onClick={() => ask(primary)}>
-              {COGNIZANCE_ACTS[primary].label}
-            </Button>
+      {/*
+       * An app frame, not a scrolling page: a fixed height, the title bar and the decision
+       * footer pinned to it, and the middle scrolling inside. The screen used to scroll the
+       * page with a *sticky* documents panel, but a fixed-height panel sticky inside a short
+       * facts column gets shoved up under the title bar at the end of the scroll — the
+       * artifact the owner saw (owner, 2026-09-16). As a frame, the panel is a plain pane
+       * that never moves and the footer never overlaps it — the shape Scrutiny uses.
+       * Subtracting the chrome bar's `h-14` is the same coupling `case-workbench` carries.
+       */}
+      <div className="flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden">
+        {/* The cause and the two acts on the frame's own bar — the decision stays on top
+            and always in view, which the owner preferred to a footer (owner, 2026-09-16).
+            The frame keeps this bar pinned while the reading and the documents scroll
+            inside. */}
+        <div className="shrink-0 border-b border-hairline bg-muted px-6 md:px-8 dark:bg-background">
+          <div className="flex h-14 items-center justify-between gap-4">
+            <h1 className="min-w-0 truncate font-semibold text-title-s">
+              {causeTitle(matter)}
+            </h1>
+            <div className="flex shrink-0 items-center gap-3">
+              <Button type="button" variant="outline" onClick={() => ask("dismiss")}>
+                {COGNIZANCE_ACTS.dismiss.label}
+              </Button>
+              <Button type="button" onClick={() => ask(primary)}>
+                {COGNIZANCE_ACTS[primary].label}
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="flex w-full min-w-0 flex-1 flex-col gap-6 px-6 pt-6 pb-16 md:px-8 md:pt-8 xl:px-12">
-        {/* The reading in the main column, the documents beside it — the case file's own
-            layout. The case summary and the chunks share the one column so they line up;
-            the documents panel spans the full height in the gutter, sticky as the column
-            scrolls. Below 1280px the documents drop below and flow with the page. */}
-        <div className="grid items-start gap-x-6 gap-y-8 xl:grid-cols-[minmax(0,1fr)_1rem_24rem] 2xl:grid-cols-[minmax(0,1fr)_1rem_28rem]">
-          <div className="flex min-w-0 flex-col gap-6">
+        {/* The reading and the documents. **Two panes only for a mouse on a wide screen**
+            (`xl:pointer-fine`): the panel scrolls inside itself, and a second scroll box
+            beside the page's own is a scroll-in-a-scroll on a touch screen (owner,
+            2026-09-15). Every touch device drops to one scrolling column with the documents
+            at its foot; only a fine pointer gets the docked pane. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto xl:pointer-fine:flex-row xl:pointer-fine:overflow-hidden">
+          {/* The reading. Its own scroll beside the pane on a wide screen; part of the one
+              page scroll on touch. It keeps the screen-edge padding on the left and a
+              gutter to the pane on the right.
+
+              `[&>*]:shrink-0` is load-bearing: this is a fixed-height `flex-col`, and the
+              case summary and the facts sheet are `overflow-hidden` cards — without it a
+              tall, findings-heavy case would let flex shrink those cards to fit the column
+              and clip their last rows (the jurisdiction check went missing under the fold)
+              rather than overflow and scroll (owner, 2026-09-16). Held at their own height,
+              they overflow and the column scrolls. */}
+          <div className="flex min-w-0 flex-col gap-6 px-6 pt-6 pb-8 md:px-8 md:pt-8 xl:pointer-fine:min-h-0 xl:pointer-fine:flex-1 xl:pointer-fine:overflow-y-auto [&>*]:shrink-0">
             <CaseSummaryPanel matter={matter} />
             <CaseFactsPanel
               chunks={chunks}
@@ -192,30 +377,39 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
               active={active}
               onOpen={openField}
             />
+
+            {/* Touch, and every screen below `xl`: the documents flow at the foot of the one
+                page scroll rather than a docked pane — never a box within a box. */}
+            <section
+              aria-label="Documents"
+              className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-hairline bg-card shadow-raised xl:pointer-fine:hidden"
+            >
+              {documentsHeader}
+              <DocumentScroller docs={COGNIZANCE_DOCUMENTS} active={documentActive} />
+            </section>
           </div>
 
-          {/* An empty gutter — the contents rail belongs to the full case file, which has
-              many groups to index; this summary has one column. */}
-          <div className="hidden xl:block" />
-
+          {/* The docked documents pane: a plain flex pane that fills the frame's height and
+              scrolls inside itself — no sticky, so nothing shoves it. Its width is the CSS
+              default until the panel mounts, then the remembered, draggable width takes over
+              (inline, so it can be dragged live), and only on `desktopPanel` so a touch
+              tablet never reserves a track for a pane it does not show. */}
           <aside
             aria-label="Documents"
-            className="sticky top-28 -mt-8 hidden h-[calc(100svh-7rem)] min-h-0 flex-col self-start border-l border-hairline bg-card xl:-mr-12 xl:flex xl:pr-6"
+            className="relative hidden min-h-0 shrink-0 flex-col border-l border-hairline bg-card xl:pointer-fine:flex"
+            style={desktopPanel ? { width: docWidth } : undefined}
           >
+            {desktopPanel ? (
+              <PanelResizeHandle
+                width={docWidth}
+                onResize={setDocWidth}
+                onCommit={commitDocWidth}
+              />
+            ) : null}
             {documentsHeader}
             <DocumentScroller docs={COGNIZANCE_DOCUMENTS} active={documentActive} />
           </aside>
         </div>
-
-        {/* On a phone the documents are not a panel — they flow at the foot of the page,
-            and a field that opens one scrolls the page down to it. */}
-        <section
-          aria-label="Documents"
-          className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-hairline bg-card shadow-raised xl:hidden"
-        >
-          {documentsHeader}
-          <DocumentScroller docs={COGNIZANCE_DOCUMENTS} active={documentActive} />
-        </section>
       </div>
 
       <Dialog
@@ -305,30 +499,44 @@ function CaseFactsPanel({
   onOpen: (field: CognizanceField) => void;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      {chunks.map((chunk) => (
-        <Card key={chunk.id} className={cn(SHEET, "min-w-0")}>
-          {/* Every chunk the same shape: a heading band on the sunken fill the court side
-              uses for a well, then its fields in one column — the case file's own chunk
-              grammar (`register-case-file.tsx`), so the summary reads as grouped, not as
-              one flat run, and every group reads the same (owner, 2026-09-14). */}
-          <div className="border-b border-hairline bg-surface-sunken px-6 py-3">
-            <h3 className="text-body font-semibold">{chunk.label}</h3>
-          </div>
-          <DescriptionList className="p-2">
-            {chunk.fields.map((field) => (
+    // One sheet, not five. Each chunk was a card with its own 49px banded header, and for
+    // eleven fields that chrome — five bands, four gaps between cards — was most of the
+    // column's height. The chunks are now sections inside a single sheet, divided by a
+    // hairline under a quiet label, so the grouping the owner wanted kept for scanning
+    // survives at a fraction of the height (owner, 2026-09-15). `@container` so the rows
+    // below can turn horizontal on the sheet's own width, not the viewport's.
+    <Card className={cn(SHEET, "@container min-w-0")}>
+      {chunks.map((chunk, index) => (
+        // Register cases' synopsis grammar (`register-case-screen.tsx`): the label above the
+        // value, and two facts across where the sheet is wide enough — so the reading uses
+        // the room the desktop column has instead of a single ribbon of pairs down the left
+        // (owner, 2026-09-15). Chunks stay in the §138 order, divided by a hairline, unnamed.
+        // Two kinds of field break the two-up rhythm and take the whole width instead: one a
+        // check bears on (its alert wants the room) and one whose value is a sentence, not a
+        // date — see `Fact`.
+        <DescriptionList
+          key={chunk.id}
+          className={cn(
+            "grid grid-cols-1 gap-x-6 gap-y-4 px-4 py-4 @md:grid-cols-2",
+            index > 0 && "border-t border-hairline",
+          )}
+        >
+          {chunk.fields.map((field) => {
+            const finding = findings.find((entry) => entry.term === field.term);
+            return (
               <FieldRow
                 key={field.id}
                 field={field}
-                finding={findings.find((entry) => entry.term === field.term)}
+                finding={finding}
+                wide={!!finding || field.value.length > 24}
                 active={active?.fieldId === field.id}
                 onOpen={onOpen}
               />
-            ))}
-          </DescriptionList>
-        </Card>
+            );
+          })}
+        </DescriptionList>
       ))}
-    </div>
+    </Card>
   );
 }
 
@@ -340,55 +548,65 @@ function CaseFactsPanel({
 function FieldRow({
   field,
   finding,
+  wide,
   active,
   onOpen,
 }: {
   field: CognizanceField;
   finding: CognizanceFinding | undefined;
+  /** Take the whole width instead of one of the two columns — a flagged or free-text field. */
+  wide: boolean;
   active: boolean;
   onOpen: (field: CognizanceField) => void;
 }) {
   const open = field.source ? () => onOpen(field) : undefined;
   return (
-    <DescriptionRow className="flex flex-col items-stretch gap-0 border-b border-hairline py-0 last:border-b-0">
+    // Register cases' synopsis `Fact`: the label above the value, no rule under it. It sits
+    // in one of the grid's two columns — unless it is `wide`, when it spans both: a check's
+    // alert wants the full width beneath it, and a sentence read at half-width wraps to a
+    // ragged stack (owner, 2026-09-15).
+    <DescriptionRow
+      className={cn(
+        "flex flex-col items-stretch gap-0 border-0 py-0",
+        wide && "@md:col-span-2",
+      )}
+    >
       <div
         className={cn(
-          "group/field relative flex min-w-0 flex-col gap-1 rounded-lg px-3 py-3 transition-colors",
-          open && "cursor-pointer hover:bg-surface-sunken",
+          "group/field relative flex min-w-0 flex-col gap-0.5 rounded-lg px-2 py-1.5 transition-colors",
+          open && "cursor-pointer pr-8 hover:bg-surface-sunken",
           active && "bg-accent hover:bg-accent",
         )}
         onClick={open}
       >
         <DescriptionTerm className="text-body-compact">{field.term}</DescriptionTerm>
-        <DescriptionDetails
-          className={cn("min-w-0 text-body-compact text-pretty", open && "pr-8")}
-        >
+        <DescriptionDetails className="min-w-0 text-body-compact text-pretty">
           <span className="font-medium">{field.value}</span>
           {field.note ? (
             <span className="text-muted-foreground"> · {field.note}</span>
           ) : null}
-          {open ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Show ${field.term} in the documents`}
-              className={cn(
-                "absolute top-3 right-2 text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover/field:opacity-100 [@media(hover:none)]:opacity-100",
-                active && "opacity-100",
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpen(field);
-              }}
-            >
-              <EyeIcon aria-hidden />
-            </Button>
-          ) : null}
         </DescriptionDetails>
+        {open ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Show ${field.term} in the documents`}
+            className={cn(
+              "absolute top-1 right-1 text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover/field:opacity-100 [@media(hover:none)]:opacity-100",
+              active && "opacity-100",
+            )}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen(field);
+            }}
+          >
+            <EyeIcon aria-hidden />
+          </Button>
+        ) : null}
       </div>
       {finding ? (
-        <div className="px-3 pb-3">
+        <div className="px-2 pt-1.5">
           <FindingAlert finding={finding} />
         </div>
       ) : null}

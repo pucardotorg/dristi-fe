@@ -148,6 +148,12 @@ const PRESENTED_TO_RETURN_DAYS = 2;
  */
 export const COGNIZANCE_QUEUE: CognizanceCase[] = [
   {
+    /* The worst-case complaint, first in the queue on purpose: it trips every check a
+       magistrate makes before cognizance at once — filed late (with a condonation
+       application), the demand notice sent past the thirty days, and the payee's branch in
+       another district — so the file carries all three findings and the fullest set of
+       rows. It is the density the layout has to hold, not a typical matter (owner,
+       2026-09-16). */
     id: "c-2041",
     caseNumber: "CMP/2041/2025",
     filingNumber: "KL-001629-2025",
@@ -157,12 +163,16 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     filedAfterCauseDays: 50,
     grounds:
       "The complainant was admitted to hospital for a month from 20 February and could not instruct counsel in that time.",
-    noticeAfterDays: 12,
+    /* Past the thirty days §138(b) allows — the notice-window check fires against the
+       dispatch date. */
+    noticeAfterDays: 42,
     noticeDelivered: true,
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Chinnakada", place: "Kollam" },
+    /* The payee's branch is in Ernakulam, not this court's Kollam — §142(2)(a) puts the
+       complaint where that branch lies, so the jurisdiction check fires. */
+    branch: { bank: "South Indian Bank", branch: "Ernakulam South", place: "Ernakulam" },
     presentedAfterDays: 21,
   },
   {
