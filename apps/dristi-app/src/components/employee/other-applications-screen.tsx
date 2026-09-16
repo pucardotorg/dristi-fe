@@ -235,7 +235,7 @@ function OtherApplicationFiltersForm({
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="other-applications-stage" className="w-fit text-body">
+        <Label htmlFor="other-applications-stage" className="w-fit text-body-compact">
           Stage
         </Label>
         <Select
@@ -271,7 +271,7 @@ function OtherApplicationFiltersForm({
       />
 
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="other-applications-type" className="w-fit text-body">
+        <Label htmlFor="other-applications-type" className="w-fit text-body-compact">
           Application type
         </Label>
         {/* The two longest heads run past the trigger and clamp to one line — the

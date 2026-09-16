@@ -309,7 +309,7 @@ function SignADiaryFilters({
           bench had picked. Remounting on the value is the only fix that does not edit the
           primitive; upstream DS bug, logged in the build report. */}
       <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-a-diary-date-label" className="w-fit text-body font-medium">
+        <span id="sign-a-diary-date-label" className="w-fit text-body-compact font-medium">
           A-Diary dated
         </span>
         <div role="group" aria-labelledby="sign-a-diary-date-label">

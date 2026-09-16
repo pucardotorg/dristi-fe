@@ -377,7 +377,7 @@ function HearingsFilters({
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="hearings-status" className="w-fit text-body">
+        <Label htmlFor="hearings-status" className="w-fit text-body-compact">
           Status
         </Label>
         <Select
@@ -404,7 +404,7 @@ function HearingsFilters({
       </div>
 
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="hearings-purpose" className="w-fit text-body">
+        <Label htmlFor="hearings-purpose" className="w-fit text-body-compact">
           Purpose
         </Label>
         <Select
@@ -434,7 +434,7 @@ function HearingsFilters({
           group around it rather than pointing `htmlFor` at a control that does not
           exist. The trigger still announces the date it holds. */}
       <div className="flex min-w-0 flex-col gap-2">
-        <span id="hearings-day-label" className="w-fit text-body font-medium">
+        <span id="hearings-day-label" className="w-fit text-body-compact font-medium">
           Hearing date
         </span>
         <div role="group" aria-labelledby="hearings-day-label">

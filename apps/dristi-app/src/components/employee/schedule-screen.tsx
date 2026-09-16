@@ -189,7 +189,7 @@ function ScheduleFiltersRow({
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="schedule-stage" className="w-fit text-body">
+        <Label htmlFor="schedule-stage" className="w-fit text-body-compact">
           Stage
         </Label>
         <Select

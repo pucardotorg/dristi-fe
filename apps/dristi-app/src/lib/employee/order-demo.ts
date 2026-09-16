@@ -32,7 +32,9 @@ import {
 } from "./listing-applications";
 import {
   appearancesFor,
+  attendanceRecital,
   EMPTY_ORDER_DRAFT,
+  nextListingRecital,
   orderTemplateFacts,
   type AttendanceMark,
   type OrderDraft,
@@ -41,6 +43,7 @@ import {
   appendRichText,
   createOrderItem,
   richTextFromPlain,
+  upsertRichTextFact,
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "./order-items";
@@ -276,14 +279,26 @@ export function initialOrderDraft(
      pulled in and `body` is what the bench would be reading — a fixture that filled one
      without the other would be showing a state the composer cannot actually reach. */
   const items = itemsOf(hearing, orderTemplateFacts(hearing, sitting, today));
+  /* Disposals first, then the directions — the order a court takes them in, and the
+     order the live screen produces them in when the panel opens on the applications. */
+  const written = items.reduce(
+    (passage, item) => appendRichText(passage, item.text),
+    /* **And the roll opens it**, because this sitting's roll was called: the live screen
+       recites into the passage as each office is answered (`mark`), so a completed matter
+       that arrived with every mark set and no recital in its order would be the one state
+       the composer cannot reach. Written before the directions rather than prepended
+       after them, which is the same thing `upsertRichTextFact` does and says so at the
+       call site. */
+    upsertRichTextFact(
+      disposalsOf(hearing),
+      "attendance",
+      attendanceRecital(appearancesFor(hearing), sitting.marks),
+    ),
+  );
   return {
     ...sitting,
     items,
-    /* Disposals first, then the directions — the order a court takes them in, and the
-       order the live screen produces them in when the panel opens on the applications. */
-    body: items.reduce(
-      (written, item) => appendRichText(written, item.text),
-      disposalsOf(hearing),
-    ),
+    /* And the posting closes it, last, as `postNext` leaves it. */
+    body: upsertRichTextFact(written, "next", nextListingRecital(sitting)),
   };
 }

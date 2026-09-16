@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAUSE_LIST } from "./hearings";
-import { appendRichText } from "./order-items";
+import { appendRichText, recitalText } from "./order-items";
 import { applicationsForListing } from "./listing-applications";
 import {
   appearancesFor,
@@ -11,7 +11,9 @@ import {
   assembleBody,
   assembleNextListing,
   assembleOrder,
+  attendanceRecital,
   EMPTY_ORDER_DRAFT,
+  nextListingRecital,
 } from "./order-draft";
 
 const hearing = CAUSE_LIST[0];
@@ -74,6 +76,97 @@ describe("assembleNextListing", () => {
     });
     assert.equal(block.pending, true);
     assert.equal(block.body, "Next date has not been set.");
+  });
+});
+
+describe("attendanceRecital", () => {
+  it("recites nothing while the roll has not been called", () => {
+    assert.deepEqual(attendanceRecital(appearancesFor(hearing), {}), []);
+  });
+
+  it("groups by the answer, so who was absent is one line and not a paragraph", () => {
+    assert.deepEqual(
+      attendanceRecital(appearancesFor(hearing), {
+        complainant: "present",
+        "complainant-counsel-0": "present",
+        accused: "absent",
+        "accused-counsel-0": "present",
+      }),
+      [
+        {
+          label: "Present",
+          value:
+            "Sunil Varghese, the complainant; Adv. Suresh Menon, advocate for the complainant; Adv. Rekha Pillai, advocate for the accused.",
+        },
+        { label: "Absent", value: "Anand Traders, the accused." },
+      ],
+    );
+  });
+
+  it("leaves out the roll nobody is on, rather than heading an empty line", () => {
+    const lines = attendanceRecital(appearancesFor(hearing), {
+      complainant: "present",
+    });
+    assert.deepEqual(
+      lines.map((line) => line.label),
+      ["Present"],
+    );
+  });
+
+  it("grows one office at a time, so a part-called roll is still in the order", () => {
+    const appearances = appearancesFor(hearing);
+    const first = attendanceRecital(appearances, { complainant: "present" });
+    assert.equal(recitalText(first), "Present: Sunil Varghese, the complainant.");
+    const both = attendanceRecital(appearances, {
+      complainant: "present",
+      accused: "absent",
+    });
+    assert.equal(
+      recitalText(both),
+      "Present: Sunil Varghese, the complainant.\nAbsent: Anand Traders, the accused.",
+    );
+  });
+});
+
+describe("nextListingRecital", () => {
+  it("closes the order on the date, then what it is for", () => {
+    assert.deepEqual(
+      nextListingRecital({
+        next: "list",
+        nextPurpose: "evidence-of-complainant",
+        nextDate: "2026-10-06",
+      }),
+      [
+        { label: "Next hearing", value: "6 October 2026" },
+        { label: "Purpose", value: "Evidence of complainant" },
+      ],
+    );
+  });
+
+  it("says a matter is not being listed again, which is an answer", () => {
+    assert.deepEqual(
+      nextListingRecital({ next: "none", nextPurpose: "", nextDate: null }),
+      [{ label: "Next hearing", value: "Not listed again." }],
+    );
+  });
+
+  it("recites nothing while the posting is half given, either way round", () => {
+    assert.deepEqual(
+      nextListingRecital({
+        next: "list",
+        nextPurpose: "evidence-of-complainant",
+        nextDate: null,
+      }),
+      [],
+    );
+    assert.deepEqual(
+      nextListingRecital({
+        next: "list",
+        nextPurpose: "",
+        nextDate: "2026-10-06",
+      }),
+      [],
+    );
   });
 });
 

@@ -459,7 +459,7 @@ export function FilingsQueue({
               <TabsTrigger
                 key={entry.id}
                 value={entry.id}
-                className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
+                className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
               >
                 {entry.label}
                 <span className="tabular-nums text-muted-foreground">

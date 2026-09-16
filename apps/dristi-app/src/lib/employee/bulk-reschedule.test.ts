@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { isSittingDay } from "./hearings";
 import {
   addDays,
   boardAfterMoves,
@@ -238,6 +239,42 @@ describe("the order a bulk move is passed by", () => {
       order.matters[0].from,
       buildRescheduleOrder([first], addDays(TODAY, 9), TODAY).matters[0].from,
     );
+  });
+});
+
+describe("the board the prototype opens on", () => {
+  /* A Monday, so every weekday in the window is reachable from it. */
+  const MONDAY = "2026-09-14";
+  const board = reschedulableHearings(MONDAY);
+
+  it("lists nothing on a day the court is closed", () => {
+    const closed = board.map((row) => row.date).filter((day) => !isSittingDay(day));
+
+    assert.deepEqual([...new Set(closed)], [], "a listing on a Saturday or a Sunday");
+  });
+
+  it("lists something on every one of the next forty sittings", () => {
+    const listed = new Set(board.map((row) => row.date));
+    const missing: string[] = [];
+    let day = MONDAY;
+
+    for (let sitting = 1; sitting <= 40; sitting += 1) {
+      do {
+        day = addDays(day, 1);
+      } while (!isSittingDay(day));
+      if (!listed.has(day)) missing.push(day);
+    }
+
+    assert.deepEqual(missing, [], "a sitting day with nothing to move");
+  });
+
+  it("gives the same board twice, so a row can be pointed at", () => {
+    assert.deepEqual(reschedulableHearings(MONDAY), board);
+  });
+
+  it("gives every matter its own case number", () => {
+    const numbers = board.map((row) => row.caseNumber);
+    assert.equal(numbers.length, new Set(numbers).size, "two matters share a number");
   });
 });
 

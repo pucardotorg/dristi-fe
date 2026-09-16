@@ -6,8 +6,13 @@ import {
   applicationsForListing,
   listingApplicationSentence,
 } from "./listing-applications";
-import { appearancesFor, assembleOrder } from "./order-draft";
-import { orderItemsInBody } from "./order-items";
+import {
+  appearancesFor,
+  assembleOrder,
+  attendanceRecital,
+  nextListingRecital,
+} from "./order-draft";
+import { orderItemsInBody, recitalText } from "./order-items";
 import { initialOrderDraft, nextSittingDay } from "./order-demo";
 
 const today = "2026-09-07";
@@ -74,10 +79,14 @@ describe("initialOrderDraft", () => {
   });
 
   it("writes every template it pulled in into the one box, in order", () => {
-    /* The invariant the composer itself keeps (`addItem` and `decide`): what the panel
-       pulled in and what the bench answered is what the paper reads. A fixture that set
-       `items` or `applications` without `body` would show a state the screen cannot
-       reach — a list of orders standing over an empty page. */
+    /* The invariant the composer itself keeps (`mark`, `decide`, `addItem`, `postNext`):
+       what the panel pulled in, what the bench answered and what the sitting settled is
+       what the paper reads. A fixture that set `items`, `applications` or the marks
+       without `body` would show a state the screen cannot reach — a list of orders
+       standing over an empty page, or a roll called nowhere in the order.
+
+       The whole passage, in the order a court takes it: the roll opens it, the disposals
+       follow, then the directions, and the posting closes it. */
     for (const row of CAUSE_LIST) {
       const draft = initialOrderDraft(row, "completed", today);
       const disposals = applicationsForListing(row.id).map((application) =>
@@ -85,10 +94,15 @@ describe("initialOrderDraft", () => {
       );
       assert.equal(
         draft.body.text,
-        [...disposals, ...draft.items.map((item) => item.text.text)].join(
-          "\n\n",
-        ),
-        `${row.caseNumber} has a body its disposals and items do not account for`,
+        [
+          recitalText(attendanceRecital(appearancesFor(row), draft.marks)),
+          ...disposals,
+          ...draft.items.map((item) => item.text.text),
+          recitalText(nextListingRecital(draft)),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+        `${row.caseNumber} has a body its sitting does not account for`,
       );
       for (const item of draft.items) {
         assert.ok(
@@ -114,7 +128,13 @@ describe("initialOrderDraft", () => {
       (application) =>
         listingApplicationSentence(withApplications, application, "allowed"),
     );
-    assert.ok(draft.body.text.startsWith(disposals[0]));
+    /* Behind the roll, which opens the order — the disposals lead the part of it the
+       bench composed, not the page. */
+    assert.ok(
+      draft.body.text.startsWith(
+        `${recitalText(attendanceRecital(appearancesFor(withApplications), draft.marks))}\n\n${disposals[0]}`,
+      ),
+    );
     for (const sentence of disposals) {
       assert.ok(
         draft.body.text.includes(sentence),

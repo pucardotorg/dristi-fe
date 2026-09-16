@@ -386,7 +386,7 @@ function SignFormsFilters({
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-forms-process" className="w-fit text-body">
+        <Label htmlFor="sign-forms-process" className="w-fit text-body-compact">
           Process type
         </Label>
         <Select
@@ -424,7 +424,7 @@ function SignFormsFilters({
           date field needs without touching the primitive. Logged as upstream DS
           feedback. */}
       <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-forms-date-label" className="w-fit text-body font-medium">
+        <span id="sign-forms-date-label" className="w-fit text-body-compact font-medium">
           Date created
         </span>
         <div role="group" aria-labelledby="sign-forms-date-label">

@@ -125,7 +125,7 @@ export function ScrutinyQueue() {
               <TabsTrigger
                 key={queueTab.id}
                 value={queueTab.id}
-                className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
+                className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
               >
                 {queueTab.label}
                 {/* How much is standing here. One presentation across all three —
@@ -248,7 +248,7 @@ function QueueFilters({
           label points at an element that does not exist. Upstream DS bug; see
           `RegisterCasesFilters`. */}
       <Field className="min-w-0 sm:w-80">
-        <FieldLabel className="text-body">Search filings</FieldLabel>
+        <FieldLabel className="text-body-compact">Search filings</FieldLabel>
         <InputGroup>
           <InputGroupAddon>
             <SearchIcon aria-hidden />
@@ -264,7 +264,7 @@ function QueueFilters({
       </Field>
 
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="scrutiny-claimed-by" className="w-fit text-body">
+        <Label htmlFor="scrutiny-claimed-by" className="w-fit text-body-compact">
           Claimed by
         </Label>
         <Select

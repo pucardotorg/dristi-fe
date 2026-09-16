@@ -139,6 +139,18 @@ export function appendRichText(
 ): RichTextValue {
   if (!addition.text && !addition.html) return current;
   if (!current.text && !current.html) return addition;
+  /* **Above the line that closes the order, when one is there.** The posting is written
+     into the passage as the sitting settles it (`upsertRichTextFact`), and on the
+     ordinary flow it is settled *before* the first template is pulled in — the sheet is
+     answered top to bottom. A plain concatenation would then put every direction the
+     court passed after "Posted to 6 October 2026 for evidence.", which is an order
+     closing before it says anything. What is added goes above that line; everything
+     else appends as it did. */
+  const closing = factBlock(CLOSING_FACT).exec(current.html);
+  if (closing) {
+    const html = `${current.html.slice(0, closing.index)}${addition.html}${current.html.slice(closing.index)}`;
+    return { html, text: plainTextOfRichText(html) };
+  }
   return {
     html: `${current.html}${addition.html}`,
     text: `${current.text}\n\n${addition.text}`,
@@ -259,7 +271,15 @@ function escapeForPattern(value: string): string {
 export function plainTextOfRichText(html: string): string {
   return html
     .split(/<\/(?:p|li|div|h[1-6]|blockquote)>/i)
-    .map((block) => unescapeText(block.replace(/<[^>]*>/g, "")).trim())
+    .map((block) =>
+      unescapeText(
+        /* A break inside a block is a line inside it — which is what the recitals are
+           made of (`OrderRecitalLine`), and what the editor's own `innerText` reads a
+           `<br>` as. Before the tags are stripped, or it would vanish and run two
+           labelled lines into one. */
+        block.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, ""),
+      ).trim(),
+    )
     .filter(Boolean)
     .join("\n\n");
 }
@@ -300,6 +320,205 @@ export function orderItemsInBody<Item extends { id: string }>(
   html: string,
 ): Item[] {
   return items.filter((item) => richTextCarriesItem(html, item.id));
+}
+
+/**
+ * **The mark on a line the order carries because the sitting is known, not because
+ * anybody wrote it.**
+ *
+ * Two of them: the roll, as attendance opens an order, and the posting, as the next date
+ * closes it (owner, 2026-09-16 — marking attendance and setting the next hearing "should
+ * also show up in the text box"). Both were printed beside the writing and nowhere in
+ * it, which made them the two facts of the sitting a typist could read on the screen and
+ * not correct in the order — the same objection that moved the application disposals
+ * into the passage a day earlier.
+ *
+ * It is a *different* attribute from `ORDER_ITEM_ATTRIBUTE` on purpose. That mark means
+ * "a row in the catalogue put these words here", and it is what *Pulled into this order*
+ * lists and offers to take back out. A recital is not a pulled-in order and must not
+ * appear in that list: nothing in the catalogue produced it, and removing it would mean
+ * unmarking the roll rather than deleting a direction.
+ */
+const ORDER_FACT_ATTRIBUTE = "data-order-fact";
+
+/** Which known fact of the sitting a marked line carries. */
+export type OrderFactId = "attendance" | "next";
+
+/**
+ * One line of a recital: what it is, and what the sitting says it is.
+ *
+ * **The structure is the point** (owner, 2026-09-16: the roll and the posting should be
+ * "in a proper structured order, rather than just dumping it in the text box"). The first
+ * build recited the roll as four running sentences — *Sunil Varghese, the complainant, is
+ * present. Adv. Suresh Menon, advocate for the complainant, is present. …* — which is
+ * true, and unreadable: the fact a reader wants out of an appearance line is *who was
+ * absent*, and it was buried in the middle of a paragraph by whichever order the offices
+ * happen to sit in.
+ *
+ * So the recital is labelled lines, the way an order sheet has always called a roll:
+ * **Present:** and **Absent:** with their offices behind them, and the posting as its
+ * date and its purpose. A label rather than a sentence also means the line stays legible
+ * when a state translates it, and it is what makes *nobody absent* visible — the Absent
+ * line is simply not there.
+ *
+ * The label is carried apart from the value, rather than as ready-made markup, so that
+ * this stays a plain testable value and the escaping happens in exactly one place
+ * (`recitalHtml`). A party named "A & B <Traders>" must not be able to write markup into
+ * a court order.
+ */
+export type OrderRecitalLine = { label: string; value: string };
+
+/** The recital as the order renders it: a bold label, its value, one line each. */
+function recitalHtml(lines: readonly OrderRecitalLine[]): string {
+  return lines
+    .map(
+      (line) =>
+        `<strong>${escapeText(line.label)}:</strong> ${escapeText(line.value)}`,
+    )
+    .join("<br>");
+}
+
+/**
+ * The recital's plain form — the same lines without the markup.
+ *
+ * `plainTextOfRichText` computes this out of the passage for the draft's own plain half;
+ * this is for a caller that holds the lines and not the document, which is how the
+ * fixture and its tests state what the order should read.
+ */
+export function recitalText(lines: readonly OrderRecitalLine[]): string {
+  return lines.map((line) => `${line.label}: ${line.value}`).join("\n");
+}
+
+/** The one that closes the order, and so the one a new passage is added above. */
+const CLOSING_FACT: OrderFactId = "next";
+
+/**
+ * An empty line, as the editor itself writes one.
+ *
+ * `<p><br></p>` is what pressing Enter on an empty line produces in a contentEditable
+ * region, so this is the same object the typist would have made by hand rather than a
+ * shape only this code knows about. It carries nothing on the plain side —
+ * `plainTextOfRichText` drops a block with no words in it — so an empty line is never
+ * mistaken for an order having been written.
+ */
+const BLANK_BLOCK = "<p><br></p>";
+
+/** Does the passage open on an empty line? */
+function startsBlank(html: string): boolean {
+  return /^\s*<p>(?:<br\s*\/?>|&nbsp;|\s)*<\/p>/i.test(html);
+}
+
+/** The passage without the empty line it opens on. */
+function trimStartBlank(html: string): string {
+  return html.replace(/^\s*<p>(?:<br\s*\/?>|&nbsp;|\s)*<\/p>/i, "");
+}
+
+/**
+ * The passage with a stale mark taken off a block, its words left where they are.
+ *
+ * **The typist's sentence is never deleted to keep a recital tidy.** Pressing Enter
+ * inside the recital splits it and the browser copies the mark onto both halves, so a
+ * typist who put the caret at the end of the roll and wrote the order from there is
+ * writing *inside a marked block* — and re-marking one office would then replace their
+ * words along with the recital. The recital is rebuilt from the first marked block and
+ * every other one simply stops being the roll's: the words stay on the page, in the
+ * order, where they can be read and moved.
+ *
+ * The leftover is honest rather than invisible — half a recital may survive as ordinary
+ * text for the typist to delete. That is the safer failure of the two, and the same
+ * reading `ORDER_ITEM_ATTRIBUTE` takes about a row that has lost its passage.
+ */
+function unmarkFacts(html: string, fact: OrderFactId): string {
+  return html.replace(
+    new RegExp(`\\s*${ORDER_FACT_ATTRIBUTE}="${escapeForPattern(fact)}"`, "gi"),
+    "",
+  );
+}
+
+/**
+ * One marked block, with its tag and its attributes kept apart from its contents.
+ *
+ * The tag and the attribute list are captured because an upsert reuses them: a recital
+ * the typist has turned into a list item or emphasised stays that, and only the words
+ * inside it are re-written. Same string surgery and the same reasoning as
+ * `stripRichTextItem` — a block's own closing tag is the one boundary that has to be
+ * exact.
+ */
+function factBlock(fact: OrderFactId): RegExp {
+  return new RegExp(
+    `<([a-z][a-z0-9]*)\\b([^>]*\\b${ORDER_FACT_ATTRIBUTE}="${escapeForPattern(fact)}"[^>]*)>[\\s\\S]*?</\\1>`,
+    "i",
+  );
+}
+
+/**
+ * Write what the sitting now says into the order, over the version of it already there.
+ *
+ * The roll is re-recited as it is called — one office at a time, so the line grows under
+ * the typist's hand — and the posting is re-recited when it changes. The mark is what
+ * makes that safe where `upsertRichTextSentence` had to match on words: the line can be
+ * found exactly, so re-marking an appearance corrects the recital instead of leaving the
+ * order carrying two versions of who was present.
+ *
+ * **The limit, stated rather than papered over:** words the typist has written *inside*
+ * the recital are replaced when the roll changes, because the roll is where that line
+ * comes from. The trade is the opposite of the one a disposal makes, and deliberately:
+ * a disposal is identified only by its own wording, so rewriting it would risk taking
+ * over a sentence somebody else now owns, while a recital is identified by its mark and
+ * a stale roll in a court order is the worse failure. The typist's own prose belongs in
+ * the paragraphs around it, which are never touched.
+ *
+ * No lines takes the recital out — an unmarked roll recites nothing rather than standing
+ * in the order as a line about nobody. Every marked block goes and one comes back where
+ * the first of them stood: pressing Enter inside the recital splits it and the browser
+ * copies the mark onto both halves, so a lone replacement would leave the second half
+ * behind as a stale copy of the roll.
+ *
+ * The plain half is rebuilt from the markup rather than tracked alongside it, for the
+ * reason `plainTextOfRichText` exists: the two halves of a `RichTextValue` answer
+ * different questions and have to stay in step.
+ */
+export function upsertRichTextFact(
+  body: RichTextValue,
+  fact: OrderFactId,
+  lines: readonly OrderRecitalLine[],
+): RichTextValue {
+  const inner = recitalHtml(lines);
+  const found = factBlock(fact).exec(body.html);
+  if (found) {
+    const line = inner ? `<${found[1]}${found[2]}>${inner}</${found[1]}>` : "";
+    const head = body.html.slice(0, found.index);
+    /* The block being replaced goes; anything else still wearing the mark only loses it
+       (`unmarkFacts`). And when the recital itself is going and it stood at the head of
+       the passage, the empty line it was given to write under goes with it rather than
+       leaving the order opening on a blank. */
+    let rest = unmarkFacts(
+      body.html.slice(found.index).replace(factBlock(fact), ""),
+      fact,
+    );
+    if (!inner && !head) rest = trimStartBlank(rest);
+    const html = `${head}${line}${rest}`;
+    return { html, text: plainTextOfRichText(html) };
+  }
+  if (!inner) return body;
+  const line = `<p ${ORDER_FACT_ATTRIBUTE}="${fact}">${inner}</p>`;
+  /* The roll opens the order and the posting closes it, which is the order a court reads
+     them in and the only placement either line has. Where the typist has since *moved*
+     one, the branch above keeps it there: this decides where a line first lands, not
+     where it must stay.
+
+     **The roll arrives with an empty line under it** (owner, 2026-09-16: after marking
+     attendance "I should always start at least two lines below"). It is not there for the
+     gap — the box spaces its blocks itself — but for the caret: without it the nearest
+     place to write is the end of the recital, which is inside a marked block, and what
+     gets written there is the roll's to overwrite. One empty line makes the natural place
+     to click a paragraph of the typist's own. Only on the first calling, and only when
+     the passage does not already open on one, so it can never stack up. */
+  const html =
+    fact === CLOSING_FACT
+      ? `${body.html}${line}`
+      : `${line}${startsBlank(body.html) ? "" : BLANK_BLOCK}${body.html}`;
+  return { html, text: plainTextOfRichText(html) };
 }
 
 /** One order in the draft: what it is, and the words it carries. */

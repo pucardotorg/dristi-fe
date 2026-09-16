@@ -2,16 +2,19 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  appendRichText,
   createOrderItem,
   isOrderItemTypeId,
   nextOrderItemId,
   orderItemLabel,
   orderItemsInBody,
   plainTextOfRichText,
+  recitalText,
   richTextCarriesItem,
   richTextFromPlain,
   richTextWithoutItem,
   stripRichTextItem,
+  upsertRichTextFact,
   upsertRichTextSentence,
 } from "./order-items";
 import {
@@ -325,5 +328,204 @@ describe("plainTextOfRichText", () => {
 
   it("is empty for empty markup, which is what an untouched order says", () => {
     assert.equal(plainTextOfRichText(""), "");
+  });
+});
+
+/*
+ * The two recitals the order carries because the sitting is known: the roll that opens it
+ * and the posting that closes it. What is pinned here is not the wording — that is
+ * `attendanceRecital`'s — but that a recital the screen re-writes under the typist's hand
+ * lands in the right place, replaces itself rather than accumulating, renders as labelled
+ * lines, and never claims to be a pulled-in order.
+ */
+describe("upsertRichTextFact", () => {
+  const roll = [
+    { label: "Present", value: "Sunil Varghese, the complainant." },
+  ];
+  const posting = [
+    { label: "Next hearing", value: "6 October 2026" },
+    { label: "Purpose", value: "Appearance" },
+  ];
+  const written = { html: "<p>Heard both sides.</p>", text: "Heard both sides." };
+
+  it("renders each line as a bold label and its value", () => {
+    assert.equal(
+      upsertRichTextFact({ html: "", text: "" }, "next", posting).html,
+      '<p data-order-fact="next"><strong>Next hearing:</strong> 6 October 2026<br><strong>Purpose:</strong> Appearance</p>',
+    );
+  });
+
+  it("reads the breaks back as lines on the plain side", () => {
+    assert.equal(
+      upsertRichTextFact({ html: "", text: "" }, "next", posting).text,
+      "Next hearing: 6 October 2026\nPurpose: Appearance",
+    );
+  });
+
+  it("opens the order with the roll and closes it with the posting", () => {
+    const rolled = upsertRichTextFact(written, "attendance", roll);
+    assert.ok(
+      rolled.html.startsWith('<p data-order-fact="attendance"><strong>Present:</strong> '),
+    );
+    assert.ok(rolled.html.endsWith("<p>Heard both sides.</p>"));
+    const closed = upsertRichTextFact(rolled, "next", posting);
+    assert.equal(
+      closed.text,
+      `${recitalText(roll)}\n\nHeard both sides.\n\n${recitalText(posting)}`,
+    );
+  });
+
+  it("writes over the recital already there rather than beside it", () => {
+    const first = upsertRichTextFact(written, "attendance", roll);
+    const corrected = upsertRichTextFact(first, "attendance", [
+      ...roll,
+      { label: "Absent", value: "Anand Traders, the accused." },
+    ]);
+    assert.equal(
+      corrected.html.match(/data-order-fact="attendance"/g)?.length,
+      1,
+    );
+    assert.equal(corrected.html.match(/<strong>Present:<\/strong>/g)?.length, 1);
+    assert.match(corrected.text, /^Present: [^\n]+\nAbsent: Anand Traders, the accused\./);
+  });
+
+  it("stays where the typist moved it, and keeps the shape they gave it", () => {
+    const moved = {
+      html: '<p>Heard both sides.</p><li data-order-fact="attendance" class="x">anything</li>',
+      text: "Heard both sides.\n\nanything",
+    };
+    const corrected = upsertRichTextFact(moved, "attendance", [
+      { label: "Absent", value: "Nobody appeared." },
+    ]);
+    assert.equal(
+      corrected.html,
+      '<p>Heard both sides.</p><li data-order-fact="attendance" class="x"><strong>Absent:</strong> Nobody appeared.</li>',
+    );
+  });
+
+  it("leaves an empty line under the roll to write on", () => {
+    const rolled = upsertRichTextFact({ html: "", text: "" }, "attendance", roll);
+    assert.ok(rolled.html.endsWith("<p><br></p>"));
+    /* The blank is for the caret, not for the record: nothing has been written yet. */
+    assert.equal(rolled.text, recitalText(roll));
+  });
+
+  it("does not stack empty lines up as the roll is corrected", () => {
+    let body = upsertRichTextFact({ html: "", text: "" }, "attendance", roll);
+    body = upsertRichTextFact(body, "attendance", [
+      ...roll,
+      { label: "Absent", value: "Anand Traders, the accused." },
+    ]);
+    body = upsertRichTextFact(body, "attendance", roll);
+    assert.equal(body.html.match(/<p><br><\/p>/g)?.length, 1);
+  });
+
+  it("writes the roll above a passage that already opens on an empty line", () => {
+    const body = upsertRichTextFact(
+      { html: "<p><br></p><p>Heard both sides.</p>", text: "Heard both sides." },
+      "attendance",
+      roll,
+    );
+    assert.equal(body.html.match(/<p><br><\/p>/g)?.length, 1);
+  });
+
+  it("takes the recital out when the fact stops being one", () => {
+    const rolled = upsertRichTextFact(written, "attendance", roll);
+    assert.deepEqual(upsertRichTextFact(rolled, "attendance", []), written);
+  });
+
+  it("takes the empty line with it, so the order does not open on a blank", () => {
+    const rolled = upsertRichTextFact({ html: "", text: "" }, "attendance", roll);
+    assert.deepEqual(upsertRichTextFact(rolled, "attendance", []), {
+      html: "",
+      text: "",
+    });
+  });
+
+  it("writes nothing at all for a fact that has no lines yet", () => {
+    assert.deepEqual(upsertRichTextFact(written, "next", []), written);
+  });
+
+  it("rebuilds from the first marked block and leaves only one wearing the mark", () => {
+    /* Enter inside the recital splits it and the browser copies the mark onto both
+       halves, so one recital can be two marked blocks by the time the roll changes. */
+    const split = {
+      html: '<p data-order-fact="attendance">Present: Sunil</p><p data-order-fact="attendance"> Varghese</p>',
+      text: "Present: Sunil\n\n Varghese",
+    };
+    const corrected = upsertRichTextFact(split, "attendance", [
+      { label: "Absent", value: "Anand Traders, the accused." },
+    ]);
+    assert.equal(
+      corrected.html.match(/data-order-fact="attendance"/g)?.length,
+      1,
+    );
+    assert.ok(
+      corrected.html.startsWith(
+        '<p data-order-fact="attendance"><strong>Absent:</strong> Anand Traders, the accused.</p>',
+      ),
+    );
+  });
+
+  it("never deletes what the typist wrote inside the recital, only unmarks it", () => {
+    /* The flow that found this: mark the roll, put the caret at the end of it, press
+       Enter and write the order. Those words are in a marked block, and replacing every
+       marked block would take a sentence of a court order with it. */
+    const written = {
+      html: '<p data-order-fact="attendance">Present: Sunil Varghese</p><p data-order-fact="attendance">Heard both sides.</p>',
+      text: "Present: Sunil Varghese\n\nHeard both sides.",
+    };
+    const corrected = upsertRichTextFact(written, "attendance", [
+      { label: "Absent", value: "Anand Traders, the accused." },
+    ]);
+    assert.match(corrected.text, /Heard both sides\./);
+    assert.equal(
+      corrected.html,
+      '<p data-order-fact="attendance"><strong>Absent:</strong> Anand Traders, the accused.</p><p>Heard both sides.</p>',
+    );
+  });
+
+  it("is not a pulled-in order and never appears in that list", () => {
+    const rolled = upsertRichTextFact(written, "attendance", roll);
+    assert.ok(!rolled.html.includes("data-order-item"));
+    assert.deepEqual(orderItemsInBody([{ id: "i1" }], rolled.html), []);
+  });
+
+  it("escapes a name the markup would otherwise read as a tag", () => {
+    const rolled = upsertRichTextFact({ html: "", text: "" }, "attendance", [
+      { label: "Absent", value: "A & B <Traders>, the accused." },
+    ]);
+    assert.equal(
+      rolled.html,
+      '<p data-order-fact="attendance"><strong>Absent:</strong> A &amp; B &lt;Traders&gt;, the accused.</p><p><br></p>',
+    );
+    assert.equal(rolled.text, "Absent: A & B <Traders>, the accused.");
+  });
+});
+
+describe("appendRichText, against a closed order", () => {
+  const closed = upsertRichTextFact(
+    { html: "<p>Heard both sides.</p>", text: "Heard both sides." },
+    "next",
+    [{ label: "Next hearing", value: "6 October 2026" }],
+  );
+
+  it("puts a direction above the posting, not after it", () => {
+    const added = appendRichText(closed, {
+      html: "<p>Issue summons.</p>",
+      text: "Issue summons.",
+    });
+    assert.equal(
+      added.text,
+      "Heard both sides.\n\nIssue summons.\n\nNext hearing: 6 October 2026",
+    );
+  });
+
+  it("still closes on the posting after several directions", () => {
+    const twice = appendRichText(
+      appendRichText(closed, { html: "<p>One.</p>", text: "One." }),
+      { html: "<p>Two.</p>", text: "Two." },
+    );
+    assert.match(twice.text, /One\.\n\nTwo\.\n\nNext hearing: /);
   });
 });

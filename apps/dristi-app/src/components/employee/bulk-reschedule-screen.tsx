@@ -82,7 +82,22 @@ const readToday = () => isoDay(new Date());
 /** What the filter controls hold. `null` on either end means "the day the court is on". */
 type RangeFilters = { from: string | null; to: string | null; query: string };
 
-const EMPTY_FILTERS: RangeFilters = { from: null, to: null, query: "" };
+/**
+ * What the screen opens on: **the day the court is standing on, and only that day**
+ * (owner, 2026-09-16 — *"if today is the 16th, then I will see the 16th"*).
+ *
+ * This is a reversal, and the reason it is safe now is worth saying. The screen used to
+ * open on today and was changed on 2026-09-13 to open unasked, because writing today into
+ * both ends made the range control read as already answered: the calendar opened with a
+ * day lit and the *next* click was taken as the far end of a span starting there, so there
+ * was no way to ask for a different single day. That was a defect in what a click meant,
+ * not in the default — and it is fixed (`nextRangeFromPick`: a finished span is finished,
+ * and the next click begins a new one). With the click semantics right, a board that opens
+ * on today is what the bench wants: the work is today's list, not the court's whole future.
+ */
+function todayOnly(today: string): RangeFilters {
+  return { from: today, to: today, query: "" };
+}
 
 /** Matters this session has moved, and the day each one was moved to. */
 type MovedTo = Readonly<Record<string, string>>;
@@ -204,7 +219,14 @@ export function BulkRescheduleScreen() {
      here only on Apply, so there is still nothing here to keep in step. Nothing
      re-queries anything expensive either way: the range is a filter over rows already in
      the browser. */
-  const [filters, setFilters] = React.useState<RangeFilters>(EMPTY_FILTERS);
+  /* Initialised from `today` rather than held as a `null` that means today: the field
+     above the board has to *show* the day it is filtering to, and a null that renders as
+     "Select date range" while the board shows one day would be the control lying about
+     its own value. The lazy initialiser reads the clock the reader is standing on —
+     hydration runs it again on the client, so a server guess never sticks. */
+  const [filters, setFilters] = React.useState<RangeFilters>(() =>
+    todayOnly(today),
+  );
 
   /**
    * What the bench has picked — held as what is *in*, and empty to start with.
@@ -226,7 +248,7 @@ export function BulkRescheduleScreen() {
   /**
    * Which board is on screen.
    *
-   * **Unscheduled is the default and the work; Scheduled is the receipt** (owner,
+   * **All hearings is the default and the work; Recently scheduled is the receipt** (owner,
    * 2026-09-15). The board used to be one list with the moved matters sorted back into
    * it wearing an extra column, which made the bench read a whole range to find the four
    * rows it had just acted on — and put a New hearing date column over twenty matters
@@ -317,8 +339,12 @@ export function BulkRescheduleScreen() {
    * (see `RangeField`) and a row button that repeats both of them is a third way to do
    * what two controls already do.
    */
+  /* **Back to the day the board rests on, not to no filter at all.** The court's day is
+     not something the bench applied and cannot be cleared away (owner, 2026-09-16), so
+     the widest this control reaches is the state the screen opens in: today, and the
+     search box empty. A bench that wants more than one day asks the calendar for it. */
   function clearFilters() {
-    setFilters(EMPTY_FILTERS);
+    setFilters(todayOnly(today));
   }
 
   function changeRange(from: string | null, to: string | null) {
@@ -396,11 +422,14 @@ export function BulkRescheduleScreen() {
        what it just did — the same fault as a range left on the board after the matters in
        it have gone (owner, 2026-09-15). */
     setShownDay(null);
-    /* And give the span back. It was drawn to find the matters that have just gone, so
-       leaving it on the field means the next move starts inside a window that has already
-       been dealt with — and the board behind it reads as if the court had nothing listed
-       (owner, 2026-09-15). The search text is the bench's own words and is left alone. */
-    setFilters((current) => ({ ...current, from: null, to: null }));
+    /* And give the span back — to today, which is where the screen opens. It was drawn to
+       find the matters that have just gone, so leaving it on the field means the next move
+       starts inside a window that has already been dealt with, and the board behind it
+       reads as if the court had nothing listed (owner, 2026-09-15). Back to no bound at
+       all would be the other reading, and it is wrong now: it would leave the bench on a
+       wider board than the one they arrived on. The search text is their own words and is
+       left alone. */
+    setFilters((current) => ({ ...current, from: today, to: today }));
   }
 
   return (
@@ -423,6 +452,7 @@ export function BulkRescheduleScreen() {
       <section className="flex min-w-0 grow flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
         <RangeFilters
           filters={filters}
+          floor={{ from: today, to: today }}
           onQueryChange={(query) => setFilters({ ...filters, query })}
           onRangeChange={changeRange}
         />
@@ -446,15 +476,30 @@ export function BulkRescheduleScreen() {
             >
               {(
                 [
-                  ["unscheduled", "Unscheduled", unscheduled.length],
-                  ["scheduled", "Scheduled", scheduled.length],
+                  /* **All hearings**, and **Recently scheduled** for what this session
+                     has moved (owner, 2026-09-16). *Unscheduled* was the wrong word —
+                     nothing on the left tab is unscheduled; every matter there is listed
+                     on the day being shown, and what makes it the working list is that
+                     none of it has been moved yet.
+ 
+                     *All cases* was the first replacement and it said two wrong things:
+                     the rail already owns that phrase for a different screen, and what
+                     the tab counts is **hearings**, not cases — two listings can belong
+                     to one case, which is why the signing card states both. *Today's
+                     hearings* was the owner's suggestion and is the rail's phrase for
+                     another screen as well, and it would be false the moment the range
+                     is anything but today: the field above says which days these are,
+                     so the tab does not have to. The values behind the labels are
+                     unchanged. */
+                  ["unscheduled", "All hearings", unscheduled.length],
+                  ["scheduled", "Recently scheduled", scheduled.length],
                 ] as const
               ).map(([value, label, count]) => (
                 <TabsTrigger
                   key={value}
                   ref={value === "scheduled" ? scheduledTabRef : undefined}
                   value={value}
-                  className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
+                  className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
                 >
                   {label}
                   {/* How much is standing here, inheriting the trigger's colour so the
@@ -592,10 +637,13 @@ export function BulkRescheduleScreen() {
  */
 function RangeFilters({
   filters,
+  floor,
   onQueryChange,
   onRangeChange,
 }: {
   filters: RangeFilters;
+  /** Where the range rests when nothing has been drawn — see `RangeField`. */
+  floor: Span;
   onQueryChange: (query: string) => void;
   onRangeChange: (from: string | null, to: string | null) => void;
 }) {
@@ -610,6 +658,7 @@ function RangeFilters({
         id="reschedule-range"
         label="Hearing dates"
         range={filters}
+        floor={floor}
         onChange={onRangeChange}
         className="sm:w-72"
       />
@@ -702,12 +751,23 @@ function RangeField({
   id,
   label,
   range,
+  floor,
   onChange,
   className,
 }: {
   id: string;
   label: string;
   range: Span;
+  /**
+   * The span the field can never be emptied below — **today, on this screen.**
+   *
+   * The court's own day is not a filter the bench applied, it is where the board starts
+   * (owner, 2026-09-16: *"hearing dates will always show the current day's date, they
+   * cannot cross that out"*). So the `×` is not a way to empty the field: it appears only
+   * once the span has been drawn away from this, and it undoes that drawing rather than
+   * the day underneath it.
+   */
+  floor: Span;
   onChange: (from: string | null, to: string | null) => void;
   className?: string;
 }) {
@@ -722,8 +782,10 @@ function RangeField({
      closing the surface abandons a half-drawn span rather than leaving it armed for the
      next time it opens. */
   const [holding, setHolding] = React.useState(false);
-  const held = range.from !== null;
   const drawn = draft.from !== null;
+  /* Something to give back: the applied span is not the one the field rests on. */
+  const clearable =
+    range.from !== floor.from || (range.to ?? range.from) !== (floor.to ?? floor.from);
 
   /* Undefined, not an empty `DateRange`: the calendar is handed the value directly here
      rather than through `DateRangePicker`, whose `value === undefined` meant "this
@@ -766,7 +828,7 @@ function RangeField({
         id={`${id}-label`}
         htmlFor={`${id}-trigger`}
         data-range-part={id}
-        className="w-fit text-body font-medium"
+        className="w-fit text-body-compact font-medium"
       >
         {label}
       </label>
@@ -793,8 +855,8 @@ function RangeField({
               aria-labelledby={`${id}-label ${id}-trigger`}
               className={cn(
                 "w-full justify-start gap-2 text-left font-normal",
-                !held && "text-muted-foreground",
-                held && "pr-12",
+                range.from === null && "text-muted-foreground",
+                clearable && "pr-12",
               )}
             >
               <CalendarDaysIcon data-icon="inline-start" aria-hidden />
@@ -915,7 +977,7 @@ function RangeField({
           </PopoverContent>
         </Popover>
 
-        {held ? (
+        {clearable ? (
           /* **The same mark as the search box's clear, one control to the right.** It
              was drawn a third smaller and went unfound: `Button size="icon-xs"` shrinks
              its glyph to 12px, where the design system's own field-clear
@@ -936,12 +998,14 @@ function RangeField({
             data-range-part={id}
             variant="ghost"
             size="icon-xs"
-            aria-label={`Clear ${label.toLowerCase()}`}
+            /* Named for what it does, which is not "clear the field": it puts the board
+               back on the court's own day. */
+            aria-label={`Back to ${floor.from === null ? "no dates" : formatListingDate(floor.from)}`}
             onClick={() => {
-              onChange(null, null);
+              onChange(floor.from, floor.to);
               /* The field's own clear is not a draft: it gives the span back on the
                  spot, so the calendar behind it has nothing left to apply either. */
-              setDraft({ from: null, to: null });
+              setDraft(floor);
               setHolding(false);
             }}
             className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground after:absolute after:-inset-2 after:content-['']"
@@ -1010,7 +1074,7 @@ function NothingToMove({
           {isSearched
             ? `No matter listed${span} matches the case name or number you asked for.`
             : everythingMoved
-              ? `Every matter listed${span} is on the Scheduled tab.`
+              ? `Every matter listed${span} is on the Recently scheduled tab.`
               : `This court has nothing listed${span} that it could move.`}
         </EmptyDescription>
       </EmptyHeader>
@@ -1137,7 +1201,7 @@ function NothingRescheduled() {
           Nothing rescheduled yet
         </EmptyTitle>
         <EmptyDescription className="text-body">
-          Matters you move from the Unscheduled tab appear here, with the date
+          Matters you move from the All hearings tab appear here, with the date
           they were listed on and the date they go to.
         </EmptyDescription>
       </EmptyHeader>
@@ -1787,8 +1851,16 @@ function PickDay({
             /* Every day up to the end of the span is refused: a day already gone, a day
                one of these matters is already on, and a day inside the span the bench
                just drew are all the same wrong answer, and the control gives none of them
-               rather than explaining afterwards. */
-            disabled={{ before: parseIsoDay(earliest) }}
+               rather than explaining afterwards.
+
+               **And every day the court is closed** (owner, 2026-09-16, on Sunday; the
+               product's own `isSittingDay` also closes Saturday, and an order's next
+               listing has rolled off both since before this screen existed). The board
+               carries no weekend listings for the same reason, so a calendar that offered
+               one would be the only place in the product able to fix a hearing on a day
+               nobody is there for. Holidays are not modelled, so the control refuses what
+               it has been told and nothing it has not. */
+            disabled={[{ before: parseIsoDay(earliest) }, { dayOfWeek: [0, 6] }]}
             startMonth={parseIsoDay(earliest)}
             onSelect={(next) => {
               if (next) onDayChange(isoDay(next));

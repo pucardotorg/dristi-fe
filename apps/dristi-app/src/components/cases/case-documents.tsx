@@ -310,7 +310,7 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
             <Field className={filterFieldClass}>
               <FieldLabel
                 htmlFor="documents-type"
-                className="text-body font-medium"
+                className="text-body-compact font-medium"
               >
                 Document type
               </FieldLabel>
@@ -329,7 +329,7 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
           <Field className={filterFieldClass}>
             <FieldLabel
               htmlFor="documents-submitted-by"
-              className="text-body font-medium"
+              className="text-body-compact font-medium"
             >
               Submitted by
             </FieldLabel>
@@ -581,7 +581,7 @@ function KindTabs({
       >
         <TabsTrigger
           value="documents"
-          className="flex-none px-3 text-body after:opacity-0 data-[state=active]:text-primary"
+          className="flex-none px-3 text-body-compact after:opacity-0 data-[state=active]:text-primary"
           aria-label={`Documents, ${documentsCount}`}
         >
           Documents
@@ -589,7 +589,7 @@ function KindTabs({
         </TabsTrigger>
         <TabsTrigger
           value="bail-bonds"
-          className="flex-none px-3 text-body after:opacity-0 data-[state=active]:text-primary"
+          className="flex-none px-3 text-body-compact after:opacity-0 data-[state=active]:text-primary"
           aria-label={`Bail bonds, ${bailBondsCount}`}
         >
           Bail bonds

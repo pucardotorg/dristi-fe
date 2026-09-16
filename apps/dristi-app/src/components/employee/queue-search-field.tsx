@@ -60,11 +60,11 @@ export function QueueSearchField({
   /**
    * The label's voice, where the default is wrong for the surface.
    *
-   * Every other caller is a page-level filter row on a full-width queue, where the DS
-   * field label (`text-body`, 16px) is right. The order composer's catalogue sits in a
-   * ~410px panel column whose labels are the caption voice, and a 16px label there was
-   * louder than the group heading above it. Optional, so no existing screen moves; the
-   * class merge resolves the size conflict last-wins.
+   * Every other caller is a page-level filter row on a full-width queue, where the
+   * filter-bar voice (`text-body-compact`, 14px) is right. The order composer's
+   * catalogue sits in a ~410px panel column whose labels are the caption voice, and
+   * even 14px there is louder than the group heading above it. Optional, so no
+   * existing screen moves; the class merge resolves the size conflict last-wins.
    */
   labelClassName?: string;
   ref?: React.Ref<HTMLInputElement>;
@@ -73,7 +73,7 @@ export function QueueSearchField({
 
   return (
     <Field className={cn("min-w-0", className)}>
-      <FieldLabel className={cn("text-body", labelClassName)}>
+      <FieldLabel className={cn("text-body-compact", labelClassName)}>
         {label}
       </FieldLabel>
       <InputGroup>

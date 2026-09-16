@@ -30,9 +30,12 @@ const STRIP_ROW = "overflow-x-auto border-b border-border";
 /**
  * What this file sets on a destination, either side of the branch below: the
  * control height, no flex-grow so labels keep their own widths, and
- * `text-body` because these are screen copy rather than control chrome.
+ * `text-body-compact` — 14px, the one size every tab in the product reads at
+ * (owner, 2026-09-16). It was `text-body` on the reading that a section name is
+ * screen copy rather than control chrome; a tab is chrome whichever way its
+ * label is read, and eight of them at 16px sat too close to the case heading.
  */
-const STRIP_ITEM = "h-10 flex-none px-3 text-body";
+const STRIP_ITEM = "h-10 flex-none px-3 text-body-compact";
 
 /**
  * `TabsTrigger`'s own resting appearance, for the branch that cannot use

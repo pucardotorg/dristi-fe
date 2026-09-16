@@ -298,7 +298,7 @@ function HearingsReady({
           <Field className={filterFieldClass}>
             <FieldLabel
               htmlFor="hearings-type"
-              className="text-body font-medium"
+              className="text-body-compact font-medium"
             >
               Type
             </FieldLabel>

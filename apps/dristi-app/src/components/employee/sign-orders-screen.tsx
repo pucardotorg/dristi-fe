@@ -322,7 +322,7 @@ export function SignOrdersScreen() {
                 <TabsTrigger
                   key={value}
                   value={value}
-                  className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
+                  className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
                 >
                   {label}
                   {/* How much is standing here, inheriting the trigger's colour so the
@@ -498,7 +498,7 @@ function SignOrderFiltersForm({
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-orders-status" className="w-fit text-body">
+        <Label htmlFor="sign-orders-status" className="w-fit text-body-compact">
           Status
         </Label>
         <Select
@@ -534,7 +534,7 @@ function SignOrderFiltersForm({
           the value is the only fix that does not edit the primitive — upstream DS bug,
           logged in the build report. */}
       <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-orders-date-label" className="w-fit text-body font-medium">
+        <span id="sign-orders-date-label" className="w-fit text-body-compact font-medium">
           Date added
         </span>
         <div role="group" aria-labelledby="sign-orders-date-label">

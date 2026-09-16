@@ -21,7 +21,9 @@ import {
   type ListingApplication,
   type ListingApplicationDecision,
 } from "./listing-applications";
-import type { OrderItemDraft } from "./order-items";
+/* Type-only. `OrderRecitalLine` is stated where the markup for it is built, so the
+   recital's shape and its rendering cannot drift apart. */
+import type { OrderItemDraft, OrderRecitalLine } from "./order-items";
 import type { OrderTemplateFacts } from "./order-templates";
 import {
   CAUSE_LIST,
@@ -402,7 +404,10 @@ export function assembleNextListing(
       pending: true,
     };
   }
-  const day = formatCourtDay(draft.nextDate);
+  /* **The order's register, not the screen's** — the rule `orderTemplateFacts` states,
+     and this is a sentence of the order. "Posted to Tuesday, 6 October 2026" is how a
+     screen names a day to someone choosing one; an order writes "6 October 2026". */
+  const day = formatOrderDate(draft.nextDate);
   if (!draft.nextPurpose) {
     return {
       id: "next",
@@ -417,6 +422,85 @@ export function assembleNextListing(
     body: `Posted to ${day} for ${courtHearingPurposeLabel(draft.nextPurpose).toLowerCase()}.`,
     pending: false,
   };
+}
+
+/**
+ * Attendance as the order opens on it: **Present** and **Absent**, with the offices
+ * behind each.
+ *
+ * The block beside the writing asks the question, one office at a time; this is the
+ * answer, in the order, where the typist can correct it (owner, 2026-09-16: the marks
+ * "should also show up in the text box"). It is grouped by the answer rather than by the
+ * office, and that is the whole difference between this and the running sentences it
+ * replaced (owner, same day: "a proper structured order, rather than just dumping it"):
+ * what a reader wants out of an appearance line is *who was absent*, and four sentences
+ * of "X is present." hide it in the middle of a paragraph.
+ *
+ * Names *and* offices — "Sunil Varghese, the complainant" — because an order records who
+ * appeared, not merely that somebody in that office did. A side that has nobody on it
+ * prints no line at all rather than an empty one: **Absent:** standing over nothing would
+ * be a line about nobody, and *no one was absent* is exactly what its absence says.
+ *
+ * It grows one office at a time, because a partly called roll is not pending: the order
+ * recites who has been marked so far and takes on the rest as they are answered. Only
+ * the wholly unmarked roll recites nothing at all.
+ */
+export function attendanceRecital(
+  appearances: Appearance[],
+  marks: OrderDraft["marks"],
+): OrderRecitalLine[] {
+  const marked = assembleAttendance(appearances, marks).appearances ?? [];
+  return (
+    [
+      ["Present", "present"],
+      ["Absent", "absent"],
+    ] as const
+  ).flatMap(([label, mark]) => {
+    const roll = marked.filter((entry) => entry.mark === mark);
+    if (roll.length === 0) return [];
+    /* Semicolons between people, commas inside each of them: the comma is what joins a
+       name to the office they appear in, so it cannot also be what separates one person
+       from the next. */
+    return [
+      {
+        label,
+        value: `${roll
+          .map((entry) => `${entry.name}, ${entry.office}`)
+          .join("; ")}.`,
+      },
+    ];
+  });
+}
+
+/**
+ * The posting as the order closes on it: the date, then what it is for.
+ *
+ * The two facts as their own lines rather than as one sentence, for the reason the roll
+ * is two lines (owner, 2026-09-16) — and in this order because the date is the operative
+ * fact of a posting and the purpose qualifies it. The block above asks for the purpose
+ * first, since that is the order a typist decides them in; the order records the date
+ * first, since that is what a reader looks for.
+ *
+ * **Nothing while the posting is half given.** A purpose without a date and a date
+ * without a purpose are halves of one fact — the rule `postingSettled` states and
+ * `assembleNextListing` reports as `pending` — and half a posting is not something a
+ * court order can carry, so the passage waits for the second answer. A matter that is
+ * not being listed again is a settled answer and says so.
+ */
+export function nextListingRecital(
+  draft: Pick<OrderDraft, "next" | "nextPurpose" | "nextDate">,
+): OrderRecitalLine[] {
+  if (draft.next === "none") {
+    return [{ label: "Next hearing", value: "Not listed again." }];
+  }
+  if (!draft.nextDate || !draft.nextPurpose) return [];
+  return [
+    { label: "Next hearing", value: formatOrderDate(draft.nextDate) },
+    {
+      label: "Purpose",
+      value: courtHearingPurposeLabel(draft.nextPurpose),
+    },
+  ];
 }
 
 /**

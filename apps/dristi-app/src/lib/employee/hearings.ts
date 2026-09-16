@@ -730,6 +730,32 @@ export function shiftDay(day: string, delta: number): string {
  * so lands on the previous day for every court west of Greenwich. Kollam is not one of
  * them, but the bug is silent and the fix is one line.
  */
+/**
+ * **Whether this court sits on a day at all.** Monday to Friday, and nothing else.
+ *
+ * The rule was already in the product and already tested — `nextSittingDay` in
+ * `order-demo.ts` rolls a next listing forward off `[0, 6]` so an order never names a day
+ * the court is closed. It lives here now because a second screen needs it: the bulk
+ * reschedule board carries no weekend listings and its calendar refuses to offer one, and
+ * two copies of "which days are sitting days" is the kind of rule that drifts apart by a
+ * day and is then wrong in one place only. `nextSittingDay` still applies it inline; it
+ * should take this predicate the next time that file is open.
+ *
+ * **Saturday is closed, on the product's own evidence rather than on an assumption.** The
+ * owner's instruction was about Sunday (2026-09-16) and this goes one day further, which
+ * is a deviation worth naming: `nextSittingDay` has excluded Saturday since before this
+ * screen existed, so listing matters on a Saturday here would have put the board at odds
+ * with every order the same court issues. One line in this function is the whole cost of
+ * reversing that if the owner means Saturdays to sit.
+ *
+ * **Holidays are not modelled.** Onam, a declared bandh, a day the Chief Justice closes —
+ * a prototype that invented those would be asserting a calendar nobody has given it.
+ */
+export function isSittingDay(day: string): boolean {
+  const weekday = parseIsoDay(day).getDay();
+  return weekday !== 0 && weekday !== 6;
+}
+
 export function parseIsoDay(day: string): Date {
   const [year, month, date] = day.split("-").map(Number);
   return new Date(year, month - 1, date);

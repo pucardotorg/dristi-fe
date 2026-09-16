@@ -29,6 +29,7 @@ import {
   CAUSE_LIST,
   causeTitle,
   formatOrderDate,
+  isSittingDay,
   isoDay,
   parseIsoDay,
   type CourtCaseStage,
@@ -68,7 +69,17 @@ export function listedOn(row: ReschedulableHearing): string {
   return row.newDate ?? row.date;
 }
 
-/** A listing on a day the court has already fixed, held as a distance from today. */
+/**
+ * A listing on a day the court has already fixed, held as a distance from today **in
+ * sitting days** — `offset: 1` is the next day this court sits, not tomorrow.
+ *
+ * Calendar days were the first reading and they cannot survive the sitting-day rule: an
+ * offset of 5 from a Monday is a Saturday, so the fixture at that distance simply vanished
+ * — and *which* fixtures vanished changed with the day of the week the screen was opened,
+ * which is a board that cannot be tested or pointed at. Counting in sitting days keeps
+ * every fixture on the board and keeps all of them on days the court is open, whatever
+ * today happens to be.
+ */
 type UpcomingListing = Omit<ReschedulableHearing, "date"> & { offset: number };
 
 /**
@@ -255,11 +266,103 @@ const UPCOMING: UpcomingListing[] = [
   },
 ];
 
+/** How far ahead the prototype's board reaches — forty sittings, about eight weeks. */
+const BOARD_SITTINGS = 40;
+
+/**
+ * Names for the days the hand-written fixtures do not reach.
+ *
+ * `UPCOMING` above is deliberate: long titles, every stage, complaint numbers beside
+ * summary-trial ones. It covers twelve sittings out of forty, which was enough while
+ * the board opened unasked and the bench arrived on everything. It is not enough now that
+ * the screen opens on one day and the range is the way around: a bench moving Thursday's
+ * board wants Thursday to have something on it (owner, 2026-09-16 — *"cases for all
+ * dates"*).
+ *
+ * So every sitting day the fixtures miss gets two or three matters drawn from these,
+ * deterministically by day, because a board that reshuffles between renders is a board
+ * nobody can point at twice.
+ */
+const FILLER_PARTIES: { complainant: string; respondent: string }[] = [
+  { complainant: "Vijayan Pillai", respondent: "Kollam Coir Traders" },
+  { complainant: "Leela Mohan", respondent: "Ashtamudi Marine Exports" },
+  { complainant: "Sabu Chacko", respondent: "Thevally Steel Syndicate" },
+  { complainant: "Girija Damodaran", respondent: "Punalur Paper Agencies" },
+  { complainant: "Anil Kurup", respondent: "Kottarakkara Cashew Works" },
+  { complainant: "Remya Suresh", respondent: "Chinnakada Gold Palace" },
+  { complainant: "Basheer Kunju", respondent: "Karunagappally Tile Company" },
+  { complainant: "Sheela Thomas", respondent: "Paravur Lake Resorts Pvt Ltd" },
+  { complainant: "Manoj Prasad", respondent: "Kundara Rubber Industries" },
+  { complainant: "Fathima Rasheed", respondent: "Chathannoor Poultry Farm" },
+  { complainant: "Unnikrishnan Nair", respondent: "Sasthamcotta Transport Service" },
+  { complainant: "Devika Ramesh", respondent: "Anchalummoodu Timber Mart" },
+  { complainant: "Joseph Varkey", respondent: "Neendakara Fishing Fleet" },
+  { complainant: "Sreelatha Vijayan", respondent: "Pathanapuram Spice Board Agency" },
+  { complainant: "Riyas Muhammed", respondent: "Kadappakada Auto Works" },
+];
+
+const FILLER_STAGES: { stage: CourtCaseStage; purpose: CourtHearingPurposeId }[] = [
+  { stage: "cognizance", purpose: "cognizance" },
+  { stage: "cognizance", purpose: "delay-condonation" },
+  { stage: "process", purpose: "appearance" },
+  { stage: "appearance", purpose: "admission" },
+  { stage: "plea", purpose: "plea" },
+  { stage: "evidence", purpose: "evidence-of-complainant" },
+  { stage: "evidence", purpose: "for-reports" },
+  { stage: "arguments", purpose: "arguments" },
+  { stage: "judgement", purpose: "judgement" },
+  { stage: "appearance", purpose: "bail" },
+];
+
+/**
+ * The matters on one day that the fixtures left empty.
+ *
+ * Two or three, alternating, so consecutive days do not look stamped from one template;
+ * the party and the stage advance on their own cycles so a day is not three rows of the
+ * same posture either. Case numbers run in their own series (`ST/4xx`, `CMP/9xx`) so they
+ * can never collide with a hand-written fixture.
+ */
+function fillerFor(sitting: number): UpcomingListing[] {
+  const count = 2 + (sitting % 2);
+  return Array.from({ length: count }, (_, index) => {
+    const seed = sitting * 3 + index;
+    const parties = FILLER_PARTIES[seed % FILLER_PARTIES.length];
+    const posture = FILLER_STAGES[seed % FILLER_STAGES.length];
+    const summary = seed % 3 !== 0;
+    const serial = 400 + seed;
+    return {
+      id: `r-fill-${sitting}-${index}`,
+      caseNumber: summary ? `ST/${serial}/2026` : `CMP/${serial + 500}/2026`,
+      title: `${parties.complainant} v. ${parties.respondent}`,
+      stage: posture.stage,
+      purpose: posture.purpose,
+      offset: sitting,
+    };
+  });
+}
+
 /** `YYYY-MM-DD`, `n` days on. Built through a Date so month and year ends are the OS's. */
 export function addDays(day: string, count: number): string {
   const date = parseIsoDay(day);
   date.setDate(date.getDate() + count);
   return isoDay(date);
+}
+
+/**
+ * The `n`th day this court sits after `from` — weekends skipped, never counted.
+ *
+ * Here rather than beside `isSittingDay` because it needs `addDays`, and `hearings.ts`
+ * importing this module back would be a cycle. The predicate is the shared fact; walking
+ * it is arithmetic.
+ */
+function nthSittingDay(from: string, count: number): string {
+  let day = from;
+  for (let step = 0; step < count; step += 1) {
+    do {
+      day = addDays(day, 1);
+    } while (!isSittingDay(day));
+  }
+  return day;
 }
 
 /**
@@ -289,12 +392,27 @@ export function reschedulableHearings(today: string): ReschedulableHearing[] {
     date: today,
   }));
 
-  const ahead: ReschedulableHearing[] = UPCOMING.map(
-    ({ offset, ...listing }) => ({
-      ...listing,
-      date: addDays(today, offset),
-    }),
-  );
+  /* Every sitting day in the window, so a range drawn anywhere inside it lands on
+     something: the hand-written listings where there are any, filler where there are
+     none, and nothing at all on a day the court is closed. */
+  const spoken = new Set(UPCOMING.map((listing) => listing.offset));
+  const ahead: ReschedulableHearing[] = [];
+  for (let sitting = 1; sitting <= BOARD_SITTINGS; sitting += 1) {
+    const date = nthSittingDay(today, sitting);
+    const listings = spoken.has(sitting)
+      ? UPCOMING.filter((listing) => listing.offset === sitting)
+      : fillerFor(sitting);
+    for (const listing of listings) {
+      ahead.push({
+        id: listing.id,
+        caseNumber: listing.caseNumber,
+        title: listing.title,
+        stage: listing.stage,
+        purpose: listing.purpose,
+        date,
+      });
+    }
+  }
 
   return [...listedToday, ...ahead].sort(byListing);
 }

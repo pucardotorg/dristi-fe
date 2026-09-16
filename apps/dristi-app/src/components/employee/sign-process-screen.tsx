@@ -398,7 +398,7 @@ export function SignProcessScreen() {
               <TabsTrigger
                 key={entry.id}
                 value={entry.id}
-                className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
+                className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
               >
                 {entry.label}
                 {/* How much is standing here. One presentation across all five, and it
@@ -659,7 +659,7 @@ function ProcessFiltersForm({
       }}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-process-type" className="w-fit text-body">
+        <Label htmlFor="sign-process-type" className="w-fit text-body-compact">
           Process type
         </Label>
         <Select
@@ -684,7 +684,7 @@ function ProcessFiltersForm({
 
       {stage.onlyChannel === undefined ? (
         <div className="flex min-w-0 flex-col gap-2">
-          <Label htmlFor="sign-process-channel" className="w-fit text-body">
+          <Label htmlFor="sign-process-channel" className="w-fit text-body-compact">
             Delivery channel
           </Label>
           <Select
@@ -724,7 +724,7 @@ function ProcessFiltersForm({
         <div className="flex min-w-0 flex-col gap-2">
           <span
             id="sign-process-hearing-label"
-            className="w-fit text-body font-medium"
+            className="w-fit text-body-compact font-medium"
           >
             Hearing date
           </span>

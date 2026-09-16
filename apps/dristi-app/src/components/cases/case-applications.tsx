@@ -329,7 +329,7 @@ function ApplicationsReady({ file }: { file: ApplicationsFile }) {
           <Field className={filterFieldClass}>
             <FieldLabel
               htmlFor="applications-type"
-              className="text-body font-medium"
+              className="text-body-compact font-medium"
             >
               Type
             </FieldLabel>
@@ -347,7 +347,7 @@ function ApplicationsReady({ file }: { file: ApplicationsFile }) {
           <Field className={filterFieldClass}>
             <FieldLabel
               htmlFor="applications-status"
-              className="text-body font-medium"
+              className="text-body-compact font-medium"
             >
               Status
             </FieldLabel>
@@ -384,7 +384,7 @@ function ApplicationsReady({ file }: { file: ApplicationsFile }) {
           <Field className={filterFieldClass}>
             <FieldLabel
               htmlFor="applications-submitted-by"
-              className="text-body font-medium"
+              className="text-body-compact font-medium"
             >
               Submitted by
             </FieldLabel>

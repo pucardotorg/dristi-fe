@@ -329,7 +329,7 @@ function RoundTab({
       tabIndex={selected ? 0 : -1}
       onClick={onSelect}
       className={cn(
-        "flex min-h-10 items-center rounded-lg border border-border px-2.5 py-2 text-body font-medium text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-focus-ring",
+        "flex min-h-10 items-center rounded-lg border border-border px-2.5 py-2 text-body-compact font-medium text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-focus-ring",
         selected && "border-primary bg-accent-strong hover:bg-accent-strong"
       )}
     >

@@ -313,13 +313,13 @@ export function HearingRecordStep({
           >
             <TabsTrigger
               value="transcript"
-              className="px-3 text-body whitespace-nowrap"
+              className="px-3 text-body-compact whitespace-nowrap"
             >
               Transcript
             </TabsTrigger>
             <TabsTrigger
               value="depositions"
-              className="px-3 text-body whitespace-nowrap"
+              className="px-3 text-body-compact whitespace-nowrap"
             >
               Witness deposition
             </TabsTrigger>

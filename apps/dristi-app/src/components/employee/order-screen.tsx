@@ -8,7 +8,6 @@ import {
   CalendarDaysIcon,
   CalendarX2Icon,
   InboxIcon,
-  PencilIcon,
   ScrollTextIcon,
   TrashIcon,
 } from "lucide-react";
@@ -99,7 +98,9 @@ import {
 import { initialOrderDraft } from "@/lib/employee/order-demo";
 import {
   appearancesFor,
+  attendanceRecital,
   buildOrderDocument,
+  nextListingRecital,
   nextUnhandledListing,
   orderTemplateFacts,
   type Appearance,
@@ -115,6 +116,7 @@ import {
   orderItemLabel,
   orderItemsInBody,
   richTextWithoutItem,
+  upsertRichTextFact,
   upsertRichTextSentence,
   type OrderItemDraft,
   type OrderItemTypeId,
@@ -489,43 +491,37 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
 
   const appearances = React.useMemo(() => appearancesFor(hearing), [hearing]);
   /**
-   * Whether the roll has been set down, which is what decides if the page shows the
-   * controls or the lines they produce (owner, 2026-09-15).
+   * **Both blocks stay as their controls, for the whole sitting** (owner, 2026-09-16:
+   * attendance and the next hearing should "stay as it is, even after filling up all the
+   * details").
    *
-   * The roll is the one block on this sheet whose form is bigger than its output: four
-   * rows of controls print as one or two lines. Leaving the form standing after the roll
-   * is called costs the page ~130px permanently and, worse, leaves the sheet reading as a
-   * form for the rest of the sitting — the typist's remaining work is the *writing*, and
-   * the document should look like one by then.
+   * They used to swap themselves for the lines they produce the moment they were
+   * answered — the roll printing as *Present: …* with an **Edit** on its eyebrow, the
+   * posting as its two labelled values. The reasoning was space: four rows of controls
+   * print as two lines, and a sheet still wearing its form is a sheet that does not look
+   * like a document.
    *
-   * It is composer state, not a fact of the order: nothing about `draft.marks` changes
-   * when it flips, and it dies with the composer like the rest of the draft. A listing
-   * that arrives with every appearance already answered — a completed sitting, whose
-   * draft `initialOrderDraft` fills in (D23) — opens set down, because the roll was
-   * called before this screen was ever opened.
+   * What retired it is where those lines now go. The roll recites itself into the order
+   * as it is called and the posting closes it (`attendanceRecital`,
+   * `nextListingRecital`, owner 2026-09-16), so the read-back on the sheet was a second
+   * statement of a fact the passage below it already carried — and the controls are their
+   * own read-back besides: a segment holding *Absent* says the accused is absent, and a
+   * date field showing 30 Sept 2026 says the date. What went with the swap is the whole
+   * **Edit** dance, which existed only to get back from it.
    *
-   * **It flips on the last answer, not on a press** (owner, 2026-09-15: once everything
-   * is selected it should just be done). An `Apply attendance` button stood here for part
-   * of the day, on the reasoning that only the typist can say when a roll with an
-   * unaccountable office is finished. That case does not pay for a confirmation on every
-   * ordinary sitting: the marks were always live in the draft, so the press was
-   * confirming a record that was already written, and `Edit` was always the way back. Its
-   * one real consequence is stated plainly — a roll left deliberately part-called keeps
-   * its controls, which is the page saying the roll has not been called.
+   * The cost is stated rather than hidden: the sheet keeps ~180px of controls above the
+   * writing for the rest of the sitting. That is the trade the owner asked for, and it is
+   * one setting away from being reversed.
    *
-   * The panel's roll had no Apply either, for a related reason that still holds there: a
-   * section row promising "2 present, 1 absent" cannot be true unless the mark is already
-   * in the draft. This only ever governed how the block *renders*, never the record.
+   * One latch survives it. The walk moves the typist on when the roll is *first*
+   * completed (`mark`), and with nothing in the render to read that off any more, the
+   * press has to be recognised on its own: a ref, because it steers one event and must
+   * never cause a render. A completed sitting arrives with its roll already called, so it
+   * starts latched — the bench correcting an office on a finished order is not walked
+   * forward again.
    */
-  const [rollApplied, setRollApplied] = React.useState(() =>
+  const walkedFromRoll = React.useRef(
     appearances.every((appearance) => draft.marks[appearance.id]),
-  );
-  /**
-   * And the same for the posting: once it holds a purpose and a date the block is the two
-   * lines it produces, with the way back on its eyebrow.
-   */
-  const [postingApplied, setPostingApplied] = React.useState(() =>
-    postingSettled(draft),
   );
   const upNext = nextUnhandledListing(hearing, session);
   /* One document for the page and the preview. They print the same artefact, so they
@@ -723,10 +719,11 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
    * the sentence the live region reads out, because the announcement and the move have to
    * agree about where the typist has just been sent.
    *
-   * **It does not answer for the roll.** Every caller is a roll that has just been called
-   * or set down, so a branch sending the reader back up to attendance could only ever
-   * fire on the one press that had just finished with it — which is how setting down a
-   * part-called roll used to bounce focus back onto the block it had just closed.
+   * **It does not answer for the roll.** Every caller has a roll that has just been
+   * called — `mark` on the press that completed it, `postNext` only after testing that
+   * it is — so a branch sending the reader back up to attendance could only ever fire on
+   * the press that had just finished with it, which is how this used to bounce focus back
+   * onto the block it had just closed.
    *
    * Takes the posting as arguments rather than reading the draft: every caller is inside
    * the action that just changed it, where `draft` is still the value from the render
@@ -743,45 +740,6 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     }
     showSection("orders");
     return "What the court passed is now open.";
-  }
-
-  /**
-   * Set the roll down as it stands, complete or not.
-   *
-   * **Back on the owner's instruction (2026-09-15), and the case is a real one:** the
-   * accused's advocate was not required to attend, so they are neither present nor
-   * absent — there is no answer to give, and a record that says "absent" would be a
-   * false line in a court order. A roll like that never becomes complete, so the block
-   * would stand open as a form for the rest of the sitting with no way to close it.
-   *
-   * It does not replace the automatic set-down, it backstops it: a roll where every
-   * office has an answer still closes on the last mark, so the ordinary sitting never
-   * presses this. Which is also why it is enabled irrespective of what has been marked —
-   * the press exists precisely for the rolls the rule cannot finish, and a control
-   * disabled exactly when someone needs it is worse than one rarely used. The order
-   * prints the gap in its own muted voice, as it always did.
-   */
-  function applyRoll() {
-    setRollApplied(true);
-    const marked = appearances.filter(
-      (appearance) => draft.marks[appearance.id],
-    ).length;
-    const gap =
-      marked === appearances.length
-        ? ""
-        : marked === 0
-          ? " No appearance has an answer, and the order says the roll was not marked."
-          : " Not every appearance has an answer, and the order prints the gap.";
-    setAnnouncement(
-      `Attendance is set down on the order.${gap} ${walkOn(draft.next, draft.nextPurpose, draft.nextDate)}`,
-    );
-  }
-
-  /** Back to the controls, with the reader put on the block they just reopened. */
-  function editRoll() {
-    setRollApplied(false);
-    document.getElementById("order-attendance")?.focus();
-    setAnnouncement("Attendance is open for correction.");
   }
 
   /**
@@ -1005,35 +963,42 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   function mark(id: string, value: AttendanceMark | undefined) {
     /* The write goes through the updater so it merges into whatever the draft holds at
        the time it lands; the local copy below is only what the completeness test reads,
-       and it never becomes the value written. */
-    setDraft((current) => ({
-      ...current,
-      marks: { ...current.marks, [id]: value },
-    }));
+       and it never becomes the value written.
+
+       **And the roll recites itself into the order** (owner, 2026-09-16). The recital is
+       built from the marks the updater is about to hold, not from `draft.marks`, which
+       is the value of the render being replaced — the line has to say what the roll says
+       after this press. `upsertRichTextFact` writes over the previous recital rather
+       than beside it, so correcting an office corrects the order instead of leaving it
+       carrying two answers for the same person. */
+    setDraft((current) => {
+      const rolled = { ...current.marks, [id]: value };
+      return {
+        ...current,
+        marks: rolled,
+        body: upsertRichTextFact(
+          current.body,
+          "attendance",
+          attendanceRecital(appearances, rolled),
+        ),
+      };
+    });
+    /* The box has to re-read: the editor takes its markup on mount and this is a write
+       the typist did not make. Same reason answering an application bumps it. */
+    setBodyWrites((count) => count + 1);
 
     const marks = { ...draft.marks, [id]: value };
     const complete = appearances.every((appearance) => marks[appearance.id]);
-    /* **A complete roll on an open block sets itself down** (owner, 2026-09-15): every
-       office has an answer, so there is nothing left for a confirmation to confirm, and
-       `Edit` is the way back if one of them is wrong. It mirrors the posting, which
-       settles the moment it holds a purpose and a date.
-
-       **The test is the block's state, not the roll's transition.** It read "was
-       incomplete, is now complete", which is true exactly once and left a corrected roll
-       standing open for the rest of the sitting: after `Edit` the roll is already
-       complete, so switching one office from present to absent changed nothing the
-       condition could see (owner, 2026-09-15 — the block "remains the way it is instead
-       of going back"). Asking whether the block is open instead answers both the first
-       calling and every correction after it, and it cannot re-fire while the roll is set
-       down, because the controls are not on the page then.
-
-       The walk has to run here, not merely because it is the next step, but because the
-       control that was just pressed unmounts with the form — focus left on a removed
-       segment falls to the body and the next Tab restarts at the top of the page. */
-    if (complete && !rollApplied) {
-      setRollApplied(true);
+    /* **The press that finishes calling the roll walks the sitting on**, and only that
+       one. The block no longer changes when the roll completes (owner, 2026-09-16), so
+       there is nothing in the render to ask — `walkedFromRoll` is the latch, and it stays
+       latched through every correction afterwards. A roll that is cleared and answered
+       again is the same roll, already called; marching the typist forward a second time
+       is how this used to take focus off work they had come back to. */
+    if (complete && !walkedFromRoll.current) {
+      walkedFromRoll.current = true;
       setAnnouncement(
-        `Attendance is set down on the order. ${walkOn(draft.next, draft.nextPurpose, draft.nextDate)}`,
+        `Attendance is called on the order. ${walkOn(draft.next, draft.nextPurpose, draft.nextDate)}`,
       );
     }
   }
@@ -1050,7 +1015,22 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   function postNext(
     change: Partial<Pick<OrderDraft, "next" | "nextPurpose" | "nextDate">>,
   ) {
-    setDraft((current) => ({ ...current, ...change }));
+    /* **The posting closes the order, so it is written into the passage too** (owner,
+       2026-09-16). Read off the merged draft inside the updater for the same reason the
+       roll is, and gated by `nextListingRecital`: a purpose with no date yet is half a
+       fact, and half a fact is not a sentence a court order can carry. */
+    setDraft((current) => {
+      const merged = { ...current, ...change };
+      return {
+        ...merged,
+        body: upsertRichTextFact(
+          current.body,
+          "next",
+          nextListingRecital(merged),
+        ),
+      };
+    });
+    setBodyWrites((count) => count + 1);
     /* The posting as it stands *after* this change. `draft` is the value from the render
        being replaced, and `nextDate` can legitimately be set to `null`, so the merge
        tests for `undefined` rather than falling back on truthiness. */
@@ -1061,7 +1041,6 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         change.nextDate !== undefined ? change.nextDate : draft.nextDate,
     };
     if (!postingSettled(posting)) return;
-    setPostingApplied(true);
     /* Set down either way; the walk only moves when there is somewhere sensible to move
        to. A typist who has posted the matter before calling the roll is not dragged back
        up the sheet to the roll they chose to leave for later. */
@@ -1072,13 +1051,6 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     setAnnouncement(
       walkOn(posting.next, posting.nextPurpose, posting.nextDate),
     );
-  }
-
-  /** Back to the two fields, with the reader put on the block they just reopened. */
-  function editPosting() {
-    setPostingApplied(false);
-    document.getElementById("order-next")?.focus();
-    setAnnouncement("The next posting is open for correction.");
   }
 
   /**
@@ -1430,11 +1402,6 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           onBody={setBody}
           suggestion={suggestion}
           onMark={mark}
-          rollApplied={rollApplied}
-          onApplyRoll={applyRoll}
-          onEditRoll={editRoll}
-          postingApplied={postingApplied}
-          onEditPosting={editPosting}
           onSkip={(skip) => postNext({ next: skip ? "none" : "list" })}
           onPurpose={(nextPurpose) => postNext({ nextPurpose })}
           onDate={(nextDate) => postNext({ nextDate })}
@@ -2127,8 +2094,8 @@ function OrderItems({
        of its own, and a scroll region you cannot click through is worse than one with no
        fade. */
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      {/* The panel's label voice, not the DS field default. See the prop's own note:
-          16px here was louder than the captions of the sections it stands over. */}
+      {/* The panel's label voice, not the filter-bar default. See the prop's own note:
+          even 14px here was louder than the captions of the sections it stands over. */}
       <QueueSearchField
         label="Search orders"
         value={query}
@@ -2531,11 +2498,6 @@ function OrderPaper({
   onBody,
   suggestion,
   onMark,
-  rollApplied,
-  onApplyRoll,
-  onEditRoll,
-  postingApplied,
-  onEditPosting,
   onSkip,
   onPurpose,
   onDate,
@@ -2551,11 +2513,6 @@ function OrderPaper({
   /** What "/" completes from in the writable region — see the screen's own note. */
   suggestion: RichTextSuggestion;
   onMark: (id: string, mark: AttendanceMark | undefined) => void;
-  rollApplied: boolean;
-  onApplyRoll: () => void;
-  onEditRoll: () => void;
-  postingApplied: boolean;
-  onEditPosting: () => void;
   onSkip: (skip: boolean) => void;
   onPurpose: (purpose: CourtHearingPurposeId | "") => void;
   onDate: (day: string | null) => void;
@@ -2582,14 +2539,13 @@ function OrderPaper({
         {order.title}
       </h2>
 
-      {/* **A well in both states** (owner, 2026-09-16). Each block was framed only while
-          it was still a form, on the reading that a box drawn round set-down lines would
-          undo what Apply had just said. On the render it undid something else: the roll
-          and the posting dissolved into the sheet once they were answered, so the two
-          facts a typist settles before composing anything became the least visible thing
-          on the page. The well now stays through both states — the block holds its place
-          whether it is being answered or read back — and what Apply changes is the
-          content and the arrival of **Edit**, which is where that news belongs. */}
+      {/* **A well, and the controls inside it, for the whole sitting** (owner,
+          2026-09-16). The blocks were framed only while they were still forms, then
+          framed in both states, and now they have only one state: what the typist
+          answered stays on screen exactly as they answered it. The read-back they used to
+          swap themselves for said nothing the controls do not already say — a segment
+          holding *Absent* is a record of absence — and the order below now carries the
+          same facts in its own words, where they can be corrected. */}
       {/* **The sitting's two facts, side by side** (owner, 2026-09-15). The posting used
           to sit at the foot of the sheet, below the writing, which put the two things a
           typist settles before composing anything at opposite ends of the page — and cost
@@ -2597,82 +2553,31 @@ function OrderPaper({
 
           Two columns from `md` up and one below it: each block holds a label beside a
           control, and at a phone's width there is no room for two of those across.
-          `items-start` so a four-row roll does not stretch the two-field posting to match
-          its height — they are neighbours, not a table. */}
-      <div className="grid min-w-0 gap-4 md:grid-cols-2 md:items-start">
-        <PaperBlock
-          id="order-attendance"
-          label="Attendance"
-          focusable
-          action={
-            rollApplied ? (
-              /* **Brand teal and a pencil** (owner, 2026-09-15). `text-primary` is the
-               app's action colour and the one this page's own text buttons wore before
-               2026-09-14 — not `success`, which is a true green reserved for an outcome
-               and would claim something had succeeded. `hover:text-primary` because
-               `ghost` otherwise takes the label to `foreground` on hover, which would
-               drop the brand exactly when the pointer is on it.
 
-               The icon is fine here and would not be on the footer's Send to sign order:
-               that rule is about the screen's primary CTA, whose label carries the act on
-               its own. This is a 32px affordance on an eyebrow, where the pencil is what
-               makes "Edit" findable at a glance in a page of printed lines. `data-icon`
-               is the DS's own hook for the tighter leading padding an icon wants, and
-               `aria-hidden` because the label already says it. */
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="shrink-0 text-primary hover:text-primary"
-                onClick={onEditRoll}
-              >
-                <PencilIcon data-icon="inline-start" aria-hidden />
-                Edit
-              </Button>
-            ) : null
-          }
-        >
-          {rollApplied ? (
-            <AttendanceRolls document={order} />
-          ) : (
-            <PaperAttendance
-              appearances={appearances}
-              marks={marks}
-              onMark={onMark}
-              onApply={onApplyRoll}
-            />
-          )}
+          **One height across the row** (owner, 2026-09-16: match attendance to next
+          hearing). It was `items-start`, so each block was exactly as tall as its own
+          contents and the shorter one left a step in the row — now that neither block
+          ever swaps itself for a shorter read-back, that step is permanent. The grid's own
+          `stretch` is what closes it: the row is as tall as the taller block and both
+          wells fill it, so the pair reads as one band of the sheet's furniture rather
+          than as two boxes that happen to be adjacent. Nothing is stretched *inside*
+          them — the controls keep their own sizes and sit at the top. */}
+      <div className="grid min-w-0 gap-4 md:grid-cols-2">
+        <PaperBlock id="order-attendance" label="Attendance">
+          <PaperAttendance
+            appearances={appearances}
+            marks={marks}
+            onMark={onMark}
+          />
         </PaperBlock>
 
-        <PaperBlock
-          id="order-next"
-          label="Next hearing"
-          focusable
-          action={
-            postingApplied ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="shrink-0 text-primary hover:text-primary"
-                onClick={onEditPosting}
-              >
-                <PencilIcon data-icon="inline-start" aria-hidden />
-                Edit
-              </Button>
-            ) : null
-          }
-        >
-          {postingApplied ? (
-            <NextHearingLines document={order} draft={draft} />
-          ) : (
-            <PaperNextHearing
-              draft={draft}
-              onSkip={onSkip}
-              onPurpose={onPurpose}
-              onDate={onDate}
-            />
-          )}
+        <PaperBlock id="order-next" label="Next hearing" focusable>
+          <PaperNextHearing
+            draft={draft}
+            onSkip={onSkip}
+            onPurpose={onPurpose}
+            onDate={onDate}
+          />
         </PaperBlock>
       </div>
 
@@ -2693,52 +2598,6 @@ function OrderPaper({
         />
       </div>
     </article>
-  );
-}
-
-/**
- * Attendance as the order prints it once the roll is set down: two lines, not a running
- * sentence.
- *
- * The offices are listed, not the names — an order sheet's Present line names offices,
- * and the block was a table of them a press ago. A side that has nobody on it prints no
- * line at all rather than an empty one: "Absent: —" is a sentence about nothing, and an
- * unmarked roll says so in the muted voice rather than leaving the eyebrow over nothing.
- */
-function AttendanceRolls({ document: order }: { document: OrderDocument }) {
-  const rolls = [
-    {
-      label: "Present",
-      names: order.attendance
-        .filter((entry) => entry.mark === "present")
-        .map((entry) => entry.role),
-    },
-    {
-      label: "Absent",
-      names: order.attendance
-        .filter((entry) => entry.mark === "absent")
-        .map((entry) => entry.role),
-    },
-  ].filter((roll) => roll.names.length > 0);
-
-  if (rolls.length === 0) {
-    return (
-      <p className="text-body-compact text-muted-foreground">Not marked</p>
-    );
-  }
-
-  return (
-    <dl className="flex min-w-0 flex-col gap-1">
-      {rolls.map((roll) => (
-        <div
-          key={roll.label}
-          className="flex min-w-0 flex-wrap items-baseline gap-x-2"
-        >
-          <dt className="text-body-compact font-semibold">{roll.label}:</dt>
-          <dd className="text-body-compact min-w-0">{roll.names.join(", ")}</dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 
@@ -2780,20 +2639,30 @@ function PaperAttendance({
   appearances,
   marks,
   onMark,
-  onApply,
 }: {
   appearances: Appearance[];
   marks: OrderDraft["marks"];
   onMark: (id: string, mark: AttendanceMark | undefined) => void;
-  onApply: () => void;
 }) {
   const rollId = React.useId();
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {/* `w-fit` with `max-w-full`: the table is as wide as its two columns need and no
-          wider, and on a narrow screen the office column takes the squeeze by wrapping
-          rather than pushing the answers off the sheet. */}
-      <div className="grid w-fit max-w-full grid-cols-[auto_auto] items-center gap-x-6 gap-y-1">
+      {/* **The answers are pinned to the right edge of the block** (owner, 2026-09-16:
+          "the present and absent can be aligned right rather than being in the middle").
+          The table was `w-fit`, so it hugged its two columns and sat at the left of a
+          block wider than itself — which left every control stranded mid-block, in a
+          column whose position was decided by the length of the longest office rather
+          than by anything on the page.
+
+          `minmax(0,1fr)` for the offices and `auto` for the answers: the roll now spans
+          the block, the answers line up on its right edge, and the slack between the two
+          is on the side where nothing is reading. The narrow-screen behaviour the `w-fit`
+          note was protecting is *better* here, not worse — the slack is explicitly the
+          office column's, so a long or translated role label takes the squeeze by
+          wrapping, and `auto` means the answers can never be compressed or pushed off the
+          sheet. The `minmax` floor rather than a bare `1fr` because a grid track's
+          implicit minimum is its content, which an unbreakable label would overflow. */}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1">
         {appearances.map((appearance) => {
           const labelId = `${rollId}-${appearance.id}`;
           const mark = marks[appearance.id];
@@ -2824,7 +2693,7 @@ function PaperAttendance({
                   )
                 }
                 aria-labelledby={labelId}
-                className="justify-self-start"
+                className="justify-self-end"
               >
                 <SegmentedControlItem value="present">
                   Present
@@ -2837,25 +2706,6 @@ function PaperAttendance({
           );
         })}
       </div>
-
-      {/* **Outline, not the page's one primary.** Send to sign order is the act this
-          screen builds towards and it sits in the footer; a second filled button on the
-          sheet would compete with it for the same meaning.
-
-          Never disabled. The roll that needs this press is the one an office cannot
-          answer — an advocate who was not required to attend is neither present nor
-          absent — and such a roll can be in any state, including untouched. A gate here
-          would withhold the control from exactly the sitting it exists for. */}
-      <Button
-        id="order-attendance-apply"
-        type="button"
-        variant="outline"
-        size="sm"
-        className="w-fit"
-        onClick={onApply}
-      >
-        Apply attendance
-      </Button>
     </div>
   );
 }
@@ -2908,7 +2758,29 @@ function OrderBody({
         value={value}
         onChange={onChange}
         labelId="order-paper"
-        className="[&_[data-slot=input-group-control]]:min-h-48"
+        /* **A blank line between the order's blocks, drawn rather than typed** (owner,
+           2026-09-16: every section added "needs to have spacing", or it "reads like one
+           information, which is not true").
+
+           The passage has always been a list of blocks — the roll, the disposals, each
+           direction, the posting — and the plain side already joins them on a blank line
+           (`plainTextOfRichText`). Only the box collapsed them: a `<p>` carries no margin
+           here, so a direction written in by the catalogue landed flush under the
+           typist's own sentence and the two read as one paragraph.
+
+           **Drawn, so it cannot be consumed.** The alternative was to insert empty
+           paragraphs between the blocks, and it fails on exactly the flow that reported
+           this: the typist writes *into* the blank line — that is what it invites — and
+           the gap it was holding is gone by the time the next section arrives. A rule
+           about the blocks holds however they are edited, and it spaces every seam,
+           including the two directions the catalogue adds back to back.
+
+           24px, which is the line this box would have added — the same gap the owner's
+           own two presses of Enter produced. Scoped to the direct children of the
+           writable region and to nothing else: `>*+*` leaves the first block without a
+           leading gap, and `>` keeps the list items inside an `<ol>` on their own
+           rhythm rather than pushing a numbered direction apart. */
+        className="[&_[data-slot=input-group-control]]:min-h-48 [&_[data-slot=input-group-control]>*+*]:mt-6"
         suggestion={suggestion}
       />
       {/* **A completion nobody knows about is not a feature.** The trigger is invisible
@@ -2928,61 +2800,6 @@ function OrderBody({
         <span className="font-semibold">↓</span> for the next.
       </p>
     </div>
-  );
-}
-
-/**
- * The posting as the order prints it once it is settled: the two facts, as lines.
- *
- * The same two labels the fields wore a press ago, which is the point — nothing moves
- * between asking and printing, so the block reads as one thing in two states rather than
- * as a form that was swapped for a summary. A matter that is not being listed again
- * prints the closing sentence the order itself carries.
- */
-function NextHearingLines({
-  document: order,
-  draft,
-}: {
-  document: OrderDocument;
-  draft: OrderDraft;
-}) {
-  if (draft.next === "none") {
-    return <p className="text-body-compact">{order.closing}</p>;
-  }
-  const lines = [
-    {
-      label: "Purpose of next hearing",
-      value: draft.nextPurpose
-        ? courtHearingPurposeLabel(draft.nextPurpose)
-        : null,
-    },
-    {
-      label: "Date of next hearing",
-      value: draft.nextDate ? formatListingDate(draft.nextDate) : null,
-    },
-  ];
-  return (
-    <dl className="flex min-w-0 flex-col gap-1">
-      {lines.map((line) => (
-        <div
-          key={line.label}
-          className="flex min-w-0 flex-wrap items-baseline gap-x-2"
-        >
-          <dt className="text-body-compact font-semibold">{line.label}:</dt>
-          {/* A gap stays a gap. The block only prints once both facts are in, so this is
-              for the matter reopened and half-cleared rather than for the ordinary
-              path. */}
-          <dd
-            className={cn(
-              "text-body-compact min-w-0",
-              line.value ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            {line.value ?? "Not set"}
-          </dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 
@@ -3165,34 +2982,24 @@ function PaperNextHearing({
 }
 
 /**
- * One part of the page that is written rather than printed.
+ * One region of the sheet the court's own furniture occupies, named.
  *
- * A labelled region of the sheet whose contents came from somewhere else. Attendance
- * and the next listing are entered in the panel section that owns each, so the block's
- * whole job is to state what was entered — which is what keeps the right column reading
- * as a document rather than as a second copy of the questions the panel is already
- * asking. Its heading is what lets a screen reader land here and hear which part of the
- * order it has landed in.
+ * The roll and the posting: the two facts a sitting settles before anything is composed.
+ * Each is answered here and recites itself into the order below (`attendanceRecital`,
+ * `nextListingRecital`), so the block is where the question is asked and the passage is
+ * where the answer is recorded. Its heading is what lets a screen reader land here and
+ * hear which part of the order it has landed in.
  */
 function PaperBlock({
   id,
   label,
   focusable,
-  action,
   children,
 }: {
   id: string;
   label: string;
   /** Sends focus here from elsewhere on the screen — see the note below. */
   focusable?: boolean;
-  /**
-   * One control on the eyebrow's own line — the way back into a block that has been set
-   * down. This is *not* the teal **Mark attendance** button removed on 2026-09-14: that
-   * one opened an editor living somewhere else, which is why two entry points to one
-   * editor was the fault. The editor is on this page now, and what this carries is the
-   * switch between the block as a form and the block as the document it produces.
-   */
-  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -3215,30 +3022,27 @@ function PaperBlock({
     >
       {/* An eyebrow and nothing else. It carried a teal **Mark attendance** / **Set next
           hearing** text button until 2026-09-14, when the editors it opened went back to
-          the panel on the owner's instruction — so the page is output again and the way
-          in is the panel row that owns the fact. The affordance is not missed twice: two
-          entry points to one editor is the thing that made the paper carry ~400px of form
-          on arrival, and the block's own heading keeps the page's furniture intact
-          without it.
+          the panel on the owner's instruction, and an **Edit** until 2026-09-16, when the
+          blocks stopped having a second state to go back from.
 
-          **`tabIndex` only where something focuses the heading**, which is now the
-          attendance block: answering the last application hands the typist the roll, and
-          the roll is on this page. Every other block leaves the attribute off — the `id`
-          is there to name the region through `aria-labelledby`, and naming wants no
-          tabindex. A focusable element nothing focuses is a claim the next reader has to
-          disprove before they dare move anything near it. */}
-      {/* The eyebrow keeps its line to itself when there is no control: a flex row with
-          one child lays out exactly as the heading did. */}
-      <div className="flex min-w-0 items-center justify-between gap-4">
-        <h3
-          id={id}
-          tabIndex={focusable ? -1 : undefined}
-          className="text-caption font-semibold uppercase tracking-wide text-muted-foreground"
-        >
-          {label}
-        </h3>
-        {action}
-      </div>
+          **`tabIndex` only where something focuses the heading**, which is the next
+          hearing block and nothing else: completing the roll walks the typist on to the
+          posting (`walkOn`), and the posting is on this page. Every other block leaves
+          the attribute off — the `id` is there to name the region through
+          `aria-labelledby`, and naming wants no tabindex. A focusable element nothing
+          focuses is a claim the next reader has to disprove before they dare move
+          anything near it. */}
+      {/* **The eyebrow carries nothing but the name of the region.** It held an **Edit**
+          text button while the block swapped itself for its own read-back; both went on
+          2026-09-16, when the owner asked the blocks to stay as they are. A block with
+          one state needs no way back into it. */}
+      <h3
+        id={id}
+        tabIndex={focusable ? -1 : undefined}
+        className="text-caption font-semibold uppercase tracking-wide text-muted-foreground"
+      >
+        {label}
+      </h3>
       {children}
     </section>
   );

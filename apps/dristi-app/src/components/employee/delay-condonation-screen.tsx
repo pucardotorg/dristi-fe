@@ -234,7 +234,7 @@ function DelayCondonationFilters({
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="delay-condonation-stage" className="w-fit text-body">
+        <Label htmlFor="delay-condonation-stage" className="w-fit text-body-compact">
           Stage
         </Label>
         <Select
