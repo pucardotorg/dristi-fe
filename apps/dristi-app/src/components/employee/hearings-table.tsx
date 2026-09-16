@@ -38,6 +38,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { CourtRole } from "@/lib/employee/content";
 import { seatHasBenchControls } from "@/lib/employee/court-role";
 import {
@@ -594,7 +600,7 @@ export function HearingOrdersButton({
     );
   }
 
-  return (
+  const control = (
     <Button
       asChild
       variant={named ? "outline" : "ghost"}
@@ -615,6 +621,37 @@ export function HearingOrdersButton({
         {content}
       </Link>
     </Button>
+  );
+
+  /* The red plate, said in a word (owner, 2026-09-16). The glyph is the only thing the
+     column shows for a listing being written on, and a clerk reading it has to already
+     know what the pen and the red mean; the tooltip is where the state stops being a
+     convention and becomes the word for it. It hangs only on the icon, because the
+     control that carries words already says "Resume draft" on its face.
+
+     No delay: the owner asked for it on arrival, and this is a column a clerk sweeps a
+     pointer down rather than rests on. The provider is mounted on the control and its
+     `delayDuration` written out, rather than left to an ancestor — the court chrome
+     scopes its own provider to the rail (`employee-nav.tsx`), so a table row is outside
+     every provider on this screen and would have thrown without one.
+
+     It is emphasis, not the carrier: a pointer is the one input that has it, so the
+     state still travels in the glyph, the plate and the accessible name for every
+     reader who never hovers (`ACCESSIBILITY.md`). That is also why a drafted row the
+     seat cannot open yet loses nothing by not having it — the DS
+     `disabled:pointer-events-none` means a disabled control cannot be hovered through,
+     and the name has carried the reason there all along. */
+  if (!drafted || named) {
+    return control;
+  }
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>{control}</TooltipTrigger>
+        <TooltipContent>Draft</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

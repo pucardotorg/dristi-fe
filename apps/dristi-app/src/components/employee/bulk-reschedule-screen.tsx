@@ -99,6 +99,21 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
+ * A span in words — **the same words the table's own date column uses**, so the field,
+ * the surface drawing it and the rows it filters cannot describe one day three ways.
+ *
+ * Said twice on this screen: by the trigger, of the span the board is showing, and by the
+ * calendar's footer, of the span the bench has drawn and not yet applied. A span of one
+ * day is one date, not the same date written twice with a dash between it.
+ */
+function spanLabel(span: Span): string {
+  if (span.from === null) return "Select date range";
+  return span.to === null || span.from === span.to
+    ? formatListingDate(span.from)
+    : `${formatListingDate(span.from)} – ${formatListingDate(span.to)}`;
+}
+
+/**
  * What a click on the range calendar should mean — which is not what the calendar means
  * by it.
  *
@@ -185,12 +200,14 @@ function nextRangeFromPick(
 export function BulkRescheduleScreen() {
   const today = React.useSyncExternalStore(NEVER_CHANGES, readToday, readToday);
 
-  /* One state, not a draft and an applied one: the board answers the controls as they are
-     used. Both ends of the range are calendars, which hand over a whole day or nothing —
-     there is no half-picked date whose intermediate state would be meaningless — and the
-     search is free text, so all three can apply on change and the row has one rule rather
-     than two. Nothing here re-queries anything expensive: the range is a filter over
-     rows already in the browser. */
+  /* One applied state, which is what the board answers. The search reaches it as it is
+     typed — free text is never half-formed and a letter at a time is how a bench finds a
+     name. The span reaches it when the picker says so: a range is drawn over two clicks
+     and the first of them, taken live, is a board narrowed to a single day the bench
+     never asked for (owner, 2026-09-16). The draft lives inside `RangeField` and arrives
+     here only on Apply, so there is still nothing here to keep in step. Nothing
+     re-queries anything expensive either way: the range is a filter over rows already in
+     the browser. */
   const [filters, setFilters] = React.useState<RangeFilters>(EMPTY_FILTERS);
 
   /**
@@ -531,25 +548,25 @@ export function BulkRescheduleScreen() {
  * the accessibility floor treats a placeholder as a hint rather than a label
  * (ACCESSIBILITY §12).
  *
- * Every control applies as it is used, and the Search button is gone. It had been
- * argued for on the grounds that a range is composed before it is asked for — but a
- * calendar hands over a whole day or nothing, so there was never a half-formed range to
- * protect, and the filter only narrows rows the browser already holds. Nothing is
- * re-queried and nothing is committed: moving the board is the act at the bottom of the
- * page, behind its own overlay, and it is untouched.
+ * **There is no Search button on this row, and the span's confirmation is not one.**
+ * The screen had a date picker and an Apply above the table, and they were taken out on
+ * 2026-09-13 as "two acts, a worksheet between them"; a reference the owner brought on
+ * 2026-09-14 offered named spans (`Last 7 days`) and an **Apply Custom Filter** beside
+ * them, and neither came across — the spans were built, put beside the field, moved
+ * inside the picker and dropped, because the calendar is the one question this filter
+ * asks (owner, across 2026-09-14).
  *
- * A reference the owner brought on 2026-09-14 offered named spans (`Last 7 days`) and an
- * **Apply Custom Filter** button beside them. Neither is here. The spans were built, put
- * beside the field, then moved inside the picker, then dropped — the calendar is the one
- * question this filter asks and it turned out not to want a second way of answering it
- * (owner, across 2026-09-14). The Apply never came across at all: this screen had one, a
- * date picker and an Apply above the table, and it was taken out on 2026-09-13 as "two
- * acts, a worksheet between them".
+ * What the picker now carries is a different thing in a different place: the **Apply
+ * inside the calendar** that closes the span the bench drew (owner, 2026-09-16, and see
+ * `RangeField`). A button on this row would be a second stop on the page, standing at
+ * rest between the bench and a board it can already see. A button inside the surface is
+ * the end of the one act the bench opened, on the surface it opened, and the row it
+ * leaves behind is still two fields and nothing else.
  *
- * Removing it also spends the screen's teal properly. This page used to paint two strong
- * fills — Search here and Reschedule in the commit bar — on a reading of the Ration Teal
- * Law that rations per visual region. With Search gone the page has one, and it is the
- * one that moves twenty listings.
+ * The teal is spent the same way it was. A page at rest paints one strong fill —
+ * Reschedule in the commit bar, the act that moves twenty listings — because the picker's
+ * Apply exists only while its overlay is open, which is the reading of the Ration Teal
+ * Law this screen's own dialogs already take.
  */
 function RangeFilters({
   filters,
@@ -613,8 +630,9 @@ function RangeFilters({
  * - **(a)** `showOutsideDays={false}`. Two adjacent months draw each other's edge days,
  *   so September's trailing cells and October's leading cells were the same dates drawn
  *   twice and lit twice — one span painting two ends.
- * - **(c)** the calendar dismisses when the span closes. The primitive leaves it standing
- *   over the page after the one decision it exists for.
+ * - **(c)** the calendar dismisses on Apply. The primitive leaves it standing over the
+ *   page after the one decision it exists for, and owning the surface is what lets the
+ *   bench close it deliberately instead.
  * - **(e)** the `×` no longer costs the calendar. It sits outside the portalled content,
  *   so Radix's dismissable layer read the press as an outside click and closed the
  *   popover the bench was still using; with `open` held here, clearing clears and nothing
@@ -626,6 +644,30 @@ function RangeFilters({
  * it as `from = to`: a court sitting on one day is a range of one, not an unfinished
  * question. What a click does to a span already finished is decided in
  * `nextRangeFromPick`, not by the calendar.
+ *
+ * **The span is drawn here and applied on a press.** The calendar holds a draft; the
+ * board is not narrowed until *Apply*, and leaving the surface any other way — Escape,
+ * a click on the page, the trigger again — abandons what was drawn and leaves the board
+ * on what it was showing. A range takes two clicks, so a span applied as it is drawn
+ * spends its first click narrowing the board to a single day nobody asked for, and its
+ * second widening it back; the bench watched twenty-two rows vanish and return between
+ * two clicks of one gesture, and never saw the finished span at all, because closing it
+ * dismissed the calendar in the same motion (owner, 2026-09-16). Now the span is drawn,
+ * shown in the surface's own footer in the words the rows use, and applied when the bench
+ * says so.
+ *
+ * *Apply* is the only button here. A Cancel would be a second way to do what Escape, the
+ * trigger and the rest of the page already do, on a surface whose draft costs nothing to
+ * abandon. It carries no glyph — the label is the whole of it.
+ *
+ * It is disabled while there is no day on the calendar, and enabled from the first click
+ * onwards — **including when the span drawn is the one already applied.** Gating on
+ * *different from the board* was the other candidate and is what a Search button would
+ * do, but this button is also the way out of the surface, and the dead end it makes is
+ * easy to walk into: reopen on 14–20, click 14, click 20, and the press the footer is
+ * asking for is refused for re-drawing what was wanted. Re-applying an identical span
+ * costs a render of the same rows, so the honest gate is the one about the calendar
+ * being empty.
  *
  * **The span is given back from the `×` on the field**, the way the search box beside it
  * gives its text back, and it appears only once there is a span to clear (owner,
@@ -648,6 +690,10 @@ function RangeField({
   className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
+  /* What the calendar is showing, which is the applied span until the bench draws over
+     it. Seeded every time the surface opens rather than once, so a span abandoned by an
+     Escape is gone by the next opening and the calendar always arrives on the board. */
+  const [draft, setDraft] = React.useState<Span>(range);
   /* One end is down and the calendar is waiting for the other. Held here rather than
      read off the value, because a span of one day and a span half-drawn are the same
      value — see `nextRangeFromPick`. True only between two clicks on the calendar:
@@ -655,6 +701,7 @@ function RangeField({
      next time it opens. */
   const [holding, setHolding] = React.useState(false);
   const held = range.from !== null;
+  const drawn = draft.from !== null;
 
   /* Undefined, not an empty `DateRange`: the calendar is handed the value directly here
      rather than through `DateRangePicker`, whose `value === undefined` meant "this
@@ -662,33 +709,28 @@ function RangeField({
      falls back to a remembered value any more, so the plain absence is the honest shape
      and the workaround it needed is gone with the primitive. */
   const selected: DateRange | undefined =
-    range.from === null
+    draft.from === null
       ? undefined
       : {
-          from: parseIsoDay(range.from),
+          from: parseIsoDay(draft.from),
           to:
-            range.to === null || range.from === range.to
+            draft.to === null || draft.from === draft.to
               ? undefined
-              : parseIsoDay(range.to),
+              : parseIsoDay(draft.to),
         };
 
-  /* The same words the table's own date column uses, so the field and the rows it
-     filters cannot describe one day two ways. */
-  const value = !held
-    ? "Select date range"
-    : range.to === null || range.from === range.to
-      ? formatListingDate(range.from as string)
-      : `${formatListingDate(range.from as string)} – ${formatListingDate(range.to)}`;
-
   function pick(next: DateRange | undefined) {
-    const picked = nextRangeFromPick(range, next, holding);
-    onChange(picked.from, picked.to);
-    /* The second click closes the span, whichever day it landed on — a different day
-       makes a range, the held day again makes a span of one — and closing the span is
-       the decision this surface exists for, so it stands down on it (§19c). A first
-       click is not that: it puts one end down and waits. */
+    /* Drawn, not applied: the board holds still until Apply. The second click closes the
+       span, whichever day it landed on — a different day makes a range, the held day
+       again makes a span of one — and a first click puts one end down and waits. */
+    setDraft(nextRangeFromPick(draft, next, holding));
     setHolding(!holding);
-    if (holding) setOpen(false);
+  }
+
+  function applyDraft() {
+    onChange(draft.from, draft.to);
+    /* The press is the decision this surface exists for, so it stands down on it (§19c). */
+    setOpen(false);
   }
 
   return (
@@ -713,7 +755,10 @@ function RangeField({
             setOpen(next);
             /* A half-drawn span does not survive the surface closing. Escaping out of
                one and reopening would otherwise take the first click as its far end. */
-            if (!next) setHolding(false);
+            setHolding(false);
+            /* Opening starts from the board, which is also how a drawn-but-unapplied
+               span is abandoned: nothing carries over but what was applied. */
+            if (next) setDraft(range);
           }}
         >
           <PopoverTrigger asChild>
@@ -731,7 +776,7 @@ function RangeField({
               )}
             >
               <CalendarDaysIcon data-icon="inline-start" aria-hidden />
-              <span className="truncate">{value}</span>
+              <span className="truncate">{spanLabel(range)}</span>
             </Button>
           </PopoverTrigger>
 
@@ -750,11 +795,25 @@ function RangeField({
               Radix's own available-width variable is that ceiling, and it is the reason
               this does not reproduce here while it still does under `DateRangePicker`,
               which sets no max width at all. `collisionPadding` keeps the surface off
-              the viewport edge rather than flush against it. */}
+              the viewport edge rather than flush against it.
+
+              **Height needs the same ceiling now that the surface has a floor.** Two
+              stacked months are 512px of calendar on a phone, and a footer under them
+              put Apply at 834px down a 820px viewport — off the bottom of a
+              `position: fixed` surface, which no amount of page scrolling reaches
+              (measured at 375×820 before this line). So the content stops at the height
+              Radix says is available, the calendar takes the scrolling, and the footer
+              keeps its place at the bottom: the one action is on screen at every size.
+              A footer that scrolls away is a footer the bench cannot press. */}
           <PopoverContent
             align="start"
             collisionPadding={16}
-            className="w-auto max-w-(--radix-popover-content-available-width) gap-0 p-0"
+            /* Radix hard-sets `role="dialog"` on this surface, and ARIA 1.2 requires a
+               dialog to carry a name — without one a reader enters it hearing "dialog"
+               and then a grid of numbers. The field's own label is that name, so the
+               surface is announced as the field it belongs to (ACCESSIBILITY §2). */
+            aria-labelledby={`${id}-label`}
+            className="max-h-(--radix-popover-content-available-height) w-auto max-w-(--radix-popover-content-available-width) gap-0 p-0"
             /* **This field's own parts are not outside clicks.** The label and the
                `×` both sit outside the portalled content in the DOM — the `×` laid
                over the trigger's padding, the label above it — so Radix's dismissable
@@ -780,21 +839,57 @@ function RangeField({
               }
             }}
           >
-            <Calendar
-              mode="range"
-              numberOfMonths={2}
-              /* §19a: two adjacent months otherwise draw each other's edge days, so
+            <div className="min-h-0 overflow-y-auto">
+              <Calendar
+                mode="range"
+                numberOfMonths={2}
+                /* §19a: two adjacent months otherwise draw each other's edge days, so
                    the same date appears in both panels and lights twice. Measured on
                    the render with 13 Sept – 2 Oct: no date now appears more than once. */
-              showOutsideDays={false}
-              selected={selected}
-              onSelect={pick}
-              /* Opening the surface puts the reader on a day, not on the chevron that
-                 happens to come first in it. Radix focuses the first tabbable in the
-                 content, which without this is *Previous month* — so a keyboard user
-                 arrived one control short of the only question here. */
-              autoFocus
-            />
+                showOutsideDays={false}
+                selected={selected}
+                onSelect={pick}
+                /* Opening the surface puts the reader on a day, not on the chevron
+                   that happens to come first in it. Radix focuses the first tabbable in
+                   the content, which without this is *Previous month* — so a keyboard
+                   user arrived one control short of the only question here. */
+                autoFocus
+              />
+            </div>
+
+            {/* The surface says what it is holding before it is asked to apply it — the
+                calendar paints the span across two months, and a bench that has just
+                clicked twice reads the dates back in one line rather than counting cells.
+                Muted until there is one, so an empty picker does not state a value it
+                does not have.
+
+                Shaped like this screen's other overlay footer (`DialogFooter`): a tray
+                fill under a hairline, the action to the end of the line, and stacked with
+                the button full width where the two months stack — the calendar's own
+                breakpoint, so the footer turns when the surface above it does. */}
+            <div className="flex shrink-0 flex-col gap-2 rounded-b-lg border-t bg-muted p-2 md:flex-row md:items-center md:justify-between">
+              <p
+                id={`${id}-drawn`}
+                className={cn(
+                  "text-body-compact tabular-nums",
+                  drawn ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {spanLabel(draft)}
+              </p>
+              {/* Named by itself and described by the span, so it is announced as
+                  "Apply, 14 Sept 2026 – 20 Sept 2026" — the visible label stays the whole
+                  of the name (ACCESSIBILITY §12). */}
+              <Button
+                type="button"
+                aria-describedby={`${id}-drawn`}
+                disabled={!drawn}
+                onClick={applyDraft}
+                className="w-full md:w-auto"
+              >
+                Apply
+              </Button>
+            </div>
           </PopoverContent>
         </Popover>
 
@@ -822,6 +917,9 @@ function RangeField({
             aria-label={`Clear ${label.toLowerCase()}`}
             onClick={() => {
               onChange(null, null);
+              /* The field's own clear is not a draft: it gives the span back on the
+                 spot, so the calendar behind it has nothing left to apply either. */
+              setDraft({ from: null, to: null });
               setHolding(false);
             }}
             className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground after:absolute after:-inset-2 after:content-['']"

@@ -12,7 +12,6 @@ import {
   type CourtHearing,
 } from "./hearings";
 import { EMPTY_ORDER_DRAFT } from "./order-draft";
-import { ORDERS_IN_PROGRESS } from "./order-demo";
 import type { OrderDrafts } from "./order-drafts";
 
 const TODAY = "2026-09-16";
@@ -148,48 +147,13 @@ describe("draftOrdersForSitting", () => {
     assert.ok(expected.length > 0 && expected.length < board.length);
   });
 
-  it("opens on enough of the day's work to read as a queue", () => {
-    const rows = draftOrdersForSitting(todaysBoard(), ORDERS_IN_PROGRESS);
-    /* The owner's floor for the prototype: the tab has to hold a morning's work on a
-       cold load, not the one row a fixture-completed listing leaves behind. */
-    assert.ok(
-      rows.length >= 10,
-      `the draft queue opens on ${rows.length} rows, fewer than 10`,
-    );
-    /* Both states the Orders column can draw, so the column carries information rather
-       than one repeated glyph: a started draft takes the plate, and a listing whose
-       order is only the one its finished sitting carries takes the tick. */
-    const started = rows.filter((row) => ORDERS_IN_PROGRESS[row.id]);
-    const recordedOnly = rows.filter((row) => !ORDERS_IN_PROGRESS[row.id]);
-    assert.ok(started.length > 0 && recordedOnly.length > 0);
-    /* And every row reads as a matter this court has actually called. An order is drawn
-       up at a sitting, so a row here saying "Scheduled" would be claiming an order on a
-       matter nobody had reached (owner, 2026-09-16). */
-    for (const row of rows) {
-      assert.equal(
-        row.status,
-        "completed",
-        `${row.id} has an order on it but has not been heard`,
-      );
-    }
-    /* And a spread of purposes, so the Purpose column is not one word repeated. */
-    assert.ok(new Set(rows.map((row) => row.purpose)).size >= 5);
-  });
-
-  it("every opening draft names a listing this court has heard", () => {
-    const board = todaysBoard();
-    for (const id of Object.keys(ORDERS_IN_PROGRESS)) {
-      const listing = board.find((entry) => entry.id === id);
-      assert.ok(
-        listing,
-        `${id} has an opening draft but is not on today's cause list`,
-      );
-      assert.equal(
-        listing.status,
-        "completed",
-        `${id} has an opening draft but its sitting has not happened`,
-      );
-    }
+  it("opens with nothing drawn up, because the court has not sat", () => {
+    /* The board opens before the first matter is called (owner, 2026-09-16), so the
+       queue is empty on a cold load and every row that appears in it afterwards is one
+       somebody in this session drew up. This court did briefly open on a seeded set of
+       eleven drafts against a part-heard board; the gate is here so the tab cannot go
+       back to showing a morning's work nobody did. */
+    assert.deepEqual(draftOrdersForSitting(todaysBoard(), {}), []);
   });
 
   it("leaves the board something still to be called", () => {
@@ -222,23 +186,3 @@ describe("draftOrderHref", () => {
   });
 });
 
-describe("ORDERS_IN_PROGRESS", () => {
-  it("is a draft the live composer could have produced, not a screenshot", () => {
-    for (const [id, draft] of Object.entries(ORDERS_IN_PROGRESS)) {
-      /* Somebody took the roll — the one thing every seeded draft has done. */
-      assert.ok(
-        Object.keys(draft.marks).length > 0,
-        `${id} carries no attendance`,
-      );
-      /* None of them has posted the matter on: that is what still-being-written means,
-         and it is what keeps the fixture free of today's date. */
-      assert.equal(draft.nextDate, null, `${id} already carries a next date`);
-      /* No standing `[Token]` left in the words. An item past the first opens on raw
-         template text, which is why the seed stops at the one that is already prose. */
-      assert.ok(
-        !draft.body.text.includes("["),
-        `${id} has an unfilled token in its order`,
-      );
-    }
-  });
-});

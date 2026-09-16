@@ -146,7 +146,8 @@ import {
  * order.
  */
 /**
- * Which section of the left panel is open.
+ * Which of the left column's section cards is open — at most one, which is the whole of
+ * the mechanism the split into two cards (owner, 2026-09-16) left untouched.
  *
  * **Back to the four sections, and this is the second time the owner has asked for
  * them.** On 2026-09-14 they came back from a pair of tabs; on 2026-09-15 they came back
@@ -269,6 +270,49 @@ function useScrollEdges() {
 }
 
 /**
+ * Bring a region that has just opened inside a scroll box into view — in that box, and
+ * nowhere else.
+ *
+ * **Why this is needed at all.** A group at the foot of the catalogue opens *downwards*,
+ * into the part of the box below its own bottom edge: the chevron turns and the rows
+ * arrive off screen, so the press reads as having done nothing (owner, 2026-09-16: *when
+ * I click on directives the icon moves up but the list doesn't show up on its own*).
+ *
+ * **Not `scrollIntoView`.** That walks every scrollable ancestor and satisfies the
+ * alignment in each, so asking for the head of a group here would also scroll the
+ * document — dragging the order sheet beside the panel along with it. This moves one
+ * box's `scrollTop` and touches nothing above it.
+ *
+ * **The minimum that works.** Already in view: nothing moves, because a press that
+ * needed no scroll should not produce one. Hanging past the bottom: scroll exactly far
+ * enough to seat its last row, which is the reader's *content above moves up*. Taller
+ * than the box, or hanging past the top: align its head, since no amount of scrolling
+ * will show all of it and the head is the part that names it.
+ *
+ * Smooth, so the rows arrive as a movement the reader can follow rather than a jump —
+ * and instant under `prefers-reduced-motion`, which is the DS's rule for any motion that
+ * is not purely decorative (ACCESSIBILITY).
+ */
+function revealInBox(box: HTMLElement | null, region: HTMLElement | null) {
+  if (!box || !region) return;
+  const boxEdges = box.getBoundingClientRect();
+  const edges = region.getBoundingClientRect();
+  const above = edges.top < boxEdges.top;
+  const below = edges.bottom > boxEdges.bottom;
+  if (!above && !below) return;
+  const delta =
+    above || edges.height > boxEdges.height
+      ? edges.top - boxEdges.top
+      : edges.bottom - boxEdges.bottom;
+  box.scrollTo({
+    top: box.scrollTop + delta,
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth",
+  });
+}
+
+/**
  * No bar at all — the region scrolls, and nothing draws a rail for it.
  *
  * Three passes at this. The platform default drew a full-height track with a grey thumb
@@ -297,6 +341,19 @@ function useScrollEdges() {
  * a rail was adding little to.
  */
 const NO_SCROLLBAR = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+/**
+ * A section that must read as its own unit inside a panel, and holds something the reader
+ * works: the DS's own recipe for that is `surface-sunken` with a hairline, never a fill
+ * difference alone and never an unbordered muted box (AGENTS.md, *Grouped content*).
+ * Not a nested `Card` — the panel is already `shadow-raised`, and a raised box inside a
+ * raised box flattens both.
+ *
+ * One const because the screen has three of them now — the sheet's attendance and next
+ * posting, and the catalogue's shortcut list (owner, 2026-09-16) — and three hand-written
+ * copies of a recipe drift. Each site adds its own layout classes on top.
+ */
+const WELL_CLASS = "rounded-lg border border-hairline bg-surface-sunken p-4";
 
 export function OrderScreen({ hearingId }: { hearingId: string }) {
   const hearing = hearingById(hearingId);
@@ -871,6 +928,45 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
    *
    * Neither mark files, signs or notifies anything (`hearing-session.ts`).
    */
+  /**
+   * **What the pinned panel has to clear, measured rather than guessed.**
+   *
+   * The section column is pinned to the viewport from `lg` up (owner, 2026-09-16), and
+   * its height is the window less the two bands that overlay it: the cause header, which
+   * is `sticky top-14` under the chrome's own 3.5rem bar, and the footer, which is
+   * `sticky bottom-0`. Both are content-sized — the cause name wraps on a narrow column
+   * and the footer's button wraps below `sm` — so neither can be written into a class as
+   * a length. A wrong guess here is not a rounding error: too small and the catalogue
+   * ends under the footer, which is the fault being fixed.
+   *
+   * Held in state rather than written straight onto the node with `setProperty`: the
+   * values are read back as inline custom properties, and React re-applies its own
+   * `style` on every render, which would undo a direct write the next time anything on
+   * this screen changed. The observer fires once on mount and then only when a band
+   * actually changes height, and the guard stops a resize from looping through state.
+   */
+  const headerRef = React.useRef<HTMLElement | null>(null);
+  const footerRef = React.useRef<HTMLElement | null>(null);
+  const [bands, setBands] = React.useState({ header: 0, footer: 0 });
+  React.useEffect(() => {
+    const header = headerRef.current;
+    const footer = footerRef.current;
+    if (!header || !footer) return;
+    const measure = () => {
+      const next = { header: header.offsetHeight, footer: footer.offsetHeight };
+      setBands((current) =>
+        current.header === next.header && current.footer === next.footer
+          ? current
+          : next,
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, []);
+
   function advance() {
     markHearingEnded(hearing.id);
     if (!upNext) {
@@ -882,7 +978,23 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      /* The panel's pin and its height, derived here so the viewport arithmetic stays in
+         CSS and only the two measured bands come from JS. `3.5rem` is the chrome bar,
+         the same length the header below pins itself under. The last `2rem` is the
+         canvas's own bottom padding, so the column ends clear of the footer on the same
+         rhythm as everything else on the canvas. */
+      style={
+        {
+          "--order-header-h": `${bands.header}px`,
+          "--order-footer-h": `${bands.footer}px`,
+          "--order-panel-top": "calc(3.5rem + var(--order-header-h))",
+          "--order-panel-height":
+            "calc(100svh - var(--order-panel-top) - var(--order-footer-h) - 2rem)",
+        } as React.CSSProperties
+      }
+    >
       {/* The cause, and the way on. `top-14` rather than `top-0`: the chrome's own bar
           is `sticky top-0` and 3.5rem tall, so this comes to rest directly under it
           instead of sliding beneath its fill. */}
@@ -890,7 +1002,10 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           with a second band ruled off beneath it. The facts *are* the subtitle: they say
           which listing this is, and a rule between them and the name they qualify made
           them read as a separate region with its own business. */}
-      <header className="sticky top-14 z-20 flex flex-col gap-3 border-b border-hairline bg-card px-6 py-4 sm:flex-row sm:items-start sm:justify-between md:px-8">
+      <header
+        ref={headerRef}
+        className="sticky top-14 z-20 flex flex-col gap-3 border-b border-hairline bg-card px-6 py-4 sm:flex-row sm:items-start sm:justify-between md:px-8"
+      >
         <div className="flex min-w-0 flex-col gap-2">
           <h1 className="text-title min-w-0 text-balance font-semibold">
             {/* No space before the colon — it was there, and it is the same fault the
@@ -923,27 +1038,38 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           `bg-muted` in light so the panels read against the same tone as the rail; dark
           stays `bg-background` because muted sits *above* card there (FilingMain). */}
       <div className="grid min-w-0 flex-1 gap-8 bg-muted p-6 md:p-8 lg:grid-cols-3 dark:bg-background">
-        {/* Two surfaces on the canvas, not one container holding two columns (owner,
-            2026-09-14). The panel and the page are both white and both lifted, so the
-            beige canvas is the ground and each reads as a thing lying on it — which is
-            what the reference screen does and what a shared card was flattening into one
-            object with an internal seam.
+        {/* Surfaces on the canvas, not one container holding two columns (owner,
+            2026-09-14) — and since 2026-09-16 the left column is two of them rather than
+            one. Every one is white and lifted, so the beige canvas is the ground and each
+            reads as a thing lying on it — which is what the reference screen does and
+            what a shared card was flattening into one object with an internal seam.
 
-            `self-start` on both: each surface is as tall as its own contents. The page
-            held the canvas height while it carried a signature at its foot, which gave
-            the sheet somewhere to end; without one it was just a long empty margin.
+            `self-start` on the column and on the page: each surface is as tall as its own
+            contents, and the two section cards stack from the top rather than dividing
+            the column's height between them. The page held the canvas height while it
+            carried a signature at its foot, which gave the sheet somewhere to end;
+            without one it was just a long empty margin.
 
             The columns stay 1/3 and 2/3, as they were before the container was removed.
             Narrowing the panel *and* unwrapping it in one step moved both surfaces at
             once, and the layout stopped being recognisable (owner, 2026-09-14). Only one
             of those was asked for. */}
-        {/* **Four sections, one open at a time, and the closed ones say where they got
-            to** — the panel as it was designed, restored on the owner's instruction
-            (2026-09-15) after a day spent as one open column. That is the whole reason
-            this beat an icon rail: a rail can show you four marks but not one fact, so
-            the panel had nothing in it and the way on ended up below the fold. A row that
-            reads "Attendance — Not marked" is the state and the way back to it in the
-            same line.
+        {/* **One card per section, one open at a time, and the closed one says where it
+            got to** — the sections as they were designed, restored on the owner's
+            instruction (2026-09-15) after a day spent as one open column, and split into
+            a card each on 2026-09-16. That is the whole reason this beat an icon rail: a
+            rail can show you marks but not one fact, so the panel had nothing in it and
+            the way on ended up below the fold. A row that reads "Orders — None yet" is
+            the state and the way back to it in the same line.
+
+            **The split is the surround, not the behaviour** (owner, 2026-09-16).
+            Applications and Orders were two rows of one card, ruled apart by a hairline;
+            they are now two surfaces on the canvas. Nothing about the interaction moved:
+            `section` still holds at most one id, so opening one closes the other, and
+            answering the last application still folds Applications shut and opens the
+            order catalogue — see `decide`. What changes is that the fold is now a card
+            closing to its own 56px row rather than half a panel collapsing inside a box
+            that stays the same size either way.
 
             `Collapsible` and not `Accordion`: the DS `Accordion` renders its header as
             a fixed `h3`, which would skip a level under this page's `h1` (D16 on this
@@ -956,34 +1082,79 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
 
             **The rows are the only way through, and they are enough.** A "Next" inside
             each open section was a second control doing what the row below it already
-            did, on a panel where all four rows are always in view. Nothing gates the
-            move either way: an application can stand over, a roll can go unmarked, a
-            date can be left unset, and the page prints the gap rather than the panel
-            refusing to move on. */}
-        <Card className={cn(PANEL_CLASS, "min-w-0 gap-6 self-start p-6")}>
-          <div className="flex min-w-0 flex-col divide-y divide-hairline">
-            {SECTIONS.map((entry) => {
-              const Icon = entry.icon;
-              const open = entry.id === section;
-              const headingId = `order-section-${entry.id}`;
-              return (
+            did, on a column where both rows are always in view. Nothing gates the move
+            either way: an application can stand over, a roll can go unmarked, a date can
+            be left unset, and the page prints the gap rather than a card refusing to move
+            on.
+
+            `gap-0 p-2` on each card: the card's own 8px is what gives the trigger its
+            air, so a closed section is a 56px list row on its own surface — the metric
+            the rows already had when a hairline separated them. `gap-0` because the
+            `Collapsible` is the card's only child and `Card`'s 24px default gap would
+            otherwise open under a closed row as empty white. */}
+        {/* **The column is pinned and fits the window** (owner, 2026-09-16: *I have to
+            scroll the page instead of being able to scroll completely down within that
+            orders container itself*).
+
+            The catalogue has had its own scroll since 2026-09-15, but the box holding it
+            was `50svh` measured from nowhere — so once the chrome bar, the cause header,
+            the canvas padding, two section rows and the search field were counted, the
+            bottom of that box sat below the fold. Scrolling it to its end still left
+            *Directives* off screen, and the only way to it was the page: an inner scroll
+            that runs out before its own content does, inside an outer one that owns the
+            rest.
+
+            `lg:h-(--order-panel-height)` is the correction — the window less the two
+            bands that overlay it, so the column ends where the footer begins — and
+            `lg:sticky` keeps it there while the sheet beside it is read down.
+
+            **A height, not a `max-height`.** It was the latter for one build and the
+            catalogue stopped scrolling: a `max-height`-clamped box is still an *auto*
+            height box, and every flex child below it was asking for a share of a height
+            that had not been decided. A definite height at the top of the chain is what
+            lets `flex-1` mean the same thing at each of the six boxes beneath it. The
+            cost is a card with slack in it when an open section is shorter than the
+            column, which the catalogue almost never is — and nothing else on the canvas
+            is stretched, since the column carries no fill of its own and the closed card
+            beside it keeps its own 56px.
+
+            `self-start` was already here and is what makes the pin possible: a stretched
+            grid item has no slack to stick in. `lg:overflow-y-auto` is a net for the
+            other section — the catalogue fills the clamp exactly, so this engages only if
+            a long list of applications overruns the column, and a scroll there beats a
+            row hidden under the footer.
+
+            Below `lg` the columns are stacked and nothing is pinned or clamped: the page
+            scroll is the right one on a phone, and the `50svh` cap still applies there. */}
+        <div className="flex min-w-0 flex-col gap-4 self-start lg:sticky lg:top-(--order-panel-top) lg:h-(--order-panel-height) lg:overflow-y-auto">
+          {SECTIONS.map((entry) => {
+            const Icon = entry.icon;
+            const open = entry.id === section;
+            const headingId = `order-section-${entry.id}`;
+            /* **Only the catalogue takes the leftover height, and only while it is
+               open.** The applications are a short list, and a card stretched past its
+               rows is the tall pale container with its content bunched at the top that
+               the sheet itself was pulled out of (owner, 2026-09-15). The fill has to be
+               declared at every box between the column and the scroller: a flex child
+               cannot inherit a definite height through a box that has none. */
+            const fills = open && entry.id === "orders";
+            const FILL = "lg:flex lg:min-h-0 lg:flex-1 lg:flex-col";
+            return (
+              <Card
+                key={entry.id}
+                className={cn(PANEL_CLASS, "min-w-0 gap-0 p-2", fills && FILL)}
+              >
                 <Collapsible
-                  key={entry.id}
                   open={open}
-                  /* Opening one closes the others; closing the open one closes
-                     everything. **All four shut is a real state and a useful one** —
-                     every row carries its own answer, so the collapsed panel is the whole
-                     sitting at a glance rather than an empty screen. An earlier revision
-                     refused the last close on the grounds that it showed nothing; that
-                     was true of a rail with no summaries on it and has not been true
-                     since the rows started carrying them (owner, 2026-09-13). */
+                  /* Opening one closes the other; closing the open one closes
+                     everything. **Both shut is a real state and a useful one** — each row
+                     carries its own answer, so two closed cards are the whole sitting at
+                     a glance rather than an empty screen. An earlier revision refused the
+                     last close on the grounds that it showed nothing; that was true of a
+                     rail with no summaries on it and has not been true since the rows
+                     started carrying them (owner, 2026-09-13). */
                   onOpenChange={(next) => setSection(next ? entry.id : null)}
-                  /* `py-2`, not `py-1`. The trigger is a 40px target and the rows are
-                     ruled apart, so 4px a side put each hairline almost against the words
-                     above and below it — four rows reading as one block of text with
-                     lines through it. 8px gives every rule its own air and makes a closed
-                     row a 56px list row, which is what it is. */
-                  className="min-w-0 py-2"
+                  className={cn("min-w-0", fills && FILL)}
                 >
                   <h2 id={headingId} tabIndex={-1} className="min-w-0">
                     <CollapsibleTrigger asChild>
@@ -1050,12 +1221,17 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
                     </CollapsibleTrigger>
                   </h2>
 
-                  <CollapsibleContent className="min-w-0">
+                  <CollapsibleContent className={cn("min-w-0", fills && FILL)}>
                     {/* Symmetric. `pb-2` under `pt-4` left the last card 8px off the
                         rule below it while its own heading sat 16px clear above — so an
                         open section read as leaning into the next one rather than as a
                         body between two rows. */}
-                    <div className="flex min-w-0 flex-col gap-6 px-2 pt-4 pb-4">
+                    <div
+                      className={cn(
+                        "flex min-w-0 flex-col gap-6 px-2 pt-4 pb-4",
+                        fills && "lg:min-h-0 lg:flex-1",
+                      )}
+                    >
                       <SectionBody
                         entry={entry}
                         draft={draft}
@@ -1072,10 +1248,10 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
-              );
-            })}
-          </div>
-        </Card>
+              </Card>
+            );
+          })}
+        </div>
 
         {/* No surround. The page lies on the canvas directly and carries its own lift,
             which it could not do inside the old panel — a raised sheet inside a raised
@@ -1100,7 +1276,10 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         />
       </div>
 
-      <footer className="sticky bottom-0 z-30 border-t border-hairline bg-card px-6 py-3 md:px-8 md:py-4">
+      <footer
+        ref={footerRef}
+        className="sticky bottom-0 z-30 border-t border-hairline bg-card px-6 py-3 md:px-8 md:py-4"
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <Button
             ref={signRef}
@@ -1554,9 +1733,18 @@ function CatalogueRow({
  * standing form. So the catalogue is the instrument, and since 2026-09-13 it is the real
  * one — the twenty-seven templates of `order-templates.ts`.
  *
- * Built to the owner's reference screen, which arranges it in three parts:
+ * Built to the owner's reference screen, which arranges it in three parts. **The order of
+ * the first two is this build's, not the reference's** (owner, 2026-09-16): the reference
+ * leads with the shortcuts and puts the search under them, and the search now stands
+ * first, pinned above the scroller, because it is the only control that reaches the
+ * twenty-four orders the shortcuts do not name. Nothing else about the three parts moved.
  *
- * 1. **Likely at this hearing** — ranked, and off the sitting rather than off the purpose
+ * 1. **A search field over four groups**, which is the reference's own browse and
+ *    replaces the `Combobox` an earlier revision used. The trade is deliberate: a
+ *    combobox is faster for a typist who knows the word and shows *nothing* to one who
+ *    does not, because its list only exists while the menu is open. Four standing rows
+ *    say how much catalogue there is before anyone types.
+ * 2. **Likely at this hearing** — ranked, and off the sitting rather than off the purpose
  *    alone (`order-suggestions.ts`, 2026-09-14). The source's purpose table is still the
  *    baseline, so an evidence listing still offers witness batta and a witness summons;
  *    what is new is that the applications standing in the matter, an absence the bench has
@@ -1567,12 +1755,8 @@ function CatalogueRow({
  *    information. A row a signal moved gets the signal instead: "Follows CMP/312/2026,
  *    allowed at this hearing". One per line rather than the reference's 2-up: its rail is
  *    wider than this column, and "Moving case out of long pending register" does not
- *    survive a 145px tile.
- * 2. **A search field over four groups**, which is the reference's own browse and
- *    replaces the `Combobox` an earlier revision used. The trade is deliberate: a
- *    combobox is faster for a typist who knows the word and shows *nothing* to one who
- *    does not, because its list only exists while the menu is open. Four standing rows
- *    say how much catalogue there is before anyone types.
+ *    survive a 145px tile. It answers to no query — the sitting is what ranks it, not a
+ *    word — so it stays put under the field while the groups below it filter.
  * 3. **Every order in its group, including the ones this matter cannot take**, each with
  *    the reason under it. The source gates several types on the state of the case, and a
  *    silently shorter list is the worse failure on a screen where the missing order is
@@ -1686,14 +1870,50 @@ function OrderItems({
        groups, plus the shortcuts above them — so it was what pushed the panel past the
        viewport and made reading down the catalogue drag the whole surface, section rows
        and all, up off the screen. Capped and scrolled in place, the panel stays as tall
-       as the screen can hold and *Likely at this hearing* and the search scroll within
-       it, which is what the reader is actually moving through.
+       as the screen can hold and the catalogue moves within it, which is what the reader
+       is actually moving through.
 
-       `svh` rather than `vh`: on a phone `vh` is the viewport with the browser's chrome
-       *hidden*, so a `vh` box is taller than what anyone can see until they scroll
-       (RESPONSIVE.md). `overscroll-contain` stops the page taking over when the list
-       reaches its end — a scroll that jumps to the document the moment a list bottoms
-       out is the same fault as the panel moving in the first place.
+       **The search field stands outside the box** (owner, 2026-09-16), which is why it is
+       the one part of this region that cannot scroll away: it is a sibling above the
+       scroller rather than its first child. A query is the instrument for a list this
+       long, and an instrument that leaves the screen the moment you look down the list
+       it filters has to be chased back before it can be corrected. Pinned by position
+       rather than `sticky`: nothing then has to be layered over the fades, and the field
+       needs no fill of its own to stop the rows travelling under it.
+
+       **And the suggestions moved under it** (owner, 2026-09-16). *Likely at this
+       hearing* was the first thing in the panel and the search was below it, which put a
+       three-row shortcut list between the reader and the only control that reaches the
+       other twenty-four. The shortcuts are still first in the scroller, so they are what
+       a typist meets on arrival — they just no longer sit above the field.
+
+       **The cap is the height that is left, not a fraction of the window** (owner,
+       2026-09-16). `max-h-[50svh]` was half the viewport measured from nowhere: with the
+       chrome bar, the cause header, the canvas padding, two section rows and the search
+       field above it, the box itself ran past the fold — so the list could be scrolled to
+       its end with its last group still off screen, reachable only by scrolling the page.
+       From `lg` up the box is a flex child of a column that is pinned and clamped to the
+       window, which states the same rule against the height that actually remains.
+
+       **Flex, never a percentage** (2026-09-16). This was `h-full` for one build and the
+       region stopped scrolling altogether: a percentage height resolves against the
+       parent's, the parent's came from a `max-height` clamp and so was never decided, and
+       `height: 100%` against an undecided height computes to `auto` — the box grew to its
+       own content and had nothing left to scroll. `flex-1` with `min-h-0` at every box
+       between here and the column asks for the leftover in the one language that has a
+       definite answer, and the column now states a height rather than a ceiling.
+
+       The `max-h-(--order-panel-height)` beside it is a belt, not the mechanism: it is
+       looser than the flex result — the field and the shortcuts sit above this box inside
+       the same card — so it never binds while the fill works, and it keeps this region
+       scrollable rather than endless if it ever stops working.
+
+       The `svh` cap stays for the stacked layout below `lg`, where the page scroll is the
+       right one — and `svh` rather than `vh` because on a phone `vh` is the viewport with
+       the browser's chrome *hidden*, so a `vh` box is taller than anything anyone can see
+       until they scroll (RESPONSIVE.md). `overscroll-contain` stops the page taking over
+       when the list reaches its end — a scroll that jumps to the document the moment a
+       list bottoms out is the same fault as the panel moving in the first place.
 
        `NO_SCROLLBAR` takes the bar away; with no thumb over the words, the `pe-1` that
        kept them apart goes with it. What says the region scrolls instead is the fade at
@@ -1708,93 +1928,104 @@ function OrderItems({
        `aria-hidden` and `pointer-events-none`: it is a shadow of the content, not content
        of its own, and a scroll region you cannot click through is worse than one with no
        fade. */
-    <div className="relative min-w-0">
-      <div
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-card to-card/0 transition-opacity motion-reduce:transition-none",
-          edges.top ? "opacity-100" : "opacity-0",
-        )}
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      {/* The panel's label voice, not the DS field default. See the prop's own note:
+          16px here was louder than the captions of the sections it stands over. */}
+      <QueueSearchField
+        label="Search orders"
+        value={query}
+        onChange={setQuery}
+        placeholder="Search the catalogue"
+        className="w-full"
+        labelClassName="text-caption font-semibold text-muted-foreground"
       />
-      <div
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 bg-gradient-to-t from-card to-card/0 transition-opacity motion-reduce:transition-none",
-          edges.bottom ? "opacity-100" : "opacity-0",
-        )}
-      />
-      <div
-        ref={boxRef}
-        onScroll={measure}
-        className={cn(
-          "flex max-h-[50svh] min-w-0 flex-col gap-6 overflow-y-auto overscroll-contain",
-          NO_SCROLLBAR,
-        )}
-      >
-        <div ref={contentRef} className="flex min-w-0 flex-col gap-6">
-          <div className="flex min-w-0 flex-col gap-3">
-            <p className="text-caption font-semibold text-muted-foreground">
-              Likely at this hearing
-            </p>
-            {suggestions.length === 0 ? (
-              <p className="text-body-compact text-muted-foreground">
-                {noSuggestionsNote(purpose)}
-              </p>
-            ) : (
-              /* An `ol`, because the order is the answer. The list is ranked by how strongly
-             the sitting argues for each row — an application the bench has allowed above
-             an order the purpose table merely mentions — so position carries meaning and
-             a `ul` would have thrown it away. The numbers stay off: a typist chooses one
-             of these, they do not work down them. */
-              <ol className="flex min-w-0 flex-col gap-2">
-                {suggestions.map((suggestion) => {
-                  const caption = suggestionCaption(suggestion);
-                  return (
-                    <li key={suggestion.template.id} className="min-w-0">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        /* `h-auto` so a wrapped label and its caption both fit, and
-                       `min-h-10` because `h-auto` alone let an uncaptioned row —
-                       Cognizance, Judgement, and the others the source gives no workflow
-                       — render at 36px, under the DS floor of 40×40 for a touch target
-                       (ACCESSIBILITY §8). The floor is the control metric, so it is
-                       `min-h-10` and not a spacing value. */
-                        className="h-auto min-h-10 w-full flex-col items-start gap-0.5 px-3 py-2 text-start whitespace-normal"
-                        onClick={() =>
-                          add(
-                            suggestion.template.id,
-                            suggestion.fromApplication,
-                          )
-                        }
-                      >
-                        <span className="text-body-compact font-medium">
-                          {suggestion.template.label}
-                        </span>
-                        {caption ? (
-                          <span className="text-caption text-muted-foreground">
-                            {caption}
-                          </span>
-                        ) : null}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </div>
 
-          <div className="flex min-w-0 flex-col gap-3">
-            {/* The panel's label voice, not the DS field default. See the prop's own note:
-            16px here was louder than "Likely at this hearing" directly above it. */}
-            <QueueSearchField
-              label="Search orders"
-              value={query}
-              onChange={setQuery}
-              placeholder="Search the catalogue"
-              className="w-full"
-              labelClassName="text-caption font-semibold text-muted-foreground"
-            />
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-card to-card/0 transition-opacity motion-reduce:transition-none",
+            edges.top ? "opacity-100" : "opacity-0",
+          )}
+        />
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 bg-gradient-to-t from-card to-card/0 transition-opacity motion-reduce:transition-none",
+            edges.bottom ? "opacity-100" : "opacity-0",
+          )}
+        />
+        <div
+          ref={boxRef}
+          onScroll={measure}
+          className={cn(
+            "flex max-h-[50svh] min-w-0 flex-col gap-6 overflow-y-auto overscroll-contain lg:min-h-0 lg:max-h-(--order-panel-height) lg:flex-1",
+            NO_SCROLLBAR,
+          )}
+        >
+          <div ref={contentRef} className="flex min-w-0 flex-col gap-6">
+            {/* **A recess of its own** (owner, 2026-09-16), so three ranked shortcuts
+                read as one offer rather than as the top of the catalogue. It is the
+                first thing under the field and the first thing in the scroller, and on
+                a bare panel that put it at the same depth as the groups it is a
+                shortcut *past* — the hierarchy the well states is that this is a
+                different kind of thing, not a different part of the same list.
+
+                The rows lift off it for free: `variant="outline"` is `bg-card`, so three
+                white tiles now sit on a recessed ground instead of on the same white as
+                the panel, which is the reading the sheet's blocks already get from the
+                same recipe. */}
+            <div className={cn("flex min-w-0 flex-col gap-3", WELL_CLASS)}>
+              <p className="text-caption font-semibold text-muted-foreground">
+                Likely at this hearing
+              </p>
+              {suggestions.length === 0 ? (
+                <p className="text-body-compact text-muted-foreground">
+                  {noSuggestionsNote(purpose)}
+                </p>
+              ) : (
+                /* An `ol`, because the order is the answer. The list is ranked by how strongly
+               the sitting argues for each row — an application the bench has allowed above
+               an order the purpose table merely mentions — so position carries meaning and
+               a `ul` would have thrown it away. The numbers stay off: a typist chooses one
+               of these, they do not work down them. */
+                <ol className="flex min-w-0 flex-col gap-2">
+                  {suggestions.map((suggestion) => {
+                    const caption = suggestionCaption(suggestion);
+                    return (
+                      <li key={suggestion.template.id} className="min-w-0">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          /* `h-auto` so a wrapped label and its caption both fit, and
+                         `min-h-10` because `h-auto` alone let an uncaptioned row —
+                         Cognizance, Judgement, and the others the source gives no workflow
+                         — render at 36px, under the DS floor of 40×40 for a touch target
+                         (ACCESSIBILITY §8). The floor is the control metric, so it is
+                         `min-h-10` and not a spacing value. */
+                          className="h-auto min-h-10 w-full flex-col items-start gap-0.5 px-3 py-2 text-start whitespace-normal"
+                          onClick={() =>
+                            add(
+                              suggestion.template.id,
+                              suggestion.fromApplication,
+                            )
+                          }
+                        >
+                          <span className="text-body-compact font-medium">
+                            {suggestion.template.label}
+                          </span>
+                          {caption ? (
+                            <span className="text-caption text-muted-foreground">
+                              {caption}
+                            </span>
+                          ) : null}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
 
             {/* The panel's own pair of tabs sits above this one, so this switch has to read
             as subordinate to it: it takes the DS's `line` variant — underline and teal,
@@ -1833,10 +2064,28 @@ function OrderItems({
                   return (
                     <Collapsible
                       key={group.id}
+                      id={`order-group-${group.id}`}
                       open={open}
-                      onOpenChange={(next) =>
-                        setOpenGroup(next ? group.id : null)
-                      }
+                      /* The reveal runs in the next frame, not here: the rows this press
+                         mounts do not exist yet while the handler is running, and closing
+                         the group that was open takes content out from above this one, so
+                         both edges of what has to be measured move in the same commit.
+                         One frame later the box is settled and the measurement is real.
+
+                         Only on opening, and only from a press. A search opens groups by
+                         itself (`open` is computed from the query above), and scrolling
+                         the box under a reader who is typing would be the page moving on
+                         its own. */
+                      onOpenChange={(next) => {
+                        setOpenGroup(next ? group.id : null);
+                        if (!next) return;
+                        requestAnimationFrame(() =>
+                          revealInBox(
+                            boxRef.current,
+                            document.getElementById(`order-group-${group.id}`),
+                          ),
+                        );
+                      }}
                       className="min-w-0 py-1"
                     >
                       <CollapsibleTrigger asChild>
@@ -1899,27 +2148,27 @@ function OrderItems({
                 )}
               </TabsContent>
             </Tabs>
-          </div>
 
-          <div className="flex min-w-0 flex-col gap-3">
-            <p className="text-caption font-semibold text-muted-foreground">
-              Pulled into this order
-            </p>
-            {items.length === 0 ? (
-              <p className="text-body-compact text-muted-foreground">
-                Nothing has been pulled in yet. Choose an order and the
-                court&rsquo;s standing words for it are written into the page
-                beside you, ready to be corrected — and where the catalogue
-                gives none, write the order there yourself.
-              </p>
-            ) : (
-              <>
+            {/* **Nothing pulled in says nothing** (owner, 2026-09-16). The empty state
+                here was a paragraph explaining what choosing an order would do — how the
+                court's standing words land in the page, that they can be corrected, and
+                what to do where the catalogue gives none. It is a heading and four lines
+                of instruction over an absence, on a panel whose whole job is the
+                catalogue directly above it; the act it describes is the one the reader is
+                already standing in front of. The block appears when there is something to
+                record, and the heading arrives with its list rather than in front of one
+                that does not exist yet. */}
+            {items.length > 0 ? (
+              <div className="flex min-w-0 flex-col gap-3">
+                <p className="text-caption font-semibold text-muted-foreground">
+                  Pulled into this order
+                </p>
                 {/* **A record of what was pulled in, and no Remove** (owner, 2026-09-15).
-                Its words are part of one passage the moment they land, so a Remove here
-                would either have to guess which sentences were once this template's or
-                quietly take out text the typist has since rewritten. Deleting a
-                direction is deleting the sentence that carries it, in the box, the way
-                it is done on paper. */}
+                    Its words are part of one passage the moment they land, so a Remove
+                    here would either have to guess which sentences were once this
+                    template's or quietly take out text the typist has since rewritten.
+                    Deleting a direction is deleting the sentence that carries it, in the
+                    box, the way it is done on paper. */}
                 <ol className="flex min-w-0 flex-col gap-2">
                   {items.map((item, index) => (
                     <li
@@ -1933,13 +2182,13 @@ function OrderItems({
                     </li>
                   ))}
                 </ol>
-                {/* What the auto-fill pass could not resolve, **read off the box rather than
-                off the templates**. It used to be a count per row, taken from the words
-                each template arrived with — which went stale the moment the typist filled
-                one in, the row still claiming a hole that was no longer there. One count,
-                measured on what the order actually says now. The brackets themselves are
-                visible in the page beside this, so this carries the number and the
-                document carries the places. */}
+                {/* What the auto-fill pass could not resolve, **read off the box rather
+                    than off the templates**. It used to be a count per row, taken from the
+                    words each template arrived with — which went stale the moment the
+                    typist filled one in, the row still claiming a hole that was no longer
+                    there. One count, measured on what the order actually says now. The
+                    brackets themselves are visible in the page beside this, so this
+                    carries the number and the document carries the places. */}
                 {openCount > 0 ? (
                   <p className="text-caption tabular-nums text-muted-foreground">
                     {openCount === 1
@@ -1947,8 +2196,8 @@ function OrderItems({
                       : `${openCount} details still to fill in the order`}
                   </p>
                 ) : null}
-              </>
-            )}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -2105,15 +2354,19 @@ function OrderPaper({
       <h2
         id="order-paper"
         tabIndex={-1}
-        className="text-body-compact text-center font-semibold uppercase tracking-wide"
+        className="text-body-compact font-semibold uppercase tracking-wide"
       >
         {order.title}
       </h2>
 
-      {/* **Framed while it is work, plain once it is set down.** The well is what makes
-          the roll read as a section of its own rather than four loose rows on a sheet
-          (owner, 2026-09-15); the printed lines it becomes are a passage of the order,
-          and a box drawn round them would say the opposite of what Apply just did. */}
+      {/* **A well in both states** (owner, 2026-09-16). Each block was framed only while
+          it was still a form, on the reading that a box drawn round set-down lines would
+          undo what Apply had just said. On the render it undid something else: the roll
+          and the posting dissolved into the sheet once they were answered, so the two
+          facts a typist settles before composing anything became the least visible thing
+          on the page. The well now stays through both states — the block holds its place
+          whether it is being answered or read back — and what Apply changes is the
+          content and the arrival of **Edit**, which is where that news belongs. */}
       {/* **The sitting's two facts, side by side** (owner, 2026-09-15). The posting used
           to sit at the foot of the sheet, below the writing, which put the two things a
           typist settles before composing anything at opposite ends of the page — and cost
@@ -2128,7 +2381,6 @@ function OrderPaper({
           id="order-attendance"
           label="Attendance"
           focusable
-          framed={!rollApplied}
           action={
             rollApplied ? (
               /* **Brand teal and a pencil** (owner, 2026-09-15). `text-primary` is the
@@ -2173,7 +2425,6 @@ function OrderPaper({
           id="order-next"
           label="Next hearing"
           focusable
-          framed={!postingApplied}
           action={
             postingApplied ? (
               <Button
@@ -2682,7 +2933,6 @@ function PaperBlock({
   id,
   label,
   focusable,
-  framed,
   action,
   children,
 }: {
@@ -2690,24 +2940,6 @@ function PaperBlock({
   label: string;
   /** Sends focus here from elsewhere on the screen — see the note below. */
   focusable?: boolean;
-  /**
-   * Draws the block as its own section on the sheet — a nested well, for a block that is
-   * a *form* rather than a passage of the order.
-   *
-   * The DS's rule for content that must read as its own unit inside a card (FAQ, form
-   * section, case facts) is a hairline edge, never a fill difference — and for something
-   * nested *inside* a card, `surface-sunken` with a hairline, because it holds
-   * interactive content. Not a second `Card`: the sheet is already `shadow-raised`, and a
-   * raised box inside a raised box flattens both, which is the same reading that took the
-   * page out of its old panel.
-   *
-   * The recess also does the control states a favour. A `SegmentedControl`'s own well is
-   * `surface-sunken` too, so inside this it reads by its hairline rather than by its
-   * fill — and the selected pill, which is `card` plus a raised shadow, now lifts off a
-   * recessed ground instead of sitting on the same white. Marked and unmarked are further
-   * apart here than they were on the bare sheet.
-   */
-  framed?: boolean;
   /**
    * One control on the eyebrow's own line — the way back into a block that has been set
    * down. This is *not* the teal **Mark attendance** button removed on 2026-09-14: that
@@ -2721,10 +2953,20 @@ function PaperBlock({
   return (
     <section
       aria-labelledby={id}
-      className={cn(
-        "flex min-w-0 flex-col gap-2",
-        framed && "rounded-lg border border-hairline bg-surface-sunken p-4",
-      )}
+      /* The DS's rule for content that must read as its own unit inside a card (FAQ, form
+         section, case facts) is a hairline edge, never a fill difference — and for
+         something nested *inside* a card, `surface-sunken` with a hairline, because it
+         holds interactive content: the form while the block is being answered, **Edit**
+         once it has been. Not a second `Card`: the sheet is already `shadow-raised`, and
+         a raised box inside a raised box flattens both, which is the same reading that
+         took the page out of its old panel.
+
+         The recess also does the control states a favour. A `SegmentedControl`'s own well
+         is `surface-sunken` too, so inside this it reads by its hairline rather than by
+         its fill — and the selected pill, which is `card` plus a raised shadow, lifts off
+         a recessed ground instead of sitting on the same white. Marked and unmarked are
+         further apart here than they were on the bare sheet. */
+      className={cn("flex min-w-0 flex-col gap-2", WELL_CLASS)}
     >
       {/* An eyebrow and nothing else. It carried a teal **Mark attendance** / **Set next
           hearing** text button until 2026-09-14, when the editors it opened went back to

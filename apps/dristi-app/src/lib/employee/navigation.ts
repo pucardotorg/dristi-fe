@@ -471,3 +471,26 @@ export function courtTrail(pathname: string): CourtCrumb[] {
 
   return [home];
 }
+
+/**
+ * The screens that arrive with the navigation rail folded to its strip.
+ *
+ * The order composer is the one so far (owner, 2026-09-16). It is the only court screen
+ * that is a *workbench* rather than a queue: two section cards and a sheet of the order
+ * itself, sized in thirds of whatever width is left, and the rail's 16rem is width the
+ * page has better use for. A typist who has opened one listing's order is not choosing
+ * their next queue — they are composing, and the way out is the footer's own control.
+ *
+ * **Folded, never gone.** `railCollapsible="icon"` leaves the 4rem strip standing with
+ * every row still on it, the strip's tooltips name them, and ⌘B or the bar's trigger
+ * brings the full rail back on this screen like any other. This says where the rail
+ * *arrives*, which is the only thing a route can honestly decide for a reader.
+ */
+const FOLDED_RAIL_ROUTES: RegExp[] = [
+  /^\/employee\/hearings\/[^/]+\/order\/?$/,
+];
+
+/** Does this route arrive with the rail folded? See `FOLDED_RAIL_ROUTES`. */
+export function foldsCourtRail(pathname: string): boolean {
+  return FOLDED_RAIL_ROUTES.some((pattern) => pattern.test(pathname));
+}

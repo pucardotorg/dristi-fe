@@ -1,6 +1,12 @@
+"use client";
+
+import * as React from "react";
+import { usePathname } from "next/navigation";
+
 import { ChromeShell } from "@/components/chrome/app-chrome";
 import { EmployeeNav } from "@/components/employee/employee-nav";
 import { EmployeeTopBar } from "@/components/employee/employee-top-bar";
+import { foldsCourtRail } from "@/lib/employee/navigation";
 
 /**
  * The court-staff area wrapper.
@@ -20,9 +26,37 @@ import { EmployeeTopBar } from "@/components/employee/employee-top-bar";
  * `main` is a flex column so a screen that wants to pin a footer (the order composer)
  * can fill the remaining height. Screens that don't opt in still start at the top.
  *
+ * A client component for one reason: the rail's width is driven from the route here. It
+ * holds no other state, and the screens below it are still rendered on the server.
+ *
  * There is no sign-in in front of this: `/employee` is the entry point.
  */
 export function EmployeeArea({ children }: { children: React.ReactNode }) {
+  /**
+   * **The workbench arrives with the rail folded** (owner, 2026-09-16), which is a fact
+   * about the route and so is decided here rather than inside the screen: the provider
+   * that owns the rail's width lives at the area, and a screen reaching up into it would
+   * be a second thing setting a state the chrome already owns.
+   *
+   * The reader's own last word wins after that. `chosen` is what they set by ⌘B or the
+   * bar's trigger, and it is what the rail returns to when they leave the composer — so
+   * a clerk who works with a folded rail everywhere does not get it thrown open at them
+   * on the way out, and one who opened it on the composer keeps it open there. Only the
+   * *arrival* is the route's to decide.
+   *
+   * A ref, not state: nothing renders from it, and making it state would re-run the
+   * effect below on every toggle — which would re-fold the rail a moment after the
+   * reader opened it, on the one screen where they had just asked for it.
+   */
+  const folded = foldsCourtRail(usePathname());
+  const chosen = React.useRef(true);
+  const [open, setOpen] = React.useState(!folded);
+  /* Keyed on the fold alone. `open` is deliberately not a dependency: this runs when the
+     route crosses into or out of a folded screen, never when the rail is toggled. */
+  React.useEffect(() => {
+    setOpen(folded ? false : chosen.current);
+  }, [folded]);
+
   return (
     /* The rail folds to a 4rem strip. The prop is the shell's rather than the rail's
        because the page column's overlays measure their left edge from it too, and one of
@@ -31,6 +65,11 @@ export function EmployeeArea({ children }: { children: React.ReactNode }) {
       rail={<EmployeeNav />}
       topBar={<EmployeeTopBar />}
       railCollapsible="icon"
+      open={open}
+      onOpenChange={(next) => {
+        chosen.current = next;
+        setOpen(next);
+      }}
     >
       {/* **The beige canvas, once, for the whole area** (owner, 2026-09-12: *"this base
           change that we added for the surface, can you add it to all other pages also"*).

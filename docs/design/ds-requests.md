@@ -630,10 +630,18 @@ go back. Fixed locally, all three unreachable through the primitive:
 | | fixed by | measured |
 |---|---|---|
 | (a) | `showOutsideDays={false}` | 13 Sept – 2 Oct: no date appears in both panels |
-| (c) | closing the span closes the surface | second click dismisses; first does not |
+| (c) | an **Apply** in the surface's own footer dismisses it | Apply closes and commits; neither click does (2026-09-16) |
 | (e) | `onInteractOutside` refuses this field's own parts | `×` clears, calendar stays |
 
 (b) went too: the empty-`DateRange` trick is gone, the value is plainly `undefined`.
+
+**And a third thing the composition reached on 2026-09-16, which is really (e) again.**
+The span is now drawn in the calendar and applied from a footer inside it, so the board is
+not narrowed until the bench presses **Apply** — a range takes two clicks, and applied as
+it is drawn the first of them empties the board to one day. That footer is the slot (e)
+asks for, holding an action rather than a **Clear**: `DateRangePicker` renders its own
+`Popover`, so a consumer using it has nowhere to put either, and cannot hold a draft
+either way because the value it commits is the only value it has.
 
 Two more the composition reached that the primitive still cannot. The trigger is named by
 its label *and* its own content (`aria-labelledby`), so it announces

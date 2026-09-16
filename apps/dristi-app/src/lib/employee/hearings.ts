@@ -16,13 +16,12 @@
  * sides with several, and enough rows to page at 10 and 20. No row is read from a case,
  * a court or a queue.
  *
- * **The board opens part-heard**, twelve matters completed against eleven still to be
- * called — a cause list picked up in the afternoon rather than before the court sat
- * (owner, 2026-09-16). A day where nothing had been heard could not have an order on it:
- * an order is drawn up at a sitting, so every one of the orders this court has in
- * progress (`order-demo.ts`) belongs to a matter it has already called, and a Draft
- * orders queue whose rows read *Scheduled* would be claiming otherwise. Eleven listings
- * stay scheduled, which is what Start hearing is demonstrated on.
+ * **The board opens before the court has sat**, every listing still to be called
+ * (owner, 2026-09-16). The day starts where the bench starts: nothing heard, nothing
+ * drawn up, and every mark on this screen made by the person at it. A board that opened
+ * part-heard had the first thing it is for — Start hearing, on a matter that has not
+ * been called — already done on half the rows, and an order can only follow a sitting,
+ * so a completed listing here would arrive carrying one nobody wrote.
  *
  * **Starting, ending, and passing over are screen actions, not a court record.** The
  * listing stands as scheduled until the bench presses Start hearing; only then does
@@ -399,7 +398,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "evidence",
     purpose: "evidence-of-complainant",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-243",
@@ -415,7 +414,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "appearance",
     purpose: "admission",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-244",
@@ -439,7 +438,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "cognizance",
     purpose: "delay-condonation",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-246",
@@ -465,7 +464,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "cognizance",
     purpose: "cognizance",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-248",
@@ -478,7 +477,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "plea",
     purpose: "plea",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-249",
@@ -504,7 +503,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "evidence",
     purpose: "evidence-of-complainant",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-251",
@@ -531,7 +530,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     counsel: [{ name: "Adv. Saurabh Verma", side: "complainant" }],
     stage: "cognizance",
     purpose: "admission",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-253",
@@ -557,7 +556,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "arguments",
     purpose: "arguments",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-255",
@@ -570,7 +569,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "appearance",
     purpose: "bail",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-256",
@@ -596,7 +595,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "cognizance",
     purpose: "delay-condonation",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-258",
@@ -632,7 +631,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "judgement",
     purpose: "judgement",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-261",
@@ -668,7 +667,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "arguments",
     purpose: "arguments",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-264",

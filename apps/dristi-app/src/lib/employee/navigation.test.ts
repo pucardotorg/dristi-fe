@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { COURT_HOME, courtTrail, isCourtNavActive } from "./navigation";
+import {
+  COURT_HOME,
+  courtTrail,
+  foldsCourtRail,
+  isCourtNavActive,
+} from "./navigation";
 
 const HOME = { label: "Court home", href: "/employee" };
 
@@ -152,5 +157,39 @@ describe("courtTrail", () => {
       assert.ok(trail.length > 1, path);
       assert.equal(trail.at(-1)?.href, undefined, path);
     }
+  });
+});
+
+/**
+ * Which routes arrive with the rail folded (owner, 2026-09-16). The predicate is the
+ * whole of what the route decides — the reader can still open the rail on any of them —
+ * so what these pin is that it answers for the composer and for nothing next to it.
+ */
+describe("foldsCourtRail", () => {
+  it("folds on the order composer", () => {
+    assert.equal(foldsCourtRail("/employee/hearings/h-241/order"), true);
+    /* A trailing slash is the same route, and Next will serve it. */
+    assert.equal(foldsCourtRail("/employee/hearings/h-241/order/"), true);
+  });
+
+  it("leaves the queues and the listing above it alone", () => {
+    for (const path of [
+      "/employee",
+      "/employee/hearings",
+      /* The listing's own overview is a *record*, read at full width with the rail up;
+         only the composer under it is the workbench. */
+      "/employee/hearings/h-241",
+      "/employee/sign-orders",
+      "/employee/register-cases/r-1840",
+    ]) {
+      assert.equal(foldsCourtRail(path), false, path);
+    }
+  });
+
+  it("does not fold on a route that merely ends in the word", () => {
+    /* The pattern is anchored to one listing's composer, not to any path with `order`
+       at the end of it — a queue called `/employee/draft-orders` must keep its rail. */
+    assert.equal(foldsCourtRail("/employee/draft-orders"), false);
+    assert.equal(foldsCourtRail("/employee/hearings/h-241/order/extra"), false);
   });
 });
