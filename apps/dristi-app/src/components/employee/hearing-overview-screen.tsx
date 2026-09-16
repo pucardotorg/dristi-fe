@@ -198,7 +198,7 @@ function HearingOverview({ hearing }: { hearing: CourtHearing }) {
               page on nothing before the first panel. `flex-wrap` puts the chip
               back on its own line when the title fills a phone. */}
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-title text-balance font-semibold sm:text-title-l">
+            <h1 className="text-title text-balance font-semibold">
               {causeTitle(hearing)}
             </h1>
             <Badge variant={courtHearingStatusVariant(hearing.status)}>

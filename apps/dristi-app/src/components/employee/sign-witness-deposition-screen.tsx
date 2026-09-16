@@ -10,8 +10,8 @@ import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignWitnessDepositionDialog } from "@/components/employee/sign-witness-deposition-dialog";
 import { SignWitnessDepositionTable } from "@/components/employee/sign-witness-deposition-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -184,7 +184,7 @@ export function SignWitnessDepositionScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Sign witness deposition
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
@@ -494,9 +494,9 @@ function DepositionItemList({
       {rows.map((deposition) => {
         const tag = witnessTag(deposition);
         return (
-          <li
+          <QueueItemRow
             key={deposition.id}
-            {...rowActivation("flex gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+            className="flex gap-3"
           >
             {/* The DS box expands its own hit area to 40×40; the name it carries is the
                 sheet and its case, not the column, because a row read aloud has no
@@ -542,7 +542,7 @@ function DepositionItemList({
                 )}
               />
             </div>
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>

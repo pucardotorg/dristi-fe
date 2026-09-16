@@ -7,8 +7,8 @@ import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { SignADiaryDialog } from "@/components/employee/sign-a-diary-dialog";
 import { SignADiaryTable } from "@/components/employee/sign-a-diary-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -167,7 +167,7 @@ export function SignADiaryScreen() {
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="text-title text-balance font-semibold outline-none sm:text-title-l"
+          className="text-title text-balance font-semibold outline-none"
         >
           Sign A-Diary
         </h1>
@@ -312,7 +312,7 @@ function SignADiaryFilters({
           bench had picked. Remounting on the value is the only fix that does not edit the
           primitive; upstream DS bug, logged in the build report. */}
       <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-a-diary-date-label" className="w-fit text-body font-medium">
+        <span id="sign-a-diary-date-label" className="w-fit text-body-compact font-medium">
           A-Diary dated
         </span>
         <div role="group" aria-labelledby="sign-a-diary-date-label">
@@ -429,9 +429,9 @@ function SignADiaryItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((entry) => (
-        <li
+        <QueueItemRow
           key={entry.id}
-          {...rowActivation("flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+          className="flex flex-col gap-2"
         >
           <button
             type="button"
@@ -451,7 +451,7 @@ function SignADiaryItemList({
               {formatADiaryDate(entry.nextHearing)}
             </span>
           </p>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

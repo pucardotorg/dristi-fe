@@ -73,7 +73,7 @@ export function CourtDashboardScreen() {
     <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="text-title font-semibold sm:text-title-l">Dashboard</h1>
+          <h1 className="text-title font-semibold">Dashboard</h1>
           <p className="text-body text-muted-foreground">{formatCourtDay(today)}</p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">

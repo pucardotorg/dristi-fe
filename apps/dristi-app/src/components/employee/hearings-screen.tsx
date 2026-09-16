@@ -1,7 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { CalendarX2Icon, SearchXIcon, VideoIcon } from "lucide-react";
+import {
+  CalendarX2Icon,
+  SearchXIcon,
+  VideoIcon,
+} from "lucide-react";
 
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { HearingOverviewDialog } from "@/components/employee/hearing-overview-dialog";
@@ -12,14 +16,12 @@ import {
 } from "@/components/employee/hearings-table";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { useCourtRole } from "@/components/employee/use-court-role";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { useHearingSession } from "@/components/employee/use-hearing-session";
-import { rowActivation } from "@/lib/employee/row-activation";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
 import {
   Empty,
   EmptyContent,
@@ -28,14 +30,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CourtFilters } from "@/components/employee/court-filters";
 import {
   Tooltip,
   TooltipContent,
@@ -187,7 +182,7 @@ export function HearingsScreen() {
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
-          <h1 className="text-title text-balance font-semibold sm:text-title-l">
+          <h1 className="text-title text-balance font-semibold">
             Today&rsquo;s hearings
           </h1>
           <p className="text-body text-muted-foreground">
@@ -205,8 +200,13 @@ export function HearingsScreen() {
           filters={filters}
           onChange={changeFilters}
           day={activeDay}
+          today={today}
           onDayChange={(next) => {
             setDay(next);
+            setPage(1);
+          }}
+          onClearDay={() => {
+            setDay(null);
             setPage(1);
           }}
           onClear={clearFilters}
@@ -293,135 +293,80 @@ export function HearingsScreen() {
 }
 
 /**
- * Status, purpose, day and free text — all of them live.
- *
- * Filters only. The court-level action lives in the page header (`JoinVideoCourt`), so
- * this row holds nothing that is not a way of narrowing the list. Wraps rather than
- * scrolls, stacking to one control per line on narrow screens (RESPONSIVE).
- *
- * Every control carries a visible label. The reference labels none of them, leaning on
- * placeholders instead, which the accessibility floor treats as a defect rather than a
- * style (ACCESSIBILITY §12: placeholders may hint format, they are not labels) — so the
- * labels are the deviation, and the smallest one available.
- *
- * The Search button is gone, and its absence settles an inconsistency that was already
- * here: the hearing date filters the moment it was picked while the other three waited to
- * be asked for, so half this row behaved one way and half the other. All four now apply on
- * change. Nothing in the row has a meaningless in-between state — two selects, a calendar
- * and a text box — which is the test for whether a control can go live.
- *
- * That also settles the teal. Search carried `bg-primary` here despite the paragraph that
- * used to claim otherwise, so the board showed two strong fills at once: Search and Join
- * VC. Removing it leaves Join VC as the screen's single primary, which is what the Ration
- * Teal Law wanted — the court-level act this view exists for. It stays `aria-disabled`
- * with a tooltip that says why (video conferencing is not available yet).
+ * The filter row: search inline, everything else behind a Filters button (owner,
+ * 2026-09-15 — the advocate Cases pattern). The free text filters live where it is typed;
+ * Status, Purpose and the hearing date fold into a right-hand sheet, and what is applied is
+ * spelled out in removable chips on the row, so the folded controls never hide a narrowed
+ * list. The court-level action (`JoinVideoCourt`) stays in the page header, not here.
  */
 function HearingsFilters({
   filters,
   onChange,
   day,
+  today,
   onDayChange,
+  onClearDay,
   onClear,
 }: {
   filters: HearingFilters;
   onChange: (filters: HearingFilters) => void;
+  /** The day in view, already resolved to today when none is picked. */
   day: string;
+  today: string;
   onDayChange: (day: string) => void;
+  onClearDay: () => void;
   onClear: () => void;
 }) {
   return (
-    <form
-    className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-    onSubmit={(event) => event.preventDefault()}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="hearings-status" className="w-fit text-body">
-          Status
-        </Label>
-        <Select
-          value={filters.status}
-          onValueChange={(value) =>
-            onChange({
-              ...filters,
-              status: value as HearingFilters["status"],
-            })
-          }
-        >
-          <SelectTrigger id="hearings-status" className="w-full sm:w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {TODAYS_CAUSE_STATUSES.map((status) => (
-              <SelectItem key={status.id} value={status.id}>
-                {status.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="hearings-purpose" className="w-fit text-body">
-          Purpose
-        </Label>
-        <Select
-          value={filters.purpose}
-          onValueChange={(value) =>
-            onChange({
-              ...filters,
-              purpose: value as HearingFilters["purpose"],
-            })
-          }
-        >
-          <SelectTrigger id="hearings-purpose" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All purposes</SelectItem>
-            {COURT_HEARING_PURPOSES.map((purpose) => (
-              <SelectItem key={purpose.id} value={purpose.id}>
-                {purpose.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names a
-          group around it rather than pointing `htmlFor` at a control that does not
-          exist. The trigger still announces the date it holds. */}
-      <div className="flex min-w-0 flex-col gap-2">
-        <span id="hearings-day-label" className="w-fit text-body font-medium">
-          Hearing date
-        </span>
-        <div role="group" aria-labelledby="hearings-day-label">
-          <DatePicker
-            value={parseIsoDay(day)}
-            onValueChange={(next) => {
-              if (next) onDayChange(isoDay(next));
-            }}
-            className="w-full sm:w-52"
-          />
-        </div>
-      </div>
-
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-52"
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name or number"
-      />
-
-      {/* The only button left on the row. It stays because it undoes more than the search
-          box's own `×` does — status, purpose and the day go back to the board the screen
-          opens on — and it is labelled for that rather than for the text it also happens
-          to clear. */}
-      <Button type="button" variant="ghost" onClick={onClear}>
-        Clear filters
-      </Button>
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name or number",
+      }}
+      fields={[
+        {
+          id: "hearings-status",
+          label: "Status",
+          value: filters.status,
+          all: "all",
+          allLabel: "All statuses",
+          options: TODAYS_CAUSE_STATUSES.map((status) => ({
+            value: status.id,
+            label: status.label,
+          })),
+          onApply: (value) =>
+            onChange({ ...filters, status: value as HearingFilters["status"] }),
+        },
+        {
+          id: "hearings-purpose",
+          label: "Purpose",
+          value: filters.purpose,
+          all: "all",
+          allLabel: "All purposes",
+          options: COURT_HEARING_PURPOSES.map((purpose) => ({
+            value: purpose.id,
+            label: purpose.label,
+          })),
+          onApply: (value) =>
+            onChange({ ...filters, purpose: value as HearingFilters["purpose"] }),
+        },
+      ]}
+      date={{
+        label: "Hearing date",
+        value: parseIsoDay(day),
+        active: day !== today,
+        chipLabel: formatCourtDay(day),
+        draftActive: (value) => !!value && isoDay(value) !== today,
+        cleared: parseIsoDay(today),
+        onApply: (value) => {
+          if (value && isoDay(value) !== today) onDayChange(isoDay(value));
+          else onClearDay();
+        },
+      }}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -528,9 +473,9 @@ function HearingsItemList({
         const complainant = counselFor(hearing, "complainant");
         const accused = counselFor(hearing, "accused");
         return (
-          <li
+          <QueueItemRow
             key={hearing.id}
-            {...rowActivation("flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+            className="flex flex-col gap-2"
           >
             <p className="min-w-0 text-body-compact font-medium">
               <span className="text-muted-foreground tabular-nums">
@@ -564,7 +509,7 @@ function HearingsItemList({
               onPassOver={onPassOver}
               onOpenOrder={onOpenOrder}
             />
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>

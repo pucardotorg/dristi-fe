@@ -381,7 +381,7 @@ function MarkAsEvidenceStep({
             is a Radix trigger, not a form control `Field` can adopt, so the label points
             at the trigger's own id — the pattern every court-side filter row uses. */}
         <div className="flex flex-col gap-2">
-          <Label htmlFor="evidence-marked-through" className="w-fit text-body">
+          <Label htmlFor="evidence-marked-through" className="w-fit text-body-compact">
             Evidence marked through
           </Label>
           <Select value={markedThrough} onValueChange={setMarkedThrough}>

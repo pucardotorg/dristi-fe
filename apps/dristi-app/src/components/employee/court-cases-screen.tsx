@@ -8,9 +8,10 @@ import {
   CourtCaseItemList,
   CourtCasesTable,
 } from "@/components/employee/court-cases-table";
+import { CourtFilters } from "@/components/employee/court-filters";
 import { ListFooter } from "@/components/employee/list-footer";
+import { NotBuiltDialog } from "@/components/employee/not-built-dialog";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,14 +22,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   COURT_CASE_COUNT,
   COURT_PRIORITIES,
@@ -37,6 +30,8 @@ import {
   filterCourtCases,
   hasCourtCaseFilters,
   type CourtCaseFilters,
+  courtCaseTitle,
+  type CourtCase,
   type CourtPriorityId,
 } from "@/lib/employee/cases";
 import {
@@ -88,6 +83,9 @@ export function CourtCasesScreen() {
   });
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
+  /* The case a reader opened. The court-side case file is not built, so opening a row lands
+     on the shared not-built end state rather than a screen that is not there. */
+  const [open, setOpen] = React.useState<CourtCase | null>(null);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
   const rows = filterCourtCases(filters);
@@ -117,7 +115,7 @@ export function CourtCasesScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           All cases
         </h1>
         {/* The count line says what is in view and what the court holds, in that order,
@@ -133,79 +131,50 @@ export function CourtCasesScreen() {
           lifted sheet — the same recipe every other court-side list uses. Nothing inside
           draws a second frame. */}
       <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card p-6 shadow-raised">
-        <form
-          className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-          onSubmit={(event) => event.preventDefault()}
-        >
-          <QueueSearchField
-            label="Search cases"
-            className="sm:w-80"
-            ref={searchRef}
-            value={filters.query}
-            onChange={(query) => change({ ...filters, query })}
-            placeholder="Case number, complainant or accused"
-          />
-
-          <Field className="sm:w-56">
-            <FieldLabel className="text-body" htmlFor="court-cases-priority">
-              Priority
-            </FieldLabel>
-            <Select
-              value={filters.priority ?? "any"}
-              onValueChange={(next) =>
+        <CourtFilters
+          search={{
+            label: "Search cases",
+            value: filters.query,
+            onChange: (query) => change({ ...filters, query }),
+            placeholder: "Case number, complainant or accused",
+          }}
+          searchRef={searchRef}
+          fields={[
+            {
+              id: "court-cases-priority",
+              label: "Priority",
+              value: filters.priority ?? "any",
+              all: "any",
+              allLabel: "Any priority",
+              options: COURT_PRIORITIES.map((priority) => ({
+                value: priority.id,
+                label: priority.tile,
+              })),
+              onApply: (value) =>
                 change({
                   ...filters,
-                  priority: next === "any" ? null : (next as CourtPriorityId),
-                })
-              }
-            >
-              <SelectTrigger id="court-cases-priority" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Any priority</SelectItem>
-                {COURT_PRIORITIES.map((priority) => (
-                  <SelectItem key={priority.id} value={priority.id}>
-                    {priority.tile}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field className="sm:w-40">
-            <FieldLabel className="text-body" htmlFor="court-cases-stage">
-              Stage
-            </FieldLabel>
-            <Select
-              value={filters.stage ?? "all"}
-              onValueChange={(next) =>
+                  priority: value === "any" ? null : (value as CourtPriorityId),
+                }),
+            },
+            {
+              id: "court-cases-stage",
+              label: "Stage",
+              value: filters.stage ?? "all",
+              all: "all",
+              allLabel: "All stages",
+              options: COURT_CASE_STAGES.map((stage) => ({
+                value: stage.id,
+                label: stage.label,
+              })),
+              onApply: (value) =>
                 change({
                   ...filters,
-                  stage: next === "all" ? null : (next as CourtCaseStage),
-                })
-              }
-            >
-              <SelectTrigger id="court-cases-stage" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All stages</SelectItem>
-                {COURT_CASE_STAGES.map((stage) => (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    {stage.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          {isFiltered ? (
-            <Button type="button" variant="ghost" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          ) : null}
-        </form>
+                  stage: value === "all" ? null : (value as CourtCaseStage),
+                }),
+            },
+          ]}
+          onClearAll={clearFilters}
+        />
 
         {/* The category's own sentence, when one is chosen. The select says which
             category; this says what being in it means, which a 56px control cannot. */}
@@ -249,10 +218,14 @@ export function CourtCasesScreen() {
                 sideways. */}
             <div className="min-w-0 overflow-x-auto">
               <div className="hidden md:block">
-                <CourtCasesTable rows={pageRows} today={today} />
+                <CourtCasesTable rows={pageRows} today={today} onOpen={setOpen} />
               </div>
               <div className="md:hidden">
-                <CourtCaseItemList rows={pageRows} today={today} />
+                <CourtCaseItemList
+                  rows={pageRows}
+                  today={today}
+                  onOpen={setOpen}
+                />
               </div>
             </div>
 
@@ -273,6 +246,15 @@ export function CourtCasesScreen() {
           </div>
         )}
       </section>
+
+      <NotBuiltDialog
+        item={open ? courtCaseTitle(open) : null}
+        opens="the case file"
+        open={open !== null}
+        onOpenChange={(next) => {
+          if (!next) setOpen(null);
+        }}
+      />
     </div>
   );
 }
