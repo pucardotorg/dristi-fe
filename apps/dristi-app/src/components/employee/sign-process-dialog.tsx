@@ -2,23 +2,22 @@
 
 import * as React from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import {
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
 import { DocumentPreview } from "@/components/cases/document-preview";
-import { SignMethodDialog } from "@/components/employee/sign-method-dialog";
+import {
+  SIGN_SCENES,
+  SIGN_STAGES,
+  SignatureActions,
+  SignatureStage,
+  type SignStage,
+} from "@/components/employee/sign-method-stage";
 import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
-import {
-  useHeld,
-  useSignStepHandoff,
-} from "@/components/employee/use-sign-step-handoff";
+import { useHeldRecord } from "@/components/employee/use-held-record";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
+import { Dialog } from "@/components/ui/dialog";
 import { causeTitle } from "@/lib/employee/hearings";
 import {
   buildProcessDocument,
@@ -31,7 +30,7 @@ import {
   type ProcessDocument,
 } from "@/lib/employee/sign-process";
 
-/** What the paper is called in the signature overlay's copy. */
+/** What the paper is called in the signature stage's copy. */
 const NOUN = "process";
 
 /**
@@ -49,15 +48,13 @@ function processSubject(process: CourtProcess): string {
  * One process, read — and signed, where the stage it is standing in is the one that
  * signs.
  *
- * The same two-overlay path the four single-act queues use, and for the same reasons.
- * Reading is the wide step: the paper *is* the task, so it is a `height="fill"`
- * `DocumentPreview` in a tall overlay. Signing is the narrow step: what is about to be
- * signed, the choice of how, and Submit. They are two Dialogs sequenced by
- * `useSignStepHandoff` rather than two states of one, so the second plays the DS enter
- * animation instead of jumping the box from the document size to the method size in a
- * single frame.
+ * The same two-stage act the four single-document queues share, in **one** overlay
+ * (owner, 2026-09-16). Reading is the wide stage: the paper *is* the task, so it is a
+ * `height="fill"` `DocumentPreview` on the canvas. Signing is the narrow stage: what is
+ * about to be signed, the choice of how, and Submit, in a reading-width column centred in
+ * the same window. It was two `Dialog`s until now — see `sign-method-stage.tsx`.
  *
- * **The signature step only exists on Pending sign.** A process waiting for its
+ * **The signature stage only exists on Pending sign.** A process waiting for its
  * registered-post cover has not been drawn up for signature yet; one already signed,
  * sent or closed off cannot be signed twice. Those four stages open this overlay
  * read-only, which is the only way to see the paper without leaving the screen and costs
@@ -78,67 +75,43 @@ export function SignProcessDialog({
   onSign: (process: CourtProcess) => void;
   onReturnFocus: () => void;
 }) {
-  const held = useHeld(process);
-  const handoff = useSignStepHandoff(process !== null);
-  const choice = useSignatureChoice(NOUN);
-
-  React.useEffect(() => {
-    if (!process) return;
-    choice.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on identity, not on every choice render
-  }, [process?.id]);
-
-  if (!held) return null;
-
-  function dismiss() {
-    onOpenChange(null);
-  }
+  const { held, opening } = useHeldRecord(process);
 
   return (
-    <>
-      <Dialog
-        open={handoff.readOpen}
-        onOpenChange={(open) => handoff.onReadOpenChange(open, dismiss)}
-      >
-        <SignProcessReadBody
+    <Dialog
+      open={process !== null}
+      onOpenChange={(open) => {
+        if (!open) onOpenChange(null);
+      }}
+    >
+      {/* Keyed on the opening: a fresh window starts on the paper with an empty
+          signature, and the one that is leaving keeps the stage it was left on. */}
+      {held ? (
+        <SignProcessBody
+          key={opening}
           process={held}
-          onProceed={handoff.goToSign}
-          onCloseAutoFocus={(event) =>
-            handoff.onReadCloseAutoFocus(event, onReturnFocus)
-          }
+          onSign={onSign}
+          onReturnFocus={onReturnFocus}
         />
-      </Dialog>
-
-      <SignMethodDialog
-        open={handoff.signOpen}
-        onOpenChange={(open) => handoff.onSignOpenChange(open, dismiss)}
-        onCloseAutoFocus={(event) =>
-          handoff.onSignCloseAutoFocus(event, onReturnFocus)
-        }
-        noun={NOUN}
-        subject={processSubject(held)}
-        warning="Signing this process cannot be reversed."
-        download={{
-          prompt: "Want to read it again?",
-          onDownload: () => downloadProcessDocument(held),
-        }}
-        choice={choice}
-        onBack={handoff.goToRead}
-        onSubmit={() => onSign(held)}
-      />
-    </>
+      ) : null}
+    </Dialog>
   );
 }
 
-function SignProcessReadBody({
+function SignProcessBody({
   process,
-  onProceed,
-  onCloseAutoFocus,
+  onSign,
+  onReturnFocus,
 }: {
   process: CourtProcess;
-  onProceed: () => void;
-  onCloseAutoFocus: (event: Event) => void;
+  onSign: (process: CourtProcess) => void;
+  onReturnFocus: () => void;
 }) {
+  const flow = useStagedFlow<SignStage>({
+    order: SIGN_STAGES,
+    scene: SIGN_SCENES,
+  });
+  const choice = useSignatureChoice(NOUN);
   const document = React.useMemo(
     () => buildProcessDocument(process),
     [process],
@@ -146,32 +119,52 @@ function SignProcessReadBody({
   const stage = processStage(process.stage);
   const signable = process.stage === "pending-sign";
   const day = stage.dateOf(process);
+  const reading = flow.stage === "read";
 
   return (
-    <ChromeDialogContent
-      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh]"
-      onCloseAutoFocus={onCloseAutoFocus}
+    <StagedOverlay
+      /* The width and the height the *document* needs, held for both stages — see
+         `SignOrderDialog` for why the height is definite at every width. */
+      className="h-[85dvh] sm:max-w-4xl"
+      title={reading ? document.title : "Add signature"}
+      titleRef={flow.titleRef}
+      /* The stage is the overlay's supporting line rather than a badge beside the title:
+         the row was opened from a tab that already names it, so what is worth saying here
+         is the stage *with its own date on it* — the fact the row's fourth column carries
+         and the one a reader loses when the table goes behind the overlay. It stands on
+         both stages, because the record is the same record on both. */
+      description={`${causeTitle(process)} · ${process.caseNumber} · ${processChannelLabel(
+        process.channel,
+      )}${day ? ` · ${stage.dateColumn} ${formatProcessDate(day)}` : ""}`}
+      sceneKey={flow.sceneKey}
+      motion={flow.motion}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        onReturnFocus();
+      }}
+      footer={
+        reading ? (
+          signable ? (
+            <Button type="button" onClick={() => flow.go("sign")}>
+              Sign this process
+            </Button>
+          ) : null
+        ) : (
+          <SignatureActions
+            choice={choice}
+            onBack={() => flow.go("read")}
+            onSubmit={() => onSign(process)}
+          />
+        )
+      }
     >
-      {/* `pr-16` keeps the title clear of the close button the DS places top-right. */}
-      <DialogHeader className="shrink-0 gap-2 p-6 pr-16">
-        <DialogTitle className="text-title-s font-semibold">
-          {document.title}
-        </DialogTitle>
-        {/* The stage is the overlay's supporting line rather than a badge beside the
-            title: the row was opened from a tab that already names it, so what is worth
-            saying here is the stage *with its own date on it* — the fact the row's fourth
-            column carries and the one a reader loses when the table goes behind the
-            overlay. */}
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(process)} · {process.caseNumber} ·{" "}
-          {processChannelLabel(process.channel)}
-          {day ? ` · ${stage.dateColumn} ${formatProcessDate(day)}` : null}
-        </DialogDescription>
-      </DialogHeader>
-      <Separator />
-      <div className="flex min-h-0 flex-1 flex-col p-6">
+      {reading ? (
         <DocumentPreview
-          className="min-h-96 md:min-h-0"
+          /* The stage canvas is a flex column, so the preview only takes the height the
+             window can spare if it says so: a flex item's height is never stretched for
+             it. The grid callers get this from a `minmax(0,1fr)` row; here it is
+             `flex-1`, and `min-h-0` lets it shrink rather than pushing the footer. */
+          className="min-h-0 flex-1"
           height="fill"
           title={document.title}
           source={{
@@ -183,16 +176,19 @@ function SignProcessReadBody({
             label: `Download the ${courtProcessTypeInline(process.type)}`,
           }}
         />
-      </div>
-
-      {signable ? (
-        <DialogFooter className="mx-0 mb-0 shrink-0">
-          <Button type="button" onClick={onProceed}>
-            Sign this process
-          </Button>
-        </DialogFooter>
-      ) : null}
-    </ChromeDialogContent>
+      ) : (
+        <SignatureStage
+          noun={NOUN}
+          subject={processSubject(process)}
+          warning="Signing this process cannot be reversed."
+          download={{
+            prompt: "Want to read it again?",
+            onDownload: () => downloadProcessDocument(process),
+          }}
+          choice={choice}
+        />
+      )}
+    </StagedOverlay>
   );
 }
 

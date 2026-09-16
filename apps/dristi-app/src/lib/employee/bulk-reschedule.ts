@@ -324,38 +324,39 @@ export function boardAfterMoves(
     .sort(byListing);
 }
 
-/** One day the bench moved matters to, and everything it moved there. */
-export type RescheduledGroup = { day: string; rows: ReschedulableHearing[] };
+/** One day the bench moved matters to, and how many went there. */
+export type RescheduledDay = { day: string; count: number };
 
 /**
- * This session's moves, gathered under the day each one landed on.
+ * The days this session moved matters to, ascending, each with its tally.
  *
  * A session is not one act. A court that is not sitting on the 15th moves that day's
  * board to the 17th, then looks at the fortnight after and moves eight more to 9 October
- * — two decisions, two days, one afternoon. Listed flat, that reads as eleven rows with a
- * date column to scan; gathered, it reads as what the bench actually did: three there,
- * eight there (owner, 2026-09-15).
+ * — two decisions, two days, one afternoon. The record has to hold both.
  *
- * The day is the group, so it is not also a column inside it. What the rows carry is
- * where each matter came from, which is the fact the heading does not hold.
+ * **This returns the days, not the rows under them.** It used to return the rows too
+ * (`groupByNewListing`), because the record was a stack of tables with a date heading
+ * over each. The record is now one table with a *New hearing date* column, and the days
+ * are what its filter offers (owner, 2026-09-16) — so what a caller needs is the list of
+ * dates and, for each, how much is waiting there. The tally is the number worth having:
+ * it is how a bench decides which date to look at, which is the moment the filter is
+ * open.
  *
- * Days ascend, and rows keep the order the board gave them — `boardAfterMoves` has
- * already sorted by the day a matter now sits on and then by the court's own number, so
- * a group is a contiguous run of it.
+ * Rows keep the order the board gave them — `boardAfterMoves` has already sorted by the
+ * day a matter now sits on and then by the court's own number — so the flat table reads
+ * date by date without anything here sorting it again.
  */
-export function groupByNewListing(
+export function rescheduledDays(
   rows: ReschedulableHearing[],
-): RescheduledGroup[] {
-  const groups = new Map<string, ReschedulableHearing[]>();
+): RescheduledDay[] {
+  const tally = new Map<string, number>();
   for (const row of rows) {
     if (row.newDate === undefined) continue;
-    const held = groups.get(row.newDate);
-    if (held) held.push(row);
-    else groups.set(row.newDate, [row]);
+    tally.set(row.newDate, (tally.get(row.newDate) ?? 0) + 1);
   }
-  return [...groups]
+  return [...tally]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([day, held]) => ({ day, rows: held }));
+    .map(([day, count]) => ({ day, count }));
 }
 
 export type RescheduleFilters = {

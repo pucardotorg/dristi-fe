@@ -2,23 +2,22 @@
 
 import * as React from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import {
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
 import { DocumentPreview } from "@/components/cases/document-preview";
-import { SignMethodDialog } from "@/components/employee/sign-method-dialog";
+import {
+  SIGN_SCENES,
+  SIGN_STAGES,
+  SignatureActions,
+  SignatureStage,
+  type SignStage,
+} from "@/components/employee/sign-method-stage";
 import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
-import {
-  useHeld,
-  useSignStepHandoff,
-} from "@/components/employee/use-sign-step-handoff";
+import { useHeldRecord } from "@/components/employee/use-held-record";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
+import { Dialog } from "@/components/ui/dialog";
 import { causeTitle } from "@/lib/employee/hearings";
 import {
   buildSignBailBondDocument,
@@ -28,7 +27,7 @@ import {
   type SignBailBondDocument,
 } from "@/lib/employee/sign-bail-bonds";
 
-/** What the paper is called in the signature overlay's copy. */
+/** What the paper is called in the signature stage's copy. */
 const NOUN = "bail bond";
 
 /**
@@ -46,29 +45,23 @@ function bondSubject(bond: SignBailBond): string {
 /**
  * One bail bond, read and then signed or refused — the single-bond path off the queue.
  *
- * Two overlays, and each gets its own size for the reason `SignFormDialog` gives. Reading
- * is the wide step: the document *is* the task, so it is a `height="fill"`
- * `DocumentPreview` in a tall overlay. Signing is the narrow step: a note saying what is
- * about to be signed, the choice of how, and Submit.
+ * **One overlay, two stages** (owner, 2026-09-16). Reading is the wide stage: the
+ * document *is* the task, so it is a `height="fill"` `DocumentPreview` on the canvas.
+ * Signing is the narrow stage: a note saying what is about to be signed, the choice of
+ * how, and Submit, in a reading-width column centred in the same window. It was two
+ * `Dialog`s until now — see `sign-method-stage.tsx`.
  *
- * **The signature overlay is a departure from the reference**, made on the owner's
+ * **The signature stage is a departure from the reference**, made on the owner's
  * instruction (2026-09-03). The reference took Proceed to sign straight to a Confirm sign
  * modal and asked nothing about how the signature gets on the paper. A bail bond is
  * executed by the accused and the surety before the bench attests it, so "upload the bond
  * they signed" is a real path in a way it is not for an order — which is why this queue
  * follows the forms queue here rather than the orders queue.
  *
- * They are two Dialogs, sequenced, rather than two steps inside one. Swapping the
- * content of an already-open overlay skips the DS enter animation and jumps the box
- * from the document size to the method size in one frame — which is how Add signature
- * used to come up. `useSignStepHandoff` closes the document first, then opens the
- * method dialog after that close has finished, so one focus scope is kept at a time
- * and the second overlay fades and zooms in.
- *
  * **Reject** refuses the bond and it leaves the bench unsigned — no reason is asked for,
  * because the reference asks for none and a reasons taxonomy invented for a demo would be
- * inventing product. It stays on the reading overlay, where the bench can still see what
- * it is refusing.
+ * inventing product. It sits on the reading stage, where the bench can still see what it
+ * is refusing.
  *
  * **Submit signs nothing.** It moves the row's status in the demo queue and closes — see
  * `lib/employee/sign-bail-bonds.ts`. Nothing is written, published or sent, and no e-sign
@@ -87,99 +80,103 @@ export function SignBailBondDialog({
   onReject: (bond: SignBailBond) => void;
   onReturnFocus: () => void;
 }) {
-  const held = useHeld(bond);
-  const handoff = useSignStepHandoff(bond !== null);
-  const choice = useSignatureChoice(NOUN);
-
-  React.useEffect(() => {
-    if (!bond) return;
-    choice.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on identity, not on every choice render
-  }, [bond?.id]);
-
-  if (!held) return null;
-
-  function dismiss() {
-    onOpenChange(null);
-  }
+  const { held, opening } = useHeldRecord(bond);
 
   return (
-    <>
-      <Dialog
-        open={handoff.readOpen}
-        onOpenChange={(open) => handoff.onReadOpenChange(open, dismiss)}
-      >
-        <SignBailBondReadBody
+    <Dialog
+      open={bond !== null}
+      onOpenChange={(open) => {
+        if (!open) onOpenChange(null);
+      }}
+    >
+      {/* Keyed on the opening: a fresh window starts on the bond with an empty signature,
+          and the one that is leaving keeps the stage it was left on. */}
+      {held ? (
+        <SignBailBondBody
+          key={opening}
           bond={held}
-          onProceed={handoff.goToSign}
-          onReject={() => onReject(held)}
-          onCloseAutoFocus={(event) =>
-            handoff.onReadCloseAutoFocus(event, onReturnFocus)
-          }
+          onSign={onSign}
+          onReject={onReject}
+          onReturnFocus={onReturnFocus}
         />
-      </Dialog>
-
-      <SignMethodDialog
-        open={handoff.signOpen}
-        onOpenChange={(open) => handoff.onSignOpenChange(open, dismiss)}
-        onCloseAutoFocus={(event) =>
-          handoff.onSignCloseAutoFocus(event, onReturnFocus)
-        }
-        noun={NOUN}
-        subject={bondSubject(held)}
-        warning="Signing publishes this bond and cannot be reversed."
-        download={{
-          prompt: "Want to read the bond again?",
-          onDownload: () => downloadSignBailBondDocument(held),
-        }}
-        choice={choice}
-        onBack={handoff.goToRead}
-        onSubmit={() => onSign(held)}
-      />
-    </>
+      ) : null}
+    </Dialog>
   );
 }
 
-function SignBailBondReadBody({
+function SignBailBondBody({
   bond,
-  onProceed,
+  onSign,
   onReject,
-  onCloseAutoFocus,
+  onReturnFocus,
 }: {
   bond: SignBailBond;
-  onProceed: () => void;
-  onReject: () => void;
-  onCloseAutoFocus: (event: Event) => void;
+  onSign: (bond: SignBailBond) => void;
+  onReject: (bond: SignBailBond) => void;
+  onReturnFocus: () => void;
 }) {
+  const flow = useStagedFlow<SignStage>({
+    order: SIGN_STAGES,
+    scene: SIGN_SCENES,
+  });
+  const choice = useSignatureChoice(NOUN);
   const document = React.useMemo(
     () => buildSignBailBondDocument(bond),
     [bond],
   );
+  const reading = flow.stage === "read";
 
   return (
-    <ChromeDialogContent
-      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh]"
-      onCloseAutoFocus={onCloseAutoFocus}
+    <StagedOverlay
+      /* The width and the height the *document* needs, held for both stages — see
+         `SignOrderDialog` for why the height is definite at every width. */
+      className="h-[85dvh] sm:max-w-4xl"
+      /* The reference titles this overlay with the cause and the paper — "… vs … - Bail
+         Bond" — and that is the right pair: the bond has no name of its own. */
+      title={reading ? `${causeTitle(bond)} — Bail bond` : "Add signature"}
+      titleRef={flow.titleRef}
+      /* The litigant leads the supporting line rather than the case number, because with
+         two bonds to a case the litigant is the only thing that says which of them is
+         open. It stands on both stages: it is what the signature is being put to. */
+      description={`Executed by ${bond.litigant} · ${bond.caseNumber} · Added ${formatSignBailBondDate(
+        bond.addedOn,
+      )}`}
+      sceneKey={flow.sceneKey}
+      motion={flow.motion}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        onReturnFocus();
+      }}
+      footer={
+        reading ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onReject(bond)}
+            >
+              Reject
+            </Button>
+            <Button type="button" onClick={() => flow.go("sign")}>
+              Proceed to sign
+            </Button>
+          </>
+        ) : (
+          <SignatureActions
+            choice={choice}
+            onBack={() => flow.go("read")}
+            onSubmit={() => onSign(bond)}
+          />
+        )
+      }
     >
-      {/* `pr-16` keeps the title clear of the close button the DS places top-right.
-          The reference titles this overlay with the cause and the paper — "… vs … -
-          Bail Bond" — and that is the right pair: the bond has no name of its own. */}
-      <DialogHeader className="shrink-0 gap-2 p-6 pr-16">
-        <DialogTitle className="text-title-s font-semibold">
-          {causeTitle(bond)} — Bail bond
-        </DialogTitle>
-        {/* The litigant leads the supporting line rather than the case number,
-            because with two bonds to a case the litigant is the only thing that says
-            which of them is open. */}
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          Executed by {bond.litigant} · {bond.caseNumber} · Added{" "}
-          {formatSignBailBondDate(bond.addedOn)}
-        </DialogDescription>
-      </DialogHeader>
-      <Separator />
-      <div className="flex min-h-0 flex-1 flex-col p-6">
+      {reading ? (
         <DocumentPreview
-          className="min-h-96 md:min-h-0"
+          /* The stage canvas is a flex column, so the preview only takes the height the
+             window can spare if it says so: a flex item's height is never stretched for
+             it. The grid callers get this from a `minmax(0,1fr)` row; here it is
+             `flex-1`, and `min-h-0` lets it shrink rather than pushing the footer. */
+          className="min-h-0 flex-1"
           height="fill"
           title={document.title}
           source={{
@@ -191,16 +188,19 @@ function SignBailBondReadBody({
             label: `Download the bail bond of ${bond.litigant}`,
           }}
         />
-      </div>
-      <DialogFooter className="mx-0 mb-0 shrink-0">
-        <Button type="button" variant="outline" onClick={onReject}>
-          Reject
-        </Button>
-        <Button type="button" onClick={onProceed}>
-          Proceed to sign
-        </Button>
-      </DialogFooter>
-    </ChromeDialogContent>
+      ) : (
+        <SignatureStage
+          noun={NOUN}
+          subject={bondSubject(bond)}
+          warning="Signing publishes this bond and cannot be reversed."
+          download={{
+            prompt: "Want to read the bond again?",
+            onDownload: () => downloadSignBailBondDocument(bond),
+          }}
+          choice={choice}
+        />
+      )}
+    </StagedOverlay>
   );
 }
 

@@ -226,7 +226,13 @@ function itemsOf(
       facts,
     );
     if (index > 0) return item;
-    return { ...item, text: richTextFromPlain(ITEM_TEXT[hearing.purpose]) };
+    /* Marked like any other item's passage (`ORDER_ITEM_ATTRIBUTE`): a completed
+       sitting's first item is pulled in exactly as a live one is, and a row whose words
+       carry no mark would arrive unremovable and vanish from its own list. */
+    return {
+      ...item,
+      text: richTextFromPlain(ITEM_TEXT[hearing.purpose], item.id),
+    };
   });
 }
 

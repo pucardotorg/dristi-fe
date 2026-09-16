@@ -2,6 +2,8 @@
 Updated: 2026-09-16
 Status: verified
 
+Sibling records on the same screen: [the hearing-dates range picker](./bulk-reschedule-range-picker.md) (the filter row), [the act overlay](./bulk-reschedule-act-overlay.md) and [the Scheduled record](./bulk-reschedule-scheduled-record.md).
+
 ## Current outcome
 
 The **Hearing dates** picker on Bulk reschedule hearings holds a *draft* span and applies

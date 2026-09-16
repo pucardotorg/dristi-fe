@@ -842,3 +842,37 @@ as tall as the claim, or the insets overlap.* Optionally state the corollary, si
 the fix that is not obvious: once every row is a 40px target the gap between rows is
 redundant, so meeting the floor in a dense list costs less height than it looks
 (`4×20 + 3×12 = 116px` became `4×40 = 160px`, not 196px).
+
+## 25. `Table` wraps itself in a `relative` container, so an `after:` inset anchors to the whole table
+
+`Table` renders `<div data-slot="table-container" className="relative w-full overflow-x-auto">`
+around the `<table>` (`table.tsx:8-12`). The `relative` is undocumented and load-bearing in
+a way no call site can see: it is the nearest positioned ancestor of **every cell**, so any
+absolutely-positioned child inside a cell positions against the table container rather than
+against the thing it belongs to.
+
+That collides with §8's own remedy. The sanctioned way to give a small control its 40×40
+target is a transparent `after:` inset, and the product uses it (a field's clear, and now a
+column header that opens a filter menu). Put that control in a `th` and the inset stretches
+from the container's edges instead of the button's — which does not just mis-place the hit
+area, it **inflates the table's scrollable area**, because a scroll container measures its
+absolutely-positioned descendants.
+
+Measured on Bulk reschedule's Scheduled record (2026-09-16), with a filter on the *New
+hearing date* header carrying `after:-inset-x-2 after:inset-y-[-0.625rem]`: `scrollWidth`
+918 against `clientWidth` 910, and `scrollHeight` 1462 against `clientHeight` 1452 — 8px and
+10px, exactly the two insets. The table drew a scrollbar on each edge while needing neither,
+and each bar then fed the other (the side bar steals 10px of width, so the content overflows
+horizontally, so the bottom bar appears, so the content overflows vertically). The owner read
+it as the build being broken, which is the right reading of two scrollbars on a table that
+fits.
+
+The local fix is one class — `relative` on the control, so it is its own positioning context
+— but nothing points a reader at it: the symptom is scrollbars on a table, and the cause is a
+pseudo-element two levels down anchoring to a container the call site never wrote.
+
+**Request:** either drop `relative` from the container (nothing in the primitive appears to
+need it — no absolutely-positioned children ship with `Table`), or state in the component's
+guidance that the container is the positioning context for every cell, so anything absolute
+inside a cell needs its own `relative`. A note in ACCESSIBILITY §8 beside the inset remedy
+would catch it where people meet it.

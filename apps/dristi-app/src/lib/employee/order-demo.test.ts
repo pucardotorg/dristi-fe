@@ -7,6 +7,7 @@ import {
   listingApplicationSentence,
 } from "./listing-applications";
 import { appearancesFor, assembleOrder } from "./order-draft";
+import { orderItemsInBody } from "./order-items";
 import { initialOrderDraft, nextSittingDay } from "./order-demo";
 
 const today = "2026-09-07";
@@ -181,5 +182,26 @@ describe("nextSittingDay", () => {
 
   it("counts the days from the day it is given", () => {
     assert.equal(nextSittingDay("2026-09-07", 7), "2026-09-14");
+  });
+});
+
+/**
+ * A part-heard listing opens on items that were pulled in before this screen existed,
+ * and the composer now reads its list off the document rather than off the record of
+ * adds (`orderItemsInBody`). So the fixture has to arrive marked like anything a live
+ * sitting pulls in: an unmarked passage would give a typist a row they cannot remove
+ * and a list that empties itself on arrival.
+ */
+describe("a completed listing's items", () => {
+  it("arrive carried by the order they open on", () => {
+    for (const row of CAUSE_LIST) {
+      const draft = initialOrderDraft(row, "completed", today);
+      if (draft.items.length === 0) continue;
+      assert.deepEqual(
+        orderItemsInBody(draft.items, draft.body.html).map((item) => item.id),
+        draft.items.map((item) => item.id),
+        row.id,
+      );
+    }
   });
 });

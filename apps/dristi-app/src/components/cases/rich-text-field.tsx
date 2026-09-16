@@ -13,6 +13,14 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  GHOST_ATTRIBUTE,
+  pickSuggestion,
+  readProsePrefix,
+  readSuggestTrigger,
+  stripGhostHtml,
+  suggestionHost,
+} from "@/lib/rich-text/ghost";
 import { useFieldControlProps } from "@/components/ui/field";
 import { InputGroup } from "@/components/ui/input-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -108,17 +116,66 @@ function changedCommands(next: string[], current: string[]): string[] {
   );
 }
 
+/**
+ * What one accepted completion puts in the field.
+ *
+ * Two shapes, because the two things this composer completes are not the same kind of
+ * writing: a *direction* the court passed is a paragraph of its own — running two of
+ * them together would make the court say something neither says — while a *phrase* is a
+ * sentence in the one being typed. Inline arrives as text through `insertText`, so it
+ * carries no markup and the browser's own undo keeps working on it.
+ */
+export type RichTextInsertion =
+  | { kind: "inline"; text: string }
+  | { kind: "block"; html: string };
+
+/**
+ * Inline completion, off unless a screen asks for it.
+ *
+ * The field owns the mechanics — when a completion is being asked for, the preview, the
+ * keys, and keeping the preview out of the value — and the caller owns the meaning: what
+ * the corpus is, how it is ranked, and what accepting one *records*. Three screens on
+ * the citizen side use this field without passing this, and nothing about them changes.
+ */
+/**
+ * Where a completion came from, because the two are not the same offer.
+ *
+ * `"trigger"`: the reader typed the trigger and a word, and is *naming* something — so
+ * the trigger and the word were a search, and accepting replaces them.
+ *
+ * `"prose"`: they are typing a sentence and it is being finished for them. Nothing they
+ * typed is replaced; the completion is only ever the part they have not reached.
+ */
+export type SuggestMode = "trigger" | "prose";
+
+export type RichTextSuggestion = {
+  /** What the typed words could become, best first. `ghost` is shown; `label` is said. */
+  resolve: (
+    query: string,
+    mode: SuggestMode,
+  ) => readonly { key: string; label: string; ghost: string }[];
+  /** Accepted — record it, and return what to put in the document. */
+  accept: (
+    key: string,
+    query: string,
+    mode: SuggestMode,
+  ) => RichTextInsertion | null;
+};
+
 export function RichTextField({
   value,
   onChange,
   labelId,
   className,
+  suggestion,
 }: {
   value: RichTextValue;
   onChange: (value: RichTextValue) => void;
   /** The FieldLabel's id — a contentEditable region is not labelable. */
   labelId: string;
   className?: string;
+  /** See `RichTextSuggestion`. Absent on every field that does not want it. */
+  suggestion?: RichTextSuggestion;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const initialHtmlRef = useRef(value.html);
@@ -126,6 +183,23 @@ export function RichTextField({
   const [marks, setMarks] = useState<string[]>([]);
   const [lists, setLists] = useState<string[]>([]);
   const [alignment, setAlignment] = useState<AlignCommand>("justifyLeft");
+  /**
+   * The completion on screen, and what the reader has done to it.
+   *
+   * `ghostRef` is the node itself, held so the value can be read without it (see
+   * `emitChange`) and removed the instant any other key is pressed. `heldRef` and
+   * `indexRef` are the reader's place in the answers: held so that recomputing on every
+   * keystroke does not swap the passage under their eyes, and the index so that ↓ stays
+   * where they put it until the query changes.
+   */
+  const ghostRef = useRef<HTMLElement | null>(null);
+  const heldRef = useRef<string | null>(null);
+  const indexRef = useRef(0);
+  const queryRef = useRef<string | null>(null);
+  const modeRef = useRef<SuggestMode | null>(null);
+  const [shown, setShown] = useState<{ key: string; label: string } | null>(
+    null,
+  );
 
   const syncToolbar = useCallback(() => {
     setMarks(MARKS.map((m) => m.command).filter(commandState));
@@ -136,11 +210,91 @@ export function RichTextField({
     );
   }, []);
 
+  /**
+   * The one place a value leaves this field — so it is the one place the preview has to
+   * be gone.
+   *
+   * The node is detached, both halves are read, and it goes straight back: `innerText`
+   * would otherwise hand the caller the suggested words as though the typist had written
+   * them, and `innerHTML` would put them in the draft, on the page beside the composer,
+   * and into what gets signed. `stripGhostHtml` is the belt behind the braces — one
+   * regex at the chokepoint, in case a preview ever reaches the markup by a path this
+   * function does not know about.
+   */
   const emitChange = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    onChange({ html: editor.innerHTML, text: editor.innerText });
+    const ghost = ghostRef.current;
+    const parent = ghost?.parentNode ?? null;
+    const next = ghost?.nextSibling ?? null;
+    if (ghost && parent) parent.removeChild(ghost);
+    const emitted = {
+      html: stripGhostHtml(editor.innerHTML),
+      text: editor.innerText,
+    };
+    if (ghost && parent) parent.insertBefore(ghost, next);
+    onChange(emitted);
   }, [onChange]);
+
+  /** Take the preview off the screen. Called before any key that is not about it. */
+  const clearGhost = useCallback(() => {
+    ghostRef.current?.remove();
+    ghostRef.current = null;
+    setShown((current) => (current === null ? current : null));
+  }, []);
+
+  /**
+   * Where the caret is, in the terms the trigger rule is written in.
+   *
+   * **Only at the end of its block.** A preview is drawn by appending one node to the
+   * block the caret is in, which is exact and caret-safe precisely because nothing has
+   * to be split to do it. Arming a completion in the middle of a line would mean
+   * splitting the text node the caret sits in on every keystroke — the caret is the one
+   * thing a typist cannot afford this screen to lose — so mid-line the trigger types a
+   * plain slash and offers nothing. Stated rather than hidden: it is the common case
+   * while dictation is being typed, and the uncommon one is left alone.
+   */
+  const caretReading = useCallback(() => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || !selection.isCollapsed) return null;
+    if (selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.startContainer)) return null;
+
+    /**
+     * **The host has to be an element, and the caret is often not inside one.**
+     *
+     * An empty order box has no paragraph in it: click into it and type, and the browser
+     * puts a bare text node straight into the `contentEditable` div. Walking up to "the
+     * child of the editor the caret is under" then lands on that *text node*, and this
+     * function used to hand it back as the host — which read the caret wrongly and then
+     * threw on `appendChild`, because a text node cannot take a child. So typing `/`
+     * into an empty order did nothing at all, which is the first thing anyone would try
+     * (owner, 2026-09-16).
+     *
+     * An element child is the host; anything else — a bare text node, or the caret
+     * sitting directly in the editor before anything has been typed — makes the editor
+     * itself the host. Both can hold the preview, and `before` is measured from the same
+     * node it is later searched in, so the trigger is found in the same coordinates it
+     * was read in.
+     */
+    /* Both of this function's own failures live in `suggestionHost`, with the tests
+       that pin them: an empty box has no paragraph to append to, and a caret on the
+       editor must not send the walk climbing out of it. */
+    const host = suggestionHost(editor, range.startContainer) as HTMLElement | null;
+    if (!host) return null;
+
+    const after = document.createRange();
+    after.setStart(range.startContainer, range.startOffset);
+    after.setEnd(host, host.childNodes.length);
+    if (after.toString().trim() !== "") return null;
+
+    const before = document.createRange();
+    before.setStart(host, 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    return { host, before: before.toString() };
+  }, []);
 
   // Restore on mount only — rewriting innerHTML while typing eats the caret.
   useEffect(() => {
@@ -159,6 +313,177 @@ export function RichTextField({
     return () =>
       document.removeEventListener("selectionchange", handleSelectionChange);
   }, [syncToolbar]);
+
+  /**
+   * Draw — or redraw — the completion for what has been typed.
+   *
+   * Runs on every keystroke, which is why it holds its answer: `heldRef` keeps the
+   * passage the reader is looking at while it still answers the query, so narrowing
+   * `/s` to `/su` does not flick through three directions on the way. The index resets
+   * when the query changes, because ↓ meant "the second answer to *that*".
+   */
+  function paintSuggestion() {
+    if (!suggestion) return;
+    /* **Off the screen before the caret is read.** The preview is appended to the block
+       the caret is in, which puts it *between* the caret and the end of that block — so
+       `caretReading`, which is the rule "nothing after the caret", answers `null` while
+       a preview is up. Every path that reads the caret takes the node down first: this
+       one so that ↓ can redraw, and `acceptSuggestion` so that Tab can find the trigger
+       at all. */
+    /* Detached to be measured, and put back in the same task, so nothing is ever
+       painted without it: `caretReading` asks "is there anything after the caret", and
+       the preview itself is after the caret. Taking it down across two tasks — which is
+       what clearing on `keydown` and redrawing on `input` did — blinked it on every
+       keystroke, which is most of what made this read as forced (owner, 2026-09-16). */
+    const standing = ghostRef.current;
+    standing?.remove();
+    const reading = caretReading();
+    /* **The trigger is asked first, and it wins.** A slash in the line means the reader
+       is naming a standing order; without one they are writing a sentence, and the
+       sentence itself is the query. Only one of the two rules ever answers — see
+       `readProsePrefix`, which hands anything holding a slash back. */
+    const trigger = reading ? readSuggestTrigger(reading.before) : null;
+    const prose = reading && trigger === null
+      ? readProsePrefix(reading.before)
+      : null;
+    const mode: SuggestMode = trigger === null ? "prose" : "trigger";
+    const query = trigger ?? prose;
+    if (!reading || query === null) {
+      queryRef.current = null;
+      modeRef.current = null;
+      ghostRef.current = null;
+      clearGhost();
+      return;
+    }
+    if (query !== queryRef.current || mode !== modeRef.current) {
+      queryRef.current = query;
+      modeRef.current = mode;
+      indexRef.current = 0;
+    }
+    const answers = suggestion.resolve(query, mode);
+    if (answers.length === 0) {
+      ghostRef.current = null;
+      clearGhost();
+      return;
+    }
+    const pick = pickSuggestion(answers, heldRef.current, indexRef.current);
+    if (!pick) {
+      ghostRef.current = null;
+      clearGhost();
+      return;
+    }
+    heldRef.current = pick.key;
+
+    /**
+     * **What the preview says is the name, not the passage.**
+     *
+     * It was the whole of what would land, on the reasoning that nobody should accept
+     * text they have not read. On the render that reasoning produced the opposite of a
+     * completion: a standing direction runs three or four lines, so `/su` dropped a
+     * paragraph of grey text under the caret, reflowed the line, and rewrote itself on
+     * the next keystroke (owner, 2026-09-16: *not fluid at all, looks forced*).
+     *
+     * A name is what an inline completion is *for*: one line, no reflow, and it reads as
+     * the continuation of the word being typed. What guards the accept instead is
+     * everything that happens after it — the passage lands where it can be read, the
+     * caret goes to the first blank in it, the row appears under *Pulled into this
+     * order*, and both of those are one keystroke from being undone.
+     *
+     * For the three phrases the name *is* the sentence, so nothing is lost there: `/hea`
+     * completes to "Heard both sides." exactly as it will land.
+     */
+    /* Exactly what the caller said to show. Naming a standing order, that is its name —
+       one line, no reflow. Finishing a sentence, it is the part not yet typed, which
+       joins the words already on the line with no space of its own. */
+    const words = mode === "trigger" ? ` ${pick.label}` : pick.ghost;
+    /* The same node, moved, when it says the same thing: a held candidate is the common
+       case while a query narrows, and replacing the node then would restart it. */
+    if (standing && standing.textContent === words) {
+      reading.host.appendChild(standing);
+      ghostRef.current = standing;
+    } else {
+      ghostRef.current = drawGhost(reading.host, words);
+    }
+    setShown((current) =>
+      current?.key === pick.key ? current : { key: pick.key, label: pick.label },
+    );
+  }
+
+  /**
+   * Put the shown completion in the document.
+   *
+   * The trigger and the words typed after it are what gets replaced — they were a
+   * search, not prose — so the range from the slash to the caret goes, and the insertion
+   * takes its place. A *direction* lands as its own block after the one being typed; a
+   * *phrase* lands as text at the caret, through `insertText`, so the browser's undo
+   * still knows what happened.
+   *
+   * Then the caret goes to the first `[…]` the insertion carries, selected rather than
+   * collapsed in front of it: the token is a thing to be replaced, and a typist who
+   * accepted an order with three blanks in it is going to type over the first.
+   */
+  function acceptSuggestion() {
+    if (!suggestion || !shown) return false;
+    const key = shown.key;
+    const query = queryRef.current;
+    const mode = modeRef.current;
+    clearGhost();
+    const reading = caretReading();
+    if (!reading || query === null || mode === null) return false;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+
+    const insertion = suggestion.accept(key, query, mode);
+    if (!insertion) return false;
+
+    /**
+     * **Only a search gets replaced.**
+     *
+     * Naming a standing order, the trigger and the word after it were never prose — they
+     * were the question — so the range from the slash to the caret goes and the answer
+     * takes its place. Finishing a sentence, the reader's own characters are the start of
+     * it: nothing is deleted and the completion is only what they had not reached yet.
+     * The second case is the whole reason this stopped feeling forced.
+     */
+    if (mode === "trigger") {
+      const slash = reading.before.length - query.length - 1;
+      const start = pointAt(reading.host, slash);
+      if (!start) return false;
+      const search = document.createRange();
+      search.setStart(start.node, start.offset);
+      search.setEnd(
+        selection.getRangeAt(0).startContainer,
+        selection.getRangeAt(0).startOffset,
+      );
+      search.deleteContents();
+      selection.removeAllRanges();
+      selection.addRange(search);
+    }
+
+    if (insertion.kind === "inline") {
+      document.execCommand("insertText", false, insertion.text);
+      emitChange();
+      return true;
+    }
+
+    const host = reading.host === editorRef.current ? null : reading.host;
+    if (!host) {
+      document.execCommand("insertHTML", false, insertion.html);
+      emitChange();
+      return true;
+    }
+    host.insertAdjacentHTML("afterend", insertion.html);
+    const placed = host.nextElementSibling;
+    /* **The line the search was typed on goes if the search was all it held.** `/bail`
+       on a fresh line is the common case, and leaving the emptied paragraph behind would
+       put a blank line above every direction accepted that way. A line with the typist's
+       own words on it stays, because the direction is a new paragraph under what they
+       were already writing. */
+    if ((host.textContent ?? "").trim() === "") host.remove();
+    placeCaret(placed);
+    emitChange();
+    return true;
+  }
 
   function run(commands: string[]) {
     const editor = editorRef.current;
@@ -267,8 +592,66 @@ export function RichTextField({
           "w-full min-h-64 px-4 py-3 text-body outline-none",
           LIST_CLASSES
         )}
-        onInput={emitChange}
+        onInput={() => {
+          emitChange();
+          paintSuggestion();
+        }}
         onFocus={syncToolbar}
+        onBlur={clearGhost}
+        /**
+         * The keys the completion answers to, and the one it deliberately does not.
+         *
+         * **Tab accepts; Enter never does.** Enter is a paragraph break in an editor, so
+         * a typist reaching for a new line would otherwise put the court's words into
+         * the order instead of a line into their own writing. Tab is the convention for
+         * accepting an inline completion and it costs this field nothing: a
+         * `contentEditable` region has no tab stop inside it to lose.
+         *
+         * ↓ and ↑ walk the other answers without opening a list, which is the whole
+         * point of completing inline rather than in a menu. Escape puts the preview away
+         * and leaves every character the reader typed, including the slash: taking their
+         * text back out on their behalf would be this field editing a court record
+         * nobody asked it to touch.
+         *
+         * **Only the keys that could edit *into* the node take it down.** Every key used
+         * to, and redrawing on the `input` that followed meant the preview blinked out
+         * and back on every character typed — the jitter that made this read as forced.
+         * A printable key inserts at the caret, which is *before* the node, so the node
+         * is in no danger and stays where it is; `paintSuggestion` then moves it without
+         * a repaint. Backspace and Delete work at exactly the boundary it sits on, and
+         * Enter would split the block around it, so those three clear it first and the
+         * next `input` draws it again.
+         */
+        onKeyDown={(event) => {
+          if (!suggestion) return;
+          if (shown && event.key === "Tab") {
+            event.preventDefault();
+            acceptSuggestion();
+            return;
+          }
+          if (shown && event.key === "Escape") {
+            event.preventDefault();
+            queryRef.current = null;
+            clearGhost();
+            return;
+          }
+          if (shown && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+            event.preventDefault();
+            indexRef.current = Math.max(
+              0,
+              indexRef.current + (event.key === "ArrowDown" ? 1 : -1),
+            );
+            paintSuggestion();
+            return;
+          }
+          if (
+            event.key === "Backspace" ||
+            event.key === "Delete" ||
+            event.key === "Enter"
+          ) {
+            clearGhost();
+          }
+        }}
         onPaste={(event) => {
           // Only ever hold markup this toolbar produced — paste arrives flat.
           event.preventDefault();
@@ -281,8 +664,94 @@ export function RichTextField({
         }}
         onDrop={(event) => event.preventDefault()}
       />
+
+      {/* **The preview is decoration; this is the affordance.** The ghost node is
+          `aria-hidden`, because an inline completion read out as part of the paragraph
+          would tell a screen-reader user the order already says something it does not.
+          What they get instead is the offer itself, politely, with the key that takes
+          it — the DS's own rule for content that changes without a press
+          (ACCESSIBILITY §3). Off entirely on the three fields that pass no
+          `suggestion`. */}
+      {suggestion ? (
+        <p aria-live="polite" className="sr-only">
+          {shown ? `Suggestion: ${shown.label}. Press Tab to accept.` : ""}
+        </p>
+      ) : null}
     </InputGroup>
   );
+}
+
+/**
+ * The preview node itself, drawn into the block the caret is in.
+ *
+ * Module level, and it returns the node rather than reaching for a ref: drawing into
+ * the document is the DOM's business, not React's, and the compiler's own lint refuses
+ * a component to assign to a node that reached it through a hook — correctly, since a
+ * value React is tracking is not a value React expects to be mutated.
+ *
+ * Every attribute here is load-bearing. `contenteditable="false"` keeps an edit from
+ * landing inside a passage nobody has accepted; `GHOST_ATTRIBUTE` is what
+ * `stripGhostHtml` finds; `aria-hidden` keeps an unaccepted suggestion out of what a
+ * screen reader reads as the order (the live region carries the offer instead);
+ * `select-none` keeps it off the clipboard when a selection runs through it; and the
+ * muted ink is the DS's vetted 4.5:1 pair rather than an alpha of the body colour,
+ * because this is text a reader has to read before accepting it (ACCESSIBILITY §5).
+ */
+function drawGhost(host: HTMLElement, words: string): HTMLElement {
+  const node = document.createElement("span");
+  node.setAttribute(GHOST_ATTRIBUTE, "");
+  node.setAttribute("contenteditable", "false");
+  node.setAttribute("aria-hidden", "true");
+  node.className = "pointer-events-none select-none text-muted-foreground";
+  node.textContent = words;
+  host.appendChild(node);
+  return node;
+}
+
+/**
+ * The (node, offset) a character offset into a block lands on.
+ *
+ * Counted across the block's text nodes rather than assumed to be one of them: by the
+ * time a completion is accepted the line may hold a bold word or a link, and the trigger
+ * has to be found in the block as it is rather than in the block as it was typed.
+ */
+function pointAt(
+  block: Node,
+  offset: number,
+): { node: Node; offset: number } | null {
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  let seen = 0;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const length = node.textContent?.length ?? 0;
+    if (seen + length >= offset) return { node, offset: offset - seen };
+    seen += length;
+  }
+  return null;
+}
+
+/** The first `[…]` the court left to fill, selected — or the caret after the passage. */
+function placeCaret(inserted: Element | null): void {
+  if (!inserted) return;
+  const selection = window.getSelection();
+  if (!selection) return;
+  const walker = document.createTreeWalker(inserted, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const slot = /\[[^\]]+\]/.exec(node.textContent ?? "");
+    if (!slot) continue;
+    const range = document.createRange();
+    range.setStart(node, slot.index);
+    range.setEnd(node, slot.index + slot[0].length);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return;
+  }
+  const end = document.createRange();
+  end.selectNodeContents(inserted);
+  end.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(end);
 }
 
 /**

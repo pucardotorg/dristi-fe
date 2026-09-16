@@ -2,18 +2,12 @@
 
 import * as React from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { StagedOverlay } from "@/components/chrome/staged-overlay";
 
 import { DocumentPreview } from "@/components/cases/document-preview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogDescription } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { causeTitle } from "@/lib/employee/hearings";
@@ -152,11 +146,12 @@ function SignADiaryBody({
   }
 
   return (
-    <ChromeDialogContent
+    <StagedOverlay
       /* Below `lg` the stage scrolls as one column, because a narrow window cannot hold
          a panel, a document and a footer at once and clipping the act is worse than a
          scroll. From `lg` the dialog takes a fixed height and the two columns scroll
-         inside it, each on its own.
+         inside it, each on its own — a definite height, so the frame needs no floor
+         under it.
 
          **`lg`, not the `md` the other two-column overlays split at.** Measured at 768px
          the document column comes out about 420px wide, and a court paper reflowed that
@@ -164,7 +159,45 @@ function SignADiaryBody({
          document *less* readable than stacking it, which is the whole thing this layout
          is for. A photograph does not do that, which is why `ApproveRegistrationsDialog`
          can split earlier than this one can. */
-      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl lg:h-[85dvh]"
+      className="sm:max-w-5xl lg:h-[85dvh]"
+      title="A-Diary entry"
+      titleRef={titleRef}
+      description={
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          {causeTitle(entry)} · {entry.caseNumber} · Dated{" "}
+          <span className="tabular-nums">{formatADiaryDate(entry.dated)}</span>
+        </DialogDescription>
+      }
+      /* One stage: reading the day's record, correcting it and signing it all happen in
+         front of the same two columns, so nothing travels. The frame is still what it
+         opens on — the rise, the chrome that holds still, the tinted stage and the
+         `bg-card` footer are how every court-side modal opens. */
+      sceneKey="entry"
+      motion="forward"
+      /* A full-height two-column surface that manages its own insets and its own
+         scrolling, so the frame's padding stays off it. */
+      padded={false}
+      footer={
+        <>
+          {/* What the act means — said at the moment of the act rather than left for the
+              bench to discover. */}
+          <p className="text-caption text-muted-foreground sm:mr-auto sm:text-left">
+            {dirty && !blank
+              ? "Signing records the business of the day as it stands in the editor, including the correction you have not saved."
+              : "Signing puts your signature on the day's record and cannot be reversed."}
+          </p>
+          {/* `sm:self-center` because the frame owns the footer's own classes and this
+              row pairs a caption that wraps with a 40px control. */}
+          <Button
+            type="button"
+            className="sm:self-center"
+            disabled={blank}
+            onClick={() => onSign(entry, text)}
+          >
+            Sign the entry
+          </Button>
+        </>
+      }
       /* Radix focuses the first tabbable thing it finds, and side by side that is the
          editor — so the overlay opened with a 3px teal ring around a mostly empty box
          taking up the whole left column, which reads as an errored field and puts a
@@ -182,29 +215,7 @@ function SignADiaryBody({
         onReturnFocus();
       }}
     >
-      {/* `pr-16` keeps the title clear of the close button the DS places top-right. The
-          header is the overlay's chrome — white, above the tinted stage — so its seam is
-          a hairline rather than a full rule. */}
-      <DialogHeader className="shrink-0 gap-2 border-b border-hairline p-6 pr-16">
-        <DialogTitle
-          ref={titleRef}
-          tabIndex={-1}
-          className="text-title-s font-semibold outline-none"
-        >
-          A-Diary entry
-        </DialogTitle>
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(entry)} · {entry.caseNumber} · Dated{" "}
-          <span className="tabular-nums">{formatADiaryDate(entry.dated)}</span>
-        </DialogDescription>
-      </DialogHeader>
-
-      {/* The stage: the tinted work canvas under a white panel and a framed document
-          (ui-craft §1.0), with the chrome above and below it left white so the tint
-          reads as the surface the work sits on. Dark keeps `bg-background`, because
-          `muted` is the raised step there and would invert the depth.
-
-          Stacked rows are `max-content`; side by side there is one `minmax(0,1fr)` row.
+      {/* The two columns, on the stage the frame tints. Stacked rows are `max-content`; side by side there is one `minmax(0,1fr)` row.
           Both are load-bearing, and the stacked one is not the `auto` its neighbours use.
           A grid whose own height is definite — this one is `flex-1` in a dialog that
           fixes its height — sizes `auto` rows from their *minimum* contribution once the
@@ -217,7 +228,7 @@ function SignADiaryBody({
           scroll, which is the one scroll a narrow window should have here. Side by side the row
           must be `minmax(0,1fr)` instead, to give both columns the definite height that
           `lg:overflow-y-auto` and `height="fill"` resolve against. */}
-      <div className="grid min-h-0 flex-1 grid-rows-[max-content_max-content] gap-6 overflow-y-auto bg-muted p-6 lg:grid-cols-[2fr_3fr] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden dark:bg-background">
+      <div className="grid min-h-0 flex-1 grid-rows-[max-content_max-content] gap-6 overflow-y-auto p-6 lg:grid-cols-[2fr_3fr] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
         {/* The editable record, as a panel on the stage — lifted at rest, because a white
             card and the canvas under it measure about 1.01:1 and a stroke is not what
             separates them (ui-craft §4). */}
@@ -299,22 +310,7 @@ function SignADiaryBody({
           }}
         />
       </div>
-
-      {/* The footer is chrome too, so it is `bg-card` rather than the primitive's muted
-          fill — under a muted stage the two would merge into one grey band. */}
-      <DialogFooter className="mx-0 mb-0 shrink-0 border-hairline bg-card sm:items-center">
-        {/* What the act means — said at the moment of the act rather than left for the
-            bench to discover. */}
-        <p className="text-caption text-muted-foreground sm:mr-auto sm:text-left">
-          {dirty && !blank
-            ? "Signing records the business of the day as it stands in the editor, including the correction you have not saved."
-            : "Signing puts your signature on the day's record and cannot be reversed."}
-        </p>
-        <Button type="button" disabled={blank} onClick={() => onSign(entry, text)}>
-          Sign the entry
-        </Button>
-      </DialogFooter>
-    </ChromeDialogContent>
+    </StagedOverlay>
   );
 }
 

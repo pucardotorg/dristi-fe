@@ -7,6 +7,7 @@ import {
   tableBodyClass,
   tableRowClass,
 } from "@/components/chrome/table-plate";
+import { NewDateFilter } from "@/components/employee/new-date-filter";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -34,13 +35,17 @@ import { cn } from "@/lib/utils";
  *   design system's own selection band (`tableRowClass({ selectable })`) so a run of them
  *   paints as one block. The date column is *Hearing date*: where the matter stands.
  * - **Absent — the Scheduled record.** Nothing to pick, so no column for picking. The
- *   date column is *Previous hearing date*: where the matter came from. Where it went is
- *   the heading over the group this table sits in, so it is not also a column inside it.
+ *   date column is *Previous hearing date*: where the matter came from, with
+ *   *New hearing date* beside it for where it went. That second column is the record's
+ *   subject, so it carries the weight and the first one is muted: the row reads left to
+ *   right as the move it is.
  *
- * That was two columns for a while, Current and New, on a flat list of everything moved.
- * It stopped being right when a session turned out to hold several moves to several days:
- * the day became the thing to group by, and a New hearing date column repeating its own
- * group heading on every row is the same fact printed twice.
+ * **The record is one table again** (owner, 2026-09-16). It was a stack of them, one per
+ * day, under a date heading with its own tally — which made the day the thing to group by
+ * and left a New hearing date column repeating its own heading on every row. One table
+ * needs that column back, and the several days it may hold are answered by a filter in
+ * its header rather than by cutting the table up (`newDate.days`, and see
+ * `NewDateFilter`).
  *
  * The row itself stays inert either way — the checkbox is the control, and a hover fill
  * would promise a click the row does not answer.
@@ -51,6 +56,7 @@ import { cn } from "@/lib/utils";
 export function BulkRescheduleTable({
   rows,
   selection,
+  newDate,
   caption,
 }: {
   rows: ReschedulableHearing[];
@@ -59,6 +65,19 @@ export function BulkRescheduleTable({
     selected: ReadonlySet<string>;
     onToggle: (id: string, next: boolean) => void;
     onToggleAll: (next: boolean) => void;
+  };
+  /**
+   * Where the matters went — the record's column, and the one it can be narrowed by.
+   *
+   * Omitted on the board, where nothing has moved yet and a column of blanks over
+   * twenty matters is a column that says nothing.
+   */
+  newDate?: {
+    /** Every day this session moved matters to, with its tally. */
+    days: { day: string; count: number }[];
+    /** The day on screen, or `null` for all of them. */
+    value: string | null;
+    onChange: (day: string | null) => void;
   };
   /**
    * What this table is, for a reader that cannot see the heading above it.
@@ -74,8 +93,20 @@ export function BulkRescheduleTable({
     : 0;
   const allChecked = selectedHere === rows.length;
 
-  /* Six on the board, five on the record — the checkbox column is the difference. */
-  const columns = selection ? 6 : 5;
+  /* Four facts, one date, and then whatever the variant adds: a checkbox column on the
+     board, a second date column on the record. */
+  const columns = 5 + (selection ? 1 : 0) + (newDate ? 1 : 0);
+
+  /* **The record's two date columns cost it 36px it did not have** (measured at 1280:
+     946px of table in a 910px panel), and what overflowed was the far right — where the
+     filter's chevron lives, so the one new affordance was the one thing off the edge.
+     Two nowrap date headers are ~157px each and mostly header rather than date, so the
+     width comes back out of the two columns that were reserving more than they need: a
+     receipt's cause title is read, not scanned for picking, and its hearing type is a
+     caption more than a column. The board keeps both at full width — it is the surface
+     the bench works, and there the title carries the selection. */
+  const title = newDate ? "min-w-48" : "min-w-64";
+  const purpose = newDate ? "min-w-32" : "min-w-40";
 
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
@@ -97,7 +128,7 @@ export function BulkRescheduleTable({
               />
             </TableHead>
           ) : null}
-          <TableHead className={cn(TABLE_HEAD, "min-w-64 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, title, "whitespace-normal")}>
             Case title
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
@@ -106,12 +137,29 @@ export function BulkRescheduleTable({
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Stage
           </TableHead>
-          <TableHead className={cn(TABLE_HEAD, "min-w-40 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, purpose, "whitespace-normal")}>
             Hearing type
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             {selection ? "Hearing date" : "Previous hearing date"}
           </TableHead>
+          {newDate ? (
+            /* **`py-1`, and the arithmetic is the whole of it.** `TABLE_HEAD` is a 40px
+               strip with 12px of vertical padding, which leaves 16px for text — fine for
+               text, impossible for a control. At `py-0` the 36px button had 2px of air
+               and read as jammed in (owner, 2026-09-16). 4px either side of a 32px
+               control is the pair that fits: 4 + 32 + 4 is exactly the 40px strip every
+               other court-side table draws, so this one does not grow to hold it.
+               The label is still plain text when there is only one date to show;
+               `NewDateFilter` renders no control then. */
+            <TableHead className={cn(TABLE_HEAD, "py-1 whitespace-nowrap")}>
+              <NewDateFilter
+                days={newDate.days}
+                value={newDate.value}
+                onChange={newDate.onChange}
+              />
+            </TableHead>
+          ) : null}
         </TableRow>
       </TableHeader>
       <TableBody
@@ -150,7 +198,7 @@ export function BulkRescheduleTable({
               {/* The row's one emphasised cell. Not a link: there is no court-side case
                   file yet, and the citizen side's is not the bench's to point at. */}
               <TableCell
-                className={cn(TABLE_CELL, "min-w-64 font-medium whitespace-normal")}
+                className={cn(TABLE_CELL, title, "font-medium whitespace-normal")}
               >
                 {row.title}
               </TableCell>
@@ -160,7 +208,7 @@ export function BulkRescheduleTable({
               <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
                 {courtCaseStageLabel(row.stage)}
               </TableCell>
-              <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>
+              <TableCell className={cn(TABLE_CELL, purpose, "whitespace-normal")}>
                 {courtHearingPurposeLabel(row.purpose)}
               </TableCell>
               {/* Where the matter is, or where it was — the heading says which, and on
@@ -174,6 +222,19 @@ export function BulkRescheduleTable({
               >
                 {formatListingDate(row.date)}
               </TableCell>
+              {/* Where it went — the fact the record exists to state, so it is the one
+                  emphasised date in the row. Every moved row has one; the dash is a floor
+                  under the data rather than a case this table is shown in. */}
+              {newDate ? (
+                <TableCell
+                  className={cn(
+                    TABLE_CELL,
+                    "font-medium tabular-nums whitespace-nowrap",
+                  )}
+                >
+                  {row.newDate ? formatListingDate(row.newDate) : "—"}
+                </TableCell>
+              ) : null}
             </TableRow>
           );
         })}

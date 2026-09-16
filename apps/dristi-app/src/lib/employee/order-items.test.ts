@@ -6,7 +6,12 @@ import {
   isOrderItemTypeId,
   nextOrderItemId,
   orderItemLabel,
+  orderItemsInBody,
+  plainTextOfRichText,
+  richTextCarriesItem,
   richTextFromPlain,
+  richTextWithoutItem,
+  stripRichTextItem,
   upsertRichTextSentence,
 } from "./order-items";
 import {
@@ -215,5 +220,110 @@ describe("upsertRichTextSentence", () => {
   it("leaves the passage alone when nothing matches and nothing is given", () => {
     const written = richTextFromPlain("Heard both sides.");
     assert.deepEqual(upsertRichTextSentence(written, "", []), written);
+  });
+});
+
+/**
+ * The mark that ties a passage in the order to the row that pulled it in, and the two
+ * questions it exists to answer exactly: *take this one out*, and *is it still there*.
+ * The composer refused a Remove until the guessing could be removed from it (owner,
+ * 2026-09-16), so these are the cases that guessing used to get wrong.
+ */
+describe("a pulled-in item's passage", () => {
+  const marked = (id: string, words: string) =>
+    richTextFromPlain(words, id).html;
+
+  it("is marked with the item's own id, and a disposal sentence is not", () => {
+    const item = createOrderItem("bail", "order-item-9");
+    assert.ok(richTextCarriesItem(item.text.html, "order-item-9"));
+    /* The sentences an answered application writes are facts of the sitting, not items
+       of the catalogue, and nothing offers to take them back out. */
+    assert.ok(!richTextFromPlain("The application is allowed.").html.includes("data-order-item"));
+  });
+
+  it("is taken out whole, with whatever the typist nested inside it", () => {
+    const body = `<p>Heard both sides.</p>${marked("i1", "Bail is granted.").replace("Bail is granted.", "Bail is <b>granted</b> on a bond.")}<p>Call on 30 Sept.</p>`;
+    assert.equal(
+      stripRichTextItem(body, "i1"),
+      "<p>Heard both sides.</p><p>Call on 30 Sept.</p>",
+    );
+  });
+
+  it("is taken out in every block it has come to occupy", () => {
+    /* Enter inside the paragraph splits it and the browser copies the attribute onto
+       both halves, so one item can hold two blocks by the time it is removed. */
+    const body = `${marked("i1", "Bail is granted")}${marked("i1", "on a bond of Rs 10,000.")}<p>Kept.</p>`;
+    assert.equal(stripRichTextItem(body, "i1"), "<p>Kept.</p>");
+  });
+
+  it("is found by its whole id, never by a prefix of a longer one", () => {
+    const body = marked("order-item-10", "Summons shall issue.");
+    assert.ok(!richTextCarriesItem(body, "order-item-1"));
+    assert.equal(stripRichTextItem(body, "order-item-1"), body);
+  });
+
+  it("rebuilds the plain side when it goes, so the slot count is not stale", () => {
+    const body = {
+      html: `<p>Heard both sides.</p>${marked("i1", "Bail on [Amount].")}`,
+      text: "Heard both sides.\n\nBail on [Amount].",
+    };
+    const after = richTextWithoutItem(body, "i1");
+    assert.equal(after.html, "<p>Heard both sides.</p>");
+    assert.equal(after.text, "Heard both sides.");
+  });
+
+  it("is the same object back when the typist has already deleted it themselves", () => {
+    const body = { html: "<p>Heard both sides.</p>", text: "Heard both sides." };
+    assert.equal(richTextWithoutItem(body, "i1"), body);
+  });
+});
+
+/**
+ * What the screen shows, counts and gates on. A row is a record of a passage: it belongs
+ * in the list while the passage does, and an edit inside the passage is not a deletion
+ * of it — the direction is still in the order, in the typist's words rather than the
+ * court's.
+ */
+describe("orderItemsInBody", () => {
+  const rows = [{ id: "i1" }, { id: "i2" }, { id: "i3" }];
+
+  it("keeps the rows whose passages the order still carries, in order", () => {
+    const html = `${richTextFromPlain("Third.", "i3").html}${richTextFromPlain("First.", "i1").html}`;
+    assert.deepEqual(orderItemsInBody(rows, html), [{ id: "i1" }, { id: "i3" }]);
+  });
+
+  it("drops a row whose passage has been deleted in the editor", () => {
+    const html = richTextFromPlain("Only this one.", "i2").html;
+    assert.deepEqual(orderItemsInBody(rows, html), [{ id: "i2" }]);
+  });
+
+  it("keeps a row whose words the typist has rewritten inside the passage", () => {
+    /* The block survives an edit to its text, so the mark does, so the row does. */
+    const html = '<p data-order-item="i2">Words the bench dictated instead.</p>';
+    assert.deepEqual(orderItemsInBody(rows, html), [{ id: "i2" }]);
+  });
+
+  it("is empty when the order has been cleared out altogether", () => {
+    assert.deepEqual(orderItemsInBody(rows, ""), []);
+  });
+});
+
+describe("plainTextOfRichText", () => {
+  it("joins blocks the way a template's words are joined onto the order", () => {
+    assert.equal(
+      plainTextOfRichText("<p>One.</p><p>Two.</p>"),
+      "One.\n\nTwo.",
+    );
+  });
+
+  it("reads the escaped forms back as the characters they stand for", () => {
+    assert.equal(
+      plainTextOfRichText("<p>Fees &amp; costs &lt;paid&gt;</p>"),
+      "Fees & costs <paid>",
+    );
+  });
+
+  it("is empty for empty markup, which is what an untouched order says", () => {
+    assert.equal(plainTextOfRichText(""), "");
   });
 });

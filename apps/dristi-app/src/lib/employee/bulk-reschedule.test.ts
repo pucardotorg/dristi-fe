@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import {
   addDays,
   boardAfterMoves,
-  groupByNewListing,
+  rescheduledDays,
   buildRescheduleOrder,
   earliestNewListing,
   filterReschedulable,
@@ -255,26 +255,20 @@ describe("the record of a session's moves", () => {
   });
   const scheduled = moved.filter((row) => row.newDate !== undefined);
 
-  it("gathers the moves under the day each one landed on", () => {
-    const groups = groupByNewListing(scheduled);
-
-    assert.deepEqual(
-      groups.map((group) => [group.day, group.rows.length]),
-      [
-        [SOON, 2],
-        [LATER, 1],
-      ],
-    );
+  it("names every day moved to, ascending, with what went there", () => {
+    assert.deepEqual(rescheduledDays(scheduled), [
+      { day: SOON, count: 2 },
+      { day: LATER, count: 1 },
+    ]);
   });
 
-  it("holds every moved matter exactly once, and nothing else", () => {
-    const groups = groupByNewListing(moved);
-    const held = groups.flatMap((group) => group.rows.map((row) => row.id));
+  it("counts a matter once, and counts only the ones that moved", () => {
+    const days = rescheduledDays(moved);
 
-    assert.equal(held.length, new Set(held).size, "a matter is in two groups");
-    assert.deepEqual(
-      [...held].sort(),
-      scheduled.map((row) => row.id).sort(),
+    assert.deepEqual(days, rescheduledDays(scheduled), "the board's unmoved rows count");
+    assert.equal(
+      days.reduce((total, day) => total + day.count, 0),
+      scheduled.length,
     );
   });
 
@@ -284,10 +278,18 @@ describe("the record of a session's moves", () => {
        the board's; the record is not filtered. */
     const elsewhere = { from: addDays(TODAY, 40), to: addDays(TODAY, 50), query: "" };
     assert.equal(filterReschedulable(moved, elsewhere).length < moved.length, true);
-    assert.equal(groupByNewListing(scheduled).length, 2);
+    assert.equal(rescheduledDays(scheduled).length, 2);
   });
 
   it("gives nothing back before anything has moved", () => {
-    assert.deepEqual(groupByNewListing(board), []);
+    assert.deepEqual(rescheduledDays(board), []);
+  });
+
+  it("offers one day when one act moved everything to it", () => {
+    const onePlace = boardAfterMoves(TODAY, {
+      [board[0].id]: SOON,
+      [board[1].id]: SOON,
+    });
+    assert.deepEqual(rescheduledDays(onePlace), [{ day: SOON, count: 2 }]);
   });
 });

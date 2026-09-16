@@ -96,10 +96,19 @@ export function orderItemStandingText(
  * The same escape the citizen side makes for the same reason (`lib/cases/
  * application-draft.ts`); the two do not share a function because `/employee` does not
  * import from there (`content.ts`).
+ *
+ * `item` marks the paragraph as the words one pulled-in order contributed — see
+ * `ORDER_ITEM_ATTRIBUTE`. Only a *template's* passage carries it: the disposal sentences
+ * an answered application writes are facts of the sitting rather than items of the
+ * catalogue, and nothing offers to take them back out.
  */
-export function richTextFromPlain(value: string): RichTextValue {
+export function richTextFromPlain(
+  value: string,
+  item?: string,
+): RichTextValue {
   if (!value) return { html: "", text: "" };
-  return { html: `<p>${escapeText(value)}</p>`, text: value };
+  const mark = item ? ` ${ORDER_ITEM_ATTRIBUTE}="${item}"` : "";
+  return { html: `<p${mark}>${escapeText(value)}</p>`, text: value };
 }
 
 /** The same escape, reachable on its own: a sentence is matched inside existing markup
@@ -173,6 +182,126 @@ export function upsertRichTextSentence(
   return appendRichText(current, richTextFromPlain(sentence));
 }
 
+/**
+ * **The mark that ties a passage in the order to the row that pulled it in.**
+ *
+ * The composer had no Remove for a pulled-in order until 2026-09-16, and the reason was
+ * sound: the words become part of one passage the moment they land, so a Remove would
+ * have had to *guess* which sentences were once a template's, and would either take out
+ * text the typist had since written or leave text it claimed to have removed.
+ *
+ * The mark answers the objection instead of overriding it. The paragraph a template
+ * writes carries the item's id, so the passage can be found exactly — and, just as
+ * importantly, the reverse question can be asked exactly too: a row belongs in *Pulled
+ * into this order* while a marked paragraph for it survives in the body, and not after.
+ * A typist who selects the direction in the editor and deletes it has removed the row by
+ * removing what the row was a record of (owner, 2026-09-16).
+ *
+ * It rides in the markup because that is the only thing the editor round-trips: the
+ * field emits `innerHTML` verbatim (`components/cases/rich-text-field.tsx`), so an
+ * attribute on a block survives typing inside it, splitting it, and formatting it, and
+ * disappears exactly when the block does. Editing the *words* inside the paragraph
+ * therefore keeps the row, which is the honest reading — the direction is still in the
+ * order, in the court's or the typist's words.
+ *
+ * The one case it cannot answer: a browser command that replaces the block rather than
+ * editing it — turning the paragraph into a list item, on some engines — drops the
+ * attribute with it, and the row goes while the words stay. A row that has lost its
+ * passage is the safer failure of the two, since the words are on the page beside it
+ * where they can be read and deleted by hand.
+ */
+export const ORDER_ITEM_ATTRIBUTE = "data-order-item";
+
+/** Does the order's markup still carry the passage this item wrote? */
+export function richTextCarriesItem(html: string, id: string): boolean {
+  return html.includes(`${ORDER_ITEM_ATTRIBUTE}="${id}"`);
+}
+
+/**
+ * The order's markup with this item's passage taken out of it.
+ *
+ * Every block carrying the mark, not the first: pressing Enter inside a paragraph splits
+ * it and the browser copies the attribute onto both halves, so one item can hold two
+ * blocks by the time it is removed. The tag is whatever the block has become — a
+ * paragraph the typist turned into a list item is still that item's passage.
+ *
+ * String surgery rather than a parse, so this stays pure and testable: the only thing
+ * that has to be exact is the boundary of a marked block, and a block's own closing tag
+ * is that boundary. Anything the typist nested *inside* it goes with it, which is the
+ * point — the passage is being removed, not just the sentence it opened on.
+ */
+export function stripRichTextItem(html: string, id: string): string {
+  const mark = `${ORDER_ITEM_ATTRIBUTE}="${escapeForPattern(id)}"`;
+  const block = new RegExp(
+    `<([a-z][a-z0-9]*)\\b[^>]*\\b${mark}[^>]*>[\\s\\S]*?</\\1>`,
+    "gi",
+  );
+  return html.replace(block, "");
+}
+
+/** An id is a slug and a counter today; escaped anyway, so it cannot become syntax. */
+function escapeForPattern(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The plain side of some markup, with the blocks joined the way `appendRichText` joins
+ * them.
+ *
+ * `RichTextValue` carries both halves and they have to stay in step: `text` is what
+ * "has anything been written" and the count of unfilled `[…]` slots are measured on, so
+ * markup that has had a passage taken out of it needs its plain side rebuilt rather than
+ * left describing the version before. The editor itself produces this half with
+ * `innerText`; this is the same thing computed without a DOM, which keeps the removal
+ * pure and testable — and the next keystroke replaces it with the browser's own reading
+ * either way.
+ */
+export function plainTextOfRichText(html: string): string {
+  return html
+    .split(/<\/(?:p|li|div|h[1-6]|blockquote)>/i)
+    .map((block) => unescapeText(block.replace(/<[^>]*>/g, "")).trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** The inverse of `escapeText`, for reading the plain sentence back out of markup. */
+function unescapeText(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * The order without the passage one pulled-in item wrote — both halves of it.
+ *
+ * Unchanged when the passage is already gone, so a removal the typist has performed for
+ * themselves in the editor is not a second edit to the document.
+ */
+export function richTextWithoutItem(
+  body: RichTextValue,
+  id: string,
+): RichTextValue {
+  if (!richTextCarriesItem(body.html, id)) return body;
+  const html = stripRichTextItem(body.html, id);
+  return { html, text: plainTextOfRichText(html) };
+}
+
+/**
+ * The items the order still carries, in the order they were pulled in.
+ *
+ * This is what the screen shows, counts and gates on, rather than the raw record of
+ * every add: the list is a statement about what the document says now, and a row whose
+ * passage the typist has deleted is a claim the page beside it contradicts. The record
+ * itself keeps the removed entries, so an id is never handed out twice in one draft.
+ */
+export function orderItemsInBody<Item extends { id: string }>(
+  items: readonly Item[],
+  html: string,
+): Item[] {
+  return items.filter((item) => richTextCarriesItem(html, item.id));
+}
+
 /** One order in the draft: what it is, and the words it carries. */
 export type OrderItemDraft = {
   id: string;
@@ -209,6 +338,8 @@ export function createOrderItem(
   return {
     id,
     type,
-    text: richTextFromPlain(orderItemStandingText(type, facts)),
+    /* Marked with its own id: the passage has to be findable in the body afterwards,
+       both to take it out and to know whether it is still there. */
+    text: richTextFromPlain(orderItemStandingText(type, facts), id),
   };
 }

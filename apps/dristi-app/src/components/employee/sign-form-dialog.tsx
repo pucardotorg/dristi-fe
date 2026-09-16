@@ -2,28 +2,26 @@
 
 import * as React from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
-
+import {
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
 import { DocumentPreview } from "@/components/cases/document-preview";
-import { SignMethodDialog } from "@/components/employee/sign-method-dialog";
+import {
+  SIGN_SCENES,
+  SIGN_STAGES,
+  SignatureActions,
+  SignatureStage,
+  type SignStage,
+} from "@/components/employee/sign-method-stage";
 import {
   signatureSubject,
   useSignatureChoice,
 } from "@/components/employee/sign-signature-fields";
-import {
-  useHeld,
-  useSignStepHandoff,
-} from "@/components/employee/use-sign-step-handoff";
+import { useHeldRecord } from "@/components/employee/use-held-record";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
+import { Dialog } from "@/components/ui/dialog";
 import { causeTitle } from "@/lib/employee/hearings";
 import {
   buildSignFormDocument,
@@ -36,23 +34,18 @@ import {
 /**
  * One form, read and then signed — the single-document path off the signing queue.
  *
- * Two overlays, and the reference gives each its own size for a reason. Reading is the
- * wide step: the document *is* the task, so it is a `height="fill"` `DocumentPreview`
- * in a tall dialog, the same layout `ReschedulingRequestDialog` already uses to review
- * an application. Signing is the narrow step: a note saying what is about to be signed,
- * the choice of how, and Submit.
- *
- * They are two Dialogs, sequenced, rather than two steps inside one. Swapping the
- * content of an already-open overlay skips the DS enter animation and jumps the box
- * from the document size to the method size in one frame — which is how Add signature
- * used to come up. Closing the document first, then opening the method dialog after
- * that close has finished, keeps one focus scope at a time and lets the second overlay
- * fade and zoom in. `useSignStepHandoff` is that sequence.
+ * **One overlay, two stages** (owner, 2026-09-16). Reading is the wide stage: the
+ * document *is* the task, so it is a `height="fill"` `DocumentPreview` on the canvas, the
+ * same layout `ReschedulingRequestDialog` uses to review an application. Signing is the
+ * narrow stage: a note saying what is about to be signed, the choice of how, and Submit,
+ * in a reading-width column centred in the same window. It was two `Dialog`s until now —
+ * see `sign-method-stage.tsx` for what that was avoiding and why it is no longer the way
+ * to avoid it.
  *
  * Download does not sit in the footer as the reference draws it. `DocumentPreview` owns
  * a sticky header with Download and Full view in it, and repeating Download below would
  * be the same control twice in one dialog — so the footer keeps only the act the dialog
- * exists to complete. The signing overlay has no preview, so Download comes back there,
+ * exists to complete. The signing stage has no preview, so Download comes back there,
  * which is where the reference puts it too.
  *
  * **Submit signs nothing.** It drops the row from the demo queue and closes — see
@@ -70,96 +63,87 @@ export function SignFormDialog({
   onSign: (form: SignForm) => void;
   onReturnFocus: () => void;
 }) {
-  const held = useHeld(form);
-  const handoff = useSignStepHandoff(form !== null);
-  const choice = useSignatureChoice();
-
-  React.useEffect(() => {
-    if (!form) return;
-    choice.reset();
-    // Opening a form (or a different form) starts with an empty method. The handoff
-    // keeps `form` set, so this does not run between the document and Add signature.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on identity, not on every choice render
-  }, [form?.id]);
-
-  if (!held) return null;
-
-  function dismiss() {
-    onOpenChange(null);
-  }
+  const { held, opening } = useHeldRecord(form);
 
   return (
-    <>
-      <Dialog
-        open={handoff.readOpen}
-        onOpenChange={(open) => handoff.onReadOpenChange(open, dismiss)}
-      >
-        <SignFormReadBody
+    <Dialog
+      open={form !== null}
+      onOpenChange={(open) => {
+        if (!open) onOpenChange(null);
+      }}
+    >
+      {/* Keyed on the opening: a fresh window starts on the document with an empty
+          signature, and the one that is leaving keeps the stage it was left on. */}
+      {held ? (
+        <SignFormBody
+          key={opening}
           form={held}
-          onProceed={handoff.goToSign}
-          onCloseAutoFocus={(event) =>
-            handoff.onReadCloseAutoFocus(event, onReturnFocus)
-          }
+          onSign={onSign}
+          onReturnFocus={onReturnFocus}
         />
-      </Dialog>
-
-      <SignMethodDialog
-        open={handoff.signOpen}
-        onOpenChange={(open) => handoff.onSignOpenChange(open, dismiss)}
-        onCloseAutoFocus={(event) =>
-          handoff.onSignCloseAutoFocus(event, onReturnFocus)
-        }
-        noun="form"
-        subject={signatureSubject([held])}
-        download={{
-          prompt: "Want to read the form again?",
-          onDownload: () => downloadSignFormDocument(held),
-        }}
-        choice={choice}
-        onBack={handoff.goToRead}
-        onSubmit={() => onSign(held)}
-      />
-    </>
+      ) : null}
+    </Dialog>
   );
 }
 
-function SignFormReadBody({
+function SignFormBody({
   form,
-  onProceed,
-  onCloseAutoFocus,
+  onSign,
+  onReturnFocus,
 }: {
   form: SignForm;
-  onProceed: () => void;
-  onCloseAutoFocus: (event: Event) => void;
+  onSign: (form: SignForm) => void;
+  onReturnFocus: () => void;
 }) {
+  const flow = useStagedFlow<SignStage>({
+    order: SIGN_STAGES,
+    scene: SIGN_SCENES,
+  });
+  const choice = useSignatureChoice();
   const document = React.useMemo(() => buildSignFormDocument(form), [form]);
-  const process = signFormProcessLabel(form.process);
+  const reading = flow.stage === "read";
 
   return (
-    <ChromeDialogContent
-      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh]"
-      onCloseAutoFocus={onCloseAutoFocus}
+    <StagedOverlay
+      /* The width and the height the *document* needs, held for both stages — see
+         `SignOrderDialog` for why the height is definite at every width. */
+      className="h-[85dvh] sm:max-w-4xl"
+      title={reading ? signFormProcessLabel(form.process) : "Add signature"}
+      titleRef={flow.titleRef}
+      /* The form's own state — waiting for this bench's signature — in the DS's sentence
+         case rather than the reference's `PENDING_REVIEW`. `warning` is the variant
+         `ReschedulingRequestDialog` already spends on a pending application, so the two
+         court-side review overlays report a pending state the same way. It stands on both
+         stages, because nothing has been signed until Submit. */
+      titleAside={<Badge variant="warning">Pending signature</Badge>}
+      description={`${causeTitle(form)} · ${form.caseNumber}`}
+      sceneKey={flow.sceneKey}
+      motion={flow.motion}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        onReturnFocus();
+      }}
+      footer={
+        reading ? (
+          <Button type="button" onClick={() => flow.go("sign")}>
+            Proceed to sign
+          </Button>
+        ) : (
+          <SignatureActions
+            choice={choice}
+            onBack={() => flow.go("read")}
+            onSubmit={() => onSign(form)}
+          />
+        )
+      }
     >
-      <DialogHeader className="shrink-0 gap-2 p-6 pr-16">
-        <div className="flex flex-wrap items-center gap-2">
-          <DialogTitle className="text-title-s font-semibold">
-            {process}
-          </DialogTitle>
-          {/* The form's own state — waiting for this bench's signature — in the
-              DS's sentence case rather than the reference's `PENDING_REVIEW`.
-              `warning` is the variant `ReschedulingRequestDialog` already spends on
-              a pending application, so the two court-side review overlays report a
-              pending state the same way. */}
-          <Badge variant="warning">Pending signature</Badge>
-        </div>
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(form)} · {form.caseNumber}
-        </DialogDescription>
-      </DialogHeader>
-      <Separator />
-      <div className="flex min-h-0 flex-1 flex-col p-6">
+      {reading ? (
         <DocumentPreview
-          className="min-h-96 md:min-h-0"
+          /* The stage canvas is a flex column, so the preview only takes the height the
+             window can spare if it says so: a flex item's height is never stretched for
+             it. The grid callers get this from a `minmax(0,1fr)` row; here it is
+             `flex-1`, and `min-h-0` lets it shrink rather than pushing the footer. */
+          className="min-h-0 flex-1"
           height="fill"
           title={document.title}
           source={{
@@ -171,13 +155,18 @@ function SignFormReadBody({
             label: `Download ${document.title}`,
           }}
         />
-      </div>
-      <DialogFooter className="mx-0 mb-0 shrink-0">
-        <Button type="button" onClick={onProceed}>
-          Proceed to sign
-        </Button>
-      </DialogFooter>
-    </ChromeDialogContent>
+      ) : (
+        <SignatureStage
+          noun="form"
+          subject={signatureSubject([form])}
+          download={{
+            prompt: "Want to read the form again?",
+            onDownload: () => downloadSignFormDocument(form),
+          }}
+          choice={choice}
+        />
+      )}
+    </StagedOverlay>
   );
 }
 

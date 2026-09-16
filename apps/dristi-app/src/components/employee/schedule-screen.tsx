@@ -1,14 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { CalendarCheck2Icon, SearchXIcon, XIcon } from "lucide-react";
+import { CalendarCheck2Icon, SearchXIcon } from "lucide-react";
 
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { ScheduleTable } from "@/components/employee/schedule-table";
-import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -69,9 +68,6 @@ export function ScheduleScreen() {
   );
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
-  /* Session-only: the count is useful on arrival, not something to force back once
-     the clerk has cleared it. A reload brings it back. */
-  const [queueBannerOpen, setQueueBannerOpen] = React.useState(true);
 
   const rows = filterSchedulingCases(SCHEDULING_QUEUE, filters);
 
@@ -96,6 +92,17 @@ export function ScheduleScreen() {
         <h1 className="text-title text-balance font-semibold sm:text-title-l">
           Schedule hearing
         </h1>
+        {/* The count is the whole point of the queue, so the supporting line carries it
+            rather than restating the title — the same header shape "Scrutinise submitted
+            cases" uses, because a clerk moving between court screens should meet the same
+            furniture. It counts the whole queue, not the filtered page, so it holds still
+            while the filters move. Singular is spelled out because "1 matters" is the kind
+            of thing a court notices. */}
+        <p className="text-body text-muted-foreground">
+          {SCHEDULING_QUEUE.length === 1
+            ? "1 matter is waiting for a hearing date."
+            : `${SCHEDULING_QUEUE.length} matters are waiting for a hearing date.`}
+        </p>
       </header>
 
       {/* One panel: filters, list and footer are one unit of work, so they share one
@@ -119,31 +126,6 @@ export function ScheduleScreen() {
           <ScheduleEmpty isFiltered={isFiltered} onClear={clearFilters} />
         ) : (
           <div className="flex min-w-0 flex-col gap-4">
-            {/* Standing queue fact — Banner, not page subtitle. Sits with the list so the
-                count frames the rows the clerk is about to date. Singular is spelled out
-                because "1 matters" is the kind of thing a court notices. Dismissible:
-                once read, it should get out of the way. */}
-            {queueBannerOpen ? (
-              <Banner
-                variant="info"
-                action={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Dismiss"
-                    onClick={() => setQueueBannerOpen(false)}
-                  >
-                    <XIcon aria-hidden />
-                  </Button>
-                }
-              >
-                {SCHEDULING_QUEUE.length === 1
-                  ? "1 matter is waiting for a hearing date."
-                  : `${SCHEDULING_QUEUE.length} matters are waiting for a hearing date.`}
-              </Banner>
-            ) : null}
-
             {/* min-w-0 lets this flex item shrink below the table's content width, so a
                 wide table scrolls inside the panel instead of pushing the page sideways. */}
             <div className="min-w-0 overflow-x-auto">

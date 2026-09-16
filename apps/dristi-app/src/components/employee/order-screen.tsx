@@ -10,15 +10,24 @@ import {
   InboxIcon,
   PencilIcon,
   ScrollTextIcon,
+  TrashIcon,
 } from "lucide-react";
 
 import {
   RichTextField,
+  type RichTextSuggestion,
   type RichTextValue,
 } from "@/components/cases/rich-text-field";
+import {
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
 import { ListingApplicationDialog } from "@/components/employee/listing-application-dialog";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
-import { SignMethodDialog } from "@/components/employee/sign-method-dialog";
+import {
+  SignatureActions,
+  SignatureStage,
+} from "@/components/employee/sign-method-stage";
 import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { useHearingSession } from "@/components/employee/use-hearing-session";
@@ -34,6 +43,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Dialog } from "@/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
@@ -101,11 +111,20 @@ import {
 import {
   appendRichText,
   createOrderItem,
+  nextOrderItemId,
   orderItemLabel,
+  orderItemsInBody,
+  richTextWithoutItem,
   upsertRichTextSentence,
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "@/lib/employee/order-items";
+import {
+  phraseCompletions,
+  phraseRemainder,
+  rankSuggestions,
+  suggestCandidates,
+} from "@/lib/employee/order-suggest";
 import {
   applicationForOrder,
   cognizanceDueFor,
@@ -124,6 +143,18 @@ import {
   type OrderCatalogueContext,
   type OrderGroupId,
 } from "@/lib/employee/order-templates";
+
+/**
+ * The composer's signature overlay, stated as a flow with one stage in it.
+ *
+ * The four signing queues read a paper and then sign it; here the paper is the page the
+ * overlay is standing on, so the act has one stage and no way back. `useStagedFlow` still
+ * owns it, because what the frame needs — a scene to mount the stage under and a line for
+ * focus to land on — is the same whether the act has one stage or three.
+ */
+const SIGN_ONLY = ["sign"] as const;
+type SignStage = (typeof SIGN_ONLY)[number];
+const SIGN_ONLY_SCENE: Record<SignStage, string> = { sign: "sign" };
 
 /**
  * Compose the order of one listing.
@@ -178,7 +209,8 @@ type SectionEntry = {
  */
 function sectionSummary(
   id: SectionId,
-  draft: OrderDraft,
+  /* What the order carries, not what was added to it — see `orderItemsInBody`. */
+  addedCount: number,
   pendingCount: number,
   answeredCount: number,
 ): string {
@@ -188,7 +220,7 @@ function sectionSummary(
        section can say which (D53). */
     return answeredCount > 0 ? "All answered" : "None pending";
   }
-  return draft.items.length > 0 ? `${draft.items.length} added` : "None yet";
+  return addedCount > 0 ? `${addedCount} added` : "None yet";
 }
 
 /**
@@ -448,6 +480,12 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     React.useState<ListingApplication | null>(null);
   const signRef = React.useRef<HTMLButtonElement>(null);
   const signature = useSignatureChoice("order");
+  /* One stage, so the flow never travels — it is here for the frame's chrome: the line
+     focus lands on, and the key the stage mounts under. */
+  const signFlow = useStagedFlow<SignStage>({
+    order: SIGN_ONLY,
+    scene: SIGN_ONLY_SCENE,
+  });
 
   const appearances = React.useMemo(() => appearancesFor(hearing), [hearing]);
   /**
@@ -502,7 +540,16 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
      reading `cognizanceDueFor` carries, off DOC-ORD-001 of the court's own order pack:
      cognizance taken as an item of *this* draft puts the case on file for the rest of
      the order. */
-  const chosen = draft.items.map((item) => item.type);
+  /**
+   * **What the order still carries**, which is not the same as what was added to it
+   * (owner, 2026-09-16). The list below, the count on the section row and the
+   * catalogue's own gates all read this: a row whose passage the typist has deleted in
+   * the page beside them is a claim that page contradicts, and a catalogue still saying
+   * *Already item 1* would be offering the same reading. `draft.items` stays the record
+   * of every add, so an id is never handed out twice in one draft.
+   */
+  const items = orderItemsInBody(draft.items, draft.body.html);
+  const chosen = items.map((item) => item.type);
   const catalogue: OrderCatalogueContext = {
     cognizanceDue: cognizanceDueFor(hearing.stage, chosen),
     longPending: false,
@@ -821,6 +868,122 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           ? " Nothing is left pending. What the court passed is now open."
           : ""
       }`,
+    );
+  }
+
+  /**
+   * **What "/" reaches in the editor, and what accepting one does.**
+   *
+   * The owner's reading of the problem (2026-09-16): a typist dictating at speed writes
+   * the same directions and the same three sentences every sitting, and the catalogue —
+   * which holds the directions already — is a mouse trip away from the words they are
+   * in the middle of. So the same corpus gets a second door that costs no hands: a
+   * completion offered inline, accepted with Tab.
+   *
+   * **The corpus is one corpus.** `suggestCandidates` fills each template's words with
+   * the same `orderTemplateFacts` pass the catalogue's own rows use, and gates the same
+   * way, so a direction reached by typing and the same direction reached by pressing its
+   * row put identical words in the order. Two doors onto one act is defensible; two
+   * answers to what an order says is not.
+   *
+   * **A direction is recorded; a phrase is not.** Accepting a template mints its id
+   * here and hands back a paragraph already marked with it
+   * (`ORDER_ITEM_ATTRIBUTE`), so the row appears under *Pulled into this order*, the
+   * count moves, the catalogue says *Already item 1*, and Remove works on it — exactly
+   * as if the row had been pressed. A phrase lands as plain text and records nothing,
+   * because nothing offers to take a sentence of the typist's own back out.
+   *
+   * The body itself is not written here: the field replaces the trigger with the
+   * insertion and reports the new value through `onChange` like any other edit, which
+   * is also what keeps the editor's caret and undo the browser's business rather than
+   * this screen's.
+   */
+  const candidates = suggestCandidates(
+    orderTemplateFacts(hearing, draft, today),
+    catalogue,
+    suggestions.map((entry) => entry.template.id),
+  );
+  const suggestion: RichTextSuggestion = {
+    /**
+     * **Two questions, one corpus.**
+     *
+     * Writing a sentence, the sentence is the question and only the three phrases can
+     * answer it, from the front (`phraseCompletions`) — a standing direction arriving
+     * mid-sentence would put the court's brackets in the middle of somebody's writing.
+     *
+     * Naming a direction after the trigger, everything is in scope and the sitting's own
+     * ranking breaks the ties. What is shown there is the direction's *name*: a passage
+     * of three lines is not a completion, it is a paragraph appearing under the caret.
+     */
+    resolve: (query, mode) =>
+      mode === "prose"
+        ? phraseCompletions(query)
+        : rankSuggestions(query, candidates).map((candidate) => ({
+            key: candidate.key,
+            label: candidate.label,
+            ghost: candidate.label,
+          })),
+    accept: (key, query, mode) => {
+      if (mode === "prose") {
+        const remainder = phraseRemainder(key, query);
+        if (!remainder) return null;
+        setAnnouncement("Sentence completed in the order.");
+        return { kind: "inline" as const, text: remainder };
+      }
+      const picked = candidates.find((candidate) => candidate.key === key);
+      if (!picked) return null;
+      if (picked.kind === "phrase") {
+        setAnnouncement(`${picked.text} written into the order.`);
+        return { kind: "inline" as const, text: picked.text };
+      }
+      const type = key.slice("template:".length) as OrderItemTypeId;
+      const item = createOrderItem(
+        type,
+        nextOrderItemId(),
+        orderTemplateFacts(hearing, draft, today),
+      );
+      setDraft((current) => ({ ...current, items: [...current.items, item] }));
+      const open = openSlots(item.text.text);
+      setAnnouncement(
+        open.length === 0
+          ? `${orderItemLabel(type)} written into the order, complete.`
+          : `${orderItemLabel(type)} written into the order with ${open.length === 1 ? "one detail" : `${open.length} details`} still to fill: ${open.join(", ")}.`,
+      );
+      return { kind: "block" as const, html: item.text.html };
+    },
+  };
+
+  /**
+   * Take one pulled-in order back out of the draft.
+   *
+   * **This is the Remove the composer refused to have until 2026-09-16**, and the
+   * refusal was not wrong on its own terms: the words become part of one passage the
+   * moment they land, so a Remove that had to *guess* which sentences were once a
+   * template's would either delete text the typist had written or leave text it claimed
+   * to have removed. What changed is that it no longer guesses — the paragraph carries
+   * the item's id (`ORDER_ITEM_ATTRIBUTE`), so this takes out exactly the passage that
+   * row wrote and nothing beside it.
+   *
+   * **The whole passage, including words the typist has since put in it.** Editing
+   * inside the paragraph keeps the row, because the direction is still in the order; so
+   * a Remove after such an edit takes their sentence out with the court's. That is the
+   * honest reading of *remove this direction from the order*, and the alternative —
+   * stripping only the words that still match the template — would leave the order
+   * carrying half a direction under no heading at all.
+   *
+   * No confirm step. This is a draft that dies with the sitting, the passage is on the
+   * page beside the row, and the catalogue that put it there is directly above: the
+   * whole act is visible and repeatable. The announcement is what carries it to a reader
+   * who cannot see the page move.
+   */
+  function removeItem(item: OrderItemDraft) {
+    setDraft((current) => ({
+      ...current,
+      body: richTextWithoutItem(current.body, item.id),
+    }));
+    setBodyWrites((count) => count + 1);
+    setAnnouncement(
+      `${orderItemLabel(item.type)} taken out of the order. Its passage is gone from the page beside you; everything else is as it was.`,
     );
   }
 
@@ -1205,7 +1368,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
                         <span className="text-caption shrink-0 text-muted-foreground">
                           {sectionSummary(
                             entry.id,
-                            draft,
+                            items.length,
                             pending.length,
                             answered.length,
                           )}
@@ -1237,13 +1400,14 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
                         draft={draft}
                         pending={pending}
                         answered={answered}
-                        items={draft.items}
+                        items={items}
                         purpose={hearing.purpose}
                         suggestions={suggestions}
                         catalogue={catalogue}
                         onOpen={setOpenApplication}
                         onDecide={decide}
                         onAdd={addItem}
+                        onRemove={removeItem}
                       />
                     </div>
                   </CollapsibleContent>
@@ -1264,6 +1428,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           draft={draft}
           bodyRevision={bodyWrites}
           onBody={setBody}
+          suggestion={suggestion}
           onMark={mark}
           rollApplied={rollApplied}
           onApplyRoll={applyRoll}
@@ -1320,24 +1485,52 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         }}
       />
 
-      <SignMethodDialog
-        open={signOpen}
-        onOpenChange={setSignOpen}
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          signRef.current?.focus();
-        }}
-        noun="order"
-        subject={`You are adding your signature to the order in ${hearing.caseNumber}.`}
-        warning="This records how the order is to be signed. Nothing is issued from this screen."
-        choice={signature}
-        onSubmit={() => {
-          setSignOpen(false);
-          setAnnouncement(
-            "Signature recorded for this sitting. Nothing has been filed or published.",
-          );
-        }}
-      />
+      {/* The composer's signature step — the same stage the four signing queues reach
+          after reading the paper, in the same frame, so a bench that signs an order here
+          and a bond in the queue is answering one question in one kind of window.
+
+          **One stage, and that is honest rather than a special case.** The queues have a
+          document to read first; the composer's order is on the page behind this overlay,
+          so there is nothing to read here and nothing to go back to. The frame costs
+          nothing when there is one stage and it still earns its keep: the header and the
+          footer hold still while the fields underneath them scroll, which the old
+          `overflow-y-auto` dialog could not do — choosing upload scrolled the title and
+          Submit off the top and bottom of the box. */}
+      <Dialog open={signOpen} onOpenChange={setSignOpen}>
+        <StagedOverlay
+          /* The width the *act* needs. There is no document in this one, so it stays the
+             narrow box it has always been — and with a single stage there is nothing for
+             a floor to hold the window steady against. */
+          className="sm:max-w-lg"
+          title="Add signature"
+          titleRef={signFlow.titleRef}
+          description="Choose how you will sign this order."
+          sceneKey={signFlow.sceneKey}
+          motion={signFlow.motion}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            signRef.current?.focus();
+          }}
+          footer={
+            <SignatureActions
+              choice={signature}
+              onSubmit={() => {
+                setSignOpen(false);
+                setAnnouncement(
+                  "Signature recorded for this sitting. Nothing has been filed or published.",
+                );
+              }}
+            />
+          }
+        >
+          <SignatureStage
+            noun="order"
+            subject={`You are adding your signature to the order in ${hearing.caseNumber}.`}
+            warning="This records how the order is to be signed. Nothing is issued from this screen."
+            choice={signature}
+          />
+        </StagedOverlay>
+      </Dialog>
     </div>
   );
 }
@@ -1366,6 +1559,7 @@ function SectionBody({
   onOpen,
   onDecide,
   onAdd,
+  onRemove,
 }: {
   entry: SectionEntry;
   purpose: CourtHearingPurposeId;
@@ -1387,6 +1581,7 @@ function SectionBody({
     type: OrderItemTypeId,
     application?: Pick<ListingApplication, "number" | "type">,
   ) => void;
+  onRemove: (item: OrderItemDraft) => void;
 }) {
   if (entry.id === "applications") {
     /* **A matter that never carried one.** The only case that wants a sentence, and it is
@@ -1449,6 +1644,7 @@ function SectionBody({
       items={items}
       body={draft.body}
       onAdd={onAdd}
+      onRemove={onRemove}
       purpose={purpose}
       suggestions={suggestions}
       catalogue={catalogue}
@@ -1788,6 +1984,7 @@ function OrderItems({
   items,
   body,
   onAdd,
+  onRemove,
   purpose,
   suggestions,
   catalogue,
@@ -1799,6 +1996,7 @@ function OrderItems({
     type: OrderItemTypeId,
     application?: Pick<ListingApplication, "number" | "type">,
   ) => void;
+  onRemove: (item: OrderItemDraft) => void;
   /** Only to word the note when the court's table has nothing to suggest. */
   purpose: CourtHearingPurposeId;
   /** Ranked, most likely first, and already gated. Built by the screen. */
@@ -2163,22 +2361,44 @@ function OrderItems({
                 <p className="text-caption font-semibold text-muted-foreground">
                   Pulled into this order
                 </p>
-                {/* **A record of what was pulled in, and no Remove** (owner, 2026-09-15).
-                    Its words are part of one passage the moment they land, so a Remove
-                    here would either have to guess which sentences were once this
-                    template's or quietly take out text the typist has since rewritten.
-                    Deleting a direction is deleting the sentence that carries it, in the
-                    box, the way it is done on paper. */}
+                {/* **A record of what the order carries, and the way back out of it.**
+                    This list had no Remove until 2026-09-16, on the reading that a
+                    direction is deleted by deleting the sentence that carries it, in the
+                    box, the way it is done on paper — and that a Remove here would have
+                    to guess which sentences were once this template's. The guess is what
+                    went: the passage carries the item's id, so the row can take out
+                    exactly what it wrote, and the same mark answers the question in the
+                    other direction — delete the passage in the page beside this and the
+                    row goes with it, because the row is a record of a passage that no
+                    longer exists (owner, 2026-09-16).
+
+                    The control is the app's own row-removal recipe, as the task screens'
+                    document slots wear it (`components/tasks/act/shared.tsx`): a ghost
+                    trash at `icon-xs`, whose `size-8` is grown by `after:-inset-1` to the
+                    40×40 the Laws require of an icon-sized target (ACCESSIBILITY §8).
+                    Named for the order it removes rather than "Remove", so a reader
+                    moving down the list hears which direction each button would take
+                    out. */}
                 <ol className="flex min-w-0 flex-col gap-2">
                   {items.map((item, index) => (
                     <li
                       key={item.id}
                       className="flex min-h-10 min-w-0 items-center gap-3 rounded-lg bg-surface-sunken px-3 py-2"
                     >
-                      <p className="text-body-compact min-w-0">
+                      <p className="text-body-compact min-w-0 flex-1">
                         <span className="tabular-nums">{index + 1}.</span>{" "}
                         {orderItemLabel(item.type)}
                       </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`Take ${orderItemLabel(item.type)} out of the order`}
+                        onClick={() => onRemove(item)}
+                        className="relative shrink-0 after:absolute after:-inset-1"
+                      >
+                        <TrashIcon aria-hidden />
+                      </Button>
                     </li>
                   ))}
                 </ol>
@@ -2309,6 +2529,7 @@ function OrderPaper({
   draft,
   bodyRevision,
   onBody,
+  suggestion,
   onMark,
   rollApplied,
   onApplyRoll,
@@ -2327,6 +2548,8 @@ function OrderPaper({
   /** Bumped by every write the screen makes to the order — see `bodyWrites`. */
   bodyRevision: number;
   onBody: (value: RichTextValue) => void;
+  /** What "/" completes from in the writable region — see the screen's own note. */
+  suggestion: RichTextSuggestion;
   onMark: (id: string, mark: AttendanceMark | undefined) => void;
   rollApplied: boolean;
   onApplyRoll: () => void;
@@ -2466,6 +2689,7 @@ function OrderPaper({
           value={draft.body}
           revision={bodyRevision}
           onChange={onBody}
+          suggestion={suggestion}
         />
       </div>
     </article>
@@ -2670,19 +2894,40 @@ function OrderBody({
   value,
   revision,
   onChange,
+  suggestion,
 }: {
   value: RichTextValue;
   revision: number;
   onChange: (value: RichTextValue) => void;
+  suggestion: RichTextSuggestion;
 }) {
   return (
-    <RichTextField
-      key={revision}
-      value={value}
-      onChange={onChange}
-      labelId="order-paper"
-      className="[&_[data-slot=input-group-control]]:min-h-48"
-    />
+    <div className="flex min-w-0 flex-col gap-2">
+      <RichTextField
+        key={revision}
+        value={value}
+        onChange={onChange}
+        labelId="order-paper"
+        className="[&_[data-slot=input-group-control]]:min-h-48"
+        suggestion={suggestion}
+      />
+      {/* **A completion nobody knows about is not a feature.** The trigger is invisible
+          by design — that is what keeps it out of the way of a typist who does not want
+          it — so one muted line under the box carries the whole of it: what opens it,
+          how to reach the next answer, and the key that takes one. `text-caption` and
+          `muted-foreground`: this is chrome about the instrument, not part of the
+          document, and it sits under the writable region rather than on the paper above
+          it. */}
+      {/* `{" "}` at every join: JSX drops the space where a text node meets an element
+          across a line break, and the rendered line read "Type /for the court's". */}
+      <p className="text-caption text-muted-foreground">
+        <span className="font-semibold">Tab</span>{" "}
+        finishes a sentence as you write it.{" "}
+        <span className="font-semibold">/</span>{" "}
+        then a word names one of the court&rsquo;s standing orders;{" "}
+        <span className="font-semibold">↓</span> for the next.
+      </p>
+    </div>
   );
 }
 

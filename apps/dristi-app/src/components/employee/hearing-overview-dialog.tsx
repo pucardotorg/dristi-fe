@@ -2,8 +2,8 @@
 
 import * as React from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
-import { OVERLAY_RISE, RESOLVE_IN_PLACE } from "@/components/chrome/motion";
+import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
+import { StagedOverlay } from "@/components/chrome/staged-overlay";
 import {
   HearingOverviewCaption,
   HearingOverviewSections,
@@ -11,13 +11,7 @@ import {
 } from "@/components/employee/hearing-overview-screen";
 import { HearingSessionButton } from "@/components/employee/hearings-table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogDescription } from "@/components/ui/dialog";
 import type { CourtRole } from "@/lib/employee/content";
 import {
   causeTitle,
@@ -25,7 +19,6 @@ import {
   courtHearingStatusVariant,
   type CourtHearing,
 } from "@/lib/employee/hearings";
-import { cn } from "@/lib/utils";
 
 /**
  * A matter from the day's list, read over the list it came from.
@@ -120,90 +113,86 @@ function HearingOverviewBody({
   const resolved = hearing.status !== statusAtOpen;
 
   return (
-    /* The review overlays' shell, because this is the same kind of surface one route
-       along: a sheet in the page column, its own padding removed so the header, the
-       reading and the footer are three rows of one column and only the middle one
-       scrolls. `sm:max-w-4xl` is what lets the sections keep their two-column pairing
-       inside the sheet instead of stacking into a tall scroll.
-       Height is a cap, not a measure — unlike the review overlays, which hold a document
-       preview and want the full 85dvh whatever is in it. A first listing here is three
-       short sections, and a sheet pinned to 85dvh for them would be mostly empty. */
-    <ChromeDialogContent
-      className={cn(
-        "flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl",
-        /* The sheet rises rather than snapping open at 95%, the same way the review
-           overlays do. It matters more here than it did when this only read: the
-           footer now holds a decision, and a decision that zooms open reads as a
-           menu (ui-craft §8). */
-        OVERLAY_RISE,
-      )}
-    >
-      {/* `pr-16` keeps the title clear of the sheet's own close button. The chip rides
-          with the cause title, the same thought in the same order as the page: this
-          matter, and where it stands on today's list. */}
-      <DialogHeader className="shrink-0 gap-2 p-6 pr-16">
-        <div className="flex flex-wrap items-center gap-3">
-          <DialogTitle className="text-title-s font-semibold">
-            {causeTitle(hearing)}
-          </DialogTitle>
-          {/* Keyed on the status so a change remounts the chip and replays the
-              movement — the one thing that moved, moving (ui-craft §8). The class is
-              what is conditional, not the key: on open nothing has happened yet, so
-              the chip arrives with the sheet and does not move on its own. */}
-          <Badge
-            key={hearing.status}
-            variant={courtHearingStatusVariant(hearing.status)}
-            className={resolved ? RESOLVE_IN_PLACE : undefined}
-          >
-            {courtHearingStatusLabel(hearing.status)}
-          </Badge>
-        </div>
-        {/* The page prints this line above the title as an eyebrow; a dialog reads
-            its description after it, at the house dialog's own support size. Same
-            words, the role the surface asks for. */}
+    /* The shared court-side frame (`chrome/staged-overlay.tsx`), because this is the same
+       kind of surface as every other overlay one route along, and the owner asked for the
+       registrations interaction on all of them (2026-09-16). It has one stage — this sheet
+       only ever reads a listing and acts on it — and a single-stage flow costs the frame
+       nothing while still getting its rise, its chrome and its landing place.
+
+       `sm:max-w-4xl` is what lets the sections keep their two-column pairing inside the
+       sheet instead of stacking into a tall scroll. Height stays a cap rather than a
+       measure — unlike the review overlays, which hold a document preview and want the
+       full 85dvh whatever is in it. A first listing here is three short sections, and a
+       sheet pinned to 85dvh for them would be mostly empty. So no `floor` either.
+
+       **Two things this sheet used to do its own way, normalised.** Its stage was
+       `bg-surface-sunken` where every other court-side stage is `bg-muted`, and its header
+       carried no rule, separating itself from the stage by fill alone. Both were reasoned,
+       and both were this one sheet reading differently from its fourteen siblings — which
+       is the thing the owner asked to end. `bg-muted` is also what `ui-craft` §1.0 names as
+       the product canvas; `surface-sunken` is the DS's *nested well inside a panel*. */
+    <StagedOverlay
+      className="sm:max-w-4xl"
+      /* The chip rides with the cause title, the same thought in the same order as the
+         page: this matter, and where it stands on today's list. */
+      title={causeTitle(hearing)}
+      titleAside={
+        /* Keyed on the status so a change remounts the chip and replays the movement —
+           the one thing that moved, moving (ui-craft §8). The class is what is
+           conditional, not the key: on open nothing has happened yet, so the chip arrives
+           with the sheet and does not move on its own. */
+        <Badge
+          key={hearing.status}
+          variant={courtHearingStatusVariant(hearing.status)}
+          className={resolved ? RESOLVE_IN_PLACE : undefined}
+        >
+          {courtHearingStatusLabel(hearing.status)}
+        </Badge>
+      }
+      /* The page prints this line above the title as an eyebrow; a dialog reads its
+         description after it, at the house dialog's own support size. Same words, the
+         role the surface asks for. */
+      description={
         <DialogDescription className="text-body-compact text-muted-foreground">
           <HearingOverviewCaption hearing={hearing} />
         </DialogDescription>
-      </DialogHeader>
-      {/* The sheet is the lifted surface; this column is the stage inside it, so
-          the sections can sit as white cards. The header keeps the sheet's fill so
-          the tint reads as the reading surface, not a grey dialog. Fill, not a
-          rule, separates the two — the header already sits on a different value. */}
-      <div className="min-h-0 flex-1 overflow-y-auto bg-surface-sunken p-6">
-        <HearingOverviewSections hearing={hearing} surface="overlay" />
-      </div>
-      {/* The page's band, as a footer — chrome, so `bg-card` and a hairline seam
-          rather than the DS default's grey fill and full-strength rule, which would be
-          the loudest stroke on the sheet (ui-craft §4, and the recipe the registrations
-          overlay already uses).
+      }
+      /* One scene for the life of the sheet: acting on the listing resolves the chip in
+         place, it does not move the reader anywhere. */
+      sceneKey="listing"
+      motion="forward"
+      /* Two controls, and the order is the DOM order: the footer is `sm:flex-row
+         sm:justify-end` above `sm` and `flex-col-reverse` below it, so the last child is
+         the trailing one on a desktop and the top one on a phone. The act goes last. Both
+         are `w-fit` so the stacked phone footer is two buttons and not two bars.
 
-          Two controls, and the order is the DOM order: the footer is `sm:flex-row
-          sm:justify-end` above `sm` and `flex-col-reverse` below it, so the last child
-          is the trailing one on a desktop and the top one on a phone. The act goes
-          last. Both are `w-fit` so the stacked phone footer is two buttons and not two
-          bars.
-
-          There is no Close. It was the way out for a pointer that never found the
-          corner, and it spent the footer's leading slot on the one thing every other
-          exit already does — the sheet's own ✕, Esc, and the scrim. The slot is worth
-          more to the act (owner, 2026-09-12). */}
-      <DialogFooter className="mx-0 mb-0 shrink-0 border-hairline bg-card">
-        <ViewCaseAction variant="outline" />
-        <HearingSessionButton
-          hearing={hearing}
-          seat={seat}
-          variant="default"
-          onStartHearing={onStartHearing}
-          onEndHearing={onEndHearing}
-          className="w-fit"
-        />
-      </DialogFooter>
+         There is no Close. It was the way out for a pointer that never found the corner,
+         and it spent the footer's leading slot on the one thing every other exit already
+         does — the sheet's own ✕, Esc, and the scrim. The slot is worth more to the act
+         (owner, 2026-09-12). */
+      footer={
+        <>
+          <ViewCaseAction variant="outline" />
+          <HearingSessionButton
+            hearing={hearing}
+            seat={seat}
+            variant="default"
+            onStartHearing={onStartHearing}
+            onEndHearing={onEndHearing}
+            className="w-fit"
+          />
+        </>
+      }
+    >
+      <HearingOverviewSections hearing={hearing} surface="overlay" />
       {/* The outcome, for a reader who cannot see the chip change.
           It has to live *inside* the sheet: Radix hides the rest of the page from
           assistive tech while a modal is open, so the cause list's own announcer —
           which says the same thing for a press made on the row — is unreachable from
           here and would announce to nobody. Mounted empty from the start, because a
-          live region that appears already holding its message is not reliably read. */}
+          live region that appears already holding its message is not reliably read.
+          Inside the stage rather than beside the footer now that the frame owns the
+          three rows; it is `sr-only`, so where it sits changes nothing it does. */}
       <p className="sr-only" aria-live="polite">
         {resolved
           ? `${causeTitle(hearing)} is now ${courtHearingStatusLabel(
@@ -211,6 +200,6 @@ function HearingOverviewBody({
             ).toLowerCase()}`
           : null}
       </p>
-    </ChromeDialogContent>
+    </StagedOverlay>
   );
 }
