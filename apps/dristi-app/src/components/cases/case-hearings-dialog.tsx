@@ -22,14 +22,17 @@ export function CaseHearingsDialog({
   open,
   onOpenChange,
   triggerRef,
+  initialHearingId = null,
 }: {
   record: CaseRecord;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   triggerRef: RefObject<HTMLAnchorElement | null>;
+  /** Opens straight onto one hearing, for a link that names it. */
+  initialHearingId?: string | null;
 }) {
   const hearings = useMemo(() => hearingRecords(record), [record]);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialHearingId);
   const openHearing = hearings.find((item) => item.id === openId) ?? null;
   const headingRef = useRef<HTMLHeadingElement | null>(null);
 

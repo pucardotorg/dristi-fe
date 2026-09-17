@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDownIcon,
   CircleAlertIcon,
@@ -90,7 +91,18 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   const [status, setStatus] = useState(ALL);
   const [filedBy, setFiledBy] = useState(ALL);
   const [query, setQuery] = useState("");
-  const [recordOpen, setRecordOpen] = useState<string | null>(null);
+  /* The open record lives in `?application=`, so a case update can link
+     straight to it. */
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const recordOpen = searchParams.get("application");
+  function setRecordOpen(id: string | null) {
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set("application", id);
+    else next.delete("application");
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  }
   const [signing, setSigning] = useState<ApplicationRecord[]>([]);
   const [paying, setPaying] = useState<ApplicationRecord[]>([]);
 

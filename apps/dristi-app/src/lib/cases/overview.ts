@@ -36,7 +36,12 @@ import {
   type CaseTask,
   type DueStatusView,
 } from "./peek";
-import { caseSectionHref, orderHref } from "./sections";
+import {
+  applicationHref,
+  caseSectionHref,
+  hearingHref,
+  orderHref,
+} from "./sections";
 import { formatCaseDate, outcomeLabel, type CaseRecord } from "./types";
 
 export type OverviewNextHearing = {
@@ -365,7 +370,7 @@ function overviewUpdates(
         record.substage ??
         hearingTypeLabel(hearingTypeFromCase(record)),
       detail: extras.lastHearingStatus,
-      href: caseSectionHref(record.id, "hearings"),
+      href: lastHearingHref(record),
     });
   }
 
@@ -422,6 +427,19 @@ function overviewUpdates(
     }));
 }
 
+/** The last sitting's own record when the register has it, else the list. */
+function lastHearingHref(record: CaseRecord): string {
+  try {
+    const hearing = record.previousHearingOn
+      ? hearingOnDate(hearingsFile(record), record.previousHearingOn)
+      : undefined;
+    if (hearing) return hearingHref(record.id, hearing.id);
+  } catch {
+    /* No hearings register for this case: fall through to the list. */
+  }
+  return caseSectionHref(record.id, "hearings");
+}
+
 function collectRegisterUpdates(
   record: CaseRecord,
   filedOn: string,
@@ -443,7 +461,7 @@ function collectRegisterUpdates(
         kind: "hearing",
         on: dayStamp(hearing.on),
         title: hearingTypeLabel(hearing.type),
-        href: caseSectionHref(record.id, "hearings"),
+        href: hearingHref(record.id, hearing.id),
       });
     }
   } catch {
@@ -479,7 +497,7 @@ function collectRegisterUpdates(
       on: dayStamp(submission.addedOn),
       title: submission.title,
       detail: submission.courtResult ?? filingStatusLabel(submission.status),
-      href: caseSectionHref(record.id, "applications"),
+      href: applicationHref(record.id, submission.id),
     });
   }
 }

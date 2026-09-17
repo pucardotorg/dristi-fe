@@ -96,6 +96,16 @@ export function caseSectionHref(
   return `/cases/${caseId}?section=${section}`;
 }
 
+/** Opens one hearing in the hearings pop-up, over Overview (OVW-08). */
+export function hearingHref(caseId: string, hearingId: string): string {
+  return `/cases/${caseId}?hearing=${hearingId}`;
+}
+
+/** Opens one application's record over the Applications tab (OVW-08). */
+export function applicationHref(caseId: string, applicationId: string): string {
+  return `${caseSectionHref(caseId, "applications")}&application=${applicationId}`;
+}
+
 /** Opens one order over the Orders tab (ORD-03). */
 export function orderHref(caseId: string, orderId: string): string {
   return `${caseSectionHref(caseId, "orders-and-notifications")}&order=${orderId}`;
