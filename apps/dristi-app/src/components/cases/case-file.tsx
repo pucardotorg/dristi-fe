@@ -47,6 +47,8 @@ import { type ComplaintPane } from "@/lib/cases/complaint";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 
+import { PdfViewer, parsePdfSrc } from "./pdf-viewer";
+
 /**
  * One Case file region — index and document share a Card so they cannot
  * scroll apart (Laws: grouped content gets a border). The panel fills the
@@ -405,12 +407,7 @@ function DocumentPane({
         )}
         aria-hidden={view === "pdf" ? undefined : true}
       >
-        <iframe
-          key={src}
-          title={leaf.label}
-          src={src}
-          className="size-full border-0 bg-card"
-        />
+        <CaseFilePdf src={src} title={leaf.label} />
       </div>
 
       {view === "digital" ? (
@@ -433,6 +430,20 @@ function DocumentPane({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** A leaf with a page is one document inside its section's compiled file. */
+function CaseFilePdf({ src, title }: { src: string; title: string }) {
+  const { url, page } = parsePdfSrc(src);
+  return (
+    <PdfViewer
+      key={src}
+      src={url}
+      title={title}
+      pages={page ? { from: page, to: page } : undefined}
+      className="size-full"
+    />
   );
 }
 

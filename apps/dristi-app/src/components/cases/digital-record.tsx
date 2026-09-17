@@ -35,6 +35,8 @@ import {
 } from "@/lib/cases/complaint";
 import { cn } from "@/lib/utils";
 
+import { PdfViewer, parsePdfSrc } from "./pdf-viewer";
+
 /**
  * Structured read of a filed record — DescriptionList, narrative blocks,
  * people, and a paper strip. Used by Complaint and by Case file digital
@@ -177,16 +179,7 @@ function DocumentTile({
     <div className="overflow-hidden rounded-xl border border-border bg-surface-sunken">
       <AspectRatio ratio={3 / 4}>
         {src ? (
-          <div className="absolute inset-0 overflow-hidden">
-            <iframe
-              src={previewSrc(src)}
-              title=""
-              tabIndex={-1}
-              aria-hidden
-              scrolling="no"
-              className="pointer-events-none absolute top-0 left-0 h-[calc(100%+theme(spacing.6))] w-[calc(100%+theme(spacing.6))] max-w-none border-0 bg-paper"
-            />
-          </div>
+          <DocumentThumbnail src={src} />
         ) : (
           <div className="flex size-full items-center justify-center">
             <p className="text-body text-muted-foreground">Not uploaded</p>
@@ -219,9 +212,18 @@ function DocumentTile({
   );
 }
 
-function previewSrc(src: string): string {
-  const flags = "toolbar=0&navpanes=0&scrollbar=0&view=FitH";
-  return src.includes("#") ? `${src}&${flags}` : `${src}#${flags}`;
+/** The first page as a still image; the tile's own link opens the document. */
+function DocumentThumbnail({ src }: { src: string }) {
+  const { url, page } = parsePdfSrc(src);
+  return (
+    <PdfViewer
+      src={url}
+      title=""
+      thumbnail
+      pages={page ? { from: page, to: page } : undefined}
+      className="absolute inset-0 rounded-none"
+    />
+  );
 }
 
 function FragmentRow({

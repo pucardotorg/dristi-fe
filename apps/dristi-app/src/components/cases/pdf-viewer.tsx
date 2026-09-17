@@ -27,6 +27,17 @@ function pdfjs() {
   return pdfjsPromise;
 }
 
+/** Splits the `file.pdf#page=3` form the fixtures use into its two halves. */
+export function parsePdfSrc(src: string): { url: string; page?: number } {
+  const [url, hash = ""] = src.split("#");
+  const page = Number.parseInt(/(?:^|&)page=(\d+)/.exec(hash)?.[1] ?? "", 10);
+  return { url, page: Number.isNaN(page) ? undefined : page };
+}
+
+export function isPdfSrc(src: string): boolean {
+  return /\.pdf(?:$|[?#])/i.test(src);
+}
+
 function clampZoom(value: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 }
@@ -43,6 +54,7 @@ export function PdfViewer({
   title,
   initialPage = 1,
   pages,
+  thumbnail = false,
   className,
 }: {
   src: string;
@@ -53,6 +65,9 @@ export function PdfViewer({
   /** Show only these pages (1-based, inclusive), for a document that is a
    *  span inside a compiled file. The whole file when absent. */
   pages?: { from: number; to: number };
+  /** A still picture of the first page shown: no zoom, no scroll, no focus.
+   *  For a preview tile whose own link opens the document. */
+  thumbnail?: boolean;
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -125,21 +140,25 @@ export function PdfViewer({
   const openedAt = useRef<string | null>(null);
   useEffect(() => {
     const node = scrollRef.current;
-    if (!ready || !node || openedAt.current === src) return;
+    if (!ready || !node || thumbnail || openedAt.current === src) return;
     openedAt.current = src;
     if (initialPage <= 1) return;
     const target = node.querySelector<HTMLElement>(
       `[data-page="${initialPage}"]`
     );
     if (target) node.scrollTop = target.offsetTop - 16;
-  }, [ready, src, initialPage]);
+  }, [ready, src, initialPage, thumbnail]);
 
   const firstPage = Math.max(1, pages?.from ?? 1);
-  const lastPage = Math.min(doc?.numPages ?? 0, pages?.to ?? Infinity);
+  const lastPage = thumbnail
+    ? firstPage
+    : Math.min(doc?.numPages ?? 0, pages?.to ?? Infinity);
 
   /* Fit the well, up to a comfortable reading width: a page stretched across
      a wide dialog is harder to read, not easier. p-4 each side. */
-  const pageWidth = Math.max(0, Math.min(width - 32, READING_WIDTH) * zoom);
+  const pageWidth = thumbnail
+    ? width
+    : Math.max(0, Math.min(width - 32, READING_WIDTH) * zoom);
 
   return (
     <div
@@ -150,10 +169,16 @@ export function PdfViewer({
     >
       <div
         ref={scrollRef}
-        role="document"
-        aria-label={title}
-        tabIndex={0}
-        className="absolute inset-0 overflow-auto overscroll-contain rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        role={thumbnail ? undefined : "document"}
+        aria-label={thumbnail ? undefined : title}
+        aria-hidden={thumbnail ? true : undefined}
+        tabIndex={thumbnail ? undefined : 0}
+        className={cn(
+          "absolute inset-0 outline-none",
+          thumbnail
+            ? "overflow-hidden"
+            : "overflow-auto overscroll-contain rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50"
+        )}
       >
         {failed ? (
           <p className="p-6 text-body-compact text-muted-foreground">
@@ -168,7 +193,12 @@ export function PdfViewer({
             Loading document
           </div>
         ) : (
-          <div className="flex w-max min-w-full flex-col items-center gap-4 p-4">
+          <div
+            className={cn(
+              "flex w-max min-w-full flex-col items-center",
+              thumbnail ? undefined : "gap-4 p-4"
+            )}
+          >
             {Array.from(
               { length: Math.max(0, lastPage - firstPage + 1) },
               (_, index) => firstPage + index
@@ -186,7 +216,7 @@ export function PdfViewer({
         )}
       </div>
 
-      {doc ? (
+      {doc && !thumbnail ? (
         <div className="absolute right-3 bottom-3 flex items-center gap-0.5 rounded-lg border border-hairline bg-card p-0.5 shadow-raised">
           <Button
             type="button"

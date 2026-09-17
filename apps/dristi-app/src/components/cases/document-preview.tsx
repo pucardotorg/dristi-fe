@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+import { PdfViewer, isPdfSrc, parsePdfSrc } from "./pdf-viewer";
+
 /**
  * The one document preview in the product: a well, and the two things anyone
  * looking at a document immediately wants from it — a copy, and a bigger
@@ -538,6 +540,19 @@ const wellSurface: Record<WellSurface, { well: string; strip: string }> = {
   bare: { well: "rounded-none", strip: "bg-card" },
 };
 
+function DocumentPdf({ src, title }: { src: string; title: string }) {
+  const { url, page } = parsePdfSrc(src);
+  return (
+    <PdfViewer
+      key={src}
+      src={url}
+      title={title}
+      initialPage={page}
+      className="absolute inset-0 rounded-none bg-transparent"
+    />
+  );
+}
+
 function DocumentWell({
   title,
   source,
@@ -570,12 +585,16 @@ function DocumentWell({
       >
         {/* Keyed on the src so switching documents rebuilds the viewer
             rather than leaving the previous one's scroll position behind. */}
-        <iframe
-          key={source.src}
-          title={title}
-          src={source.src}
-          className="absolute inset-0 size-full border-0 bg-paper"
-        />
+        {isPdfSrc(source.src) ? (
+          <DocumentPdf src={source.src} title={title} />
+        ) : (
+          <iframe
+            key={source.src}
+            title={title}
+            src={source.src}
+            className="absolute inset-0 size-full border-0 bg-paper"
+          />
+        )}
         {/* An iframe fills its well edge to edge, so there is no flow to put
             the toolbar in — it floats, and the page under it is a document. */}
         {toolbar ? (
