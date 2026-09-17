@@ -100,7 +100,7 @@ export function CaseHeaderActions({
               <ChevronDownIcon data-icon="inline-end" aria-hidden />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-max whitespace-nowrap">
             <DropdownMenuItem asChild>
               <Link href={`/cases/${caseId}/filings/application`}>
                 Raise application

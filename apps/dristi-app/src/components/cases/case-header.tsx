@@ -16,11 +16,10 @@ import {
 } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 
-import { Badge } from "@/components/ui/badge";
-
 import { CaseAdvocates } from "./case-advocates";
 import { CaseHeaderActions } from "./case-header-actions";
 import { CaseFlags, CaseStage } from "./case-identity";
+import { CaseBackButton, CaseStageBadges } from "./case-header-parts";
 import { CaseNumberHistory } from "./case-number-history";
 
 const COUNSEL_LABEL: Record<CounselSide, string> = {
@@ -77,15 +76,20 @@ export function CaseHeader({
         <div className="flex min-w-0 flex-col gap-1">
           {/* Without parties the title already *is* the number. Only the latest
               number shows (DET-01); the older ones sit behind the icon. */}
-          {hasParties ? (
-            <div className="flex min-h-6 items-center gap-1">
+          {/* The way back rides the number line, so it costs the header no
+              row of its own. */}
+          <div className="flex min-h-6 items-center gap-1">
+            <CaseBackButton />
+            {hasParties ? (
+              <>
               <p className="font-mono text-body-compact font-medium text-muted-foreground">
                 <span className="sr-only">Case number </span>
                 {record.caseNumber}
               </p>
               <CaseNumberHistory history={numberHistory} />
-            </div>
-          ) : null}
+              </>
+            ) : null}
+          </div>
           <span className="flex flex-wrap items-center gap-2">
             <h1 className="text-title font-semibold">{title}</h1>
             {hideLongPendingFlag ? null : <CaseFlags record={record} />}
@@ -119,14 +123,10 @@ export function CaseHeader({
           </HeaderFact>
         )}
         <HeaderFact label="Stage">
-          <span className="flex flex-wrap items-center gap-1.5">
-            <CaseStage record={record} detail={false} />
-            {secondaryStages(record).map((stage) => (
-              <Badge key={stage} variant="outline">
-                {secondaryStageLabel(stage)}
-              </Badge>
-            ))}
-          </span>
+          <CaseStageBadges
+            stage={<CaseStage record={record} detail={false} />}
+            subStages={secondaryStages(record).map(secondaryStageLabel)}
+          />
         </HeaderFact>
         {/* A live case has its date on Overview; a disposed one has no
             date left, and the day it ended is identity. */}
@@ -142,6 +142,7 @@ export function CaseHeader({
             <CaseAdvocates
               record={record}
               side="complainant"
+              more="text"
               className="font-medium"
             />
           </HeaderFact>
@@ -151,6 +152,7 @@ export function CaseHeader({
             <CaseAdvocates
               record={record}
               side="accused"
+              more="text"
               className="font-medium"
             />
           </HeaderFact>

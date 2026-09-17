@@ -13,21 +13,18 @@ import { CASE_FILE_TREE } from "@/lib/cases/case-file";
 
 type Format = "pdf" | "zip" | "sections";
 
-const FORMATS: { value: Format; label: string; note: string }[] = [
+const FORMATS: { value: Format; label: string }[] = [
   {
     value: "pdf",
     label: "Full case file, one PDF",
-    note: "Every document in case file order, with a docket page before each.",
   },
   {
     value: "zip",
     label: "Full case file, separate files",
-    note: "A ZIP with one PDF per document, in folders that match the case file.",
   },
   {
     value: "sections",
     label: "Only some sections",
-    note: "Choose the sections you need. They download as one PDF.",
   },
 ];
 
@@ -57,6 +54,7 @@ export function DownloadCaseFileDialog({
 
   function download() {
     toast.success("Preparing your download", {
+      position: "bottom-center",
       description: `${caseNumber}. It will start in a moment.`,
     });
     onOpenChange(false);
@@ -79,21 +77,15 @@ export function DownloadCaseFileDialog({
             value={format}
             onValueChange={(value) => setFormat(value as Format)}
             aria-label="What to download"
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-1"
           >
             {FORMATS.map((item) => (
-              <div key={item.value} className="flex items-start gap-2">
+              <div key={item.value} className="flex min-h-8 items-center gap-2">
                 <RadioGroupItem
                   value={item.value}
                   id={`download-${item.value}`}
-                  className="mt-0.5"
                 />
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <Label htmlFor={`download-${item.value}`}>{item.label}</Label>
-                  <p className="text-caption text-muted-foreground">
-                    {item.note}
-                  </p>
-                </div>
+                <Label htmlFor={`download-${item.value}`}>{item.label}</Label>
               </div>
             ))}
           </RadioGroup>

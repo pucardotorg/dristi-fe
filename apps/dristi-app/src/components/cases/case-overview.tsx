@@ -57,6 +57,7 @@ export function CaseOverview({
   function archive(id: string, title: string) {
     setArchived((current) => [...current, id]);
     toast("Task archived", {
+      position: "bottom-center",
       description: `${title}. You can find it under Pending tasks, Archive.`,
       action: {
         label: "Undo",
@@ -135,14 +136,14 @@ function BlockHeader({
 }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-      <div className="flex min-w-0 items-baseline gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <h2 id={id} className="text-body font-semibold text-foreground">
           {title}
         </h2>
         {count === undefined ? null : (
-          <span className="text-body-compact tabular-nums text-muted-foreground">
+          <Badge variant="secondary" className="tabular-nums">
             {count}
-          </span>
+          </Badge>
         )}
       </div>
       {action}

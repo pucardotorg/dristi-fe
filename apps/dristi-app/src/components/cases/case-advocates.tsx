@@ -137,10 +137,14 @@ export function CaseAdvocates({
   className,
   markSide = false,
   dense = false,
+  more = "chip",
 }: {
   record: CaseRecord;
   side: CounselSide;
   className?: string;
+  /** How the remaining names are offered: the +N chip of the dense table, or
+   *  "+N others" as dotted-underlined text (case header; PM wording). */
+  more?: "chip" | "text";
   /** Append `(C)` / `(A)`. On for the merged column, off where a label names
    *  the side already (case header). */
   markSide?: boolean;
@@ -190,28 +194,43 @@ export function CaseAdvocates({
       {extra > 0 ? (
         <Popover open={open} onOpenChange={onOpenChange}>
           <PopoverTrigger asChild {...hoverProps}>
-            <Badge
-              asChild
-              variant="ghost"
-              className={cn(
-                "relative shrink-0 cursor-pointer bg-brand-muted text-brand-muted-foreground transition-colors hover:bg-brand-muted-hover hover:text-brand-muted-foreground",
-                /* overflow-visible: the primitive clips to the pill, which
-                   would swallow the `after:` target. Nothing but text is in
-                   the chip, so there is nothing left to clip. */
-                !dense &&
-                  "overflow-visible after:absolute after:-inset-x-1.5 after:-inset-y-2"
-              )}
-            >
+            {more === "text" ? (
+              /* Reads as part of the line; the dotted rule says there is more
+                 behind it. The `after:` inset carries the 40px target. */
               <button
                 type="button"
                 aria-label={`${names[0]} and ${extra} more ${
                   extra === 1 ? copy.one : copy.many
                 }`}
+                className="relative shrink-0 cursor-pointer rounded-sm text-body-compact text-muted-foreground underline decoration-dotted underline-offset-4 outline-none transition-colors after:absolute after:-inset-x-1.5 after:-inset-y-2 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                 onClick={(event) => event.stopPropagation()}
               >
-                +{extra}
+                +{extra} {extra === 1 ? "other" : "others"}
               </button>
-            </Badge>
+            ) : (
+              <Badge
+                asChild
+                variant="ghost"
+                className={cn(
+                  "relative shrink-0 cursor-pointer bg-brand-muted text-brand-muted-foreground transition-colors hover:bg-brand-muted-hover hover:text-brand-muted-foreground",
+                  /* overflow-visible: the primitive clips to the pill, which
+                     would swallow the `after:` target. Nothing but text is in
+                     the chip, so there is nothing left to clip. */
+                  !dense &&
+                    "overflow-visible after:absolute after:-inset-x-1.5 after:-inset-y-2"
+                )}
+              >
+                <button
+                  type="button"
+                  aria-label={`${names[0]} and ${extra} more ${
+                    extra === 1 ? copy.one : copy.many
+                  }`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  +{extra}
+                </button>
+              </Badge>
+            )}
           </PopoverTrigger>
           <PopoverContent
             align="start"

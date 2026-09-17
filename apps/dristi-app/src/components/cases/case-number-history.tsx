@@ -34,15 +34,15 @@ export function CaseNumberHistory({ history }: { history: PastCaseNumber[] }) {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 text-body-compact">
-        <PopoverHeader>
-          <PopoverTitle className="text-body-compact font-medium">
+        <PopoverHeader className="border-b border-hairline pb-2">
+          <PopoverTitle className="text-body-compact font-semibold">
             Earlier case numbers
           </PopoverTitle>
         </PopoverHeader>
         <ul className="flex flex-col gap-3">
           {history.map((entry) => (
             <li key={entry.number} className="flex flex-col gap-0.5">
-              <span className="font-mono text-body-compact font-medium text-foreground">
+              <span className="font-mono text-caption font-medium text-foreground">
                 {entry.number}
               </span>
               <span className="text-caption font-medium text-muted-foreground">
