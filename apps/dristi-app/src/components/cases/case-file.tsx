@@ -320,7 +320,7 @@ function CaseFileIndex({
                       rowClass,
                       depthPad[Math.min(depth, depthPad.length - 1)],
                       selectedId === node.id &&
-                        "bg-accent-strong font-medium hover:bg-accent-strong"
+                        "bg-accent font-medium hover:bg-accent"
                     )}
                   >
                     <IndexLabel number={node.number} label={node.label} />
@@ -357,7 +357,7 @@ const VIEWER_IS_COURT = false;
 const rowShell = "py-1";
 
 const rowClass =
-  "group/file-row flex min-h-8 w-full min-w-0 items-start justify-between gap-2 rounded-lg py-1.5 text-left text-body-compact text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-10 max-md:py-2.5";
+  "group/file-row flex min-h-8 w-full min-w-0 items-start justify-between gap-2 rounded-lg py-1.5 text-left text-body-compact text-foreground outline-none hover:bg-surface-sunken focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-10 max-md:py-2.5";
 
 const depthPad = ["px-2", "pr-2 pl-6", "pr-2 pl-8"] as const;
 

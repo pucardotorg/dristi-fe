@@ -145,7 +145,11 @@ function TimelineEvent({
   }
 
   return (
-    <Item asChild size="sm" className="-mx-2 w-auto px-2 py-1.5">
+    <Item
+      asChild
+      size="sm"
+      className="-mx-2 w-auto px-2 py-1.5 hover:bg-surface-sunken"
+    >
       <Link
         href={caseSectionHref(caseId, event.ref)}
         role="listitem"

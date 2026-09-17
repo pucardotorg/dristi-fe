@@ -274,6 +274,7 @@ export function PartySignatureDialog({
   onComplete,
   confirmation,
   submitLabel = "Submit application",
+  chooseTitle = "How is this application signed?",
 }: {
   open: boolean;
   /** Dismiss the sign dialog only — the review stays open behind it. */
@@ -283,6 +284,8 @@ export function PartySignatureDialog({
   /** The success screen's copy — the flow's own "sent" message. */
   confirmation: { title: string; description: string };
   submitLabel?: string;
+  /** The first step's heading; callers signing several at once reword it. */
+  chooseTitle?: string;
 }) {
   const [step, setStep] = useState<SignStep>("choose");
   const [aadhaar, setAadhaar] = useState<AadhaarPhase>("authenticating");
@@ -344,7 +347,7 @@ export function PartySignatureDialog({
                   <HourglassIcon className="size-7" aria-hidden />
                 </span>
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  <DialogTitle className="text-title-s font-semibold text-balance">
+                  <DialogTitle className="text-body font-semibold text-balance">
                     {confirmation.title}
                   </DialogTitle>
                   <DialogDescription>{confirmation.description}</DialogDescription>
@@ -361,7 +364,7 @@ export function PartySignatureDialog({
           <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
             <Spinner className="size-8 text-primary" />
             <div className="flex flex-col gap-1.5">
-              <DialogTitle className="text-title-s font-semibold">
+              <DialogTitle className="text-body font-semibold">
                 Signing with Aadhaar
               </DialogTitle>
               <DialogDescription>
@@ -391,7 +394,7 @@ export function PartySignatureDialog({
                 <XCircleIcon className="size-7" />
               </span>
               <div className="flex flex-col gap-1.5">
-                <DialogTitle className="text-title-s font-semibold text-balance">
+                <DialogTitle className="text-body font-semibold text-balance">
                   Signature not completed
                 </DialogTitle>
                 <DialogDescription className="text-balance">
@@ -420,7 +423,7 @@ export function PartySignatureDialog({
         ) : step === "upload" ? (
           <>
             <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-5 pr-14 text-left">
-              <DialogTitle className="text-title-s font-semibold text-balance">
+              <DialogTitle className="text-body font-semibold text-balance">
                 Upload a signed copy
               </DialogTitle>
               <DialogDescription>
@@ -430,7 +433,7 @@ export function PartySignatureDialog({
             </DialogHeader>
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
               <Field data-invalid={Boolean(error) && !signedFile}>
-                <FieldLabel className="block w-full text-body font-semibold leading-snug">
+                <FieldLabel className="block w-full font-semibold leading-snug">
                   Signed application
                 </FieldLabel>
                 <UploadedDocField
@@ -465,8 +468,8 @@ export function PartySignatureDialog({
         ) : (
           <>
             <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-5 pr-14 text-left">
-              <DialogTitle className="text-title-s font-semibold text-balance">
-                How is this application signed?
+              <DialogTitle className="text-body font-semibold text-balance">
+                {chooseTitle}
               </DialogTitle>
               <DialogDescription>
                 An unsigned application cannot be submitted to the court.
@@ -524,7 +527,7 @@ function SignMethodCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <span
         aria-hidden
@@ -538,7 +541,9 @@ function SignMethodCard({
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-body font-semibold text-foreground">{title}</span>
+        <span className="text-body-compact font-semibold text-foreground">
+          {title}
+        </span>
         <span className="text-body-compact text-muted-foreground">
           {description}
         </span>

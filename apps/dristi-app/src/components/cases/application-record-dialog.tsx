@@ -166,7 +166,7 @@ function RecordBody({
                         aria-pressed={doc.src === openSrc}
                         onClick={() => setOpenSrc(doc.src)}
                         className={cn(
-                          "flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-body-compact outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+                          "flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-body-compact outline-none transition-colors hover:bg-surface-sunken focus-visible:ring-3 focus-visible:ring-ring/50",
                           doc.src === openSrc && "bg-accent font-medium"
                         )}
                       >

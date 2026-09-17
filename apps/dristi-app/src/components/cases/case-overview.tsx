@@ -327,7 +327,7 @@ function CaseUpdatesBlock({
                 the text while the text stays on the column. */}
             <Link
               href={update.href}
-              className="-mx-2 -my-1.5 flex min-h-10 min-w-0 flex-col gap-1 rounded-lg px-2 py-1.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="-mx-2 -my-1.5 flex min-h-10 min-w-0 flex-col gap-1 rounded-lg px-2 py-1.5 outline-none hover:bg-surface-sunken focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <p className="text-body-compact font-medium text-foreground">
                 {update.title}

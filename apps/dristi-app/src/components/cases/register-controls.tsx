@@ -43,7 +43,9 @@ export function RegisterFilter({
         <span className="text-muted-foreground">{label}</span>
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      {/* Popper, not item-aligned: a long list then opens under the trigger
+          and scrolls inside itself instead of re-aligning as it scrolls. */}
+      <SelectContent position="popper" align="start" className="max-h-80">
         <SelectItem value={REGISTER_ALL}>All</SelectItem>
         {options.map((item) => (
           <SelectItem key={item.value} value={item.value}>

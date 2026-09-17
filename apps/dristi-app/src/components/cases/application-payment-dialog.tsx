@@ -74,7 +74,7 @@ function PaymentBody({
         <DialogTitle
           ref={titleRef}
           tabIndex={-1}
-          className="text-title-s font-semibold outline-none"
+          className="text-body font-semibold outline-none"
         >
           {paid ? "Payment complete" : "Pay court fee"}
         </DialogTitle>

@@ -18,7 +18,7 @@ import {
   RegisterSearch,
   RowViewButton,
 } from "@/components/cases/register-controls";
-import { SubmissionBatchDialog } from "@/components/cases/submission-batch-dialog";
+import { PartySignatureDialog } from "@/components/cases/party-application";
 import {
   TABLE_CELL,
   TABLE_HEAD,
@@ -61,9 +61,7 @@ import {
 } from "@/lib/cases/application-record";
 import {
   FILING_STATUSES,
-  applicationsFile,
   nextStepCopy,
-  type AttentionGroupEntry,
   type FilingStatus,
 } from "@/lib/cases/applications";
 import { type CaseRecord } from "@/lib/cases/types";
@@ -88,22 +86,12 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       return null;
     }
   }, [record, moved]);
-  const peopleById = useMemo(() => {
-    try {
-      return new Map(
-        applicationsFile(record).people.map((person) => [person.id, person])
-      );
-    } catch {
-      return new Map();
-    }
-  }, [record]);
-
   const [type, setType] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [filedBy, setFiledBy] = useState(ALL);
   const [query, setQuery] = useState("");
   const [recordOpen, setRecordOpen] = useState<string | null>(null);
-  const [signing, setSigning] = useState<AttentionGroupEntry | null>(null);
+  const [signing, setSigning] = useState<ApplicationRecord[]>([]);
   const [paying, setPaying] = useState<ApplicationRecord[]>([]);
 
   if (!register) {
@@ -148,13 +136,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
     if (lead.status === "pending-payment") {
       setPaying(applications);
     } else if (lead.status === "pending-signature") {
-      setSigning({
-        kind: "group",
-        key: applications.map((item) => item.id).join(),
-        status: lead.status,
-        submittedById: lead.filedById,
-        submissions: applications.map((item) => item.source),
-      });
+      setSigning(applications);
     }
   }
 
@@ -251,11 +233,35 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           if (!open) setRecordOpen(null);
         }}
       />
-      <SubmissionBatchDialog
-        peopleById={peopleById}
-        group={signing}
-        onOpenChange={setSigning}
-        onSigned={(ids) => move(ids, "pending-payment")}
+      {/* The same signing flow as Add witness and Add power of attorney; one
+          signature covers every application in the batch. */}
+      <PartySignatureDialog
+        open={signing.length > 0}
+        onClose={() => setSigning([])}
+        onComplete={() => {
+          move(
+            signing.map((item) => item.id),
+            "pending-payment"
+          );
+          setSigning([]);
+        }}
+        chooseTitle={
+          signing.length > 1
+            ? `How are these ${signing.length} applications signed?`
+            : undefined
+        }
+        submitLabel="Submit signed copy"
+        confirmation={
+          signing.length > 1
+            ? {
+                title: `${signing.length} applications signed`,
+                description: "Pay the court fee to submit them to the court.",
+              }
+            : {
+                title: "Application signed",
+                description: "Pay the court fee to submit it to the court.",
+              }
+        }
       />
       <ApplicationPaymentDialog
         applications={paying}
