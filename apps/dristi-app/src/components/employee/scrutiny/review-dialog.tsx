@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import {
-  CheckIcon,
+  CircleCheckIcon,
+  CornerUpLeftIcon,
   MicIcon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -13,11 +14,11 @@ import type {
   FlagMap,
   FlatField,
 } from "@/lib/employee/scrutiny/types";
+import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
   StagedOverlay,
@@ -93,11 +94,17 @@ const STAGES = ["review", "done"] as const;
 type Stage = (typeof STAGES)[number];
 
 /**
- * A scene each. The outcome is not this list with a mark on it — the list is what the
- * decision was taken *from*, and once it is taken the window has one thing left to say —
- * so the stage travels rather than settling where it stands.
+ * **One scene for both stages**, so nothing travels.
+ *
+ * The outcome *is* this list — it is what the decision was taken from, and the last place
+ * those items can be read before the queue moves on. Sending it away to show a tick in an
+ * empty field threw the receipt out and said "done" where the act was a hand-off. So the
+ * list stays exactly where it was and a band resolves across the top of it, which is the
+ * shape the bulk signature already settled on: the second screen is the first screen with
+ * a stamp on it. Stages sharing a scene do not remount, so there is no slide and no
+ * entrance to replay.
  */
-const SCENE: Record<Stage, string> = { review: "review", done: "done" };
+const SCENE: Record<Stage, string> = { review: "review", done: "review" };
 
 /**
  * Review &amp; decide. Everything the officer did, before it leaves their hands.
@@ -167,15 +174,27 @@ export function ReviewDialog({
             : "Every field was checked against the bundle. The case moves to the Magistrate's list for cognizance.",
         };
 
-  /* What the header says once the decision is taken: the confirmation's own heading and
-     sentence, moved up into the chrome. With the frame held still there is no second
-     heading to draw, and a title that rewrites itself is how the window says the act is
-     done. Send back needs no line under it — the title has said what happened. On
-     register, say what the act sets in motion (the Magistrate takes it up) and that the
-     queue has moved on, rather than restating the filing number back to them. */
+  /*
+   * The act, at three ranges: the title names it, the line under it says what it sets in
+   * motion, and the band on the list is the state of the items themselves.
+   *
+   * **The settled header keeps a line of the same shape as the question's**, and that is
+   * structural rather than editorial. The stage has a floor so a shorter stage cannot
+   * re-centre the panel — but a *header* that drops from two lines to none moves the whole
+   * window by 48px, which is the same fault by another route (measured: 662 → 614 when the
+   * settled stage had no line). The frame's other answer is a definite height, and a list
+   * of three items does not want 85dvh of white under it. So the line stays, and the band
+   * says the one word the colour and the glyph are already saying.
+   */
   const settled =
     decision === "send-back"
-      ? { title: `Sent back to ${party.advocate}`, body: undefined }
+      ? {
+          title: `Sent back to ${party.advocate}`,
+          body: `${total} item${
+            total > 1 ? "s" : ""
+          } went back for the advocate to act on. The file returns to your queue when they resubmit — your next file is ready.`,
+          band: "Sent back",
+        }
       : {
           title: "Case registered",
           body: total
@@ -183,6 +202,7 @@ export function ReviewDialog({
                 total > 1 ? "s" : ""
               } attached — the Magistrate sees them when taking cognizance. Your next file is ready.`
             : "Registered and sent to the Magistrate for cognizance. Your next file is ready.",
+          band: "Registered",
         };
 
   const needsAck = decision === "register" && total > 0;
@@ -197,7 +217,25 @@ export function ReviewDialog({
            travel up the screen at the moment it is claiming the act settled where it
            stood. */
         className="sm:max-w-2xl"
-        floor
+        /* The floor is only load-bearing while there is a list. It stops a shorter stage
+           re-centring the panel — but with nothing raised both stages are the band alone,
+           so there is nothing to shorten, and holding it would put 407px of blank white
+           under a band reading "Nothing raised", which looks like a screen that failed to
+           load. Off, the window is a 235px confirmation, which is what a clean file
+           deserves.
+
+           The one cost, measured: on that path the settled line wraps to one row where the
+           question wrapped to two, so the window settles 20px shorter. Writing a sentence
+           to fill a line would be worse, and so would the void — the frame's own trade,
+           that a window which resizes is a smaller fault than a window with no way out. */
+        floor={total > 0}
+        /* One long list, not objects on a canvas: a panel the same shape as the surface
+           under it is a card inside a card inside a modal (owner, 2026-09-17). The stage
+           is the overlay's own white, framed by the header and footer hairlines, and the
+           insets are this file's because the band below is full-bleed and the list is
+           not. */
+        surface="card"
+        padded={false}
         title={done ? settled.title : head.title}
         titleRef={flow.titleRef}
         description={done ? settled.body : head.body}
@@ -213,14 +251,29 @@ export function ReviewDialog({
             </>
           ) : (
             <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Keep reviewing
+              </Button>
+              <Button
+                disabled={needsAck && !ack}
+                onClick={() => flow.go("done")}
+              >
+                {decision === "send-back" ? "Send back" : "Register case"}
+              </Button>
               {/* The gate on the primary, beside the button it gates. It had its own
                   region above the footer before the frame, which has two regions and not
                   three — and it is chrome on either side of that seam, so what it loses
-                  is a hairline, not its place in view. */}
+                  is a hairline, not its place in view.
+
+                  **Last in the markup, first on screen.** The footer is
+                  `flex-col-reverse` on a phone, so a gate written before the buttons
+                  renders *under* the disabled primary it explains (measured at 390px).
+                  Written after them it reads first on the phone, and `sm:order-first`
+                  puts it back on the left of the row once the footer is a row. */}
               {needsAck ? (
                 <Field
                   orientation="horizontal"
-                  className="sm:mr-auto sm:w-auto sm:self-center"
+                  className="sm:order-first sm:mr-auto sm:w-auto sm:self-center"
                 >
                   <Checkbox
                     id="ack"
@@ -232,79 +285,104 @@ export function ReviewDialog({
                   </FieldLabel>
                 </Field>
               ) : null}
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Keep reviewing
-              </Button>
-              <Button
-                disabled={needsAck && !ack}
-                onClick={() => flow.go("done")}
-              >
-                {decision === "send-back" ? "Send back" : "Register case"}
-              </Button>
             </>
           )
         }
       >
-        {done ? (
-          /* The act, settled. The words are in the header — the title names what
-             happened, and on a registration the line under it says what it sets in
-             motion — so what is left on the stage is the mark, in the middle of the
-             surface the list was read on. */
-          <div className="my-auto flex flex-col items-center">
-            <div className="flex size-14 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground">
-              <CheckIcon aria-hidden="true" className="size-7" strokeWidth={2.2} />
-            </div>
+        {/* One column: the band, then the list, and **only the list scrolls.** The band
+            sits outside the scroller deliberately — a status strip that leaves with the
+            twentieth item is not a status strip, and the group headings below it need the
+            scroller's own top edge to stick to. */}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div
+            /* Keyed on the act, so the settled band mounts and resolves where the caption
+               stood; the list below is not keyed and does not move. **Both states carry a
+               1px bottom rule** — transparent under the solid fill — because a band that
+               changed height would shift the whole list at the exact moment this design is
+               claiming the act settled in place. (Measured on the bulk signature's band
+               before it carried one.) */
+            key={done ? "settled" : "caption"}
+            className={cn(
+              "flex shrink-0 items-center gap-2 border-b px-4 py-2.5 text-body-compact sm:px-6",
+              !done && "border-hairline text-muted-foreground",
+              done &&
+                cn(
+                  RESOLVE_IN_PLACE,
+                  decision === "register"
+                    ? /* Registered is a terminal good outcome, so it takes the solid
+                         success — the same band the bulk signature resolves to. */
+                      "border-transparent bg-success text-success-foreground"
+                    : /* A send-back is **not** a success, and not a failure either: it is
+                         the ordinary path, and most files take it at least once. Colour
+                         carries one meaning on these screens, so an outcome that is
+                         neither gets the neutral well — the same fill the acknowledgement
+                         toast settled on this week — and an icon that says *returned*
+                         rather than *done* (owner, 2026-09-17: "it cannot be like a tick
+                         mark… it's basically sending it back again"). */
+                      "border-hairline bg-surface-sunken text-foreground",
+                ),
+            )}
+          >
+            {done ? (
+              <>
+                {decision === "register" ? (
+                  <CircleCheckIcon aria-hidden className="size-4 shrink-0" />
+                ) : (
+                  <CornerUpLeftIcon aria-hidden className="size-4 shrink-0" />
+                )}
+                {/* `role="status"` is what gets the outcome spoken: focus lands on the
+                    header title, which announces itself and nothing under it. */}
+                <span role="status" className="font-medium">
+                  {settled.band}
+                </span>
+              </>
+            ) : (
+              /* The list's caption before the act, and the slot the outcome resolves
+                 into. It names what is below rather than counting it — the group headings
+                 carry their own counts and the header has already said how many travel.
+                 With nothing raised it is the empty state as well, which is why no
+                 separate empty panel sits below it. */
+              <span>{total ? "Everything you raised" : "Nothing raised"}</span>
+            )}
           </div>
-        ) : (
-          /* Everything raised, in a panel on the stage: a white card with a hairline and
-             a lift, because a list laid straight onto the tinted canvas has no edge of
-             its own and the sticky group headings would have nothing to sit on. The card
-             holds the scroll, so a send-back with twenty items scrolls inside the panel
-             and the frame around it does not move. */
-          <Card className="min-h-0 border-hairline shadow-raised">
-            <CardContent className="min-h-0 overflow-y-auto">
-              {total ? (
-                GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
-                  <section key={g} className="pt-6 first:pt-0">
-                    {/*
-                     * A heading, set as one: caption size but foreground ink at 600, so
-                     * it does not read as one more line of item metadata — and sticky,
-                     * because on a send-back with twenty items the kind of grant you are
-                     * reading is the thing that scrolls away first. It needs the card's
-                     * own fill behind it, or items would show through as it passes.
-                     */}
-                    <h3 className="sticky top-0 z-10 -mx-6 bg-card px-6 pb-2 text-caption font-semibold text-foreground">
-                      {g.split(" — ")[0]}{" "}
-                      <span className="text-muted-foreground tabular-nums">
-                        ({groups[g].length})
-                      </span>
-                    </h3>
-                    <ul>
-                      {groups[g].map((item) => (
-                        <SummaryItem
-                          key={item.field.id}
-                          item={item}
-                          onGoToItem={(fieldId) => {
-                            onOpenChange(false);
-                            onGoToItem(fieldId);
-                          }}
-                        />
-                      ))}
-                    </ul>
-                  </section>
-                ))
-              ) : (
-                <Empty className="border-0 p-0">
-                  <EmptyHeader>
-                    <EmptyTitle className="text-title-s font-semibold">
-                      Nothing raised
-                    </EmptyTitle>
-                  </EmptyHeader>
-                </Empty>
-              )}
-            </CardContent>
-          </Card>
-        )}
+
+          {/* No list, no scroller — an inset region with nothing in it is 48px of dead
+              strip under the band, and with nothing raised the band has already said so. */}
+          {total ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+              {GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
+                <section key={g} className="pt-6 first:pt-0">
+                  {/*
+                   * A heading, set as one: caption size but foreground ink at 600, so
+                   * it does not read as one more line of item metadata — and sticky,
+                   * because on a send-back with twenty items the kind of grant you are
+                   * reading is the thing that scrolls away first. It needs the stage's
+                   * own fill behind it, or items would show through as it passes — and it
+                   * bleeds to the scroller's insets so the rule it makes runs full width.
+                   */}
+                  <h3 className="sticky top-0 z-10 -mx-4 bg-card px-4 pb-2 text-caption font-semibold text-foreground sm:-mx-6 sm:px-6">
+                    {g.split(" — ")[0]}{" "}
+                    <span className="text-muted-foreground tabular-nums">
+                      ({groups[g].length})
+                    </span>
+                  </h3>
+                  <ul>
+                    {groups[g].map((item) => (
+                      <SummaryItem
+                        key={item.field.id}
+                        item={item}
+                        onGoToItem={(fieldId) => {
+                          onOpenChange(false);
+                          onGoToItem(fieldId);
+                        }}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </StagedOverlay>
     </Dialog>
   );
