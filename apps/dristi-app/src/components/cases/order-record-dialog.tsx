@@ -6,6 +6,12 @@ import { PdfViewer } from "@/components/cases/pdf-viewer";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { Button } from "@/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Dialog,
   DialogClose,
   DialogDescription,
@@ -46,12 +52,18 @@ export function OrderRecordDialog({
                 </DialogDescription>
               </div>
               {doc?.href ? (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={doc.href} download>
-                    <DownloadIcon data-icon="inline-start" aria-hidden />
-                    Download
-                  </a>
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon-sm" asChild>
+                        <a href={doc.href} download aria-label="Download">
+                          <DownloadIcon aria-hidden />
+                        </a>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Download</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ) : null}
               <DialogClose asChild>
                 <Button type="button" variant="ghost" size="icon-sm">

@@ -354,7 +354,7 @@ function CaseFileIndex({
  *  magistrate also get Mark as Evidence and Mark as Void (DET-12). */
 const VIEWER_IS_COURT = false;
 
-const rowShell = "py-px";
+const rowShell = "py-1";
 
 const rowClass =
   "group/file-row flex min-h-8 w-full min-w-0 items-start justify-between gap-2 rounded-lg py-1.5 text-left text-body-compact text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-10 max-md:py-2.5";

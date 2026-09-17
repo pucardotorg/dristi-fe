@@ -13,6 +13,12 @@ import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Dialog,
   DialogClose,
   DialogDescription,
@@ -84,12 +90,18 @@ function RecordBody({
           </DialogDescription>
         </div>
         {pdf ? (
-          <Button variant="outline" size="sm" asChild>
-            <a href={pdf.url} download>
-              <DownloadIcon data-icon="inline-start" aria-hidden />
-              Download
-            </a>
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon-sm" asChild>
+                  <a href={pdf.url} download aria-label="Download">
+                    <DownloadIcon aria-hidden />
+                  </a>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Download</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : null}
         <DialogClose asChild>
           <Button type="button" variant="ghost" size="icon-sm">

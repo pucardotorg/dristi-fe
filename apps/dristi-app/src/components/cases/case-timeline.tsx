@@ -28,6 +28,8 @@ import {
 } from "@/lib/cases/sections";
 import { FIXTURE_TODAY } from "@/lib/cases/fixtures";
 import { type CaseRecord } from "@/lib/cases/types";
+import { PANEL_CLASS } from "@/components/shell/panel";
+import { cn } from "@/lib/utils";
 
 export function CaseTimeline({ record }: { record: CaseRecord }) {
   const model = caseTimelineModel(
@@ -52,27 +54,27 @@ export function CaseTimeline({ record }: { record: CaseRecord }) {
             </EmptyMedia>
             <EmptyTitle
               id="case-history-empty-heading"
-              className="text-title-s font-semibold"
+              className="text-body font-semibold"
             >
               No case history yet
             </EmptyTitle>
-            <EmptyDescription className="text-body">
+            <EmptyDescription>
               Events that have already taken place on this case will appear
               here.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
-        <Card className="hover:bg-card">
-          <CardHeader className="border-b">
+        <Card className={cn(PANEL_CLASS, "gap-4 hover:bg-card")}>
+          <CardHeader>
             <div className="flex min-w-0 flex-col gap-1">
               <h3
                 id="all-case-events-heading"
-                className="text-title-s font-semibold"
+                className="text-body font-semibold"
               >
                 All case events
               </h3>
-              <p className="text-body text-muted-foreground">
+              <p className="text-caption font-medium tabular-nums text-muted-foreground">
                 {model.firstDateLabel} to {model.latestDateLabel}
               </p>
             </div>
@@ -85,10 +87,10 @@ export function CaseTimeline({ record }: { record: CaseRecord }) {
                   status={day.status}
                   aria-current={day.status === "current" ? "true" : undefined}
                 >
-                  <div className="flex min-w-0 flex-col gap-4">
+                  <div className="flex min-w-0 flex-col gap-1">
                     <time
                       dateTime={day.on}
-                      className="text-title-s font-semibold text-foreground"
+                      className="text-body-compact font-semibold tabular-nums text-foreground"
                     >
                       {day.dateLabel}
                     </time>
@@ -124,7 +126,7 @@ function TimelineEvent({
      translation of it will wrap rather than fit the DS one-line default. */
   const title = (
     <ItemContent className="min-w-0">
-      <ItemTitle className="line-clamp-none text-body font-medium text-foreground">
+      <ItemTitle className="line-clamp-none font-normal">
         {event.label}
       </ItemTitle>
     </ItemContent>
@@ -132,14 +134,18 @@ function TimelineEvent({
 
   if (!event.ref) {
     return (
-      <Item size="sm" role="listitem" className="hover:bg-transparent">
+      <Item
+        size="sm"
+        role="listitem"
+        className="-mx-2 w-auto px-2 py-1.5 hover:bg-transparent"
+      >
         {title}
       </Item>
     );
   }
 
   return (
-    <Item asChild size="sm">
+    <Item asChild size="sm" className="-mx-2 w-auto px-2 py-1.5">
       <Link
         href={caseSectionHref(caseId, event.ref)}
         role="listitem"

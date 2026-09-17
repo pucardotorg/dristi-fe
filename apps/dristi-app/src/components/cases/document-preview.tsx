@@ -320,7 +320,7 @@ export function DocumentPreviewActions({
   title,
   source,
   download,
-  iconOnly = false,
+  iconOnly = true,
   className,
   children,
 }: {

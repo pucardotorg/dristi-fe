@@ -7,12 +7,17 @@ import {
   CircleAlertIcon,
   FileSearchIcon,
   FileTextIcon,
-  SearchIcon,
 } from "lucide-react";
 
 import { ApplicationPaymentDialog } from "@/components/cases/application-payment-dialog";
 import { ApplicationRecordDialog } from "@/components/cases/application-record-dialog";
 import { RestingCard } from "@/components/cases/case-overview-card";
+import {
+  REGISTER_ALL,
+  RegisterFilter,
+  RegisterSearch,
+  RowViewButton,
+} from "@/components/cases/register-controls";
 import { SubmissionBatchDialog } from "@/components/cases/submission-batch-dialog";
 import {
   TABLE_CELL,
@@ -37,14 +42,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -72,7 +69,7 @@ import {
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 
-const ALL = "all";
+const ALL = REGISTER_ALL;
 
 /**
  * Applications (§9). One kind of thing, many types. What the viewer still has
@@ -164,30 +161,21 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   return (
     <ApplicationsPanel
       search={
-        <div className="relative w-full sm:w-64">
-          <SearchIcon
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            aria-label="Search by application ID"
-            placeholder="Search by application ID"
-            className="pl-9"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
+        <RegisterSearch
+          label="Search by application ID"
+          value={query}
+          onChange={setQuery}
+        />
       }
     >
       <div className="flex flex-wrap items-center gap-2">
-        <FilterSelect
+        <RegisterFilter
           label="Type"
           value={type}
           onChange={setType}
           options={APPLICATION_TYPE_OPTIONS}
         />
-        <FilterSelect
+        <RegisterFilter
           label="Status"
           value={status}
           onChange={setStatus}
@@ -196,7 +184,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
             label: item.label,
           }))}
         />
-        <FilterSelect
+        <RegisterFilter
           label="Filed by"
           value={filedBy}
           onChange={setFiledBy}
@@ -316,37 +304,6 @@ function ApplicationsPanel({
         {children}
       </CardContent>
     </RestingCard>
-  );
-}
-
-/** The label rides inside the trigger, so the filter names itself without a
- *  row of labels above the bar (ACCESSIBILITY 12: a visible label). */
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger aria-label={label} className="w-auto max-w-full gap-1.5">
-        <span className="text-muted-foreground">{label}</span>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>All</SelectItem>
-        {options.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 
@@ -606,19 +563,10 @@ function ApplicationsTable({
               {item.submittedShort ?? <Dash label="Not submitted" />}
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "text-right")}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="-my-1.5"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpen(item.id);
-                }}
-              >
-                View
-                <span className="sr-only">: {item.typeLabel}</span>
-              </Button>
+              <RowViewButton
+                label={item.typeLabel}
+                onClick={() => onOpen(item.id)}
+              />
             </TableCell>
           </TableRow>
         ))}

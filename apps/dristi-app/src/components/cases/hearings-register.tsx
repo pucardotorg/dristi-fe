@@ -12,6 +12,7 @@ import {
   tableRowClass,
 } from "@/components/chrome/table-plate";
 import { RestingCard } from "@/components/cases/case-overview-card";
+import { RowViewButton } from "@/components/cases/register-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
@@ -102,20 +103,10 @@ export function HearingsList({
               </Badge>
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "text-right")}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpen(hearing);
-                }}
-              >
-                View
-                <span className="sr-only">
-                  : {hearing.purpose}, {hearing.date}
-                </span>
-              </Button>
+              <RowViewButton
+                label={`${hearing.purpose}, ${hearing.date}`}
+                onClick={() => onOpen(hearing)}
+              />
             </TableCell>
           </TableRow>
         ))}

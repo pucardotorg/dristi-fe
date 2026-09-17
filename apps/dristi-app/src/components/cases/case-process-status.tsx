@@ -163,8 +163,8 @@ function Round({
         />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="flex flex-col gap-3 border-t border-hairline p-3">
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="flex flex-col gap-6 border-t border-hairline p-4">
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Fact label="Linked hearing">
               {round.hearing ? (
                 <>
@@ -267,11 +267,11 @@ function Round({
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <dt className="text-caption font-medium text-muted-foreground">
         {label}
       </dt>
-      <dd className="flex min-w-0 flex-col text-body-compact font-medium text-foreground">
+      <dd className="flex min-w-0 flex-col gap-0.5 text-body-compact font-medium text-foreground">
         {children}
       </dd>
     </div>

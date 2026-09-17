@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CircleAlertIcon, FileSearchIcon } from "lucide-react";
 
 import { RestingCard } from "@/components/cases/case-overview-card";
+import { RowViewButton } from "@/components/cases/register-controls";
 import { OrderRecordDialog } from "@/components/cases/order-record-dialog";
 import {
   TABLE_CELL,
@@ -14,7 +15,6 @@ import {
   tableRowClass,
 } from "@/components/chrome/table-plate";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import {
   Empty,
@@ -189,19 +189,10 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
                   )}
                 </TableCell>
                 <TableCell className={cn(TABLE_CELL, "align-top text-right")}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="-my-1.5"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setOpenOrder(order);
-                    }}
-                  >
-                    View
-                    <span className="sr-only">: {order.title}</span>
-                  </Button>
+                  <RowViewButton
+                    label={order.title}
+                    onClick={() => setOpenOrder(order)}
+                  />
                 </TableCell>
               </TableRow>
             ))}
