@@ -36,7 +36,7 @@ import {
   type CaseTask,
   type DueStatusView,
 } from "./peek";
-import { caseSectionHref } from "./sections";
+import { caseSectionHref, orderHref } from "./sections";
 import { formatCaseDate, outcomeLabel, type CaseRecord } from "./types";
 
 export type OverviewNextHearing = {
@@ -459,7 +459,7 @@ function collectRegisterUpdates(
       kind: "order",
       on: dayStamp(order.issuedOn),
       title: order.title,
-      href: caseSectionHref(record.id, "orders-and-notifications"),
+      href: orderHref(record.id, order.id),
     });
   }
 
