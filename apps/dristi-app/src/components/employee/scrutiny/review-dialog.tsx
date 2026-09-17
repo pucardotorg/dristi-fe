@@ -16,7 +16,6 @@ import type {
 } from "@/lib/employee/scrutiny/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -95,9 +94,14 @@ const STAGES = ["review", "done"] as const;
 type Stage = (typeof STAGES)[number];
 
 /**
- * A scene each. The outcome is not this list with a mark on it — the list is what the
- * decision was taken *from*, and once it is taken the window has one thing left to say —
- * so the stage travels rather than settling where it stands.
+ * **A scene each, so the act travels.**
+ *
+ * The owner asked for exactly this (2026-09-17): *"when you send back to the advocate, I
+ * want that information to have a slight motion animation and go to the confirmation
+ * stage of either registered or sent back."* A different scene is what makes the frame
+ * remount and play its entrance, so the list leaves and the confirmation arrives — one
+ * move, in the direction the act is going. A band stamped on the list where it stood was
+ * the alternative, and it read as an annotation rather than as a decision taken.
  */
 const SCENE: Record<Stage, string> = { review: "review", done: "done" };
 
@@ -111,8 +115,8 @@ const SCENE: Record<Stage, string> = { review: "review", done: "done" };
  * moves inside. The decision and its outcome used to be two wholesale swaps inside one
  * `Dialog`, and the confirmation dropped the header entirely to draw its own heading —
  * which is precisely the moment an overlay stops looking like the overlay. Now the chrome
- * holds still and carries the outcome in the line it already had, and only the stage
- * between header and footer travels.
+ * holds still and only the stage between header and footer travels, from the list to the
+ * confirmation.
  */
 export function ReviewDialog({
   decision,
@@ -169,43 +173,49 @@ export function ReviewDialog({
             : "Every field was checked against the bundle. The case moves to the Magistrate's list for cognizance.",
         };
 
-  /* What the header says once the decision is taken: the confirmation's own heading and
-     sentence, moved up into the chrome. With the frame held still there is no second
-     heading to draw, and a title that rewrites itself is how the window says the act is
-     done. Send back needs no line under it — the title has said what happened. On
-     register, say what the act sets in motion (the Magistrate takes it up) and that the
-     queue has moved on, rather than restating the filing number back to them. */
+  /*
+   * **The confirmation's own words.**
+   *
+   * The title stays in the header, because it is the line the frame rewrites and the line
+   * focus lands on. Everything else about the outcome lives on the stage, with the mark:
+   * a state, and a sentence putting it in context. A glyph and one word was not a
+   * confirmation — *"it shouldn't just say send back with an icon, it should have some
+   * copy associated with it"* (owner, 2026-09-17) — and splitting the sentence between
+   * the header and the stage would have said the same thing twice at two sizes.
+   *
+   * The register wording changes with the count because a case that travels with open
+   * items is a materially different thing from a clean one, and the Magistrate is the
+   * reason either way.
+   */
   const settled =
     decision === "send-back"
       ? {
           title: `Sent back to ${party.advocate}`,
-          /* The line the settled stage used to go without. A send-back with no words at
-             all left the officer a glyph and nothing else (owner, 2026-09-17), and
-             dropping it also shortened the header by 48px, which moved the whole window
-             at the moment the act claimed to settle. */
-          body: `${total} item${
-            total > 1 ? "s" : ""
-          } went back for the advocate to act on. The file returns to your queue when they resubmit — your next file is ready.`,
-          /* **A return is not a completion.** Green with a tick said the act succeeded
-             where it had actually handed the file on, and most files take this path at
-             least once — it is the ordinary route, not a failure and not a win. So the
-             mark is the product's neutral state fill (`secondary`, what every pending
-             pill on these screens wears) with a glyph that says *returned*. Colour keeps
-             carrying one meaning. */
           state: "Sent back",
+          body: `${total} item${total > 1 ? "s" : ""} ${
+            total > 1 ? "are" : "is"
+          } with ${
+            party.advocate
+          } to answer. The file returns to your queue when they resubmit — nothing more is needed from you until then.`,
+          /* **A return is not a completion.** Green with a tick said the act succeeded
+             where it had handed the file on, and this is the ordinary route — most files
+             take it at least once — not a failure and not a win. So the mark wears the
+             product's neutral state fill (`secondary`, what every pending pill on these
+             screens wears; the case history gives a return no colour at all) with a glyph
+             that says *returned*. Colour keeps carrying one meaning. */
           tone: "bg-secondary text-secondary-foreground",
           Icon: CornerUpLeftIcon,
         }
       : {
           title: "Case registered",
+          state: "Registered",
           body: total
-            ? `Registered with ${total} open item${
-                total > 1 ? "s" : ""
-              } attached — the Magistrate sees them when taking cognizance. Your next file is ready.`
-            : "Registered and sent to the Magistrate for cognizance. Your next file is ready.",
+            ? `The case is on the Magistrate's list, and the ${total} open item${
+                total > 1 ? "s travel" : " travels"
+              } with it for them to see when taking cognizance.`
+            : "Every field was checked against the bundle. The case is on the Magistrate's list for cognizance.",
           /* Registering *is* a terminal good outcome, so this one keeps the success
              muted and the tick. */
-          state: "Registered",
           tone: "bg-success-muted text-success-muted-foreground",
           Icon: CheckIcon,
         };
@@ -216,16 +226,35 @@ export function ReviewDialog({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <StagedOverlay
-        /* A long list needs the measure; it does not need the width of a document. No
-           definite height, so the stage takes the floor instead: the outcome is a
-           fraction of the list's height, and a centred dialog that shrank to it would
-           travel up the screen at the moment it is claiming the act settled where it
-           stood. */
-        className="sm:max-w-2xl"
-        floor
+        /* The measure of a long list, and a **definite height** rather than a floor.
+           Two things change between the stages now — the list becomes a confirmation, and
+           the header's line becomes a shorter one — and a floor only holds the first of
+           them: a header dropping a row moves the whole centred panel (measured at 48px,
+           and 20px on the empty path). A definite height decouples both, and the stage
+           absorbs the difference instead. It is what the registrations overlay and the
+           order composer do, and for the same reason: this is a reading surface whose
+           content is routinely taller than the window.
+
+           Unconditional, not `md:` — where those two overlays hold long content on every
+           stage and so barely move on a phone, this one goes from a list to a short
+           confirmation, and at 390px that measured as a collapse from 680 to 422 with the
+           panel re-centring 129px down the screen. A phone modal held at 85% height is an
+           ordinary sheet; a sheet that shrinks by a third under the reader's thumb is not. */
+        className="h-[85dvh] sm:max-w-2xl"
+        /* One long list, not objects on a canvas: a panel the same shape as the surface
+           under it is a card inside a card inside a modal (owner, 2026-09-17, and
+           restated). The stage is the overlay's own white, framed by the header and
+           footer hairlines, and the insets belong to this file because the confirmation
+           centres itself while the list does not. */
+        surface="card"
+        padded={false}
         title={done ? settled.title : head.title}
         titleRef={flow.titleRef}
-        description={done ? settled.body : head.body}
+        /* No line under the settled title: the sentence is on the stage with the mark it
+           belongs to, and printing it here as well said the same thing twice at two
+           sizes. The definite height is what makes that affordable — the header loses two
+           rows and the stage absorbs them, so the panel does not move. */
+        description={done ? undefined : head.body}
         sceneKey={flow.sceneKey}
         motion={flow.motion}
         footer={
@@ -254,9 +283,9 @@ export function ReviewDialog({
 
                   **Last in the markup, first on screen.** The footer is
                   `flex-col-reverse` on a phone, so a gate written before the buttons
-                  rendered *under* the disabled primary it explains (measured at 390px).
-                  Written after them it reads first there, and `sm:order-first` puts it
-                  back on the left once the footer is a row. */}
+                  renders *under* the disabled primary it explains (measured at 390px).
+                  Written after them it reads first on the phone, and `sm:order-first`
+                  puts it back on the left of the row once the footer is a row. */}
               {needsAck ? (
                 <Field
                   orientation="horizontal"
@@ -277,89 +306,84 @@ export function ReviewDialog({
         }
       >
         {done ? (
-          /* **The act, settled — as its own panel on the canvas.** The owner asked for
-             this layer back (2026-09-17): a mark sitting loose on the tint reads as
-             decoration, and the outcome of a decision this size wants the same standing
-             as the list it replaced. So the stage keeps its two layers on both stages —
-             tinted canvas, white panel — and the panel carries the mark and the one word
-             for the state it reached. The title and the line above it are the frame's,
-             which is why neither is drawn again here.
-
-             `my-auto` rather than `justify-center`: the panel centres while the canvas has
-             room and gives way to the scroll if a long advocate name ever wraps the header
-             into it. */
-          <div className="my-auto flex w-full flex-col">
-            <Card className="border-hairline shadow-raised">
-              <CardContent className="flex flex-col items-center gap-3 text-center">
-                <div
-                  className={cn(
-                    "flex size-14 items-center justify-center rounded-full",
-                    settled.tone,
-                  )}
-                >
-                  <settled.Icon
-                    aria-hidden="true"
-                    className="size-7"
-                    strokeWidth={2.2}
-                  />
-                </div>
-                {/* `role="status"` is what gets the outcome spoken: focus lands on the
-                    header title, which announces itself and nothing under it. */}
-                <p role="status" className="text-body font-semibold">
-                  {settled.state}
-                </p>
-              </CardContent>
-            </Card>
+          /* **The confirmation, arriving.** A different scene, so the frame remounts this
+             and it enters in the direction the act is going while the chrome holds still
+             — the motion the owner asked for, one move rather than a mark appearing over
+             a list that stayed. Centred by `my-auto` rather than `justify-center`, so it
+             gives way to the scroll if a long advocate name ever grows it past the
+             canvas. */
+          <div className="my-auto flex flex-col items-center gap-4 p-6 text-center">
+            <div
+              className={cn(
+                "flex size-14 items-center justify-center rounded-full",
+                settled.tone,
+              )}
+            >
+              <settled.Icon
+                aria-hidden="true"
+                className="size-7"
+                strokeWidth={2.2}
+              />
+            </div>
+            {/* The state, then what it means. `role="status"` is what gets the outcome
+                spoken: focus lands on the header title, which announces itself and
+                nothing under it. The measure is held to a readable line length — a
+                sentence running the full width of a 2xl dialog under a centred mark
+                reads as a paragraph that lost its column. */}
+            <div role="status" className="flex max-w-sm flex-col gap-1">
+              <p className="text-body font-semibold">{settled.state}</p>
+              <p className="text-body-compact text-muted-foreground">
+                {settled.body}
+              </p>
+            </div>
+          </div>
+        ) : total ? (
+          /* The list, and **only the list scrolls** — the frame around it does not move,
+             so a send-back with twenty items scrolls inside the stage. The insets are
+             here rather than on the frame because the confirmation above centres itself
+             and this does not. */
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+              {GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
+                <section key={g} className="pt-6 first:pt-0">
+                  {/*
+                   * A heading, set as one: caption size but foreground ink at 600, so
+                   * it does not read as one more line of item metadata — and sticky,
+                   * because on a send-back with twenty items the kind of grant you are
+                   * reading is the thing that scrolls away first. It needs the stage's
+                   * own fill behind it, or items would show through as it passes — and it
+                   * bleeds to the scroller's insets so the rule it makes runs full width.
+                   */}
+                  <h3 className="sticky top-0 z-10 -mx-4 bg-card px-4 pb-2 text-caption font-semibold text-foreground sm:-mx-6 sm:px-6">
+                    {g.split(" — ")[0]}{" "}
+                    <span className="text-muted-foreground tabular-nums">
+                      ({groups[g].length})
+                    </span>
+                  </h3>
+                  <ul>
+                    {groups[g].map((item) => (
+                      <SummaryItem
+                        key={item.field.id}
+                        item={item}
+                        onGoToItem={(fieldId) => {
+                          onOpenChange(false);
+                          onGoToItem(fieldId);
+                        }}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
           </div>
         ) : (
-          /* Everything raised, in a panel on the stage: a white card with a hairline and
-             a lift, because a list laid straight onto the tinted canvas has no edge of
-             its own and the sticky group headings would have nothing to sit on. The card
-             holds the scroll, so a send-back with twenty items scrolls inside the panel
-             and the frame around it does not move. */
-          <Card className="min-h-0 border-hairline shadow-raised">
-            <CardContent className="min-h-0 overflow-y-auto">
-              {total ? (
-                GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
-                  <section key={g} className="pt-6 first:pt-0">
-                    {/*
-                     * A heading, set as one: caption size but foreground ink at 600, so
-                     * it does not read as one more line of item metadata — and sticky,
-                     * because on a send-back with twenty items the kind of grant you are
-                     * reading is the thing that scrolls away first. It needs the card's
-                     * own fill behind it, or items would show through as it passes.
-                     */}
-                    <h3 className="sticky top-0 z-10 -mx-6 bg-card px-6 pb-2 text-caption font-semibold text-foreground">
-                      {g.split(" — ")[0]}{" "}
-                      <span className="text-muted-foreground tabular-nums">
-                        ({groups[g].length})
-                      </span>
-                    </h3>
-                    <ul>
-                      {groups[g].map((item) => (
-                        <SummaryItem
-                          key={item.field.id}
-                          item={item}
-                          onGoToItem={(fieldId) => {
-                            onOpenChange(false);
-                            onGoToItem(fieldId);
-                          }}
-                        />
-                      ))}
-                    </ul>
-                  </section>
-                ))
-              ) : (
-                <Empty className="border-0 p-0">
-                  <EmptyHeader>
-                    <EmptyTitle className="text-title-s font-semibold">
-                      Nothing raised
-                    </EmptyTitle>
-                  </EmptyHeader>
-                </Empty>
-              )}
-            </CardContent>
-          </Card>
+          /* Nothing raised, which is a state and not an absence: said in the middle of
+             the stage, where the confirmation will arrive. */
+          <Empty className="my-auto border-0 p-6">
+            <EmptyHeader>
+              <EmptyTitle className="text-title-s font-semibold">
+                Nothing raised
+              </EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         )}
       </StagedOverlay>
     </Dialog>
