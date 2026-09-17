@@ -64,7 +64,8 @@ export function OrderRecordDialog({
               <PdfViewer
                 key={`${doc.href}#${doc.page ?? 1}`}
                 src={doc.href}
-                initialPage={doc.page}
+                /* The sample orders are single pages of one compiled file. */
+                pages={doc.page ? { from: doc.page, to: doc.page } : undefined}
                 title={order.title}
                 className="flex-1 rounded-none"
               />

@@ -78,7 +78,7 @@ export function CaseHeader({
               number shows (DET-01); the older ones sit behind the icon. */}
           {/* The way back rides the number line, so it costs the header no
               row of its own. */}
-          <div className="flex min-h-6 items-center gap-1">
+          <div className="flex min-h-8 items-center gap-1">
             <CaseBackButton />
             {hasParties ? (
               <>

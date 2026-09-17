@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
+/** Page width at 100%, in px, when the well is wider than this. */
+const READING_WIDTH = 820;
 
 let pdfjsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
 
@@ -40,6 +42,7 @@ export function PdfViewer({
   src,
   title,
   initialPage = 1,
+  pages,
   className,
 }: {
   src: string;
@@ -47,6 +50,9 @@ export function PdfViewer({
   title: string;
   /** 1-based page to open at. */
   initialPage?: number;
+  /** Show only these pages (1-based, inclusive), for a document that is a
+   *  span inside a compiled file. The whole file when absent. */
+  pages?: { from: number; to: number };
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -109,15 +115,27 @@ export function PdfViewer({
     return () => node.removeEventListener("wheel", onWheel);
   }, []);
 
+  /* Once per document, and only after the pages have a measured width:
+     before that every holder is zero tall and there is nowhere to scroll. */
+  const ready = Boolean(doc) && width > 0;
+  const openedAt = useRef<string | null>(null);
   useEffect(() => {
-    if (!doc || initialPage <= 1) return;
-    scrollRef.current
-      ?.querySelector(`[data-page="${initialPage}"]`)
-      ?.scrollIntoView({ block: "start" });
-  }, [doc, initialPage]);
+    const node = scrollRef.current;
+    if (!ready || !node || openedAt.current === src) return;
+    openedAt.current = src;
+    if (initialPage <= 1) return;
+    const target = node.querySelector<HTMLElement>(
+      `[data-page="${initialPage}"]`
+    );
+    if (target) node.scrollTop = target.offsetTop - 16;
+  }, [ready, src, initialPage]);
 
-  /* p-4 each side, so the page never touches the well's edge at fit. */
-  const pageWidth = Math.max(0, (width - 32) * zoom);
+  const firstPage = Math.max(1, pages?.from ?? 1);
+  const lastPage = Math.min(doc?.numPages ?? 0, pages?.to ?? Infinity);
+
+  /* Fit the well, up to a comfortable reading width: a page stretched across
+     a wide dialog is harder to read, not easier. p-4 each side. */
+  const pageWidth = Math.max(0, Math.min(width - 32, READING_WIDTH) * zoom);
 
   return (
     <div
@@ -147,11 +165,14 @@ export function PdfViewer({
           </div>
         ) : (
           <div className="flex w-max min-w-full flex-col items-center gap-4 p-4">
-            {Array.from({ length: doc.numPages }, (_, index) => (
+            {Array.from(
+              { length: Math.max(0, lastPage - firstPage + 1) },
+              (_, index) => firstPage + index
+            ).map((number) => (
               <PdfPage
-                key={index}
+                key={number}
                 doc={doc}
-                number={index + 1}
+                number={number}
                 width={pageWidth}
                 aspect={aspect}
                 root={scrollRef}

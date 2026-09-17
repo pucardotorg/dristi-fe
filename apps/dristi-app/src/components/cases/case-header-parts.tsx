@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-/** Back to the cases list, at the number line's height with a 40px target. */
+/** Back to the cases list. Full-strength ink, so it reads as the way out. */
 export function CaseBackButton() {
   return (
     <TooltipProvider>
@@ -23,7 +23,7 @@ export function CaseBackButton() {
             variant="ghost"
             size="icon-xs"
             asChild
-            className="relative -ml-1 size-6 text-muted-foreground after:absolute after:-inset-2"
+            className="relative -ml-2 text-foreground after:absolute after:-inset-1 [&_svg]:size-4"
           >
             <Link href="/cases" aria-label="Back to cases">
               <ArrowLeftIcon aria-hidden />
