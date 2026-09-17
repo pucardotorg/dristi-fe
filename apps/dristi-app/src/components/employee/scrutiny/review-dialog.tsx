@@ -13,20 +13,16 @@ import type {
   FlagMap,
   FlatField,
 } from "@/lib/employee/scrutiny/types";
-import { OVERLAY_RISE, RESOLVE_IN_PLACE } from "@/components/chrome/motion";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import {
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
 import {
   FieldValue,
   RecordLink,
@@ -89,10 +85,32 @@ function group(
 }
 
 /**
+ * The act's two stages, in the order it moves through them: everything the officer
+ * raised, and what happened when they decided on it.
+ */
+const STAGES = ["review", "done"] as const;
+
+type Stage = (typeof STAGES)[number];
+
+/**
+ * A scene each. The outcome is not this list with a mark on it — the list is what the
+ * decision was taken *from*, and once it is taken the window has one thing left to say —
+ * so the stage travels rather than settling where it stands.
+ */
+const SCENE: Record<Stage, string> = { review: "review", done: "done" };
+
+/**
  * Review &amp; decide. Everything the officer did, before it leaves their hands.
  *
  * Registering with open items is allowed — never block — but it takes an explicit
  * acknowledgement, which is what gates the primary button.
+ *
+ * **Both stages are one window** (`StagedOverlay`), the frame every other court-side act
+ * moves inside. The decision and its outcome used to be two wholesale swaps inside one
+ * `Dialog`, and the confirmation dropped the header entirely to draw its own heading —
+ * which is precisely the moment an overlay stops looking like the overlay. Now the chrome
+ * holds still and carries the outcome in the line it already had, and only the stage
+ * between header and footer travels.
  */
 export function ReviewDialog({
   decision,
@@ -110,18 +128,21 @@ export function ReviewDialog({
 }) {
   const { party, allFields, fieldById, docRow } = useScrutinyCase();
   const [ack, setAck] = React.useState(false);
-  const [confirmed, setConfirmed] = React.useState(false);
 
-  // Opening the dialog for a new decision starts from a clean slate. Adjusted during
-  // render against the previous decision rather than in an effect.
-  const [prevDecision, setPrevDecision] = React.useState(decision);
-  if (decision !== prevDecision) {
-    setPrevDecision(decision);
-    if (decision) {
-      setAck(false);
-      setConfirmed(false);
-    }
-  }
+  /* Opening the dialog for a new decision starts from a clean slate — back to the list,
+     and the acknowledgement is not inherited from the decision before it. The flow makes
+     that adjustment during render, against the decision it last showed. */
+  const flow = useStagedFlow({
+    order: STAGES,
+    scene: SCENE,
+    record: decision ?? "closed",
+    /* The "record" changing here *is* the overlay opening, not a second decision arriving
+       in a window that stayed up — so the stage takes the frame's ordinary entrance and
+       lets the panel's own rise be the gesture. On the default it would rise inside a
+       rise. */
+    arrival: "forward",
+    onRecordChange: () => setAck(false),
+  });
 
   const groups = React.useMemo(
     () => group(flags, allFields, fieldById, docRow),
@@ -146,67 +167,102 @@ export function ReviewDialog({
             : "Every field was checked against the bundle. The case moves to the Magistrate's list for cognizance.",
         };
 
+  /* What the header says once the decision is taken: the confirmation's own heading and
+     sentence, moved up into the chrome. With the frame held still there is no second
+     heading to draw, and a title that rewrites itself is how the window says the act is
+     done. Send back needs no line under it — the title has said what happened. On
+     register, say what the act sets in motion (the Magistrate takes it up) and that the
+     queue has moved on, rather than restating the filing number back to them. */
+  const settled =
+    decision === "send-back"
+      ? { title: `Sent back to ${party.advocate}`, body: undefined }
+      : {
+          title: "Case registered",
+          body: total
+            ? `Registered with ${total} open item${
+                total > 1 ? "s" : ""
+              } attached — the Magistrate sees them when taking cognizance. Your next file is ready.`
+            : "Registered and sent to the Magistrate for cognizance. Your next file is ready.",
+        };
+
   const needsAck = decision === "register" && total > 0;
+  const done = flow.stage === "done";
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      {/* The house long-list overlay: a header, a body that is the only thing that
-          scrolls, and a footer, each a region with a hairline seam between it and the
-          next — the shell `SignOrderDialog` and `ApplicationReviewOverlay` use. The
-          previous build clipped the list at a fixed `52vh` inside a padded box, which
-          on a laptop cut the decision the dialog exists to take. */}
-      <ChromeDialogContent
-        className={cn(
-          "flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl",
-          OVERLAY_RISE,
-        )}
-      >
-        {confirmed ? (
-          <>
-            <div className={cn("flex flex-col items-center gap-3 p-6 text-center", RESOLVE_IN_PLACE)}>
-              <div className="flex size-14 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground">
-                <CheckIcon className="size-7" strokeWidth={2.2} />
-              </div>
-              <DialogTitle>
-                {decision === "send-back"
-                  ? `Sent back to ${party.advocate}`
-                  : "Case registered"}
-              </DialogTitle>
-              {/* Send back needs no explanatory line — the title says what happened. On
-                  register, say what the FSO's act sets in motion (the Magistrate takes it
-                  up) and that the queue has moved on, rather than restating the filing
-                  number back to them. */}
-              {decision === "register" ? (
-                <DialogDescription>
-                  {total
-                    ? `Registered with ${total} open item${
-                        total > 1 ? "s" : ""
-                      } attached — the Magistrate sees them when taking cognizance. Your next file is ready.`
-                    : "Registered and sent to the Magistrate for cognizance. Your next file is ready."}
-                </DialogDescription>
-              ) : null}
-            </div>
-            <DialogFooter className="mx-0 mb-0 shrink-0">
+      <StagedOverlay
+        /* A long list needs the measure; it does not need the width of a document. No
+           definite height, so the stage takes the floor instead: the outcome is a
+           fraction of the list's height, and a centred dialog that shrank to it would
+           travel up the screen at the moment it is claiming the act settled where it
+           stood. */
+        className="sm:max-w-2xl"
+        floor
+        title={done ? settled.title : head.title}
+        titleRef={flow.titleRef}
+        description={done ? settled.body : head.body}
+        sceneKey={flow.sceneKey}
+        motion={flow.motion}
+        footer={
+          done ? (
+            <>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Stay here
               </Button>
               <Button onClick={onDone}>Next file</Button>
-            </DialogFooter>
-          </>
+            </>
+          ) : (
+            <>
+              {/* The gate on the primary, beside the button it gates. It had its own
+                  region above the footer before the frame, which has two regions and not
+                  three — and it is chrome on either side of that seam, so what it loses
+                  is a hairline, not its place in view. */}
+              {needsAck ? (
+                <Field
+                  orientation="horizontal"
+                  className="sm:mr-auto sm:w-auto sm:self-center"
+                >
+                  <Checkbox
+                    id="ack"
+                    checked={ack}
+                    onCheckedChange={(value) => setAck(value === true)}
+                  />
+                  <FieldLabel htmlFor="ack" className="font-normal">
+                    I have seen the open flags and choose to register.
+                  </FieldLabel>
+                </Field>
+              ) : null}
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Keep reviewing
+              </Button>
+              <Button
+                disabled={needsAck && !ack}
+                onClick={() => flow.go("done")}
+              >
+                {decision === "send-back" ? "Send back" : "Register case"}
+              </Button>
+            </>
+          )
+        }
+      >
+        {done ? (
+          /* The act, settled. The words are in the header — the title names what
+             happened, and on a registration the line under it says what it sets in
+             motion — so what is left on the stage is the mark, in the middle of the
+             surface the list was read on. */
+          <div className="my-auto flex flex-col items-center">
+            <div className="flex size-14 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground">
+              <CheckIcon aria-hidden="true" className="size-7" strokeWidth={2.2} />
+            </div>
+          </div>
         ) : (
-          <>
-            {/* `pr-16` keeps the title clear of the close button the DS places
-                top-right. */}
-            <DialogHeader className="shrink-0 gap-2 border-b border-hairline p-6 pr-16">
-              <DialogTitle className="text-title-s font-semibold">
-                {head.title}
-              </DialogTitle>
-              <DialogDescription className="text-body-compact text-muted-foreground">
-                {head.body}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          /* Everything raised, in a panel on the stage: a white card with a hairline and
+             a lift, because a list laid straight onto the tinted canvas has no edge of
+             its own and the sticky group headings would have nothing to sit on. The card
+             holds the scroll, so a send-back with twenty items scrolls inside the panel
+             and the frame around it does not move. */
+          <Card className="min-h-0 border-hairline shadow-raised">
+            <CardContent className="min-h-0 overflow-y-auto">
               {total ? (
                 GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
                   <section key={g} className="pt-6 first:pt-0">
@@ -214,7 +270,7 @@ export function ReviewDialog({
                      * A heading, set as one: caption size but foreground ink at 600, so
                      * it does not read as one more line of item metadata — and sticky,
                      * because on a send-back with twenty items the kind of grant you are
-                     * reading is the thing that scrolls away first. It needs the body's
+                     * reading is the thing that scrolls away first. It needs the card's
                      * own fill behind it, or items would show through as it passes.
                      */}
                     <h3 className="sticky top-0 z-10 -mx-6 bg-card px-6 pb-2 text-caption font-semibold text-foreground">
@@ -246,39 +302,10 @@ export function ReviewDialog({
                   </EmptyHeader>
                 </Empty>
               )}
-            </div>
-
-            {/* The gate on the primary, in its own region above the footer rather than
-                floating between two scrolling things. */}
-            {needsAck ? (
-              <div className="shrink-0 border-t border-hairline px-6 py-4">
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id="ack"
-                    checked={ack}
-                    onCheckedChange={(value) => setAck(value === true)}
-                  />
-                  <FieldLabel htmlFor="ack" className="font-normal">
-                    I have seen the open flags and choose to register.
-                  </FieldLabel>
-                </Field>
-              </div>
-            ) : null}
-
-            <DialogFooter className="mx-0 mb-0 shrink-0">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Keep reviewing
-              </Button>
-              <Button
-                disabled={needsAck && !ack}
-                onClick={() => setConfirmed(true)}
-              >
-                {decision === "send-back" ? "Send back" : "Register case"}
-              </Button>
-            </DialogFooter>
-          </>
+            </CardContent>
+          </Card>
         )}
-      </ChromeDialogContent>
+      </StagedOverlay>
     </Dialog>
   );
 }

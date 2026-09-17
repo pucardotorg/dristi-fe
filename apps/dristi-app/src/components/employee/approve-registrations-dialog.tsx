@@ -9,8 +9,10 @@ import {
   ImageOffIcon,
 } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
-import { OVERLAY_RISE } from "@/components/chrome/motion";
+import {
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
 import {
   TABLE_CELL,
   TABLE_HEAD,
@@ -33,9 +35,6 @@ import {
   Dialog,
   DialogClose,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -241,29 +240,18 @@ const SCENE: Record<Stage, "review" | "approve" | "reject"> = {
 };
 
 /**
- * The entrance each scene makes. Forward is the request progressing — it arrives from the
- * right, the direction it is going. Back arrives from the left, the direction it came
- * from. `fill-mode-both` holds the first frame so nothing flashes at its final position
- * before the animation starts; `motion-reduce:animate-none` respects the OS setting and
- * leaves a plain swap.
+ * The act's shape, which is what `useStagedFlow` reads the direction off: later in the
+ * list is forward, earlier is back. Reject and Approve are siblings rather than a
+ * sequence — the officer reaches one or the other from Review and returns the same way —
+ * so a settled stage sits directly behind the question that produced it.
  */
-const SLIDE: Record<Motion, string> = {
-  forward:
-    "animate-in fade-in-0 slide-in-from-right-8 fill-mode-both duration-300 motion-reduce:animate-none",
-  back: "animate-in fade-in-0 slide-in-from-left-8 fill-mode-both duration-300 motion-reduce:animate-none",
-  /**
-   * A different request arriving in the same window.
-   *
-   * Not a slide: nothing progressed, the record was replaced. So it rises and fades over
-   * half a second — long enough to read as a new thing settling in, slow enough that the
-   * officer's eye follows it rather than being startled by it. The distinction is the
-   * point: sideways means "this request moved on", upward means "here is another one".
-   */
-  arrive:
-    "animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-both duration-500 ease-out motion-reduce:animate-none",
-};
-
-type Motion = "forward" | "back" | "arrive";
+const ORDER = [
+  "review",
+  "reject",
+  "rejected",
+  "approve",
+  "approved",
+] as const satisfies readonly Stage[];
 
 function RequestBody({
   request,
@@ -280,87 +268,86 @@ function RequestBody({
   onNext: (request: RegistrationRequest) => void;
   onReturnFocus: () => void;
 }) {
-  const [stage, setStage] = React.useState<Stage>("review");
-  const [motion, setMotion] = React.useState<Motion>("forward");
   const [reason, setReason] = React.useState("");
   const [touched, setTouched] = React.useState(false);
   const reasonRef = React.useRef<HTMLTextAreaElement>(null);
-  const titleRef = React.useRef<HTMLHeadingElement>(null);
-  /* Where the overlay lands on open — see `onOpenAutoFocus` below. */
+  /* Where the overlay lands on open, and where a newly arrived request lands too — see
+     `onOpenAutoFocus` below, and `landing` on the flow. */
   const factsRef = React.useRef<HTMLDivElement>(null);
-  const previousStage = React.useRef<Stage>("review");
-  const focusedFor = React.useRef(request.id);
-  const [shownRequest, setShownRequest] = React.useState(request.id);
 
   /**
-   * A different request, in the same body — the reset a `key` used to do by destroying
-   * everything (React's documented "adjusting state when a prop changes", which runs
-   * during render and re-renders immediately, so nothing stale is ever painted).
+   * The stage, the direction it travelled and the focus that follows it —
+   * `chrome/staged-overlay.tsx`, which is where this overlay's own interaction went when
+   * the owner asked for it on every court-side modal (2026-09-16).
    *
-   * It matters that this is not an effect: the new request must never appear for a frame
-   * wearing the last one's stage, and it must never appear carrying a rejection reason
-   * typed about somebody else.
+   * Everything it does here it used to do in this file. Reject lands on the textarea,
+   * because writing the reason is the only thing that stage is for; every other stage
+   * lands on the title, which has just changed to say what the stage is. A **different
+   * request arriving** resets to Review, rises rather than slides — nothing progressed,
+   * the record was replaced — and takes focus to the fact column, because the button that
+   * opened this one went with the settled footer that just left.
+   *
+   * `onRecordChange` is the part that is still this file's business: a rejection reason
+   * typed about somebody else must not survive onto the next request, and it is cleared
+   * during render, so the new request is never painted carrying it.
    */
-  if (shownRequest !== request.id) {
-    setShownRequest(request.id);
-    setStage("review");
-    setMotion("arrive");
-    setReason("");
-    setTouched(false);
-  }
-
-  function go(to: Stage) {
-    setMotion(to === "review" ? "back" : "forward");
-    setStage(to);
-  }
-
-  /**
-   * Focus follows the record.
-   *
-   * The button that opened this request is gone — it was in the footer of the settled
-   * state that just left — so without this the keyboard lands on the document body with a
-   * modal open. The fact column takes it, which is where the overlay puts focus when it
-   * opens: the same landing place for the same situation.
-   */
-
-  /**
-   * Focus follows the stage — and, before that, the record.
-   *
-   * **A different request arriving** takes focus to the fact column, which is where the
-   * overlay puts it when it opens: the button that opened this one is gone (it was in the
-   * footer of the settled state that just left), so without this the keyboard lands on
-   * the document body with a modal still open.
-   *
-   * Into Reject it lands on the textarea, because writing the reason is the only thing
-   * that stage is for. Into every other stage it lands on the header title, which has
-   * just changed to say what the stage is — a keyboard officer hears the question or the
-   * outcome, and a swapped body whose focus stayed on a button that no longer exists
-   * would have dropped them on the dialog container instead. `previousStage` keeps this
-   * from firing on arrival: the initial open keeps the dialog's own landing place.
-   */
-  React.useEffect(() => {
-    if (focusedFor.current !== request.id) {
-      focusedFor.current = request.id;
-      previousStage.current = "review";
-      factsRef.current?.focus();
-      return;
-    }
-    if (previousStage.current === stage) return;
-    previousStage.current = stage;
-    if (stage === "reject") reasonRef.current?.focus();
-    else titleRef.current?.focus();
-  }, [stage, request.id]);
+  const flow = useStagedFlow({
+    order: ORDER,
+    scene: SCENE,
+    focus: { reject: reasonRef },
+    record: request.id,
+    landing: factsRef,
+    onRecordChange: () => {
+      setReason("");
+      setTouched(false);
+    },
+  });
+  const { stage, go } = flow;
 
   const empty = reason.trim() === "";
   const badge = STAGE_BADGE[stage];
   const noun = registrantNoun(request.registrantKind);
 
   return (
-    <ChromeDialogContent
-      className={cn(
-        "flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl md:h-[85dvh]",
-        OVERLAY_RISE,
-      )}
+    <StagedOverlay
+      /* Wide, and with a *definite* height: the paper being examined is the task, and a
+         reading surface that changed size between the record and the decision would be
+         the same fault this frame exists to prevent. A definite height also means no
+         `floor` — there would be nothing for one to do. */
+      className="sm:max-w-5xl md:h-[85dvh]"
+      /* Title, state, and the one string the advocate can quote — and nothing else
+         (brief D16). The name is **not** here: it is a value under verification, and a
+         screen that prints it as the record's title has asserted it before the officer
+         looked at the card. It is the first row of Identity instead. */
+      title={STAGE_TITLE[stage](noun)}
+      titleRef={flow.titleRef}
+      titleAside={<Badge variant={badge.variant}>{badge.label}</Badge>}
+      /* Back to the one string the applicant can quote (D16): the role is in the title
+         now, and saying it here as well would be one fact twice in one header. The node
+         form, because the frame's plain-string description cannot carry an identifier —
+         and this one is the product's identifier treatment with its copy control off,
+         since nothing interactive belongs inside a dialog's accessible description. */
+      description={
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          <Identifier
+            value={request.applicationNumber}
+            label="application number"
+            copyable={false}
+          />
+        </DialogDescription>
+      }
+      /* Keyed on the request so the title, the state and the number fade in with the
+         record they name — a header that swapped instantly over a body that animated was
+         half the abruptness. This overlay is the one that walks from one record to the
+         next without closing, which is why it is the one that needs this. */
+      headerKey={request.id}
+      /* The request as well as the scene: a different record has to remount the stage, or
+         its `arrive` rise has nothing to play on. */
+      sceneKey={`${request.id}:${flow.sceneKey}`}
+      motion={flow.motion}
+      /* The scenes are full-bleed columns that carry their own insets — a two-column
+         reading surface cannot be inset by the frame without losing its own edges. */
+      padded={false}
       /* Radix focuses the first tabbable thing it finds. With the preview's header band
          gone (D15) that is the evidence well itself — it is a scroll container, so it is
          focusable — and the overlay opened with a 3px teal ring around the whole right
@@ -377,76 +364,8 @@ function RequestBody({
         event.preventDefault();
         onReturnFocus();
       }}
-    >
-      {/* Title, state, and the one string the advocate can quote — and nothing else
-          (brief D16). The name is **not** here: it is a value under verification, and a
-          screen that prints it as the record's title has asserted it before the officer
-          looked at the card. It is the first row of Identity instead. The header is the
-          overlay's chrome — white, over the tinted stage below — so it reads as the fixed
-          frame the stages move inside. */}
-      {/* Keyed on the request so the title, the state and the number fade in with the
-          record they name — a header that swapped instantly over a body that animated was
-          half the abruptness. */}
-      <DialogHeader
-        key={request.id}
-        className="shrink-0 gap-2 border-b border-hairline p-6 pr-16 animate-in fade-in-0 duration-500 motion-reduce:animate-none"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <DialogTitle
-            ref={titleRef}
-            tabIndex={-1}
-            className="text-title-s font-semibold outline-none"
-          >
-            {STAGE_TITLE[stage](noun)}
-          </DialogTitle>
-          <Badge variant={badge.variant}>{badge.label}</Badge>
-        </div>
-        {/* Back to the one string the applicant can quote (D16): the role is in the title
-            now, and saying it here as well would be one fact twice in one header. */}
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          {/* No copy control inside the dialog's accessible description. */}
-          <Identifier
-            value={request.applicationNumber}
-            label="application number"
-            copyable={false}
-          />
-        </DialogDescription>
-      </DialogHeader>
-
-      {/* The stage. A tinted canvas under white cards — the scoped work canvas the order
-          screen and the filing form already use (ui-craft §1.0), and the one place a
-          tinted stage is sanctioned: the chrome above and below it stays white so the
-          tint reads as the surface the work sits on, not as a grey dialog. Dark keeps
-          `bg-background`, because `muted` is the raised step there and would invert the
-          depth. `overflow-hidden` is what the slide moves inside; keyed on the stage so
-          each one mounts fresh and plays its entrance. */}
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-muted dark:bg-background">
-        <div
-          key={`${request.id}:${SCENE[stage]}`}
-          className={cn("flex h-full min-h-0 flex-col", SLIDE[motion])}
-        >
-          {stage === "review" ? (
-            <ReviewStage request={request} factsRef={factsRef} />
-          ) : (
-            <DecisionStage
-              stage={stage}
-              request={request}
-              reason={reason}
-              touched={touched}
-              reasonRef={reasonRef}
-              onChange={(value) => {
-                setReason(value);
-                setTouched(true);
-              }}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* The footer is chrome too, so it is `bg-card` rather than the primitive's muted
-          fill — under a muted stage the two would merge into one grey band. */}
-      <DialogFooter className="mx-0 mb-0 shrink-0 border-hairline bg-card">
-        {stage === "review" ? (
+      footer={
+        stage === "review" ? (
           <>
             {/* Soft destructive, not the solid. The DS reserves `destructive-solid` for a
                 confirmed irreversible act, and a rejection here is reversible by design —
@@ -526,9 +445,25 @@ function RequestBody({
               </Button>
             ) : null}
           </>
-        )}
-      </DialogFooter>
-    </ChromeDialogContent>
+        )
+      }
+    >
+      {stage === "review" ? (
+        <ReviewStage request={request} factsRef={factsRef} />
+      ) : (
+        <DecisionStage
+          stage={stage}
+          request={request}
+          reason={reason}
+          touched={touched}
+          reasonRef={reasonRef}
+          onChange={(value) => {
+            setReason(value);
+            setTouched(true);
+          }}
+        />
+      )}
+    </StagedOverlay>
   );
 }
 
