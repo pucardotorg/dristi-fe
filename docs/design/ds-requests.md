@@ -4,6 +4,13 @@ Open requests against
 [pucardotorg/dristi-design-system](https://github.com/pucardotorg/dristi-design-system),
 raised while designing Dristi screens.
 
+Product-wide ranking of these requests against what the app actually uses:
+[ds-product-audit.md](ds-product-audit.md) (2026-09-17). Several entries below have
+already landed on pin `e0cadea6` (SegmentedControl compact, DocumentSlot `copy` /
+`quality` / `disabled`, Stepper `onActivate`, `brand-canvas*`, registry pages for
+Field / Empty / InputGroup / ToggleGroup / DescriptionList) — reap against that pin
+before opening new DS work.
+
 **This file is a queue, not a licence.** Nothing here may be worked around locally: an
 invented token, a hand-written primitive, or a per-screen override is a defect under the
 DS gate (`.cursor/rules/pucar-design-system.mdc`), whatever the deadline. A request that

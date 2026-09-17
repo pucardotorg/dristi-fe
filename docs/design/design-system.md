@@ -57,6 +57,10 @@ Log it in [ds-requests.md](ds-requests.md) as a request against the DS repo — 
 around it locally. A brief that hits a gap states it in its own *Gaps in the DS* section
 and links to the entry there, so one queue holds the full request text.
 
+Product-wide inventory and priority (what to add, what to merge in the app, what to
+leave alone): [ds-product-audit.md](ds-product-audit.md). That file does not replace
+the request queue; it ranks it against what the running app actually uses.
+
 ## Grouped panels in Dristi
 
 Follow DS Laws (“Grouped content gets a border”) and `AGENTS.md`:
