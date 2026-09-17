@@ -74,14 +74,14 @@ export function RegisterSearch({
   return (
     <div className={cn("relative w-full sm:w-64", className)}>
       <SearchIcon
-        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
         aria-hidden
       />
       <Input
         type="search"
         aria-label={label}
         placeholder={label}
-        className="h-9 pl-9 max-sm:h-10"
+        className="h-9 pl-8 max-sm:h-10"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
