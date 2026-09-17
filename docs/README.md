@@ -13,6 +13,7 @@ Orientation for this repo. Docs describe the product and how we design; they are
 | **Product** | What DRISTI is — domain, journey, standards, open questions | [product/README.md](product/README.md) |
 | **Design** | How Dristi UI is built — always pull from pucar-design-system | [design/design-system.md](design/design-system.md) |
 | **Design → DS product audit** | Inventory of product UI vs the pinned DS: what is native, customised, missing, or duplicated — recommendation only, no DS changes | [design/ds-product-audit.md](design/ds-product-audit.md) |
+| **Design → visual inconsistencies** | Screenshot map of the same jobs solved differently (advocate vs court, queues, teal, filters) | [design/ds-inconsistencies-visual.md](design/ds-inconsistencies-visual.md) |
 | **Design → research** | Research memos that feed a brief (per feature: the verbatim ask, domain findings, UX findings). Inputs, not decisions — the brief in `design/proposals/` decides | [design/research/](design/research/) |
 | **Design → explorations** | Standalone interactive HTML prototypes for trying a direction before it is app code. **Untracked on purpose** — working material, not product; the decisions they settle go into the brief | [design/explorations/README.md](design/explorations/README.md) |
 | **Principles** | Cross-cutting PUCAR design principles — convictions that resolve conflicts between good outcomes. Org-wide, not DRISTI-specific | [principles/](principles/) |
@@ -42,3 +43,4 @@ Orientation for this repo. Docs describe the product and how we design; they are
 
 - [docs/design/ds-diagnosis.md](design/ds-diagnosis.md) — measured diagnosis of why the built UI reads dull (neutrals, type stack, surfaces) with DS token proposals and an A/B.
 - [docs/design/ds-product-audit.md](design/ds-product-audit.md) — 2026-09-17 audit of product UI vs the pinned DS (inventory, customisations, backlog).
+- [docs/design/ds-inconsistencies-visual.md](design/ds-inconsistencies-visual.md) — screenshot map of those inconsistencies.

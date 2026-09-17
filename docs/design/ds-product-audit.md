@@ -9,6 +9,8 @@ This is a decision surface. It does not enlarge the system. It says what is alre
 
 Existing queue (do not duplicate work against it): [ds-requests.md](ds-requests.md). That file is the request log; this file is the product-wide inventory and priority.
 
+**Pictures of the same findings:** [ds-inconsistencies-visual.md](ds-inconsistencies-visual.md) (screenshots, 2026-09-17).
+
 ---
 
 ## How to read this

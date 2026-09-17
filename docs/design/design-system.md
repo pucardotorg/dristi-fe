@@ -61,6 +61,9 @@ Product-wide inventory and priority (what to add, what to merge in the app, what
 leave alone): [ds-product-audit.md](ds-product-audit.md). That file does not replace
 the request queue; it ranks it against what the running app actually uses.
 
+Screenshot map of the same findings (advocate vs court, copied queues, teal, filters):
+[ds-inconsistencies-visual.md](ds-inconsistencies-visual.md).
+
 ## Grouped panels in Dristi
 
 Follow DS Laws (“Grouped content gets a border”) and `AGENTS.md`:
