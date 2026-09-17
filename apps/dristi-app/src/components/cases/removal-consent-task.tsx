@@ -42,12 +42,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemTitle,
-} from "@/components/ui/item";
 import { Textarea } from "@/components/ui/textarea";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 

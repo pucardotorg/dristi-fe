@@ -56,8 +56,14 @@ export function PdfViewer({
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
-  const [failed, setFailed] = useState(false);
+  /* Held with the src it came from, so a new src reads as "loading" at once
+     without resetting state from inside the effect. */
+  const [loaded, setLoaded] = useState<{
+    src: string;
+    doc: PDFDocumentProxy | null;
+  } | null>(null);
+  const doc = loaded?.src === src ? loaded.doc : null;
+  const failed = loaded?.src === src && loaded.doc === null;
   const [width, setWidth] = useState(0);
   const [zoom, setZoom] = useState(1);
   /** Page 1's width over height; the placeholder shape for unrendered pages. */
@@ -66,8 +72,6 @@ export function PdfViewer({
   useEffect(() => {
     let cancelled = false;
     let destroy: (() => Promise<void>) | null = null;
-    setDoc(null);
-    setFailed(false);
     (async () => {
       try {
         const lib = await pdfjs();
@@ -79,9 +83,9 @@ export function PdfViewer({
         const base = first.getViewport({ scale: 1 });
         if (cancelled) return;
         setAspect(base.width / base.height);
-        setDoc(next);
+        setLoaded({ src, doc: next });
       } catch {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) setLoaded({ src, doc: null });
       }
     })();
     return () => {

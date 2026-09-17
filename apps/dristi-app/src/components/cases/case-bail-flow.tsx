@@ -3,13 +3,6 @@
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemTitle,
-} from "@/components/ui/item";
 import {
   DueStatusLine,
   PendingTaskRow,
