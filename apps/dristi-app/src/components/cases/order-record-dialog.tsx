@@ -1,94 +1,81 @@
 "use client";
 
+import { DownloadIcon, XIcon } from "lucide-react";
+
+import { PdfViewer } from "@/components/cases/pdf-viewer";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
-import { DocumentPreview } from "@/components/cases/document-preview";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  orderClassLabel,
-  orderDocumentSrc,
-  type OrderRecord,
-} from "@/lib/cases/orders";
+import { type OrderRecord } from "@/lib/cases/orders";
 import { formatCaseDate } from "@/lib/cases/types";
 
 /**
- * Read-only issued order or notification. An order is one issued document —
- * the record shows that document, not a bundle of filings around it.
+ * Opening an order shows the order (ORD-03): a tall dialog, a little short of
+ * the screen so the case stays visible behind it, holding the PDF, Download
+ * and close. The slim bar names the document, which a dialog needs anyway.
  */
 export function OrderRecordDialog({
   order,
   onOpenChange,
 }: {
   order: OrderRecord | null;
-  onOpenChange: (order: OrderRecord | null) => void;
+  onOpenChange: (open: boolean) => void;
 }) {
+  const doc = order?.issuedDocument;
+
   return (
-    <Dialog
-      open={order !== null}
-      onOpenChange={(next) => {
-        if (!next) onOpenChange(null);
-      }}
-    >
-      {order ? <OrderBody key={order.id} order={order} /> : null}
+    <Dialog open={Boolean(order)} onOpenChange={onOpenChange}>
+      <ChromeDialogContent
+        showCloseButton={false}
+        className="flex h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
+      >
+        {order ? (
+          <>
+            <div className="flex shrink-0 items-center gap-2 border-b border-hairline py-2 pr-2 pl-4">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <DialogTitle className="truncate text-body-compact font-semibold">
+                  {order.title}
+                </DialogTitle>
+                <DialogDescription className="text-caption font-medium tabular-nums text-muted-foreground">
+                  {formatCaseDate(order.issuedOn)}
+                </DialogDescription>
+              </div>
+              {doc?.href ? (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={doc.href} download>
+                    <DownloadIcon data-icon="inline-start" aria-hidden />
+                    Download
+                  </a>
+                </Button>
+              ) : null}
+              <DialogClose asChild>
+                <Button type="button" variant="ghost" size="icon-sm">
+                  <XIcon aria-hidden />
+                  <span className="sr-only">Close</span>
+                </Button>
+              </DialogClose>
+            </div>
+            {doc?.href ? (
+              <PdfViewer
+                key={`${doc.href}#${doc.page ?? 1}`}
+                src={doc.href}
+                initialPage={doc.page}
+                title={order.title}
+                className="flex-1 rounded-none"
+              />
+            ) : (
+              <p className="p-6 text-body-compact text-muted-foreground">
+                The document for this order is not on file yet.
+              </p>
+            )}
+          </>
+        ) : null}
+      </ChromeDialogContent>
     </Dialog>
-  );
-}
-
-function OrderBody({ order }: { order: OrderRecord }) {
-  const issued = order.issuedDocument;
-  const issuedSrc = issued ? orderDocumentSrc(issued) : undefined;
-  const heading = order.title;
-
-  return (
-    <ChromeDialogContent className="flex max-h-[90svh] flex-col gap-6 overflow-hidden sm:max-w-4xl">
-      <DialogHeader className="shrink-0 pr-12">
-        <DialogDescription className="text-caption font-medium text-muted-foreground">
-          {orderClassLabel(order.classId)}
-        </DialogDescription>
-        <DialogTitle className="text-title font-semibold">
-          {heading}
-        </DialogTitle>
-      </DialogHeader>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
-        <div className="flex flex-col gap-6">
-          {/*
-            One fact, so it reads as a line — not a description list. A
-            single dl row strands the value across the 10rem term column
-            and drops its divider, which looks like a broken table.
-          */}
-          <p className="text-body text-muted-foreground">
-            Date issued:{" "}
-            <span className="font-medium text-foreground">
-              {formatCaseDate(order.issuedOn)}
-            </span>
-          </p>
-
-          {issuedSrc ? (
-            <DocumentPreview
-              title={issued?.label ?? "Issued order"}
-              source={{ kind: "src", src: issuedSrc }}
-              download={{
-                href: issuedSrc,
-                label: `Download order ${order.id}`,
-              }}
-            />
-          ) : (
-            <Alert>
-              <AlertTitle className="text-body">
-                No issued document
-              </AlertTitle>
-              <AlertDescription className="text-body">
-                No issued document is available for this record.
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
-      </div>
-    </ChromeDialogContent>
   );
 }
