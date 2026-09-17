@@ -2,16 +2,18 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAUSE_LIST } from "./hearings";
-import { createOrderItem } from "./order-items";
+import { appendRichText, recitalText } from "./order-items";
 import { applicationsForListing } from "./listing-applications";
 import {
   appearancesFor,
   assembleApplications,
   assembleAttendance,
-  assembleItems,
+  assembleBody,
   assembleNextListing,
   assembleOrder,
+  attendanceRecital,
   EMPTY_ORDER_DRAFT,
+  nextListingRecital,
 } from "./order-draft";
 
 const hearing = CAUSE_LIST[0];
@@ -77,63 +79,143 @@ describe("assembleNextListing", () => {
   });
 });
 
-describe("assembleItems", () => {
-  it("says so when the order has no item, rather than printing nothing", () => {
-    const block = assembleItems([]);
-    assert.equal(block.pending, true);
-    assert.equal(block.body, "No item has been added.");
-    assert.equal(block.items, undefined);
+describe("attendanceRecital", () => {
+  it("recites nothing while the roll has not been called", () => {
+    assert.deepEqual(attendanceRecital(appearancesFor(hearing), {}), []);
   });
 
-  it("numbers the items by position — item two is paragraph two", () => {
-    const block = assembleItems([
-      createOrderItem(hearing, "summons", "a"),
-      createOrderItem(hearing, "cost", "b"),
-    ]);
+  it("groups by the answer, so who was absent is one line and not a paragraph", () => {
     assert.deepEqual(
-      block.items?.map((entry) => [entry.number, entry.heading]),
+      attendanceRecital(appearancesFor(hearing), {
+        complainant: "present",
+        "complainant-counsel-0": "present",
+        accused: "absent",
+        "accused-counsel-0": "present",
+      }),
       [
-        [1, "Summons"],
-        [2, "Cost"],
+        {
+          label: "Present",
+          value:
+            "Sunil Varghese, the complainant; Adv. Suresh Menon, advocate for the complainant; Adv. Rekha Pillai, advocate for the accused.",
+        },
+        { label: "Absent", value: "Anand Traders, the accused." },
       ],
     );
-    assert.equal(block.pending, false);
+  });
+
+  it("leaves out the roll nobody is on, rather than heading an empty line", () => {
+    const lines = attendanceRecital(appearancesFor(hearing), {
+      complainant: "present",
+    });
+    assert.deepEqual(
+      lines.map((line) => line.label),
+      ["Present"],
+    );
+  });
+
+  it("grows one office at a time, so a part-called roll is still in the order", () => {
+    const appearances = appearancesFor(hearing);
+    const first = attendanceRecital(appearances, { complainant: "present" });
+    assert.equal(recitalText(first), "Present: Sunil Varghese, the complainant.");
+    const both = attendanceRecital(appearances, {
+      complainant: "present",
+      accused: "absent",
+    });
+    assert.equal(
+      recitalText(both),
+      "Present: Sunil Varghese, the complainant.\nAbsent: Anand Traders, the accused.",
+    );
+  });
+});
+
+describe("nextListingRecital", () => {
+  it("closes the order on the date, then what it is for", () => {
+    assert.deepEqual(
+      nextListingRecital({
+        next: "list",
+        nextPurpose: "evidence-of-complainant",
+        nextDate: "2026-10-06",
+      }),
+      [
+        { label: "Next hearing", value: "6 October 2026" },
+        { label: "Purpose", value: "Evidence of complainant" },
+      ],
+    );
+  });
+
+  it("says a matter is not being listed again, which is an answer", () => {
+    assert.deepEqual(
+      nextListingRecital({ next: "none", nextPurpose: "", nextDate: null }),
+      [{ label: "Next hearing", value: "Not listed again." }],
+    );
+  });
+
+  it("recites nothing while the posting is half given, either way round", () => {
+    assert.deepEqual(
+      nextListingRecital({
+        next: "list",
+        nextPurpose: "evidence-of-complainant",
+        nextDate: null,
+      }),
+      [],
+    );
+    assert.deepEqual(
+      nextListingRecital({
+        next: "list",
+        nextPurpose: "",
+        nextDate: "2026-10-06",
+      }),
+      [],
+    );
+  });
+});
+
+describe("assembleBody", () => {
+  it("says so when nothing has been written, rather than printing nothing", () => {
+    const block = assembleBody({ html: "", text: "" });
+    assert.equal(block.pending, true);
+    assert.equal(block.body, "No order has been written.");
+    assert.equal(block.html, "");
   });
 
   it("is pending on the text, not the markup — an empty editor still holds a break", () => {
-    const block = assembleItems([
-      { id: "a", type: "others", text: { html: "<br>", text: "   " } },
-    ]);
+    const block = assembleBody({ html: "<br>", text: "   " });
     assert.equal(block.pending, true);
-    assert.equal(block.items?.[0].pending, true);
-    assert.equal(block.items?.[0].html, "");
-    assert.match(block.items?.[0].body ?? "", /nothing has been written/);
+    assert.equal(block.html, "");
   });
 
-  it("keeps a chosen item in the order even before it is written", () => {
-    /* The court passed it — the typist said so by adding it. An order that dropped the
-       paragraph would be the screen deciding which items are worth printing. */
-    const block = assembleItems([
-      createOrderItem(hearing, "summons", "a"),
-      { id: "b", type: "others", text: { html: "", text: "" } },
-    ]);
-    assert.equal(block.items?.length, 2);
-    assert.equal(block.items?.[1].number, 2);
+  it("keeps the formatting the typist put in the box", () => {
+    const block = assembleBody({
+      html: "<ol><li>Notice to the accused.</li></ol>",
+      text: "Notice to the accused.",
+    });
+    assert.equal(block.pending, false);
+    assert.equal(block.html, "<ol><li>Notice to the accused.</li></ol>");
+    assert.equal(block.body, "Notice to the accused.");
+  });
+});
+
+describe("appendRichText", () => {
+  it("joins two directions as separate passages, never as one sentence", () => {
+    const joined = appendRichText(
+      { html: "<p>Cognizance is taken.</p>", text: "Cognizance is taken." },
+      { html: "<p>Issue summons.</p>", text: "Issue summons." },
+    );
+    assert.equal(
+      joined.html,
+      "<p>Cognizance is taken.</p><p>Issue summons.</p>",
+    );
+    assert.equal(joined.text, "Cognizance is taken.\n\nIssue summons.");
   });
 
-  it("keeps the formatting the typist put inside one item", () => {
-    const block = assembleItems([
-      {
-        id: "a",
-        type: "notice",
-        text: {
-          html: "<ol><li>Notice to the accused.</li></ol>",
-          text: "Notice to the accused.",
-        },
-      },
-    ]);
-    assert.equal(block.items?.[0].html, "<ol><li>Notice to the accused.</li></ol>");
-    assert.equal(block.items?.[0].body, "Notice to the accused.");
+  it("leaves the box alone when the template has no standing words", () => {
+    const written = { html: "<p>Heard.</p>", text: "Heard." };
+    assert.deepEqual(appendRichText(written, { html: "", text: "" }), written);
+  });
+
+  it("does not open the order on a blank line", () => {
+    const first = { html: "<p>Heard.</p>", text: "Heard." };
+    assert.deepEqual(appendRichText({ html: "", text: "" }, first), first);
   });
 });
 
@@ -148,16 +230,10 @@ describe("assembleOrder", () => {
     assert.ok(bare);
     const order = assembleOrder(bare, {
       ...EMPTY_ORDER_DRAFT,
-      items: [
-        {
-          id: "a",
-          type: "notice",
-          text: {
-            html: "<p>Notice to the accused.</p>",
-            text: "Notice to the accused.",
-          },
-        },
-      ],
+      body: {
+        html: "<p>Notice to the accused.</p>",
+        text: "Notice to the accused.",
+      },
     });
     assert.deepEqual(
       order.blocks.map((block) => block.heading),
