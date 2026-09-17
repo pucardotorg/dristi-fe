@@ -49,6 +49,7 @@ import { summaryOf, type World } from "@/lib/tasks/selectors";
 import type { Task, TaskKind } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { RowAction } from "@/components/advocate/home-bits";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The companion rail — Gmail's model. A persistent icon strip on the far right
@@ -494,7 +495,9 @@ function PrepCard({
         {/* A matter you are meant to prepare for has to be identifiable: the
             number you would quote at the counter, and the posting it is for. */}
         <span className="w-full truncate text-caption text-muted-foreground">
-          <span className="font-mono">{item.kase.stNumber}</span> · {item.kase.stage}
+          {/* The card title's `after:inset-0` covers the whole card. */}
+          <Identifier value={item.kase.stNumber} label="case number" copyable={false} /> ·{" "}
+          {item.kase.stage}
         </span>
         {/* Only when something is owed. A "Ready" badge on every card is a mark
             of the norm, and the card is here for its lead time either way. */}

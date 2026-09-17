@@ -26,6 +26,7 @@ import {
   type ReschedulableHearing,
 } from "@/lib/employee/bulk-reschedule";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** What a row says when the date it would move to is not a move. */
 const PROBLEM_NOTE: Record<Exclude<NewDateProblem, "missing">, string> = {
@@ -142,8 +143,8 @@ export function BulkRescheduleTable({
               >
                 {row.title}
               </TableCell>
-              <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
-                {row.caseNumber}
+              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                <Identifier value={row.caseNumber} label="case number" />
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
                 {courtCaseStageLabel(row.stage)}

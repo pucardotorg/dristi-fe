@@ -50,6 +50,7 @@ import {
   hearingCaseExtras,
   type HearingCaseExtras,
 } from "@/lib/employee/hearing-overview";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The two surfaces this overview is read on.
@@ -245,7 +246,7 @@ export function HearingOverviewCaption({ hearing }: { hearing: CourtHearing }) {
     <>
       Item <span className="tabular-nums">{hearing.item}</span>
       {" · "}
-      <span className="tabular-nums">{hearing.caseNumber}</span>
+      <Identifier value={hearing.caseNumber} label="case number" />
       {" · "}
       {courtHearingPurposeLabel(hearing.purpose)}
     </>

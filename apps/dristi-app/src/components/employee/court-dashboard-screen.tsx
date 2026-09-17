@@ -25,6 +25,7 @@ import {
 import { formatCourtDay, TODAYS_HEARING_COUNT } from "@/lib/employee/hearings";
 import { COURT_CASES_PAGE } from "@/lib/employee/navigation";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * `/employee` — the bench's working brief.
@@ -209,9 +210,13 @@ function CaseRow({
       )}
     >
       <div className="flex min-w-0 items-baseline gap-2">
-        <span className="shrink-0 font-mono text-body-compact tabular-nums text-muted-foreground">
-          {record.caseNumber}
-        </span>
+        {/* The whole row is the link to the case — the face without a second control. */}
+        <Identifier
+          value={record.caseNumber}
+          label="case number"
+          className="shrink-0 text-body-compact text-muted-foreground"
+          copyable={false}
+        />
         <span className="truncate text-body font-medium">
           {courtCaseTitle(record)}
         </span>

@@ -20,6 +20,7 @@ import { DOC_REASONS } from "@/lib/employee/scrutiny/sections";
 import type { FlatField } from "@/lib/employee/scrutiny/types";
 import type { ScrutinyController } from "@/lib/employee/scrutiny/use-scrutiny-state";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 import { MarkThumb } from "@/components/employee/scrutiny/mark-thumb";
 import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -186,7 +187,21 @@ export function FlagComposer({
               ) : null}
               {corrected ? (
                 <FieldDescription>
-                  Filed as <span className="line-through">{field.value || "—"}</span>
+                  Filed as{" "}
+                  <span className="line-through">
+                    {field.ident && field.value ? (
+                      /* Not copyable: a value the officer has just replaced is not one
+                         to carry anywhere, and the only control this line offers is
+                         Restore. */
+                      <Identifier
+                        value={field.value}
+                        label={field.label}
+                        copyable={false}
+                      />
+                    ) : (
+                      field.value || "—"
+                    )}
+                  </span>
                   {" · "}
                   <button
                     type="button"

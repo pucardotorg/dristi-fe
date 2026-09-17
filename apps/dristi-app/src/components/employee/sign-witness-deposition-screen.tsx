@@ -41,6 +41,7 @@ import {
   type WitnessDeposition,
   type WitnessDepositionFilters,
 } from "@/lib/employee/sign-witness-deposition";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -527,7 +528,7 @@ function DepositionItemList({
                 <span className="sr-only">{`, ${tag}, ${witnessRoleLabel(deposition)}`}</span>
               </p>
               <p className="text-caption text-muted-foreground">
-                <span className="tabular-nums">{deposition.caseNumber}</span>
+                <Identifier value={deposition.caseNumber} label="case number" />
                 {" · Recorded "}
                 <span className="tabular-nums">
                   {formatDepositionDate(deposition.depositionOn)}

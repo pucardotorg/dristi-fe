@@ -3,7 +3,9 @@
 import * as React from "react";
 import { Link2Icon } from "lucide-react";
 
+import type { Field } from "@/lib/employee/scrutiny/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The grammar a raised item is read in — one label column, one value column, rows only
@@ -56,6 +58,35 @@ export function RecordRow({
       </dd>
     </>
   );
+}
+
+/**
+ * A filed value, set as an identifier where the field holds one.
+ *
+ * It lives beside the rows rather than in either screen because the same value is read
+ * in three places — the field row, the item's record, the send-back dialog — and a
+ * cheque number that is monospaced in one of them and not the others reads as two
+ * different numbers.
+ */
+export function FieldValue({
+  field,
+  value,
+  copyable = true,
+}: {
+  field: Field;
+  value: string;
+  /**
+   * Off on a value that has been superseded. The rows that show what was filed strike
+   * it through, and a strike drawn across the copy pill and its glyph offers a taking
+   * of the one value on the row that is no longer the answer — the composer's own
+   * `Filed as` declines for the same reason.
+   */
+  copyable?: boolean;
+}) {
+  if (!field.ident) return <>{value}</>;
+  /* Copyable even in the field row, which is an option rather than a button:
+     `Identifier` keeps the click from reaching the row and selecting it. */
+  return <Identifier value={value} label={field.label} copyable={copyable} />;
 }
 
 /**

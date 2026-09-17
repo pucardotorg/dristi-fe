@@ -65,6 +65,7 @@ import {
   type WaitTone,
 } from "@/lib/employee/approve-registrations";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One registration request, verified and then approved or rejected — the whole decision,
@@ -402,8 +403,13 @@ function RequestBody({
         </div>
         {/* Back to the one string the applicant can quote (D16): the role is in the title
             now, and saying it here as well would be one fact twice in one header. */}
-        <DialogDescription className="text-body-compact tabular-nums text-muted-foreground">
-          {request.applicationNumber}
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier
+            value={request.applicationNumber}
+            label="application number"
+            copyable={false}
+          />
         </DialogDescription>
       </DialogHeader>
 
@@ -700,9 +706,11 @@ function DecisionStage({
           </p>
           {/* The number under the name: it means nothing until you know which register it
               belongs to, and the pill above has just said. */}
-          <p className="font-mono text-body-compact tabular-nums text-muted-foreground">
-            {request.registrationNumber}
-          </p>
+          <Identifier
+            value={request.registrationNumber}
+            label="registration number"
+            className="self-start text-body-compact text-muted-foreground"
+          />
         </div>
         {/* **The card the decision turns on, at a size that can carry it.** Twice sized up
             and twice read as decoration — *"too small to be useful right now… if we intend
@@ -1013,6 +1021,17 @@ function FactRowView({ row }: { row: FactRow }) {
     /* A category, shown as the same pill everywhere it appears — the queue's Account type
        column included. */
     <Badge variant={row.pill}>{row.value}</Badge>
+  ) : row.format === "code" ? (
+    /* The one identifier among these facts — the registration number, which the officer
+       reads against the card and quotes into the register. It takes the product's one
+       identifier treatment rather than a local mono class; a row carrying a finding puts
+       its value inside the disclosure trigger below, and nothing nests a control there. */
+    <Identifier
+      value={row.value}
+      label={row.term.toLowerCase()}
+      className={cn("min-w-0", row.tone && toneClass[row.tone])}
+      copyable={!row.detail}
+    />
   ) : (
     <span
       lang={row.valueLang}

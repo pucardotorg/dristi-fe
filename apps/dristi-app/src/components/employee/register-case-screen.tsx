@@ -67,6 +67,7 @@ import {
   type RegisterCase,
 } from "@/lib/employee/register-cases";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Register cases — one waiting complaint, as the magistrate reads it before taking it on
@@ -244,9 +245,11 @@ function ComplaintHeader({
       className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="text-body-compact tabular-nums text-muted-foreground">
-          {complaint.caseNumber}
-        </p>
+        <Identifier
+          value={complaint.caseNumber}
+          label="case number"
+          className="self-start text-body-compact text-muted-foreground"
+        />
         <h1
           id="complaint-title"
           className="text-balance font-semibold text-title"
@@ -562,8 +565,8 @@ function SynopsisPanel({ summary }: { summary: CaseSummary }) {
             >
               {cheque.amount}
             </Fact>
-            <Fact term={SYNOPSIS_FIELDS.chequeNumber} format="figure">
-              {cheque.number}
+            <Fact term={SYNOPSIS_FIELDS.chequeNumber}>
+              <Identifier value={cheque.number} label="cheque number" />
             </Fact>
             <Fact term={SYNOPSIS_FIELDS.drawnOn} note={synopsis.cheque.drawerBranch}>
               {synopsis.cheque.drawerBank}
@@ -579,8 +582,8 @@ function SynopsisPanel({ summary }: { summary: CaseSummary }) {
 
           <SynopsisSection label={SUMMARY_TERMS.notice}>
             <Fact term={SYNOPSIS_FIELDS.mode}>{synopsis.notice.mode}</Fact>
-            <Fact term={SYNOPSIS_FIELDS.tracking} format="code">
-              {synopsis.notice.tracking}
+            <Fact term={SYNOPSIS_FIELDS.tracking}>
+              <Identifier value={synopsis.notice.tracking} label="tracking number" />
             </Fact>
             <Fact term={SYNOPSIS_FIELDS.replied}>
               {synopsis.notice.replied ? "Received" : <Absent>None</Absent>}
@@ -644,11 +647,13 @@ function SynopsisSection({
   );
 }
 
-/** How a value is set: plain, as a figure that lines up, or as a code. */
+/**
+ * How a value is set: plain, or as a figure that lines up. An identifier is not a format
+ * here — it composes `Identifier`, which owns that treatment for the whole product.
+ */
 const FORMAT = {
   text: "",
   figure: "tabular-nums",
-  code: "font-mono tabular-nums",
 } as const;
 
 type FactFormat = keyof typeof FORMAT;
@@ -1194,7 +1199,8 @@ function ActBody({
           </span>
         </DialogTitle>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          <span className="tabular-nums">{complaint.caseNumber}</span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={complaint.caseNumber} label="case number" copyable={false} />
           {" · "}
           {causeTitle(complaint)}
         </DialogDescription>

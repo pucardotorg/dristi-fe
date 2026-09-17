@@ -36,6 +36,7 @@ import {
   type RegisterCase,
   type RegisterFilters,
 } from "@/lib/employee/register-cases";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Register cases — complaints this court has not yet taken on the register.
@@ -272,7 +273,7 @@ function RegisterCasesItemList({ rows }: { rows: RegisterCase[] }) {
             className="flex min-h-10 min-w-0 items-center"
           />
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{matter.caseNumber}</span>
+            <Identifier value={matter.caseNumber} label="case number" />
             {" · "}
             <span className="tabular-nums text-warning-ink">
               {matter.daysSinceSubmitted}

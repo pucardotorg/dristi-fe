@@ -554,6 +554,12 @@ function Value({ fact, needle }: { fact: CaseFact; needle: string }) {
         "block min-w-0 break-words whitespace-pre-line",
         !fact.value && "text-muted-foreground",
         fact.numeric && "tabular-nums",
+        /* The identifier face set by hand, and the one place in the app that is allowed
+           to: the value goes through `Marked` for the search highlight, and `Identifier`
+           takes a string with no slot for children. The treatment still belongs to
+           `components/chrome/identifier.tsx` — anything past these two classes changes
+           there, and then here. */
+        fact.id && "font-mono tabular-nums",
         fact.exception && "text-warning-ink",
       )}
     >

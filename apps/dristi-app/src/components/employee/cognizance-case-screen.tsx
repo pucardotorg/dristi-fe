@@ -61,6 +61,7 @@ import {
 import { zoneFor } from "@/lib/employee/document-zones";
 import { causeTitle } from "@/lib/employee/hearings";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One registered complaint, as the magistrate reads it before deciding whether the case
@@ -445,10 +446,11 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
  * very act is taken.
  */
 function CaseSummaryPanel({ matter }: { matter: CognizanceCase }) {
+  /* All three are registry identifiers, so all three take the identifier treatment. */
   const cells = [
-    { label: "Case number", value: matter.caseNumber },
-    { label: "Filing number", value: matter.filingNumber },
-    { label: "CNR", value: cnrFor(matter) },
+    { label: "Case number", value: matter.caseNumber, idLabel: "case number" },
+    { label: "Filing number", value: matter.filingNumber, idLabel: "filing number" },
+    { label: "CNR", value: cnrFor(matter), idLabel: "CNR" },
   ];
   return (
     <section aria-labelledby="case-summary" className="flex min-w-0 flex-col gap-3">
@@ -460,8 +462,8 @@ function CaseSummaryPanel({ matter }: { matter: CognizanceCase }) {
           {cells.map((cell) => (
             <div key={cell.label} className="flex min-w-0 flex-col gap-1 bg-card p-6">
               <dt className="text-caption text-muted-foreground">{cell.label}</dt>
-              <dd className="text-body-compact font-medium tabular-nums break-words">
-                {cell.value}
+              <dd className="text-body-compact font-medium break-words">
+                <Identifier value={cell.value} label={cell.idLabel} />
               </dd>
             </div>
           ))}
@@ -691,7 +693,8 @@ function ActBody({
           </span>
         </DialogTitle>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          <span className="tabular-nums">{matter.caseNumber}</span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={matter.caseNumber} label="case number" copyable={false} />
           {" · "}
           {causeTitle(matter)}
         </DialogDescription>

@@ -28,6 +28,7 @@ import {
   type OtherApplication,
 } from "@/lib/employee/other-applications";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The whole application queue as a table: the cause, its number, where the case has
@@ -104,9 +105,9 @@ export function OtherApplicationsTable({
               </button>
             </TableCell>
             <TableCell
-              className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+              className={cn(TABLE_CELL, "whitespace-nowrap")}
             >
-              {application.caseNumber}
+              <Identifier value={application.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
               {otherApplicationStageLabel(application.stage)}

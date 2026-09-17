@@ -30,6 +30,7 @@ import {
 } from "@/lib/employee/row-activation";
 import { courtCaseStageLabel, formatListingDate } from "@/lib/employee/hearings";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * This court's register as a table: the file, the cause, where it has reached, when it is
@@ -107,10 +108,11 @@ export function CourtCasesTable({
                   type="button"
                   onClick={() => onOpen(record)}
                   {...rowOpener}
-                  className={cn(rowOpenerClass, "tabular-nums")}
+                  className={rowOpenerClass}
                 >
                   <span className="sr-only">Open </span>
-                  {record.caseNumber}
+                  {/* The number is the row's opener — the face without a second control. */}
+                  <Identifier value={record.caseNumber} label="case number" copyable={false} />
                 </button>
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "min-w-64 whitespace-normal")}>
@@ -181,10 +183,11 @@ export function CourtCaseItemList({
                 type="button"
                 onClick={() => onOpen(record)}
                 {...rowOpener}
-                className={cn(rowOpenerClass, "w-fit tabular-nums")}
+                className={cn(rowOpenerClass, "w-fit")}
               >
                 <span className="sr-only">Open </span>
-                {record.caseNumber}
+                {/* The number is the row's opener — the face without a second control. */}
+                <Identifier value={record.caseNumber} label="case number" copyable={false} />
               </button>
               <span className="text-body-compact text-muted-foreground">
                 {courtCaseStageLabel(record.stage)}

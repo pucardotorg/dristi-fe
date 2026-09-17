@@ -21,6 +21,7 @@ import { CheckCircle2Icon, InfoIcon } from "lucide-react";
 import { updateVak } from "@/lib/vakalatnama/store";
 import { COURTS, LITIGANT_CASES, STANDARD_TERMS, configFor, type FiledCase } from "@/lib/vakalatnama/data";
 import type { Scope, Terms, Vakalatnama } from "@/lib/vakalatnama/types";
+import { Identifier } from "@/components/chrome/identifier";
 
 export function ScopeStep({ vak }: { vak: Vakalatnama }) {
   const setScope = (patch: Partial<Scope>) =>
@@ -94,7 +95,13 @@ export function ScopeStep({ vak }: { vak: Vakalatnama }) {
                       const fc = c as FiledCase;
                       return (
                         <div className="flex w-full flex-col">
-                          <span className="font-mono text-body-compact">{fc.caseNumber}</span>
+                          {/* A combobox row is an option — no control nested inside it. */}
+                          <Identifier
+                            value={fc.caseNumber}
+                            label="case number"
+                            className="text-body-compact"
+                            copyable={false}
+                          />
                           <span className="text-caption text-muted-foreground">
                             {fc.title} · {fc.court}
                           </span>
@@ -116,7 +123,11 @@ export function ScopeStep({ vak }: { vak: Vakalatnama }) {
                   <div className="flex items-center gap-3 rounded-lg bg-surface-sunken p-3">
                     <CheckCircle2Icon aria-hidden className="size-5 shrink-0 text-success-ink" />
                     <div className="flex min-w-0 flex-col">
-                      <span className="font-mono text-body-compact">{s.caseNumber}</span>
+                      <Identifier
+                        value={s.caseNumber}
+                        label="case number"
+                        className="self-start text-body-compact"
+                      />
                       <span className="text-caption text-muted-foreground">
                         {LITIGANT_CASES.find((c) => c.caseNumber === s.caseNumber)?.title ??
                           "Selected case"}

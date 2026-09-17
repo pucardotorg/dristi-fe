@@ -41,6 +41,7 @@ import {
   type OtherApplication,
   type OtherApplicationFilters,
 } from "@/lib/employee/other-applications";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Others — every application in front of this court, whatever it asks for.
@@ -353,7 +354,7 @@ function OtherApplicationsItemList({
             {otherApplicationTypeLabel(application.type)}
           </p>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{application.caseNumber}</span>
+            <Identifier value={application.caseNumber} label="case number" />
             {" · "}
             {otherApplicationStageLabel(application.stage)}
             {" · Applied "}

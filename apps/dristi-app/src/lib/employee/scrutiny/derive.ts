@@ -299,7 +299,7 @@ export function deriveScrutinyCase(filing: Filing): DerivedCase {
     fields: [
       { id: "adv-name", label: "Advocate name", value: filing.advocate },
       { id: "adv-for", label: "Advocate for", value: "Complainant" },
-      { id: "adv-bar", label: "BAR registration", value: barNo },
+      { id: "adv-bar", label: "BAR registration", value: barNo, ident: true },
     ] as Field[],
   };
 
@@ -344,6 +344,7 @@ export function deriveScrutinyCase(filing: Filing): DerivedCase {
           id: "q-no",
           label: "Cheque number",
           value: chequeNo,
+          ident: true,
           doc: "cheque",
           srcnote: "MICR band",
         },
@@ -370,6 +371,7 @@ export function deriveScrutinyCase(filing: Filing): DerivedCase {
           id: "q-ifsc",
           label: "IFSC code",
           value: bank.ifsc,
+          ident: true,
           doc: "cheque",
         },
         {

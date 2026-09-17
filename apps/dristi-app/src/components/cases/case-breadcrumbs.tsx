@@ -23,8 +23,12 @@ export function CaseBreadcrumbs({
 }) {
   const crumbs: Crumb[] = [
     trail.length
-      ? { label: caseNumber, href: `/cases/${encodeURIComponent(caseId)}` }
-      : { label: caseNumber },
+      ? {
+          label: caseNumber,
+          href: `/cases/${encodeURIComponent(caseId)}`,
+          mono: true,
+        }
+      : { label: caseNumber, mono: true },
     ...trail,
   ];
   return <Breadcrumbs crumbs={crumbs} />;

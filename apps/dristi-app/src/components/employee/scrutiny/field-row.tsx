@@ -23,6 +23,7 @@ import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-co
 import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
 import { MarkThumb } from "@/components/employee/scrutiny/mark-thumb";
 import {
+  FieldValue,
   RecordLink,
   RecordList,
   RecordRow,
@@ -209,7 +210,7 @@ function ValueLines({ field, flag }: { field: FlatField; flag?: FlagType }) {
     // record of "what changed and why" reads as one block instead of three.
     return (
       <div className="text-body-compact font-medium break-words">
-        {flag.correction}
+        <FieldValue field={field} value={flag.correction} />
       </div>
     );
   }
@@ -221,7 +222,7 @@ function ValueLines({ field, flag }: { field: FlatField; flag?: FlagType }) {
         field.long ? "text-muted-foreground" : "font-medium",
       )}
     >
-      {field.value}
+      <FieldValue field={field} value={field.value} />
     </div>
   );
 }
@@ -443,11 +444,17 @@ function RaisedItem({
                 filed, then what it becomes (owner, 2026-09-15). */}
             <RecordRow label="Original value">
               <span className="text-muted-foreground line-through">
-                {field.value || "—"}
+                {field.value ? (
+                  <FieldValue field={field} value={field.value} copyable={false} />
+                ) : (
+                  "—"
+                )}
               </span>
             </RecordRow>
             <RecordRow label="FSO’s value">
-              <span className="font-medium">{flag.correction}</span>
+              <span className="font-medium">
+                <FieldValue field={field} value={flag.correction} />
+              </span>
             </RecordRow>
           </>
         ) : null}

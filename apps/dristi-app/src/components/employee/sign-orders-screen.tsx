@@ -46,6 +46,7 @@ import {
   type SignOrder,
   type SignOrderFilters,
 } from "@/lib/employee/sign-orders";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -527,7 +528,7 @@ function SignOrdersItemList({
               </button>
               <p className="min-w-0 text-body-compact">{title}</p>
               <p className="text-caption text-muted-foreground">
-                <span className="tabular-nums">{order.caseNumber}</span>
+                <Identifier value={order.caseNumber} label="case number" />
                 {" · Added "}
                 <span className="tabular-nums">
                   {formatSignOrderDate(order.addedOn)}

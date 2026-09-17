@@ -26,6 +26,7 @@ import {
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The rescheduling queue as a table: the cause, its number, when the
@@ -96,8 +97,8 @@ export function ReschedulingRequestTable({
                 {causeTitle(request)}
               </button>
             </TableCell>
-            <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
-              {request.caseNumber}
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              <Identifier value={request.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
               {formatRequestDate(request.appliedOn)}

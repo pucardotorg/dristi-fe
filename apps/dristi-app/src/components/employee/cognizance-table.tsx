@@ -27,6 +27,7 @@ import {
 import { causeTitle, counselFor } from "@/lib/employee/hearings";
 import { delayDays, type CognizanceCase } from "@/lib/employee/cognizance";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** Where the queue's rows open. */
 export const COGNIZANCE_PATH = "/employee/cognizance";
@@ -131,9 +132,9 @@ export function CognizanceTable({ rows }: { rows: CognizanceCase[] }) {
               />
             </TableCell>
             <TableCell
-              className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+              className={cn(TABLE_CELL, "whitespace-nowrap")}
             >
-              {matter.caseNumber}
+              <Identifier value={matter.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-normal")}>
               <CounselCell

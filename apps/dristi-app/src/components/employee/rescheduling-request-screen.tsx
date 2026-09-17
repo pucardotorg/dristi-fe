@@ -31,6 +31,7 @@ import {
   type ReschedulingFilters,
   type ReschedulingRequest,
 } from "@/lib/employee/rescheduling-request";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Rescheduling request — applications asking this court to move a listed date.
@@ -277,7 +278,7 @@ function ReschedulingRequestItemList({
               {causeTitle(request)}
             </p>
             <p className="text-caption text-muted-foreground">
-              <span className="tabular-nums">{request.caseNumber}</span>
+              <Identifier value={request.caseNumber} label="case number" />
               {" · Applied "}
               <span className="tabular-nums">
                 {formatRequestLongDate(request.appliedOn)}

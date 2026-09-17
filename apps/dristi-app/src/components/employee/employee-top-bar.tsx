@@ -12,6 +12,7 @@ import {
   useRailCollapsed,
 } from "@/components/chrome/app-chrome";
 import { courtTrail, type CourtCrumb } from "@/lib/employee/navigation";
+import { cn } from "@/lib/utils";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -199,6 +200,13 @@ function CourtNavTrigger({ hasTrail }: { hasTrail: boolean }) {
  * left. So a phone keeps three: the root, the last step that is a link, and the page. On
  * a queue screen there is no such link and it keeps two, which is what it had before.
  */
+/**
+ * The identifier face, for a step that names a record by its number. No copy affordance:
+ * the crumb is already a link, and a control cannot hold another one.
+ */
+const crumbFace = (crumb: CourtCrumb) =>
+  crumb.mono ? "font-mono tabular-nums" : undefined;
+
 function CourtTrail({ crumbs }: { crumbs: CourtCrumb[] }) {
   const last = crumbs.length - 1;
 
@@ -235,14 +243,18 @@ function CourtTrail({ crumbs }: { crumbs: CourtCrumb[] }) {
               >
                 {crumb.href ? (
                   <BreadcrumbLink asChild className={CRUMB_LINK}>
-                    <Link href={crumb.href}>{crumb.label}</Link>
+                    <Link href={crumb.href} className={crumbFace(crumb)}>
+                      {crumb.label}
+                    </Link>
                   </BreadcrumbLink>
                 ) : isLast ? (
                   /* Where the reader is. On a queue that is the queue's name; on a
                      complaint's file, a listing or a scrutiny workbench it is the
                      record's number, which is the one thing the page's own heading does
                      not already say. */
-                  <BreadcrumbPage className="truncate">
+                  <BreadcrumbPage
+                    className={cn("truncate", crumbFace(crumb))}
+                  >
                     {crumb.label}
                   </BreadcrumbPage>
                 ) : (
@@ -250,7 +262,9 @@ function CourtTrail({ crumbs }: { crumbs: CourtCrumb[] }) {
                      route — there is no page called "Sign". Nested routes give the
                      section the queue's href in `courtTrail`, so the same label is a
                      link there. It is not dressed as a link it cannot be. */
-                  <span className="truncate">{crumb.label}</span>
+                  <span className={cn("truncate", crumbFace(crumb))}>
+                    {crumb.label}
+                  </span>
                 )}
               </BreadcrumbItem>
             </React.Fragment>

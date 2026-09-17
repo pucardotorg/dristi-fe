@@ -40,6 +40,7 @@ import {
   type ADiaryEntry,
   type ADiaryFilters,
 } from "@/lib/employee/sign-a-diary";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The day the bench is sitting on is the reader's, not the server's — a court in Kollam
@@ -445,7 +446,7 @@ function SignADiaryItemList({
             <span className="line-clamp-4">{entry.business}</span>
           </button>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{entry.caseNumber}</span>
+            <Identifier value={entry.caseNumber} label="case number" />
             {" · Next hearing "}
             <span className="tabular-nums">
               {formatADiaryDate(entry.nextHearing)}

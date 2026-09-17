@@ -37,6 +37,7 @@ import {
   tableBodyClass,
   tableRowClass,
 } from "@/components/chrome/table-plate";
+import { Identifier } from "@/components/chrome/identifier";
 import { PANEL_CLASS } from "@/components/shell/panel";
 import { AdvocateStack } from "@/components/tasks/advocate-stack";
 
@@ -53,7 +54,7 @@ function CaseCell({ kase }: { kase: Case }) {
       <span className="text-body-compact text-foreground">{kase.parties}</span>
       <span className="text-caption text-muted-foreground">
         {kase.stNumber ? (
-          <span className="font-mono tabular-nums">{kase.stNumber}</span>
+          <Identifier value={kase.stNumber} label="case number" />
         ) : (
           "Not yet numbered"
         )}

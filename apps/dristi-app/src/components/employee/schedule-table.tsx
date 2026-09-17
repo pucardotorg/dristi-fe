@@ -24,6 +24,7 @@ import {
 import { causeTitle, counselFor } from "@/lib/employee/hearings";
 import { caseStageLabel, type SchedulingCase } from "@/lib/employee/schedule";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The scheduling queue as a table: the cause, its number, where the case has reached, and
@@ -102,8 +103,8 @@ export function ScheduleTable({
                 {causeTitle(matter)}
               </button>
             </TableCell>
-            <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
-              {matter.caseNumber}
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              <Identifier value={matter.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
               {caseStageLabel(matter.stage)}

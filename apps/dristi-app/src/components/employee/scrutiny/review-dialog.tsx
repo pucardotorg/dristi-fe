@@ -28,6 +28,7 @@ import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import {
+  FieldValue,
   RecordLink,
   RecordList,
   RecordRow,
@@ -312,11 +313,13 @@ function SummaryItem({
           <>
             <RecordRow label="Original value">
               <span className="text-muted-foreground line-through">
-                {field.value}
+                <FieldValue field={field} value={field.value} copyable={false} />
               </span>
             </RecordRow>
             <RecordRow label="FSO’s value">
-              <span className="font-medium">{flag.correction}</span>
+              <span className="font-medium">
+                <FieldValue field={field} value={flag.correction} />
+              </span>
             </RecordRow>
           </>
         ) : null}

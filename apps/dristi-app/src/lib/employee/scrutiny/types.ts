@@ -52,6 +52,12 @@ export interface Field {
   value: string;
   /** Long prose (prayer, condonation reason) reads as body, not as a datum. */
   long?: boolean;
+  /**
+   * A cheque number, an IFSC, a bar registration — read character by character and
+   * transcribed, so the value is set as an identifier. Amounts and dates are not.
+   * (`ident`, not `id`: `id` above is this row's own key.)
+   */
+  ident?: boolean;
 
   /** Bundle doc this value was read from, plus the region it was read at. */
   doc?: string;

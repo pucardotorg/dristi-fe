@@ -24,6 +24,7 @@ import {
 } from "@/lib/employee/row-activation";
 import { type SignBailBond } from "@/lib/employee/sign-bail-bonds";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The signing queue for bail bonds as a table: which bonds are picked for signature, the
@@ -157,9 +158,9 @@ export function SignBailBondsTable({
                 </button>
               </TableCell>
               <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {bond.caseNumber}
+                <Identifier value={bond.caseNumber} label="case number" />
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-normal")}>
                 {bond.litigant}

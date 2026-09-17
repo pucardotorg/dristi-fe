@@ -41,6 +41,7 @@ import {
   type SignEvidence,
   type SignEvidenceFilters,
 } from "@/lib/employee/sign-evidence";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -488,12 +489,15 @@ function SignEvidenceItemList({
                 <span className="sr-only">Read and sign </span>
                 {document}
                 {", "}
-                <span className="tabular-nums">{exhibit}</span>
+                {/* The mark is inside the row's opener — the face, no second control. */}
+                <Identifier value={exhibit} label="evidence number" copyable={false} />
               </button>
               <p className="min-w-0 text-body-compact">{causeTitle(row)}</p>
-              <p className="text-caption text-muted-foreground tabular-nums">
-                {row.caseNumber}
-              </p>
+              <Identifier
+                value={row.caseNumber}
+                label="case number"
+                className="self-start text-caption text-muted-foreground"
+              />
             </div>
           </QueueItemRow>
         );

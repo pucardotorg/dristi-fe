@@ -47,6 +47,7 @@ import {
   type CourtHearing,
 } from "@/lib/employee/hearings";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Start hearing and End hearing live in the Action column, as one labelled outline
@@ -539,8 +540,8 @@ export function HearingsTable({
                 className="flex min-h-10 w-full items-center"
               />
             </TableCell>
-            <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
-              {hearing.caseNumber}
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              <Identifier value={hearing.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-nowrap")}>
               <CounselCell

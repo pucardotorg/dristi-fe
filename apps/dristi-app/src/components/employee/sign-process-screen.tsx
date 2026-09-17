@@ -71,6 +71,7 @@ import {
   type ProcessStage,
   type ProcessStageId,
 } from "@/lib/employee/sign-process";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -788,7 +789,9 @@ function ProcessSelectionTray({
                 which is the same step in the other direction. Below `md` it grows to the
                 40px the DS asks of a touch target (ACCESSIBILITY §8). */}
             <span className="flex h-10 items-center gap-1.5 rounded-md bg-card pl-2.5 pr-1 text-caption md:h-8">
-              <span className="tabular-nums">{entry.caseNumber}</span>
+              {/* A selection chip is a control cluster, not a record field: the face,
+                  without a third target inside a chip already holding a remove button. */}
+              <Identifier value={entry.caseNumber} label="case number" copyable={false} />
               {/* How much process is inside this envelope. Same treatment on every
                   entry, including the ones holding a single process — a count that
                   appears only sometimes is a count the eye has to interpret. */}
@@ -1043,7 +1046,7 @@ function ProcessItemList({
                 {type} · {processChannelLabel(process.channel)}
               </p>
               <p className="text-caption text-muted-foreground">
-                <span className="tabular-nums">{process.caseNumber}</span>
+                <Identifier value={process.caseNumber} label="case number" />
                 {day ? (
                   <>
                     {` · ${stage.dateColumn} `}

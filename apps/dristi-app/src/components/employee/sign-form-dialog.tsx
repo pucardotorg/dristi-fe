@@ -32,6 +32,7 @@ import {
   type SignForm,
   type SignFormDocument,
 } from "@/lib/employee/sign-forms";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One form, read and then signed — the single-document path off the signing queue.
@@ -153,7 +154,9 @@ function SignFormReadBody({
           <Badge variant="warning">Pending signature</Badge>
         </div>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(form)} · {form.caseNumber}
+          {causeTitle(form)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={form.caseNumber} label="case number" copyable={false} />
         </DialogDescription>
       </DialogHeader>
       <Separator />

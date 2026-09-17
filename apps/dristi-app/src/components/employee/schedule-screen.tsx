@@ -39,6 +39,7 @@ import {
   type ScheduleFilters,
   type SchedulingCase,
 } from "@/lib/employee/schedule";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Schedule hearing — the matters this court owes a date.
@@ -296,7 +297,7 @@ function ScheduleItemList({
             {causeTitle(matter)}
           </button>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{matter.caseNumber}</span> ·{" "}
+            <Identifier value={matter.caseNumber} label="case number" /> ·{" "}
             {caseStageLabel(matter.stage)}
           </p>
           {/* Comfortable, not dense: on a phone the +N chip gets the full 40×40 target,

@@ -468,6 +468,12 @@ export type CourtCrumb = {
    * a crumb that does not work.
    */
   href?: string;
+  /**
+   * Set on a step whose label *is* a record's number, so the bar gives it the same
+   * monospaced face the record wears on the page. Every nested route names its record
+   * by its number (`NESTED_ROUTES`), so that last step always carries this.
+   */
+  mono?: boolean;
 };
 
 /**
@@ -526,7 +532,7 @@ export function courtTrail(pathname: string): CourtCrumb[] {
       return [
         { label: group.label, href: item.href },
         { label: item.label, href: item.href },
-        { label: record },
+        { label: record, mono: true },
       ];
     }
   }

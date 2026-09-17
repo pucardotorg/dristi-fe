@@ -30,6 +30,7 @@ import {
   type CourtProcess,
   type ProcessDocument,
 } from "@/lib/employee/sign-process";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** What the paper is called in the signature overlay's copy. */
 const NOUN = "process";
@@ -163,7 +164,10 @@ function SignProcessReadBody({
             column carries and the one a reader loses when the table goes behind the
             overlay. */}
         <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(process)} · {process.caseNumber} ·{" "}
+          {causeTitle(process)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={process.caseNumber} label="case number" copyable={false} />{" "}
+          ·{" "}
           {processChannelLabel(process.channel)}
           {day ? ` · ${stage.dateColumn} ${formatProcessDate(day)}` : null}
         </DialogDescription>

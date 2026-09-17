@@ -14,6 +14,7 @@ import {
   tableBodyClass,
   tableRowClass,
 } from "@/components/chrome/table-plate";
+import { Identifier } from "@/components/chrome/identifier";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
   Table,
@@ -69,7 +70,8 @@ function FilingNo({ filing }: { filing: Filing }) {
       className="flex min-h-10 w-full items-center rounded-sm tabular-nums underline-offset-4 outline-none group-hover/row:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
     >
       <span className="sr-only">Scrutinise </span>
-      {filing.no}
+      {/* The number is the link — the identifier's face without a second control inside it. */}
+      <Identifier value={filing.no} label="filing number" copyable={false} />
     </Link>
   );
 }

@@ -38,6 +38,7 @@ import {
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Take cognizance — complaints on the register the magistrate has not yet decided to
@@ -274,7 +275,7 @@ function CognizanceItemList({ rows }: { rows: CognizanceCase[] }) {
             className="flex min-h-10 min-w-0 items-center"
           />
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{matter.caseNumber}</span>
+            <Identifier value={matter.caseNumber} label="case number" />
             {" · "}
             <DelayCell matter={matter} />
           </p>

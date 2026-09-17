@@ -44,7 +44,7 @@ import {
   type CopyApplicationFilters,
 } from "@/lib/employee/approve-copy-application";
 import { PAGE_SIZE, type HearingsPageSize } from "@/lib/employee/hearings";
-import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -509,10 +509,11 @@ function CopyApplicationItemList({
               type="button"
               onClick={() => onOpen(application)}
               {...rowOpener}
-                className={cn(rowOpenerClass, "tabular-nums")}
+                className={rowOpenerClass}
             >
               <span className="sr-only">Review </span>
-              {application.applicationNumber}
+              {/* The number is the row's opener — the face without a second control. */}
+              <Identifier value={application.applicationNumber} label="application number" copyable={false} />
             </button>
             <p className="min-w-0 text-body-compact">
               {application.applicant.name}
@@ -521,7 +522,7 @@ function CopyApplicationItemList({
               {application.record.description}
             </p>
             <p className="text-caption text-muted-foreground">
-              <span className="tabular-nums">{application.caseNumber}</span>
+              <Identifier value={application.caseNumber} label="case number" />
               {" · Raised "}
               <span className="tabular-nums">
                 {formatCopyApplicationDate(application.raisedOn)}

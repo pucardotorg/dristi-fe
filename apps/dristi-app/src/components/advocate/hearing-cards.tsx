@@ -24,6 +24,7 @@ import {
   RowAction,
   SELECTED_BAR,
 } from "@/components/advocate/home-bits";
+import { Identifier } from "@/components/chrome/identifier";
 
 function timeOf(at: string): string {
   return new Intl.DateTimeFormat("en-IN", { timeStyle: "short" }).format(new Date(at));
@@ -180,7 +181,9 @@ export function HearingCard({
                 all — only the exception is worth a mark, and it leads the line. */}
             <p className="truncate text-body-compact text-muted-foreground">
               {hearing.kase.stage} ·{" "}
-              <span className="font-mono">{hearing.kase.cnr}</span>
+              {/* The card title's `after:inset-0` covers the whole card, so a copy
+                  control here could never be clicked — the face only. */}
+              <Identifier value={hearing.kase.cnr} label="CNR" copyable={false} />
             </p>
           </div>
           {/* Everyone on the matter, the viewer included, and each disc styled
@@ -290,7 +293,12 @@ export function ConcludedStrip({
                   {h.kase.parties}
                 </button>
                 <span className="text-caption text-muted-foreground">
-                  {h.kase.cnr || h.kase.stNumber}
+                  {/* The row title's `after:inset-0` covers the row. */}
+                  <Identifier
+                    value={h.kase.cnr || h.kase.stNumber}
+                    label={h.kase.cnr ? "CNR" : "case number"}
+                    copyable={false}
+                  />
                 </span>
               </span>
               <RowAction

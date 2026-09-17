@@ -49,6 +49,7 @@ import {
   isoDay,
   parseIsoDay,
 } from "@/lib/employee/hearings";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The day the bench is standing on is the reader's, not the server's — the same clock
@@ -624,7 +625,7 @@ function RescheduleItemList({
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <p className="text-body-compact font-medium">{row.title}</p>
               <p className="text-caption text-muted-foreground">
-                <span className="tabular-nums">{row.caseNumber}</span> ·{" "}
+                <Identifier value={row.caseNumber} label="case number" /> ·{" "}
                 {courtCaseStageLabel(row.stage)} ·{" "}
                 {courtHearingPurposeLabel(row.purpose)}
               </p>

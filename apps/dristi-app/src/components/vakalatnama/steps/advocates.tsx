@@ -16,6 +16,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { updateVak } from "@/lib/vakalatnama/store";
 import { BAR_REGISTER, EMPTY_ADDRESS, makeAdvocateId, type BarAdvocate } from "@/lib/vakalatnama/data";
 import type { Address, Advocate, Vakalatnama } from "@/lib/vakalatnama/types";
+import { Identifier } from "@/components/chrome/identifier";
 
 export function AdvocatesStep({ vak }: { vak: Vakalatnama }) {
   const [query, setQuery] = React.useState("");
@@ -79,9 +80,13 @@ export function AdvocatesStep({ vak }: { vak: Vakalatnama }) {
               return (
                 <div className="flex w-full items-center justify-between gap-4">
                   <span>{b.name}</span>
-                  <span className="font-mono text-caption text-muted-foreground">
-                    {b.enrolmentNo}
-                  </span>
+                  {/* A combobox row is an option — no control nested inside it. */}
+                  <Identifier
+                    value={b.enrolmentNo}
+                    label="enrolment number"
+                    className="text-caption text-muted-foreground"
+                    copyable={false}
+                  />
                 </div>
               );
             }}
@@ -158,9 +163,17 @@ export function AdvocatesStep({ vak }: { vak: Vakalatnama }) {
                   <Label htmlFor={`svc-${a.id}`} className="text-body font-medium">
                     {a.name}
                   </Label>
-                  <span className="font-mono text-caption text-muted-foreground">
-                    {a.enrolmentNo || "No enrolment number"}
-                  </span>
+                  {a.enrolmentNo ? (
+                    <Identifier
+                      value={a.enrolmentNo}
+                      label="enrolment number"
+                      className="self-start text-caption text-muted-foreground"
+                    />
+                  ) : (
+                    <span className="text-caption text-muted-foreground">
+                      No enrolment number
+                    </span>
+                  )}
                 </div>
                 {a.forService ? (
                   <span className="text-caption font-medium text-brand-muted-foreground">

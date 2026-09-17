@@ -26,6 +26,7 @@ import {
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The copy-application queue as a table: which applications are picked for acceptance,
@@ -163,16 +164,17 @@ export function ApproveCopyApplicationTable({
                   type="button"
                   onClick={() => onOpen(application)}
                   {...rowOpener}
-                className={cn(rowOpenerClass, "tabular-nums")}
+                className={rowOpenerClass}
                 >
                   <span className="sr-only">Review </span>
-                  {application.applicationNumber}
+                  {/* The number is the row's opener — the face without a second control. */}
+                  <Identifier value={application.applicationNumber} label="application number" copyable={false} />
                 </button>
               </TableCell>
               <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {application.caseNumber}
+                <Identifier value={application.caseNumber} label="case number" />
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-normal")}>
                 {application.applicant.name}

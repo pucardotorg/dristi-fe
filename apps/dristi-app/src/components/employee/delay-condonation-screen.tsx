@@ -39,6 +39,7 @@ import {
   PAGE_SIZE,
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Delay condonation — applications asking this court to condone delay.
@@ -333,7 +334,7 @@ function DelayCondonationItemList({
               {causeTitle(matter)}
             </button>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{matter.caseNumber}</span>
+            <Identifier value={matter.caseNumber} label="case number" />
             {" · "}
             {delayCondonationStageLabel(matter.stage)}
             {" · Applied "}

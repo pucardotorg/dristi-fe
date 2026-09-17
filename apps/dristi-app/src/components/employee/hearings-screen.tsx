@@ -64,6 +64,7 @@ import {
   type HearingFilters,
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Today's hearings — the court's cause list for the day it is sitting.
@@ -492,7 +493,7 @@ function HearingsItemList({
               {courtHearingStatusLabel(hearing.status)}
             </Badge>
             <p className="text-caption text-muted-foreground">
-              <span className="tabular-nums">{hearing.caseNumber}</span> ·{" "}
+              <Identifier value={hearing.caseNumber} label="case number" /> ·{" "}
               {courtHearingPurposeLabel(hearing.purpose)}
             </p>
             {/* Comfortable, not dense: on a phone the +N chip gets the full 40×40

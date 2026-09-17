@@ -50,6 +50,7 @@ import {
   type EvidenceMarking,
   type SignEvidence,
 } from "@/lib/employee/sign-evidence";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One marking, read and then signed — the single-document path off the evidence queue.
@@ -231,7 +232,9 @@ function DetailsStep({
           <Badge variant="warning">Pending signature</Badge>
         </div>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(row)} · {row.caseNumber}
+          {causeTitle(row)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={row.caseNumber} label="case number" copyable={false} />
         </DialogDescription>
       </DialogHeader>
 
@@ -246,7 +249,7 @@ function DetailsStep({
               {witnessLabel(markedThroughWitness(row))}
             </ReviewRow>
             <ReviewRow term="Evidence number">
-              <span className="tabular-nums">{evidenceNumber(row)}</span>
+              <Identifier value={evidenceNumber(row)} label="evidence number" />
             </ReviewRow>
           </DescriptionList>
         </div>
@@ -354,7 +357,9 @@ function MarkAsEvidenceStep({
           Mark as evidence
         </DialogTitle>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(row)} · {row.caseNumber}
+          {causeTitle(row)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={row.caseNumber} label="case number" copyable={false} />
         </DialogDescription>
       </DialogHeader>
 

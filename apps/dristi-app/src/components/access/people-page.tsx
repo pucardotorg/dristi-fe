@@ -56,6 +56,7 @@ import {
   type AccessPerson,
 } from "@/lib/access/content";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The People page — the renamed "Team case access" destination.
@@ -256,7 +257,11 @@ function CaseEntry({
               <Badge variant="warning">{pick(shareCopy.statusInvited, locale)}</Badge>
             ) : null}
           </div>
-          <p className="text-caption text-muted-foreground">{grantCase.caseNumber}</p>
+          <Identifier
+            value={grantCase.caseNumber}
+            label="case number"
+            className="self-start text-caption text-muted-foreground"
+          />
           <p className="text-caption text-muted-foreground">
             {fillCopy(
               isPending ? peopleCopy.invitedOn : peopleCopy.joinedOn,
@@ -726,7 +731,11 @@ export function PeoplePage({
                       <span className="text-muted-foreground">
                         {pick(peopleCopy.barIdLabel, locale)}
                       </span>
-                      <span className="font-medium">{openPerson.barId}</span>
+                      <Identifier
+                        value={openPerson.barId}
+                        label="bar id"
+                        className="font-medium"
+                      />
                     </p>
                   ) : null}
                 </div>

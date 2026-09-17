@@ -37,6 +37,7 @@ import {
 } from "@/lib/cases/parties";
 import { isViewer } from "@/lib/cases/viewer";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Everyone on the case: one grouped list, and a pane for whoever is open.
@@ -343,8 +344,14 @@ function MasterList({
                    colouring the number itself needs no second label, and
                    the side is never colour alone. */
                 badge={
-                  <SidePill side={row.side} mono>
-                    {row.number}
+                  <SidePill side={row.side}>
+                    {/* The whole row is a link, and the pill carries no name of its
+                        own, so the number takes the face without a control. */}
+                    <Identifier
+                      value={row.number}
+                      label="witness number"
+                      copyable={false}
+                    />
                   </SidePill>
                 }
                 selected={row.id === selectedId}
@@ -404,19 +411,14 @@ const SIDE_PILL: Record<
 
 function SidePill({
   side,
-  mono = false,
   children,
 }: {
   side: WitnessSideId;
-  mono?: boolean;
   children: ReactNode;
 }) {
   const { variant, stroke } = SIDE_PILL[side];
   return (
-    <Badge
-      variant={variant}
-      className={cn(stroke, mono && "font-mono tabular-nums")}
-    >
+    <Badge variant={variant} className={stroke}>
       {children}
     </Badge>
   );
@@ -587,15 +589,13 @@ function FactWell({
   primary,
   primarySuffix,
   secondary,
-  secondaryMono = false,
   href,
 }: {
   primary: string;
   /** A muted qualifier after the name — "(you)" on the viewer's own row,
       the same mark the access lists use. */
   primarySuffix?: string;
-  secondary?: string;
-  secondaryMono?: boolean;
+  secondary?: ReactNode;
   href?: string;
 }) {
   const lines = (
@@ -610,14 +610,7 @@ function FactWell({
         ) : null}
       </span>
       {secondary ? (
-        <span
-          className={cn(
-            "block text-body text-muted-foreground",
-            secondaryMono && "font-mono tabular-nums"
-          )}
-        >
-          {secondary}
-        </span>
+        <span className="block text-body text-muted-foreground">{secondary}</span>
       ) : null}
     </>
   );
@@ -787,8 +780,10 @@ function LitigantDetail({
         <FactWell
           key={witness.id}
           primary={witness.name}
-          secondary={witness.number}
-          secondaryMono
+          secondary={
+            /* The well is a link — the face without a nested control. */
+            <Identifier value={witness.number} label="witness number" copyable={false} />
+          }
           href={participantHref(caseId, witness.id)}
         />
       )),
@@ -898,11 +893,8 @@ function WitnessDetail({
             : `Called by ${PARTY_INLINE_LABEL[witness.side]}`)
         }
         badge={
-          <Badge
-            variant="secondary"
-            className="shrink-0 font-mono tabular-nums"
-          >
-            {witness.number}
+          <Badge variant="secondary" className="shrink-0">
+            <Identifier value={witness.number} label="witness number" copyable={false} />
           </Badge>
         }
       />

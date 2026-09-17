@@ -54,7 +54,9 @@ describe("courtTrail", () => {
     const trail = [
       { label: "Hearings", href: "/employee/hearings" },
       { label: "Today’s hearings", href: "/employee/hearings" },
-      { label: "ST/241/2026" },
+      /* The record crumb carries `mono`: its label *is* a number, so the bar gives it
+         the identifier face the record wears on the page below. */
+      { label: "ST/241/2026", mono: true },
     ];
     assert.deepEqual(courtTrail("/employee/hearings/h-241"), trail);
     assert.deepEqual(courtTrail("/employee/hearings/h-241/order"), trail);
@@ -64,7 +66,7 @@ describe("courtTrail", () => {
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840"), [
       { label: "Actions", href: "/employee/register-cases" },
       { label: "Register cases", href: "/employee/register-cases" },
-      { label: "CMP/1840/2025" },
+      { label: "CMP/1840/2025", mono: true },
     ]);
   });
 
@@ -79,7 +81,7 @@ describe("courtTrail", () => {
     const trail = [
       { label: "Actions", href: "/employee/register-cases" },
       { label: "Register cases", href: "/employee/register-cases" },
-      { label: "CMP/1840/2025" },
+      { label: "CMP/1840/2025", mono: true },
     ];
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840"), trail);
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840/"), trail);
@@ -107,7 +109,7 @@ describe("courtTrail", () => {
       [
           { label: "Actions", href: "/employee/scrutiny" },
         { label: "Scrutinise submitted cases", href: "/employee/scrutiny" },
-        { label: "F/AHM/2026/00341" },
+        { label: "F/AHM/2026/00341", mono: true },
       ],
     );
   });

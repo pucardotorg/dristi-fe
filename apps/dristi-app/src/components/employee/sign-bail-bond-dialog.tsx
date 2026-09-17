@@ -27,6 +27,7 @@ import {
   type SignBailBond,
   type SignBailBondDocument,
 } from "@/lib/employee/sign-bail-bonds";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** What the paper is called in the signature overlay's copy. */
 const NOUN = "bail bond";
@@ -172,7 +173,10 @@ function SignBailBondReadBody({
             because with two bonds to a case the litigant is the only thing that says
             which of them is open. */}
         <DialogDescription className="text-body-compact text-muted-foreground">
-          Executed by {bond.litigant} · {bond.caseNumber} · Added{" "}
+          Executed by {bond.litigant} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={bond.caseNumber} label="case number" copyable={false} />{" "}
+          · Added{" "}
           {formatSignBailBondDate(bond.addedOn)}
         </DialogDescription>
       </DialogHeader>

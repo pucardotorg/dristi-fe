@@ -100,6 +100,7 @@ import {
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "@/lib/employee/order-items";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Compose the order of one listing.
@@ -478,7 +479,7 @@ function PendingApplications({
           >
             <p className="text-body min-w-0 font-medium">
               {`Pending - ${listingApplicationLabel(application)} - `}
-              <span className="tabular-nums">{application.number}</span>
+              <Identifier value={application.number} label="application number" />
             </p>
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
               {/* `text-foreground` on the two outline-weight controls: each brings its
@@ -982,8 +983,10 @@ function PreviewDialog({
             Preview
           </DialogTitle>
           <DialogDescription className="text-body-compact text-muted-foreground">
-            {document.matter} · {document.caseNumber} — the order as it will read.
-            It has not been issued.
+            {document.matter} <span aria-hidden>· </span>
+            {/* No copy control inside the dialog's accessible description. */}
+            <Identifier value={document.caseNumber} label="case number" copyable={false} />{" "}
+            — the order as it will read. It has not been issued.
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col px-6 pb-6">

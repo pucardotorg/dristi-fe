@@ -42,6 +42,7 @@ import {
   type SignForm,
   type SignFormFilters,
 } from "@/lib/employee/sign-forms";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Sign forms — the forms this court has drawn up and not yet signed.
@@ -487,7 +488,7 @@ function SignFormsItemList({
               {causeTitle(form)}
             </button>
             <p className="text-caption text-muted-foreground">
-              <span className="tabular-nums">{form.caseNumber}</span>
+              <Identifier value={form.caseNumber} label="case number" />
               {" · "}
               {signFormProcessLabel(form.process)}
               {" · "}

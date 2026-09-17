@@ -39,6 +39,7 @@ import {
   type SignBailBond,
   type SignBailBondFilters,
 } from "@/lib/employee/sign-bail-bonds";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -502,9 +503,11 @@ function SignBailBondsItemList({
             <p className="min-w-0 text-body-compact">
               Litigant: {bond.litigant}
             </p>
-            <p className="text-caption text-muted-foreground tabular-nums">
-              {bond.caseNumber}
-            </p>
+            <Identifier
+              value={bond.caseNumber}
+              label="case number"
+              className="self-start text-caption text-muted-foreground"
+            />
           </div>
         </QueueItemRow>
       ))}

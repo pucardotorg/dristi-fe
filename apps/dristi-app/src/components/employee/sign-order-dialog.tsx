@@ -30,6 +30,7 @@ import {
   type SignOrder,
   type SignOrderDocument,
 } from "@/lib/employee/sign-orders";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** What the paper is called in the signature overlay's copy. */
 const NOUN = "order";
@@ -164,7 +165,10 @@ function SignOrderReadBody({
           </Badge>
         </div>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(order)} · {order.caseNumber} ·{" "}
+          {causeTitle(order)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={order.caseNumber} label="case number" copyable={false} />{" "}
+          ·{" "}
           {pending
             ? `Added ${formatSignOrderDate(order.addedOn)}`
             : `Signed ${formatSignOrderDate(order.signedOn ?? order.addedOn)}`}

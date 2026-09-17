@@ -13,6 +13,7 @@ import { useRoomInRem } from "@/hooks/use-min-width";
 import type { Rect, ScrutinyCase } from "@/lib/employee/scrutiny/types";
 import { useScrutinyState } from "@/lib/employee/scrutiny/use-scrutiny-state";
 import { ScrutinyCaseProvider } from "@/components/employee/scrutiny/scrutiny-case-context";
+import { Identifier } from "@/components/chrome/identifier";
 import { ARRIVAL } from "@/components/chrome/motion";
 import { useArrival } from "@/components/employee/use-arrival";
 import { cn } from "@/lib/utils";
@@ -245,7 +246,7 @@ export function CaseWorkbench({
               The advocate is in the fields and on the queue row; it does not need a third
               home in the eyebrow. */}
           <p className="text-body-compact font-medium text-muted-foreground">
-            <span className="tabular-nums">{filingNo}</span>
+            <Identifier value={filingNo} label="filing number" />
             {` · ${party.submitted}`}
           </p>
           {editingTitle ? (
