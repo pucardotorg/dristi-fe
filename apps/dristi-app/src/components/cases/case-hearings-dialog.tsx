@@ -15,8 +15,9 @@ import type { CaseRecord } from "@/lib/cases/types";
 
 /**
  * The hearings pop-up (§5.4), opened from Overview's "View All Hearings". One
- * dialog, two steps: the list, then one hearing. Escape and the back control
- * step out of the hearing before they close the dialog.
+ * dialog, two steps: the list, then one hearing. Close, Escape, a click outside
+ * and the back control all step out of the hearing first; from the list they
+ * close the dialog.
  */
 export function CaseHearingsDialog({
   record,
@@ -48,8 +49,15 @@ export function CaseHearingsDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        /* Closing a hearing steps back to the list it belongs to, with its row
+           marked, so the reader sees where it sits among the others. Closing
+           the list closes the pop-up. */
+        if (!next && openHearing) {
+          markRecent(openHearing.id);
+          setOpenId(null);
+          return;
+        }
         onOpenChange(next);
-        if (!next) setOpenId(null);
       }}
     >
       <ChromeDialogContent

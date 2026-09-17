@@ -100,7 +100,7 @@ const PACK: Partial<Record<string, ProcessPerson[]>> = {
         {
           id: "r2",
           processes: ["Warrant"],
-          hearing: { purpose: "Appearance of accused", on: "14 June 2026" },
+          hearing: { purpose: "Appearance", on: "14 June 2026" },
           order: { title: "Warrant", on: "10 May 2026" },
           feePaidOn: "8 May 2026",
           channels: [
@@ -117,7 +117,7 @@ const PACK: Partial<Record<string, ProcessPerson[]>> = {
         {
           id: "r1",
           processes: ["Summons"],
-          hearing: { purpose: "Appearance of accused", on: "6 April 2026" },
+          hearing: { purpose: "Appearance", on: "6 April 2026" },
           order: { title: "Summons", on: "2 March 2026" },
           feePaidOn: "1 March 2026",
           channels: [

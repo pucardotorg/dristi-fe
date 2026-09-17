@@ -107,6 +107,42 @@
       "depositionIds": []
     },
     {
+      "hearingId": "HRG-019",
+      "hearingType": "Appearance",
+      "date": "2026-06-14",
+      "dateDisplay": "14 June 2026",
+      "status": "Completed",
+      "participantIds": [
+        "PARTY-C-001",
+        "ADV-C-001"
+      ],
+      "partiesDisplay": "Sunil Varghese, Adv. Ramesh Menon",
+      "summary": "The accused was absent. The warrant was returned unexecuted and proclamation was ordered.",
+      "statusReason": null,
+      "nextOn": "2026-07-29",
+      "transcriptAvailability": "not_available",
+      "transcriptId": null,
+      "depositionIds": []
+    },
+    {
+      "hearingId": "HRG-018",
+      "hearingType": "Appearance",
+      "date": "2026-04-06",
+      "dateDisplay": "6 April 2026",
+      "status": "Completed",
+      "participantIds": [
+        "PARTY-C-001",
+        "ADV-C-001"
+      ],
+      "partiesDisplay": "Sunil Varghese, Adv. Ramesh Menon",
+      "summary": "The accused was absent despite summons. A bailable warrant was ordered.",
+      "statusReason": null,
+      "nextOn": "2026-06-14",
+      "transcriptAvailability": "not_available",
+      "transcriptId": null,
+      "depositionIds": []
+    },
+    {
       "hearingId": "HRG-015",
       "hearingType": "Execution",
       "date": "2026-01-12",
