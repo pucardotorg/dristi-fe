@@ -176,7 +176,11 @@ function Round({
                 <>
                   {round.hearing.id ? (
                     <Link
-                      href={hearingHref(caseId, round.hearing.id)}
+                      href={hearingHref(
+                        caseId,
+                        round.hearing.id,
+                        "notice-process-status"
+                      )}
                       className={FACT_LINK}
                     >
                       {round.hearing.purpose}

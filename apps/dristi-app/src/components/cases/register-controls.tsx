@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { ChevronDownIcon, SearchIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -153,3 +154,40 @@ export function RowViewButton({
     </Button>
   );
 }
+
+/**
+ * The row a reader just came back from. Closing a record leaves a teal outline
+ * on its row, so the eye finds the place it left, above all after arriving by
+ * a link from another tab. It is a pointer, not a state: the next click or key
+ * press anywhere clears it.
+ */
+export function useRecentRow() {
+  const [recentId, setRecentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (recentId === null) return;
+    const clear = () => setRecentId(null);
+    /* Armed on the next frame, so the click that closed the record does not
+       also clear the mark it just set. */
+    const frame = requestAnimationFrame(() => {
+      document.addEventListener("pointerdown", clear, { once: true });
+      document.addEventListener("keydown", clear, { once: true });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", clear);
+      document.removeEventListener("keydown", clear);
+    };
+  }, [recentId]);
+
+  /** Bring the marked row into view; a long register may have scrolled. */
+  const recentRowRef = useCallback((node: HTMLTableRowElement | null) => {
+    node?.scrollIntoView({ block: "nearest" });
+  }, []);
+
+  return { recentId, markRecent: setRecentId, recentRowRef };
+}
+
+/** On the `tr`: an outline draws around the whole row without moving it. */
+export const RECENT_ROW =
+  "rounded-lg outline-2 -outline-offset-2 outline-primary";

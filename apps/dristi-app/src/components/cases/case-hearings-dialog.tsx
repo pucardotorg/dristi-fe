@@ -6,6 +6,7 @@ import {
   HearingDetail,
   HearingsList,
 } from "@/components/cases/hearings-register";
+import { useRecentRow } from "@/components/cases/register-controls";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { hearingRecords } from "@/lib/cases/hearing-record";
@@ -35,6 +36,7 @@ export function CaseHearingsDialog({
   const [openId, setOpenId] = useState<string | null>(initialHearingId);
   const openHearing = hearings.find((item) => item.id === openId) ?? null;
   const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const { recentId, markRecent, recentRowRef } = useRecentRow();
 
   /* A step change inside one dialog is invisible to a screen reader, so the
      hearing's heading takes focus on arrival (ACCESSIBILITY 5). */
@@ -61,6 +63,7 @@ export function CaseHearingsDialog({
         onEscapeKeyDown={(event) => {
           if (!openHearing) return;
           event.preventDefault();
+          markRecent(openHearing.id);
           setOpenId(null);
         }}
       >
@@ -82,12 +85,17 @@ export function CaseHearingsDialog({
                   : undefined
               }
               headingRef={headingRef}
-              onBack={() => setOpenId(null)}
+              onBack={() => {
+                markRecent(openHearing.id);
+                setOpenId(null);
+              }}
             />
           ) : (
             <HearingsList
               hearings={hearings}
               onOpen={(hearing) => setOpenId(hearing.id)}
+              recentId={recentId}
+              recentRowRef={recentRowRef}
             />
           )}
         </div>

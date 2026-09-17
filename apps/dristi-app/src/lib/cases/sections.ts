@@ -96,9 +96,17 @@ export function caseSectionHref(
   return `/cases/${caseId}?section=${section}`;
 }
 
-/** Opens one hearing in the hearings pop-up, over Overview (OVW-08). */
-export function hearingHref(caseId: string, hearingId: string): string {
-  return `/cases/${caseId}?hearing=${hearingId}`;
+/**
+ * Opens one hearing in the hearings pop-up (OVW-08, SVC-07). Pass the tab the
+ * link sits on and the pop-up opens over it, so closing returns there.
+ */
+export function hearingHref(
+  caseId: string,
+  hearingId: string,
+  from: CaseSection = DEFAULT_CASE_SECTION
+): string {
+  const base = caseSectionHref(caseId, from);
+  return `${base}${base.includes("?") ? "&" : "?"}hearing=${hearingId}`;
 }
 
 /** Opens one application's record over the Applications tab (OVW-08). */

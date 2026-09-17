@@ -15,6 +15,7 @@ import { CaseBailProvider } from "@/components/cases/case-bail-flow";
 import { CaseBreadcrumbs } from "@/components/cases/case-breadcrumbs";
 import { CaseFile } from "@/components/cases/case-file";
 import { CaseHeader } from "@/components/cases/case-header";
+import { CaseLinkedHearing } from "@/components/cases/case-linked-hearing";
 import { CaseHearingsSection } from "@/components/cases/hearings-register";
 import { CaseOrders, OrdersLoading } from "@/components/cases/case-orders";
 import { CaseOverview } from "@/components/cases/case-overview";
@@ -149,6 +150,7 @@ export default async function CaseDetailPage(
           />
         )}
       </CaseSectionTabs>
+      <CaseLinkedHearing record={record} />
       </div>
     </CaseBailProvider>
   );

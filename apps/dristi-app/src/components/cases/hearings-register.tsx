@@ -12,7 +12,11 @@ import {
   tableRowClass,
 } from "@/components/chrome/table-plate";
 import { RestingCard } from "@/components/cases/case-overview-card";
-import { RowViewButton } from "@/components/cases/register-controls";
+import {
+  RECENT_ROW,
+  RowViewButton,
+  useRecentRow,
+} from "@/components/cases/register-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
@@ -50,9 +54,14 @@ import { cn } from "@/lib/utils";
 export function HearingsList({
   hearings,
   onOpen,
+  recentId = null,
+  recentRowRef,
 }: {
   hearings: HearingRecord[];
   onOpen: (hearing: HearingRecord) => void;
+  /** The hearing the reader just stepped back from; see `useRecentRow`. */
+  recentId?: string | null;
+  recentRowRef?: (node: HTMLTableRowElement | null) => void;
 }) {
   if (hearings.length === 0) {
     return (
@@ -88,7 +97,12 @@ export function HearingsList({
         {hearings.map((hearing) => (
           <TableRow
             key={hearing.id}
-            className={cn(tableRowClass(), "cursor-pointer")}
+            ref={recentId === hearing.id ? recentRowRef : undefined}
+            className={cn(
+              tableRowClass(),
+              "cursor-pointer",
+              recentId === hearing.id && RECENT_ROW
+            )}
             onClick={() => onOpen(hearing)}
           >
             <TableCell className={cn(TABLE_CELL, "tabular-nums")}>
@@ -242,6 +256,7 @@ export function CaseHearingsSection({
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const openHearing = hearings.find((item) => item.id === openId) ?? null;
+  const { recentId, markRecent, recentRowRef } = useRecentRow();
 
   return (
     <RestingCard>
@@ -255,12 +270,17 @@ export function CaseHearingsSection({
                 ? orderHref(caseId, openHearing.order.id)
                 : undefined
             }
-            onBack={() => setOpenId(null)}
+            onBack={() => {
+              markRecent(openHearing.id);
+              setOpenId(null);
+            }}
           />
         ) : (
           <HearingsList
             hearings={hearings}
             onOpen={(hearing) => setOpenId(hearing.id)}
+            recentId={recentId}
+            recentRowRef={recentRowRef}
           />
         )}
       </CardContent>

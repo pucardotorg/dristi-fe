@@ -14,9 +14,11 @@ import { ApplicationPaymentDialog } from "@/components/cases/application-payment
 import { ApplicationRecordDialog } from "@/components/cases/application-record-dialog";
 import { RestingCard } from "@/components/cases/case-overview-card";
 import {
+  RECENT_ROW,
   RegisterFilter,
   RegisterSearch,
   RowViewButton,
+  useRecentRow,
 } from "@/components/cases/register-controls";
 import { PartySignatureDialog } from "@/components/cases/party-application";
 import {
@@ -94,6 +96,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const recordOpen = searchParams.get("application");
+  const { recentId, markRecent, recentRowRef } = useRecentRow();
   function setRecordOpen(id: string | null) {
     const next = new URLSearchParams(searchParams);
     if (id) next.set("application", id);
@@ -234,7 +237,12 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
               onOpen={setRecordOpen}
             />
           ) : null}
-          <ApplicationsTable rows={rows} onOpen={setRecordOpen} />
+          <ApplicationsTable
+            rows={rows}
+            onOpen={setRecordOpen}
+            recentId={recentId}
+            recentRowRef={recentRowRef}
+          />
         </>
       )}
 
@@ -242,7 +250,9 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         caseId={record.id}
         application={openApplication}
         onOpenChange={(open) => {
-          if (!open) setRecordOpen(null);
+          if (open) return;
+          if (recordOpen) markRecent(recordOpen);
+          setRecordOpen(null);
         }}
       />
       {/* The same signing flow as Add witness and Add power of attorney; one
@@ -532,9 +542,13 @@ function ActionGroup({
 function ApplicationsTable({
   rows,
   onOpen,
+  recentId,
+  recentRowRef,
 }: {
   rows: ApplicationRecord[];
   onOpen: (id: string) => void;
+  recentId: string | null;
+  recentRowRef: (node: HTMLTableRowElement | null) => void;
 }) {
   return (
     <Table>
@@ -555,7 +569,12 @@ function ApplicationsTable({
         {rows.map((item) => (
           <TableRow
             key={item.id}
-            className={cn(tableRowClass(), "cursor-pointer")}
+            ref={recentId === item.id ? recentRowRef : undefined}
+            className={cn(
+              tableRowClass(),
+              "cursor-pointer",
+              recentId === item.id && RECENT_ROW
+            )}
             onClick={() => onOpen(item.id)}
           >
             <TableCell

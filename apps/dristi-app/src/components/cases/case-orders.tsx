@@ -5,7 +5,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CircleAlertIcon, FileSearchIcon } from "lucide-react";
 
 import { RestingCard } from "@/components/cases/case-overview-card";
-import { RowViewButton } from "@/components/cases/register-controls";
+import {
+  RECENT_ROW,
+  RowViewButton,
+  useRecentRow,
+} from "@/components/cases/register-controls";
 import { OrderRecordDialog } from "@/components/cases/order-record-dialog";
 import {
   TABLE_CELL,
@@ -73,6 +77,7 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [kind, setKind] = useState<OrderKindFilter>(ORDER_KIND_DEFAULT);
+  const { recentId, markRecent, recentRowRef } = useRecentRow();
 
   if (!orders) {
     return (
@@ -151,10 +156,12 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
             {rows.map((order) => (
               <TableRow
                 key={order.id}
+                ref={recentId === order.id ? recentRowRef : undefined}
                 aria-current={openOrder?.id === order.id ? "true" : undefined}
                 className={cn(
                   tableRowClass({ open: openOrder?.id === order.id }),
-                  "cursor-pointer"
+                  "cursor-pointer",
+                  recentId === order.id && RECENT_ROW
                 )}
                 onClick={() => setOpenOrder(order)}
               >
@@ -203,7 +210,9 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
       <OrderRecordDialog
         order={openOrder}
         onOpenChange={(open) => {
-          if (!open) setOpenOrder(null);
+          if (open) return;
+          if (openOrder) markRecent(openOrder.id);
+          setOpenOrder(null);
         }}
       />
     </OrdersPanel>

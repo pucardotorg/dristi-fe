@@ -2,7 +2,6 @@
 
 import { Fragment, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { CaseHearingsDialog } from "@/components/cases/case-hearings-dialog";
@@ -177,12 +176,6 @@ function NextHearingBlock({
 }) {
   const [hearingsOpen, setHearingsOpen] = useState(false);
   const hearingsTriggerRef = useRef<HTMLAnchorElement | null>(null);
-  /* `?hearing=` names one hearing: a case update or another tab linked here
-     to open it. Closing the pop-up drops the param. */
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const linkedHearingId = searchParams.get("hearing");
   const tile = next.tile;
 
   return (
@@ -294,16 +287,9 @@ function NextHearingBlock({
       )}
 
       <CaseHearingsDialog
-        key={linkedHearingId ?? "list"}
         record={record}
-        open={hearingsOpen || linkedHearingId !== null}
-        initialHearingId={linkedHearingId}
-        onOpenChange={(open) => {
-          setHearingsOpen(open);
-          if (!open && linkedHearingId !== null) {
-            router.replace(pathname, { scroll: false });
-          }
-        }}
+        open={hearingsOpen}
+        onOpenChange={setHearingsOpen}
         triggerRef={hearingsTriggerRef}
       />
     </section>
