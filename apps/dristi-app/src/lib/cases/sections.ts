@@ -96,6 +96,11 @@ export function caseSectionHref(
   return `/cases/${caseId}?section=${section}`;
 }
 
+/** Opens one order over the Orders tab (ORD-03). */
+export function orderHref(caseId: string, orderId: string): string {
+  return `${caseSectionHref(caseId, "orders-and-notifications")}&order=${orderId}`;
+}
+
 /**
  * Where a case detail link was reached from — today just the long pending
  * register, so the header doesn't repeat a badge the register already

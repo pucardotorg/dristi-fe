@@ -15,10 +15,7 @@ import { CaseBailProvider } from "@/components/cases/case-bail-flow";
 import { CaseBreadcrumbs } from "@/components/cases/case-breadcrumbs";
 import { CaseFile } from "@/components/cases/case-file";
 import { CaseHeader } from "@/components/cases/case-header";
-import {
-  CaseHearings,
-  HearingsLoading,
-} from "@/components/cases/case-hearings";
+import { CaseHearingsSection } from "@/components/cases/hearings-register";
 import { CaseOrders, OrdersLoading } from "@/components/cases/case-orders";
 import { CaseOverview } from "@/components/cases/case-overview";
 import { CaseParties } from "@/components/cases/case-parties";
@@ -28,6 +25,7 @@ import {
   CaseSectionTabs,
   SectionPending,
 } from "@/components/cases/case-section-tabs";
+import { hearingRecords } from "@/lib/cases/hearing-record";
 import { parseCaseFileDoc, parseCaseFileView } from "@/lib/cases/case-file";
 import {
   complaintTree,
@@ -122,9 +120,10 @@ export default async function CaseDetailPage(
         ) : section === "notice-process-status" ? (
           <CaseServiceOfProcess record={record} />
         ) : section === "hearings" ? (
-          <Suspense fallback={<HearingsLoading />}>
-            <CaseHearings record={record} />
-          </Suspense>
+          <CaseHearingsSection
+            caseId={record.id}
+            hearings={hearingRecords(record)}
+          />
         ) : section === "orders-and-notifications" ? (
           <Suspense fallback={<OrdersLoading />}>
             <CaseOrders record={record} />
