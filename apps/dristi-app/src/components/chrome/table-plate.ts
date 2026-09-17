@@ -80,8 +80,29 @@ export const TABLE_HEAD =
  * Body cells. Add `align-top` where rows are tall enough that centring strands the
  * short cells (the A-Diary); everything else takes this unchanged.
  */
+/**
+ * Data cells. `h-16` is the row's floor, and it is the reason a queue reads the same
+ * on two screens.
+ *
+ * Nothing here used to name a height, so a row was as tall as whatever its tallest column
+ * happened to hold. Most queues land at 65px by accident: `/employee/hearings/schedule`
+ * because its Advocates column stacks two counsel, `sign-process` because the cause title
+ * wraps in a 315px column, `/cases` at 77px because it stacks two counsel *and* a chip.
+ * Bulk reschedule has no column that stacks anything, so the same table on the same plate
+ * collapsed to 46px and read as a different component (owner, 2026-09-17: *"the same
+ * information structure — why can't you just match the same height"*).
+ *
+ * 64px of cell plus the hairline is the 65px the court queues already sit at, so this
+ * lifts the short rows and moves nothing else: a row with two lines in any column is
+ * already past the floor and stays where it was, `/cases` included.
+ *
+ * It is `h-16` and not `min-h-16` because this is a table cell. The CSS table model
+ * treats a cell's `height` as a *minimum* — the row takes the tallest cell and grows past
+ * it for content — while `min-height` on a cell is simply ignored, which is how the first
+ * attempt at this floor changed nothing.
+ */
 export const TABLE_CELL =
-  "border-b border-hairline px-4 py-3 align-middle text-left text-body-compact";
+  "h-16 border-b border-hairline px-4 py-3 align-middle text-left text-body-compact";
 
 /**
  * The header row: no hover (nothing in it is live) and rounded ends, so the strip reads
