@@ -44,6 +44,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { displayName } from "@/lib/cases/names";
 
 type RemovalConsentFixture = {
   /** The advocate who raised the request. */
@@ -120,7 +121,7 @@ function RemovalConsentRow({
         onArchive={onArchive}
       >
         <TaskNote>
-          {fixture.requester} asks that you come off {fixture.party}&apos;s
+          {displayName(fixture.requester)} asks that you come off {fixture.party}&apos;s
           vakalatnama.
         </TaskNote>
       </PendingTaskRow>
@@ -213,7 +214,7 @@ function RemovalConsentDialog({
                 Removal request
               </DialogTitle>
               <DialogDescription>
-                {fixture.requester} asks that you come off the vakalatnama for{" "}
+                {displayName(fixture.requester)} asks that you come off the vakalatnama for{" "}
                 {fixture.party}.
               </DialogDescription>
             </DialogHeader>

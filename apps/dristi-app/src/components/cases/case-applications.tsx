@@ -14,7 +14,6 @@ import { ApplicationPaymentDialog } from "@/components/cases/application-payment
 import { ApplicationRecordDialog } from "@/components/cases/application-record-dialog";
 import { RestingCard } from "@/components/cases/case-overview-card";
 import {
-  REGISTER_ALL,
   RegisterFilter,
   RegisterSearch,
   RowViewButton,
@@ -68,8 +67,6 @@ import {
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 
-const ALL = REGISTER_ALL;
-
 /**
  * Applications (§9). One kind of thing, many types. What the viewer still has
  * to do sits above the register as a quiet list, never as an alarm: the work
@@ -87,9 +84,9 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       return null;
     }
   }, [record, moved]);
-  const [type, setType] = useState(ALL);
-  const [status, setStatus] = useState(ALL);
-  const [filedBy, setFiledBy] = useState(ALL);
+  const [types, setTypes] = useState<string[]>([]);
+  const [statuses, setStatuses] = useState<string[]>([]);
+  const [filers, setFilers] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   /* The open record lives in `?application=`, so a case update can link
      straight to it. */
@@ -121,15 +118,18 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   const needle = query.trim().toLowerCase();
   const rows = register.applications.filter(
     (item) =>
-      (type === ALL || item.type === type) &&
-      (status === ALL || item.status === status) &&
-      (filedBy === ALL || item.filedById === filedBy) &&
+      (types.length === 0 || types.includes(item.type)) &&
+      (statuses.length === 0 || statuses.includes(item.status)) &&
+      (filers.length === 0 || filers.includes(item.filedById)) &&
       (needle === "" ||
         (item.applicationId ?? "").toLowerCase().includes(needle))
   );
   const actions = groupActions(rows);
   const filtered =
-    type !== ALL || status !== ALL || filedBy !== ALL || needle !== "";
+    types.length > 0 ||
+    statuses.length > 0 ||
+    filers.length > 0 ||
+    needle !== "";
   const openApplication =
     register.applications.find((item) => item.id === recordOpen) ?? null;
 
@@ -165,14 +165,14 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       <div className="flex flex-wrap items-center gap-2">
         <RegisterFilter
           label="Type"
-          value={type}
-          onChange={setType}
+          values={types}
+          onChange={setTypes}
           options={APPLICATION_TYPE_OPTIONS}
         />
         <RegisterFilter
           label="Status"
-          value={status}
-          onChange={setStatus}
+          values={statuses}
+          onChange={setStatuses}
           options={FILING_STATUSES.map((item) => ({
             value: item.id,
             label: item.label,
@@ -180,8 +180,8 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         />
         <RegisterFilter
           label="Filed by"
-          value={filedBy}
-          onChange={setFiledBy}
+          values={filers}
+          onChange={setFilers}
           options={register.people.map((person) => ({
             value: person.id,
             label: person.name,
@@ -193,9 +193,9 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
             variant="ghost"
             size="sm"
             onClick={() => {
-              setType(ALL);
-              setStatus(ALL);
-              setFiledBy(ALL);
+              setTypes([]);
+              setStatuses([]);
+              setFilers([]);
               setQuery("");
             }}
           >
@@ -356,7 +356,7 @@ function NeedsAction({
           id="applications-needs-action"
           className="text-body-compact font-semibold text-foreground"
         >
-          Needs your action
+          Needs attention
         </h3>
         <Badge variant="secondary" className="tabular-nums">
           {count}

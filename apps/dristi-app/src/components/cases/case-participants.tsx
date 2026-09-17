@@ -37,6 +37,7 @@ import {
 } from "@/lib/cases/parties";
 import { isViewer } from "@/lib/cases/viewer";
 import { cn } from "@/lib/utils";
+import { displayName } from "@/lib/cases/names";
 
 /**
  * Everyone on the case: one grouped list, and a pane for whoever is open.
@@ -603,7 +604,7 @@ function FactWell({
   const lines = (
     <>
       <span className="block text-body-compact font-medium text-foreground">
-        {primary}
+        {displayName(primary)}
         {primarySuffix ? (
           <span className="font-normal text-muted-foreground">
             {" "}

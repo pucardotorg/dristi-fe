@@ -45,7 +45,7 @@ export function CaseNumberHistory({ history }: { history: PastCaseNumber[] }) {
               <span className="font-mono text-caption font-medium text-foreground">
                 {entry.number}
               </span>
-              <span className="text-caption font-medium text-muted-foreground">
+              <span className="text-caption text-muted-foreground">
                 {entry.kind} · {entry.generatedAt}
               </span>
             </li>

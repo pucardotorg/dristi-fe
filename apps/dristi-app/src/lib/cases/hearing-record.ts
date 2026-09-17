@@ -11,6 +11,7 @@ import {
 import { ordersFile } from "./orders";
 import { dayStamp } from "./peek";
 import { formatCaseDate, type CaseRecord } from "./types";
+import { displayName } from "./names";
 
 /**
  * A hearing as the PRD records it (§5.4.2, HRG-04 to HRG-12). The list and the
@@ -79,7 +80,7 @@ export function hearingRecords(record: CaseRecord): HearingRecord[] {
         startTime: transcript?.startTime,
         endTime: transcript?.endTime,
         attendance: held
-          ? hearingPartyNames(hearing, peopleById) || undefined
+          ? displayName(hearingPartyNames(hearing, peopleById)) || undefined
           : undefined,
         nextPurpose: next ? hearingTypeLabel(next.type) : undefined,
         nextDate: next

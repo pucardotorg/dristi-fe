@@ -13,6 +13,7 @@ import {
 } from "./applications";
 import { dayStamp } from "./peek";
 import { formatCaseDate, type CaseRecord } from "./types";
+import { displayName } from "./names";
 
 export type ApplicationSide = "complainant" | "accused" | "court";
 
@@ -122,7 +123,7 @@ export function applicationsRegister(
         createdShort: shortDate(source.addedOn),
         submittedShort: submittedOn ? shortDate(submittedOn) : undefined,
         filedById: source.submittedById,
-        filedBy: submittedByName(source, peopleById),
+        filedBy: displayName(submittedByName(source, peopleById)),
         side: role.includes("accused")
           ? "accused"
           : role.includes("complainant")
@@ -145,7 +146,7 @@ export function applicationsRegister(
     applications,
     people: file.people.map((person) => ({
       id: person.id,
-      name: person.name,
+      name: displayName(person.name),
       role: person.role,
     })),
   };

@@ -25,6 +25,8 @@ import {
   type HearingStatus,
 } from "./hearings";
 import { ordersFile } from "./orders";
+import { taskHref } from "../tasks/routes";
+import { buildTasks } from "../tasks/sandbox";
 import {
   applicationStatusLabel,
   dayStamp,
@@ -43,6 +45,7 @@ import {
   orderHref,
 } from "./sections";
 import { formatCaseDate, outcomeLabel, type CaseRecord } from "./types";
+import { displayName } from "./names";
 
 export type OverviewNextHearing = {
   /** "Today" on the day, the formatted date otherwise, or "No hearing
@@ -114,8 +117,11 @@ export type OverviewTask = {
   detail?: string;
   /** The deadline in the two parts the row renders, already ranked against
    *  the next sitting. Resolved here rather than in the row — see
-   *  `dueStatusView`. */
-  due: DueStatusView;
+   *  `dueStatusView`. Absent for a task the court set no date on. */
+  due?: DueStatusView;
+  /** Where Respond goes: the task's own workflow on the Pending tasks page
+   *  when it has one (OVW-14), otherwise the related tab. */
+  respondHref?: string;
   /** Where the row goes when it names no action: the whole row is the link
    *  then, and Applications is the tab that owns most pending filings. */
   href: string;
@@ -265,7 +271,7 @@ function overviewTasks(
   extras: CasePeekExtras,
   now: number,
 ): OverviewTask[] {
-  return (extras.tasks ?? [])
+  const authored: OverviewTask[] = (extras.tasks ?? [])
     .slice()
     .sort((a, b) => a.dueOn.localeCompare(b.dueOn))
     .map((task) => ({
@@ -284,6 +290,34 @@ function overviewTasks(
           }
         : undefined,
     }));
+  return [...pendingPageTasks(record, now), ...authored];
+}
+
+/**
+ * The case's open tasks on the Pending tasks page. The demo matters that page
+ * runs on appear here as `tw-<its id>`, so those tasks are the same tasks:
+ * Respond opens the task there and enters its real workflow (pay, sign, file,
+ * fix). Cases outside that world keep their authored tasks, which have no
+ * workflow behind them yet.
+ */
+const OPEN_TASK_STATUSES = new Set(["open", "draft", "ready"]);
+function pendingPageTasks(record: CaseRecord, now: number): OverviewTask[] {
+  if (!record.id.startsWith("tw-")) return [];
+  const caseId = record.id.slice(3);
+  return buildTasks()
+    .filter(
+      (task) => task.caseId === caseId && OPEN_TASK_STATUSES.has(task.status)
+    )
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      detail: task.why.event,
+      due: task.dueAt
+        ? dueStatusView(task.dueAt, record.nextHearing?.on, now)
+        : undefined,
+      href: taskHref(task.id),
+      respondHref: taskHref(task.id),
+    }));
 }
 
 /**
@@ -295,9 +329,9 @@ function overviewTasks(
  * print the same date twice; the line is dropped instead.
  */
 function taskDetail(task: CaseTask): string | undefined {
-  if (task.note) return task.note;
+  if (task.note) return displayName(task.note);
   if (task.assignedTo && task.markedOn) {
-    return `Assigned to ${task.assignedTo} · marked ${formatCaseDate(task.markedOn)}`;
+    return `Assigned to ${displayName(task.assignedTo)} · marked ${formatCaseDate(task.markedOn)}`;
   }
   return undefined;
 }

@@ -47,6 +47,7 @@ import {
 } from "@/lib/cases/documents";
 import { formatCaseDate } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { displayName } from "@/lib/cases/names";
 
 /**
  * The record overlay chrome: header, a scrolling left pane, comments on the
@@ -187,7 +188,7 @@ function DocumentBody({
         </RecordRow>
         <RecordRow term="Submitted by">
           <span className="flex min-w-0 flex-col gap-1">
-            <span>{submittedByName(document, peopleById)}</span>
+            <span>{displayName(submittedByName(document, peopleById))}</span>
             {submittedByRole(document, peopleById) ? (
               <span className="text-caption font-medium text-muted-foreground">
                 {submittedByRole(document, peopleById)}

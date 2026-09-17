@@ -215,13 +215,13 @@ const REGISTRY: { id: string; label: string; items: Filed[] }[] = [
     items: [
       {
         id: "vakalatnama-1",
-        label: "Vakalatnama · Adv. Ramesh Menon",
+        label: "Vakalatnama · Ramesh Menon",
         href: CASE_FILE_PDF.vakalats,
         page: 3,
       },
       {
         id: "vakalatnama-2",
-        label: "Vakalatnama · Adv. P. Balachandran",
+        label: "Vakalatnama · P. Balachandran",
         href: CASE_FILE_PDF.vakalats,
         page: 4,
       },
@@ -322,6 +322,14 @@ const REGISTRY: { id: string; label: string; items: Filed[] }[] = [
         id: "application-withdrawal",
         label: "Withdrawal · CMP 241/2025",
         href: "/case-file/16-application-withdrawal.pdf",
+      },
+      /* The registry lists the order disposing of an application in this
+         section, after the applications, by date issued. */
+      {
+        id: "disposing-order-closing-complainant-evidence",
+        label: "Order closing complainant evidence",
+        href: CASE_FILE_PDF.orders,
+        page: 6,
       },
     ],
   },

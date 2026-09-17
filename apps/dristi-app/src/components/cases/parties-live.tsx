@@ -21,6 +21,7 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { RepresentationWell } from "@/components/cases/representation-well";
 import type { CaseRef } from "@/components/cases/party-application";
+import { displayName } from "@/lib/cases/names";
 
 type AddedAdvocates = { names: string[]; partyIds: string[] };
 
@@ -108,7 +109,7 @@ export function WitnessListExtras({
               {/* The master row's own grammar, in muted ink: this person is
                   not on the register yet, and the row does not open. */}
               <span className="block max-w-full text-body-compact font-semibold text-muted-foreground">
-                {name}
+                {displayName(name)}
               </span>
               <Badge variant="warning">Awaiting order</Badge>
             </span>

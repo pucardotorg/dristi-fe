@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  REGISTER_ALL,
   RegisterFilter,
   RegisterSearch,
 } from "@/components/cases/register-controls";
@@ -92,7 +91,6 @@ import {
   documentsFile,
   evidenceStatusLabel,
   isDocumentKind,
-  isDocumentTypeId,
   isDocumentsPageSize,
   personIdentity,
   selectDocuments,
@@ -107,6 +105,7 @@ import {
 } from "@/lib/cases/documents";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { displayName } from "@/lib/cases/names";
 
 type SubmitterOption = {
   value: string;
@@ -186,8 +185,8 @@ function DocumentsError() {
 
 function DocumentsReady({ file }: { file: DocumentsFile }) {
   const [kind, setKind] = useState<DocumentKind>("documents");
-  const [typeId, setTypeId] = useState<DocumentTypeId | null>(null);
-  const [submittedById, setSubmittedById] = useState<string | null>(null);
+  const [typeIds, setTypeIds] = useState<string[]>([]);
+  const [submitterIds, setSubmitterIds] = useState<string[]>([]);
   const [filingQuery, setFilingQuery] = useState("");
   const [pageSize, setPageSize] = useState<DocumentsPageSize>(
     DOCUMENTS_PAGE_SIZE
@@ -219,17 +218,24 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
     .filter((group) => group.items.length > 0);
 
   const selection = selectDocuments({
-    documents: file.documents,
+    /* The filters take any number of values, so they narrow the list here
+       and the selector only handles kind, search and paging. */
+    documents: file.documents.filter(
+      (document) =>
+        (typeIds.length === 0 || typeIds.includes(document.type)) &&
+        (submitterIds.length === 0 ||
+          submitterIds.includes(document.submittedById))
+    ),
     kind,
-    typeId,
-    submittedById,
+    typeId: null,
+    submittedById: null,
     filingQuery,
     pageSize,
     page,
   });
 
   const filtered =
-    typeId !== null || submittedById !== null || filingQuery.trim() !== "";
+    typeIds.length > 0 || submitterIds.length > 0 || filingQuery.trim() !== "";
   const showTypeFilter = kind === "documents";
 
   function resetPage() {
@@ -237,8 +243,8 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
   }
 
   function clearFilters() {
-    setTypeId(null);
-    setSubmittedById(null);
+    setTypeIds([]);
+    setSubmitterIds([]);
     setFilingQuery("");
     resetPage();
   }
@@ -260,8 +266,8 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
       bailBondsCount={selection.bailBondsCount}
       onKindChange={(next) => {
         setKind(next);
-        setTypeId(null);
-        setSubmittedById(null);
+        setTypeIds([]);
+        setSubmitterIds([]);
         resetPage();
       }}
     />
@@ -300,9 +306,9 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
           {showTypeFilter ? (
             <RegisterFilter
               label="Type"
-              value={typeId ?? REGISTER_ALL}
+              values={typeIds}
               onChange={(next) => {
-                setTypeId(isDocumentTypeId(next) ? next : null);
+                setTypeIds(next);
                 resetPage();
               }}
               options={typeGroups.flatMap((group) => group.items)}
@@ -310,9 +316,9 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
           ) : null}
           <RegisterFilter
             label="Submitted by"
-            value={submittedById ?? REGISTER_ALL}
+            values={submitterIds}
             onChange={(next) => {
-              setSubmittedById(next === REGISTER_ALL ? null : next);
+              setSubmitterIds(next);
               resetPage();
             }}
             options={submitterOptions}
@@ -707,7 +713,7 @@ function SubmittedByCell({
   peopleById: Map<string, DocumentPerson>;
 }) {
   const side = submittedBySideLabel(document, peopleById);
-  const advocate = submittedByName(document, peopleById);
+  const advocate = displayName(submittedByName(document, peopleById));
 
   return (
     <Tooltip>
@@ -783,7 +789,7 @@ function DocumentsItemList({
             <p className="text-body-compact text-muted-foreground">
               {submittedBySideLabel(document, peopleById)}
               {" · "}
-              {submittedByName(document, peopleById)}
+              {displayName(submittedByName(document, peopleById))}
             </p>
           </ItemContent>
         </Item>

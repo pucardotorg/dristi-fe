@@ -1,4 +1,6 @@
-import { type CaseRecord } from "./types";
+import { hearingRecords } from "./hearing-record";
+import { ordersFile } from "./orders";
+import { formatCaseDate, type CaseRecord } from "./types";
 
 /**
  * Notice/Process Status (PRD §7): every process the court has issued on the
@@ -53,7 +55,9 @@ export type ProcessChannel = {
 export type ProcessRound = {
   id: string;
   processes: ProcessType[];
-  hearing?: { purpose: string; on: string };
+  /** `id` is filled in when the hearings or orders register holds the record,
+   *  so the screen can link straight to it. */
+  hearing?: { id?: string; purpose: string; on: string };
   order?: { id?: string; title: string; on: string };
   /** Absent while the process fee is still unpaid (SVC-09). */
   feePaidOn?: string;
@@ -79,8 +83,8 @@ const PACK: Partial<Record<string, ProcessPerson[]>> = {
         {
           id: "r3",
           processes: ["Proclamation", "Attachment"],
-          hearing: { purpose: "Appearance of accused", on: "29 July 2026" },
-          order: { title: "Proclamation and attachment", on: "2 July 2026" },
+          hearing: { purpose: "Evidence of complainant", on: "29 July 2026" },
+          order: { title: "Proclamation", on: "2 July 2026" },
           feePaidOn: "1 July 2026",
           channels: [
             {
@@ -97,7 +101,7 @@ const PACK: Partial<Record<string, ProcessPerson[]>> = {
           id: "r2",
           processes: ["Warrant"],
           hearing: { purpose: "Appearance of accused", on: "14 June 2026" },
-          order: { title: "Bailable warrant", on: "10 May 2026" },
+          order: { title: "Warrant", on: "10 May 2026" },
           feePaidOn: "8 May 2026",
           channels: [
             {
@@ -114,7 +118,7 @@ const PACK: Partial<Record<string, ProcessPerson[]>> = {
           id: "r1",
           processes: ["Summons"],
           hearing: { purpose: "Appearance of accused", on: "6 April 2026" },
-          order: { title: "Order issuing summons", on: "2 March 2026" },
+          order: { title: "Summons", on: "2 March 2026" },
           feePaidOn: "1 March 2026",
           channels: [
             {
@@ -148,11 +152,8 @@ const PACK: Partial<Record<string, ProcessPerson[]>> = {
         {
           id: "r1",
           processes: ["Summons"],
-          hearing: { purpose: "Evidence of PW-2", on: "19 August 2026" },
-          order: {
-            title: "Summon bank official and produce account records",
-            on: "24 July 2026",
-          },
+          hearing: { purpose: "Evidence of complainant", on: "19 August 2026" },
+          order: { title: "Summons", on: "24 July 2026" },
           channels: [
             {
               type: "Registered post",
@@ -180,5 +181,37 @@ const PACK: Partial<Record<string, ProcessPerson[]>> = {
  * disposed case keeps its history.
  */
 export function processStatus(record: CaseRecord): ProcessPerson[] {
-  return (PACK[record.id] ?? []).filter((person) => person.rounds.length > 0);
+  const people = (PACK[record.id] ?? []).filter(
+    (person) => person.rounds.length > 0
+  );
+  if (people.length === 0) return people;
+
+  const hearingIdByDate = new Map(
+    hearingRecords(record).map((hearing) => [hearing.date, hearing.id])
+  );
+  const orderIdByDate = new Map<string, string>();
+  try {
+    for (const order of ordersFile(record).orders) {
+      if (order.status === "published") {
+        orderIdByDate.set(formatCaseDate(order.issuedOn), order.id);
+      }
+    }
+  } catch {
+    /* No orders register: rounds keep plain text. */
+  }
+
+  return people.map((person) => ({
+    ...person,
+    rounds: person.rounds.map((round) => ({
+      ...round,
+      hearing: round.hearing && {
+        ...round.hearing,
+        id: hearingIdByDate.get(round.hearing.on),
+      },
+      order: round.order && {
+        ...round.order,
+        id: orderIdByDate.get(round.order.on),
+      },
+    })),
+  }));
 }

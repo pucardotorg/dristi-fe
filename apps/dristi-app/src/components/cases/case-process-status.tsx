@@ -40,13 +40,13 @@ import {
   type ProcessPerson,
   type ProcessRound,
 } from "@/lib/cases/process-status";
-import { orderHref } from "@/lib/cases/sections";
+import { hearingHref, orderHref } from "@/lib/cases/sections";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 
 /**
  * Notice/Process Status (§7). One panel per person the court issued process
- * to; inside it, rounds newest first, the newest open. A round says what
+ * to; inside it, rounds newest first, all closed until asked for. A round says what
  * triggered it, then lists every channel it went out on with that channel's
  * own destination, status, date and remarks.
  */
@@ -84,6 +84,10 @@ export function CaseProcessStatus({ record }: { record: CaseRecord }) {
     </div>
   );
 }
+
+/** A fact that names a hearing or an order opens it (SVC-07, SVC-08). */
+const FACT_LINK =
+  "rounded-sm text-primary underline underline-offset-4 outline-none hover:no-underline focus-visible:ring-3 focus-visible:ring-ring/50";
 
 function PersonPanel({
   caseId,
@@ -139,7 +143,6 @@ function Round({
 }) {
   return (
     <Collapsible
-      defaultOpen={latest}
       className="rounded-lg border border-hairline"
     >
       <CollapsibleTrigger className="group/round flex min-h-10 w-full items-center gap-2 rounded-lg px-6 py-2 text-left outline-none hover:bg-surface-sunken focus-visible:ring-3 focus-visible:ring-ring/50">
@@ -171,7 +174,16 @@ function Round({
             <Fact label="Linked hearing">
               {round.hearing ? (
                 <>
-                  {round.hearing.purpose}
+                  {round.hearing.id ? (
+                    <Link
+                      href={hearingHref(caseId, round.hearing.id)}
+                      className={FACT_LINK}
+                    >
+                      {round.hearing.purpose}
+                    </Link>
+                  ) : (
+                    round.hearing.purpose
+                  )}
                   <Sub>{round.hearing.on}</Sub>
                 </>
               ) : (
@@ -184,7 +196,7 @@ function Round({
                   {round.order.id ? (
                     <Link
                       href={orderHref(caseId, round.order.id)}
-                      className="rounded-sm text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                      className={FACT_LINK}
                     >
                       {round.order.title}
                     </Link>

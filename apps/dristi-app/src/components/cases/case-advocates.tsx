@@ -16,6 +16,7 @@ import {
   type CaseRecord,
   type CounselSide,
 } from "@/lib/cases/types";
+import { displayName } from "@/lib/cases/names";
 
 const SIDES: readonly CounselSide[] = ["complainant", "accused"];
 
@@ -169,7 +170,7 @@ export function CaseAdvocates({
       <span
         className={cn("truncate text-body-compact text-foreground", className)}
       >
-        {names[0]}
+        {displayName(names[0])}
       </span>
       {markSide ? (
         <>
@@ -253,7 +254,7 @@ export function CaseAdvocates({
                   key={`${name}-${index}`}
                   className="text-body-compact text-foreground"
                 >
-                  {name}
+                  {displayName(name)}
                 </li>
               ))}
             </ul>

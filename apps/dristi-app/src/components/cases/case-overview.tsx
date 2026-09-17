@@ -405,10 +405,12 @@ function PendingTasksBlock({
                 ) : null}
                 <PendingTaskRow
                   title={task.title}
-                  respond={{ href: task.action?.href ?? task.href }}
+                  respond={{
+                    href: task.respondHref ?? task.action?.href ?? task.href,
+                  }}
                   onArchive={() => onArchive(task.id, task.title)}
                 >
-                  <DueStatusLine {...task.due} />
+                  {task.due ? <DueStatusLine {...task.due} /> : null}
                   {task.detail ? <TaskNote>{task.detail}</TaskNote> : null}
                 </PendingTaskRow>
               </Fragment>
