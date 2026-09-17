@@ -9,38 +9,38 @@
     "court": "Judicial First Class Magistrate Court-I, Kollam",
     "filingDate": "2025-06-12",
     "stage": "Post-Disposal",
-    "caseStatus": "Disposed \u2014 Convicted",
+    "caseStatus": "Disposed — Convicted",
     "chequeAmount": {
       "value": 450000,
       "currency": "INR",
-      "display": "\u20b94,50,000"
+      "display": "₹4,50,000"
     }
   },
   "filters": {
     "parties": [
       {
         "id": "PARTY-C-001",
-        "label": "Sunil Varghese \u2014 Complainant"
+        "label": "Sunil Varghese — Complainant"
       },
       {
         "id": "PARTY-A-001",
-        "label": "Arun Das, proprietor of Anand Traders \u2014 Accused"
+        "label": "Arun Das, proprietor of Anand Traders — Accused"
       },
       {
         "id": "ADV-C-001",
-        "label": "Adv. Ramesh Menon \u2014 Complainant counsel"
+        "label": "Adv. Ramesh Menon — Complainant counsel"
       },
       {
         "id": "ADV-A-001",
-        "label": "Adv. P. Balachandran \u2014 Accused counsel"
+        "label": "Adv. P. Balachandran — Accused counsel"
       },
       {
         "id": "WIT-PW2-001",
-        "label": "Priya Nair \u2014 PW-2, bank witness"
+        "label": "Priya Nair — PW-2, bank witness"
       },
       {
         "id": "WIT-DW1-001",
-        "label": "Ajith Kumar \u2014 DW-1, defence witness"
+        "label": "Ajith Kumar — DW-1, defence witness"
       }
     ],
     "types": [
@@ -72,6 +72,40 @@
     "Status"
   ],
   "hearings": [
+    {
+      "hearingId": "HRG-017",
+      "hearingType": "Evidence of Complainant",
+      "date": "2026-08-19",
+      "dateDisplay": "19 August 2026",
+      "status": "Scheduled",
+      "participantIds": [],
+      "partiesDisplay": "",
+      "summary": "",
+      "statusReason": null,
+      "transcriptAvailability": "not_available",
+      "transcriptId": null,
+      "depositionIds": []
+    },
+    {
+      "hearingId": "HRG-016",
+      "hearingType": "Evidence of Complainant",
+      "date": "2026-07-29",
+      "dateDisplay": "29 July 2026",
+      "status": "Completed",
+      "participantIds": [
+        "PARTY-C-001",
+        "PARTY-A-001",
+        "ADV-C-001",
+        "ADV-A-001"
+      ],
+      "partiesDisplay": "Sunil Varghese, Arun Das +2",
+      "summary": "PW-1 was examined in chief and partly cross-examined. Further cross-examination was deferred and the complainant was directed to keep PW-2 present on the next date.",
+      "statusReason": null,
+      "nextOn": "2026-08-19",
+      "transcriptAvailability": "not_available",
+      "transcriptId": null,
+      "depositionIds": []
+    },
     {
       "hearingId": "HRG-015",
       "hearingType": "Execution",
@@ -379,7 +413,7 @@
     {
       "transcriptId": "TRN-015",
       "hearingId": "HRG-015",
-      "title": "Execution \u2014 12 January 2026",
+      "title": "Execution — 12 January 2026",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -407,7 +441,7 @@
     {
       "transcriptId": "TRN-014",
       "hearingId": "HRG-014",
-      "title": "Judgement \u2014 15 December 2025",
+      "title": "Judgement — 15 December 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -435,7 +469,7 @@
     {
       "transcriptId": "TRN-013",
       "hearingId": "HRG-013",
-      "title": "Arguments \u2014 1 December 2025",
+      "title": "Arguments — 1 December 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -473,7 +507,7 @@
     {
       "transcriptId": "TRN-012",
       "hearingId": "HRG-012",
-      "title": "Arguments \u2014 24 November 2025",
+      "title": "Arguments — 24 November 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -506,7 +540,7 @@
     {
       "transcriptId": "TRN-011",
       "hearingId": "HRG-011",
-      "title": "Evidence of Accused \u2014 10 November 2025",
+      "title": "Evidence of Accused — 10 November 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -539,7 +573,7 @@
     {
       "transcriptId": "TRN-009",
       "hearingId": "HRG-009",
-      "title": "Examination of accused under S. 351 BNSS \u2014 13 October 2025",
+      "title": "Examination of accused under S. 351 BNSS — 13 October 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -572,7 +606,7 @@
     {
       "transcriptId": "TRN-008",
       "hearingId": "HRG-008",
-      "title": "Evidence of Complainant \u2014 29 September 2025",
+      "title": "Evidence of Complainant — 29 September 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -605,7 +639,7 @@
     {
       "transcriptId": "TRN-007",
       "hearingId": "HRG-007",
-      "title": "Evidence of Complainant \u2014 15 September 2025",
+      "title": "Evidence of Complainant — 15 September 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -643,7 +677,7 @@
     {
       "transcriptId": "TRN-006",
       "hearingId": "HRG-006",
-      "title": "Evidence of Complainant \u2014 1 September 2025",
+      "title": "Evidence of Complainant — 1 September 2025",
       "recordType": "Hearing transcript",
       "isVerbatim": true,
       "status": "available",
@@ -686,7 +720,7 @@
     {
       "transcriptId": "TRN-005",
       "hearingId": "HRG-005",
-      "title": "Application Review \u2014 18 August 2025",
+      "title": "Application Review — 18 August 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "temporarily_unavailable",
@@ -714,7 +748,7 @@
     {
       "transcriptId": "TRN-004",
       "hearingId": "HRG-004",
-      "title": "Plea \u2014 4 August 2025",
+      "title": "Plea — 4 August 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -742,7 +776,7 @@
     {
       "transcriptId": "TRN-003",
       "hearingId": "HRG-003",
-      "title": "Appearance \u2014 4 August 2025",
+      "title": "Appearance — 4 August 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "available",
@@ -770,7 +804,7 @@
     {
       "transcriptId": "TRN-001",
       "hearingId": "HRG-001",
-      "title": "Cognizance \u2014 23 June 2025",
+      "title": "Cognizance — 23 June 2025",
       "recordType": "Hearing transcript summary",
       "isVerbatim": false,
       "status": "restricted",

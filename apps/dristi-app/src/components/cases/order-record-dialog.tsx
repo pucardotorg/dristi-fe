@@ -1,6 +1,6 @@
 "use client";
 
-import { DownloadIcon, XIcon } from "lucide-react";
+import { DownloadIcon, FileClockIcon, XIcon } from "lucide-react";
 
 import { PdfViewer } from "@/components/cases/pdf-viewer";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
@@ -12,6 +12,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
   Dialog,
   DialogClose,
   DialogDescription,
@@ -19,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { type OrderRecord } from "@/lib/cases/orders";
 import { formatCaseDate } from "@/lib/cases/types";
+import { cn } from "@/lib/utils";
 
 /**
  * Opening an order shows the order (ORD-03): a tall dialog, a little short of
@@ -38,12 +46,17 @@ export function OrderRecordDialog({
     <Dialog open={Boolean(order)} onOpenChange={onOpenChange}>
       <ChromeDialogContent
         showCloseButton={false}
-        className="flex h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
+        className={cn(
+          "flex flex-col gap-0 overflow-hidden p-0",
+          doc?.href
+            ? "h-[calc(100dvh---spacing(12))] sm:max-w-5xl"
+            : "max-h-[calc(100dvh---spacing(12))] sm:max-w-2xl"
+        )}
       >
         {order ? (
           <>
-            <div className="flex shrink-0 items-center gap-2 border-b border-hairline py-2 pr-2 pl-4">
-              <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center gap-2 border-b border-hairline py-3 pr-3 pl-6">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <DialogTitle className="truncate text-body-compact font-semibold">
                   {order.title}
                 </DialogTitle>
@@ -82,9 +95,36 @@ export function OrderRecordDialog({
                 className="flex-1 rounded-none"
               />
             ) : (
-              <p className="p-6 text-body-compact text-muted-foreground">
-                The document for this order is not on file yet.
-              </p>
+              /* A published order normally carries its PDF (ORD-10). This is
+                 the gap between the court passing an order and the signed
+                 copy being uploaded, so the reader still gets what was
+                 ordered, from the business of the day. */
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto bg-surface-sunken p-6">
+                <Empty className="flex-none">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <FileClockIcon aria-hidden />
+                    </EmptyMedia>
+                    <EmptyTitle className="text-body font-semibold">
+                      The signed order is not uploaded yet
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      It appears here as soon as the court uploads it. You do
+                      not need to do anything.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+                {order.botd ? (
+                  <div className="flex w-full max-w-xl flex-col gap-1.5 rounded-lg border border-hairline bg-card p-4">
+                    <p className="text-caption font-medium text-muted-foreground">
+                      Business of the day
+                    </p>
+                    <p className="text-body-compact text-pretty text-foreground">
+                      {order.botd}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             )}
           </>
         ) : null}

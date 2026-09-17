@@ -77,7 +77,7 @@ function RecordBody({
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-2 border-b border-hairline py-2 pr-2 pl-4">
+      <div className="flex shrink-0 items-center gap-2 border-b border-hairline py-3 pr-3 pl-6">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <DialogTitle className="truncate text-body-compact font-semibold">
             {application.typeLabel}

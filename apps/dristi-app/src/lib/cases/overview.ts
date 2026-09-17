@@ -395,7 +395,7 @@ function overviewUpdates(
       on: dayStamp(application.filedOn),
       title: application.title,
       detail: applicationStatusLabel(application.status),
-      href: caseSectionHref(record.id, "applications"),
+      href: registeredApplicationHref(record, application.title),
     });
   }
 
@@ -425,6 +425,19 @@ function overviewUpdates(
       href: item.href,
       status: dayStamp(item.on) === today ? "current" : "past",
     }));
+}
+
+/** The application's own record when the register holds one by that title. */
+function registeredApplicationHref(record: CaseRecord, title: string): string {
+  try {
+    const match = applicationsFile(record).submissions.find(
+      (item) => item.title.trim().toLowerCase() === title.trim().toLowerCase()
+    );
+    if (match) return applicationHref(record.id, match.id);
+  } catch {
+    /* No applications register for this case: fall through to the tab. */
+  }
+  return caseSectionHref(record.id, "applications");
 }
 
 /** The last sitting's own record when the register has it, else the list. */
