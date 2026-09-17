@@ -57,7 +57,7 @@ export function OrderRecordDialog({
           <>
             <div className="flex shrink-0 items-center gap-2 border-b border-hairline py-3 pr-3 pl-6">
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <DialogTitle className="truncate text-body-compact font-semibold">
+                <DialogTitle className="text-body-compact font-semibold text-pretty sm:truncate">
                   {order.title}
                 </DialogTitle>
                 <DialogDescription className="text-caption font-medium tabular-nums text-muted-foreground">
