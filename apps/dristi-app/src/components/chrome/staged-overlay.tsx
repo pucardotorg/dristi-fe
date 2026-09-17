@@ -112,22 +112,6 @@ export function StagedOverlay({
    * overlay's two-column reading surface is the case.
    */
   padded = true,
-  /**
-   * **What the stage is.**
-   *
-   * `canvas` — the default — is the tinted work surface, and it earns the tint by having
-   * *objects* on it: the registrations overlay's two columns of cards, the order
-   * composer's documents, an act card with its figures. The tint is what makes those read
-   * as things laid on a surface rather than as regions of one.
-   *
-   * `card` is one continuous plane in the overlay's own white, for a stage that holds a
-   * single long thing — a list, a form, a document. There the tint buys nothing and costs
-   * a layer: the panel ends up the same shape as the canvas it sits on, which is a card
-   * inside a card inside a modal — two edges carrying one meaning (owner, 2026-09-17, on
-   * the scrutiny review list). The header and footer hairlines are what frame the stage
-   * instead, which is how every other overlay in the product does it.
-   */
-  surface = "canvas",
   /** The stages themselves — one scene's worth at a time. */
   children,
   /** The footer, which is chrome and therefore does not move. */
@@ -144,7 +128,6 @@ export function StagedOverlay({
   motion: StageMotion;
   floor?: boolean;
   padded?: boolean;
-  surface?: "canvas" | "card";
   footer?: React.ReactNode;
 }) {
   /* The frame's own handle on the title, so the landing place below works whether or not
@@ -230,14 +213,12 @@ export function StagedOverlay({
         )}
       </DialogHeader>
 
-      {/* The stage — **the only thing in this window that moves.** By default a tinted
-          canvas under white cards: the scoped work canvas the order screen and the filing
-          form already use (`ui-craft` §1.0), and the one place a tinted stage is
-          sanctioned, because the chrome above and below it stays white and the tint
-          therefore reads as the surface the work sits on rather than as a grey dialog.
-          Dark keeps `bg-background`, since `muted` is the raised step there and would
-          invert the depth. A stage holding one long thing takes `surface="card"` instead
-          and skips the layer.
+      {/* The stage — **the only thing in this window that moves.** A tinted canvas under
+          white cards: the scoped work canvas the order screen and the filing form already
+          use (`ui-craft` §1.0), and the one place a tinted stage is sanctioned, because the
+          chrome above and below it stays white and the tint therefore reads as the surface
+          the work sits on rather than as a grey dialog. Dark keeps `bg-background`, since
+          `muted` is the raised step there and would invert the depth.
 
           `overflow-hidden` is what the slide travels inside. A flex column rather than a
           block: the canvas's height comes from `flex-1` and a floor, which is not a
@@ -246,8 +227,7 @@ export function StagedOverlay({
           stretches by `flex-1`, which needs no definite parent. */}
       <div
         className={cn(
-          "relative flex min-h-0 flex-1 flex-col overflow-hidden",
-          surface === "card" ? "bg-card" : "bg-muted dark:bg-background",
+          "relative flex min-h-0 flex-1 flex-col overflow-hidden bg-muted dark:bg-background",
           floor &&
             "sm:[@media(min-height:680px)]:min-h-96 sm:[@media(min-height:720px)]:min-h-112",
         )}
