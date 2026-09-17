@@ -30,17 +30,28 @@ import { Toaster } from "@/components/ui/sonner";
  * the window is the page, so neither the shift nor the raise applies; `mobileOffset`
  * keeps the safe area clear instead.
  *
- * ## Fills (owner, 2026-09-16 — "option C")
+ * ## Fills and edges (owner, 2026-09-16, revised 2026-09-17)
  *
- * One step up each status scale for the fill, and — the part that was actually missing —
- * a step-7 border. The primitive sets `--success-border` to the *same* token as
- * `--success-bg`, so a success or error toast had no edge at all and a neutral one was
- * white on white, held up by nothing but a shadow. A step-3 tint on white is a 1.1:1
- * surface and step 4 only reaches ~1.2:1, so the saturation alone was never going to do
- * it; the edge is what makes the toast an object. Text stays at step 11, which already
- * passed. The solid fills were on the board and were ruled out: at five `toast.success`
- * call sites a solid green bar becomes the loudest thing on a deliberately quiet beige
- * canvas, and a solid red would outrank the destructive buttons beside it.
+ * The primitive sets `--success-border` to the *same* token as `--success-bg`, so a
+ * success or error toast had no edge at all and the neutral one was white on white, held
+ * up by nothing but a shadow. That is the real defect, and the edge is what makes the
+ * toast an object: a step-3 tint on white is a 1.1:1 surface, which the eye cannot find.
+ *
+ * The fill was bumped one ramp step first, and that is now reverted. It buys about 0.1 of
+ * surface contrast and costs real text contrast — against a step-4 fill the inks fall to
+ * 4.24:1 (success), 4.07:1 (error) and 4.37:1 (info), all under the 4.5:1 that this 13px
+ * text owes, and the DS's own `check-contrast` would have refused it. So the statuses sit
+ * on `--*-muted` with the ink already paired to them, which measures 4.54-4.88:1.
+ *
+ * The neutral variant sits on `--surface-sunken` rather than `--popover`. On `--popover`
+ * it was the page's own white in light mode and its own near-black in dark — a 1.00:1
+ * surface both times. It is the variant that carries an acknowledgement, which is what
+ * copying an identifier raises, so it is the one most calls land on.
+ *
+ * **The borders are the one thing still stated as ramp steps here.** The DS names them
+ * `--{status}-muted-edge`, but that family arrived after the pin this app builds against,
+ * so until `ds:bump` carries it these read `var(--success-7)` and so on. When the pin
+ * moves, they become the token name and this file gets shorter.
  *
  * `style` and `toastOptions` are *replacements*, not merges — the primitive spreads
  * `{...props}` after its own, so whatever arrives here wins outright. That is why the
@@ -56,25 +67,25 @@ export function AppToaster() {
       style={
         {
           /* Neutral — the acknowledgement variant, and the one copying uses. */
-          "--normal-bg": "var(--neutral-3)",
+          "--normal-bg": "var(--surface-sunken)",
           "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--neutral-7)",
+          "--normal-border": "var(--border)",
 
-          "--success-bg": "var(--success-4)",
+          "--success-bg": "var(--success-muted)",
           "--success-text": "var(--success-muted-foreground)",
           "--success-border": "var(--success-7)",
 
-          "--error-bg": "var(--destructive-4)",
+          "--error-bg": "var(--destructive-muted)",
           "--error-text": "var(--destructive-muted-foreground)",
           "--error-border": "var(--destructive-7)",
 
           /* Mapped but never called today. Kept in step with the two that are, so the
              first `toast.warning` does not arrive looking like a different product. */
-          "--warning-bg": "var(--warning-4)",
+          "--warning-bg": "var(--warning-muted)",
           "--warning-text": "var(--warning-muted-foreground)",
           "--warning-border": "var(--warning-7)",
 
-          "--info-bg": "var(--info-4)",
+          "--info-bg": "var(--info-muted)",
           "--info-text": "var(--info-muted-foreground)",
           "--info-border": "var(--info-7)",
 
