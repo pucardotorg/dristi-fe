@@ -47,6 +47,19 @@ import { type ComplaintPane } from "@/lib/cases/complaint";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@/components/ui/segmented-control";
+import { PANEL_CLASS } from "@/components/shell/panel";
+
 import { PdfViewer, parsePdfSrc } from "./pdf-viewer";
 
 /**
@@ -141,9 +154,14 @@ export function CaseFile({
         </SheetContent>
       </Sheet>
 
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden py-0 hover:bg-card md:flex-row md:items-stretch md:gap-0">
-        <div className="hidden min-h-0 w-80 shrink-0 flex-col gap-4 overflow-hidden p-6 md:flex">
-          <h2 className="shrink-0 text-title-s font-semibold">Case file</h2>
+      <Card
+        className={cn(
+          PANEL_CLASS,
+          "flex min-h-0 flex-1 flex-col overflow-hidden py-0 hover:bg-card md:flex-row md:items-stretch md:gap-0"
+        )}
+      >
+        <div className="hidden min-h-0 w-72 shrink-0 flex-col gap-2 overflow-hidden p-4 md:flex">
+          <h2 className="shrink-0 px-2 text-body font-semibold">Case file</h2>
           <ScrollArea type="always" className="min-h-0 flex-1">
             <nav aria-label="Case file">
               <CaseFileIndex {...indexProps} />
@@ -152,12 +170,12 @@ export function CaseFile({
         </div>
         <Separator
           orientation="vertical"
-          className="hidden self-stretch md:block"
+          className="hidden self-stretch bg-hairline md:block"
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden p-6">
-          <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-4">
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <div className="flex min-w-0 flex-col gap-2 sm:flex-1">
-              <h2 className="min-w-0 text-title-s font-semibold">
+              <h2 className="min-w-0 text-body font-semibold">
                 {selected && !isCaseFileFolder(selected)
                   ? selected.label
                   : "Case file"}
@@ -243,6 +261,7 @@ function CaseFileIndex({
                 <CollapsibleTrigger
                   className={cn(
                     rowClass,
+                    "font-medium",
                     depthPad[Math.min(depth, depthPad.length - 1)]
                   )}
                   onClick={(event) => {
@@ -278,7 +297,7 @@ function CaseFileIndex({
                 ) : (
                   <p
                     className={cn(
-                      "border-b border-border py-3 text-body text-muted-foreground",
+                      "py-1.5 text-body-compact text-muted-foreground",
                       depthPad[Math.min(depth + 1, depthPad.length - 1)]
                     )}
                   >
@@ -289,19 +308,39 @@ function CaseFileIndex({
             </Collapsible>
           ) : (
             <div className={rowShell}>
-              <button
-                type="button"
-                aria-current={selectedId === node.id ? "page" : undefined}
-                onClick={() => onSelect(node.id)}
-                className={cn(
-                  rowClass,
-                  depthPad[Math.min(depth, depthPad.length - 1)],
-                  selectedId === node.id &&
-                    "bg-accent-strong font-medium hover:bg-accent-strong"
-                )}
-              >
-                <IndexLabel number={node.number} label={node.label} />
-              </button>
+              {/* DET-12. Right-click, the menu key, or a long press. Marking is
+                  the court's; everyone with access to the case can download. */}
+              <ContextMenu>
+                <ContextMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-current={selectedId === node.id ? "page" : undefined}
+                    onClick={() => onSelect(node.id)}
+                    className={cn(
+                      rowClass,
+                      depthPad[Math.min(depth, depthPad.length - 1)],
+                      selectedId === node.id &&
+                        "bg-accent-strong font-medium hover:bg-accent-strong"
+                    )}
+                  >
+                    <IndexLabel number={node.number} label={node.label} />
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  {VIEWER_IS_COURT ? (
+                    <>
+                      <ContextMenuItem>Mark as Evidence</ContextMenuItem>
+                      <ContextMenuItem>Mark as Void</ContextMenuItem>
+                      <ContextMenuSeparator />
+                    </>
+                  ) : null}
+                  <ContextMenuItem asChild>
+                    <a href={node.href} download>
+                      Download
+                    </a>
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             </div>
           )}
         </li>
@@ -311,12 +350,16 @@ function CaseFileIndex({
 }
 
 /** Hairline on the shell, fill on the row — same split as Item + ItemSeparator. */
-const rowShell = "border-b border-border py-1";
+/** This build is the advocate and litigant view; court staff and the
+ *  magistrate also get Mark as Evidence and Mark as Void (DET-12). */
+const VIEWER_IS_COURT = false;
+
+const rowShell = "py-px";
 
 const rowClass =
-  "group/file-row flex min-h-10 w-full min-w-0 items-start justify-between gap-2 rounded-lg py-2 text-left text-body text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50";
+  "group/file-row flex min-h-8 w-full min-w-0 items-start justify-between gap-2 rounded-lg py-1.5 text-left text-body-compact text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-10 max-md:py-2.5";
 
-const depthPad = ["px-2", "pr-2 pl-6", "pr-2 pl-12"] as const;
+const depthPad = ["px-2", "pr-2 pl-6", "pr-2 pl-8"] as const;
 
 function scrollNodeIntoIndex(node: HTMLElement) {
   const viewport = node.closest("[data-slot=scroll-area-viewport]");
@@ -347,10 +390,9 @@ function DocumentViewSwitch({
   onViewChange: (view: CaseFileView) => void;
 }) {
   return (
-    <ToggleGroup
+    <SegmentedControl
       type="single"
-      variant="outline"
-      spacing={0}
+      size="compact"
       value={view}
       onValueChange={(next) => {
         if (next === "pdf" || next === "digital") onViewChange(next);
@@ -359,13 +401,9 @@ function DocumentViewSwitch({
       aria-label="Document view"
       aria-controls="case-file-document"
     >
-      <ToggleGroupItem value="pdf" className="h-10 px-3 text-body">
-        PDF
-      </ToggleGroupItem>
-      <ToggleGroupItem value="digital" className="h-10 px-3 text-body">
-        Digital
-      </ToggleGroupItem>
-    </ToggleGroup>
+      <SegmentedControlItem value="pdf">PDF</SegmentedControlItem>
+      <SegmentedControlItem value="digital">Digital</SegmentedControlItem>
+    </SegmentedControl>
   );
 }
 
@@ -417,10 +455,10 @@ function DocumentPane({
           ) : (
             <Empty className="min-h-0 flex-1 border border-dashed border-border bg-background">
               <EmptyHeader>
-                <EmptyTitle className="text-title-s font-semibold">
+                <EmptyTitle className="text-body font-semibold">
                   No digital record
                 </EmptyTitle>
-                <EmptyDescription className="text-body">
+                <EmptyDescription>
                   No digital record is filed for this paper. Open PDF to read
                   the document.
                 </EmptyDescription>
@@ -454,10 +492,10 @@ function NoDocumentSelected() {
       className="min-h-0 flex-1 border border-dashed border-border"
     >
       <EmptyHeader>
-        <EmptyTitle className="text-title-s font-semibold">
+        <EmptyTitle className="text-body font-semibold">
           No document selected
         </EmptyTitle>
-        <EmptyDescription className="text-body">
+        <EmptyDescription>
           Choose an item from the case file to open it here.
         </EmptyDescription>
       </EmptyHeader>

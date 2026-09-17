@@ -135,139 +135,238 @@ export function caseFilePdfSrc(node: CaseFileNode): string | undefined {
   return node.page ? `${node.href}#page=${node.page}` : node.href;
 }
 
-function filed(
-  sectionNumber: string,
-  href: string,
-  items: { id: string; label: string }[]
-): CaseFileNode[] {
-  return items.map((item, index) => ({
-    id: item.id,
-    number: `${sectionNumber}.${index + 1}`,
-    label: item.label,
-    href,
-    page: index + 2,
-  }));
-}
+type Filed = {
+  id: string;
+  label: string;
+  href: string;
+  /** 1-based page in `href`. Absent when the whole file is the document. */
+  page?: number;
+};
 
 /**
- * QA case file. The nine-category spine is fixed. Child labels match the
- * dummy PDF pack filed under each category.
+ * The case file registry (PRD §6.2): sections in the prescribed order, each
+ * holding its documents in the prescribed order. Two levels, never deeper.
+ * Display names follow the registry; where a type has several instances they
+ * sit consecutively and are told apart by their variable part or a count.
+ *
+ * A section with nothing in it is left out of the tree, and sections are
+ * numbered as shown, so the numbers a reader sees always run 1, 2, 3.
+ * Registry sections with no document on this prototype case: Additional
+ * Filings, Mandatory Submissions, Court Evidence, Notes, Bail Documents.
  */
-export const CASE_FILE_TREE: CaseFileNode[] = [
-  {
-    id: "complaint",
-    number: "1",
-    label: "Complaint",
-    href: CASE_FILE_PDF.complaint,
-  },
+const REGISTRY: { id: string; label: string; items: Filed[] }[] = [
   {
     id: "initial-filings",
-    number: "2",
-    label: "Initial filings",
-    children: filed("2", CASE_FILE_PDF.initialFilings, [
-      { id: "legal-demand-notice", label: "Legal demand notice" },
+    label: "Initial Filings",
+    items: [
+      {
+        id: "dishonoured-cheque",
+        label: "Cheque",
+        href: CASE_FILE_PDF.initialFilings,
+        page: 4,
+      },
+      {
+        id: "cheque-return-memo",
+        label: "Cheque Return Memo",
+        href: CASE_FILE_PDF.initialFilings,
+        page: 5,
+      },
+      {
+        id: "legal-demand-notice",
+        label: "Demand Notice",
+        href: CASE_FILE_PDF.initialFilings,
+        page: 2,
+      },
       {
         id: "proof-of-dispatch",
-        label: "Proof of dispatch of legal demand notice",
+        label: "Proof of dispatch of demand notice",
+        href: CASE_FILE_PDF.initialFilings,
+        page: 3,
       },
-      { id: "dishonoured-cheque", label: "Dishonoured cheque" },
-      { id: "cheque-return-memo", label: "Cheque return memo" },
-    ]),
+    ],
   },
   {
     id: "affidavits",
-    number: "3",
     label: "Affidavits",
-    children: filed("3", CASE_FILE_PDF.affidavits, [
+    items: [
       {
         id: "affidavit-223-bnss",
-        label:
-          "Affidavit relating to examination of complainant under section 223 BNSS",
+        label: "Affidavit under Section 223 BNSS",
+        href: CASE_FILE_PDF.affidavits,
+        page: 2,
       },
       {
         id: "affidavit-225-bnss",
-        label: "Affidavit supporting inquiry under section 225 BNSS",
+        label: "Affidavit under Section 225 BNSS",
+        href: CASE_FILE_PDF.affidavits,
+        page: 3,
       },
       {
         id: "pw1-chief-affidavit-145",
-        label:
-          "PW-1 chief affidavit under section 145 of the Negotiable Instruments Act",
+        label: "Affidavit under Section 145 NI Act",
+        href: CASE_FILE_PDF.affidavits,
+        page: 4,
       },
-    ]),
+    ],
   },
   {
     id: "vakalats",
-    number: "4",
     label: "Vakalats",
-    children: filed("4", CASE_FILE_PDF.vakalats, [
-      { id: "pip-affidavit-1", label: "Party-in-person affidavit 1" },
-      { id: "vakalatnama-1", label: "Vakalatnama 1 (complainant)" },
-      { id: "vakalatnama-2", label: "Vakalatnama 2 (accused)" },
-    ]),
+    items: [
+      {
+        id: "vakalatnama-1",
+        label: "Vakalatnama · Adv. Ramesh Menon",
+        href: CASE_FILE_PDF.vakalats,
+        page: 3,
+      },
+      {
+        id: "vakalatnama-2",
+        label: "Vakalatnama · Adv. P. Balachandran",
+        href: CASE_FILE_PDF.vakalats,
+        page: 4,
+      },
+    ],
   },
   {
     id: "evidence-complainant",
-    number: "5",
-    label: "Evidence of complainant",
-    children: filed("5", CASE_FILE_PDF.evidenceComplainant, [
-      { id: "witness-deposition-pw1", label: "PW-1 deposition" },
-      { id: "witness-deposition-pw2", label: "PW-2 deposition" },
+    label: "Evidence of Complainant",
+    items: [
+      {
+        id: "witness-deposition-pw1",
+        label: "Deposition of PW-1",
+        href: CASE_FILE_PDF.evidenceComplainant,
+        page: 2,
+      },
+      {
+        id: "witness-deposition-pw2",
+        label: "Deposition of PW-2",
+        href: CASE_FILE_PDF.evidenceComplainant,
+        page: 3,
+      },
       {
         id: "exhibit-index-p1-p6",
-        label: "Complainant exhibit index P1-P6",
+        label: "Exhibit P1",
+        href: CASE_FILE_PDF.evidenceComplainant,
+        page: 4,
       },
-      { id: "cross-examination-record", label: "Cross-examination record" },
-    ]),
-  },
-  {
-    id: "evidence-accused",
-    number: "6",
-    label: "Evidence of accused",
-    children: filed("6", CASE_FILE_PDF.evidenceAccused, [
-      { id: "defence-witness-list", label: "Defence witness list" },
-      { id: "witness-deposition-dw1", label: "DW-1 deposition" },
-      { id: "exhibit-index-d1-d3", label: "Defence exhibit index D1-D3" },
-    ]),
-  },
-  {
-    id: "payment-receipts",
-    number: "7",
-    label: "Payment receipts",
-    children: filed("7", CASE_FILE_PDF.paymentReceipts, [
-      { id: "case-filing-payment", label: "Case filing payment receipt" },
-      { id: "summons-payment-receipt", label: "Summons process fee receipt" },
-      { id: "witness-process-fee", label: "Witness process fee receipt" },
-      {
-        id: "partial-compensation-deposit",
-        label: "Partial compensation deposit receipt",
-      },
-    ]),
+    ],
   },
   {
     id: "examination-accused",
-    number: "8",
-    label: "Examination of accused",
-    children: filed("8", CASE_FILE_PDF.examinationAccused, [
-      { id: "plea", label: "Plea record" },
+    label: "313 Examination and Plea of Accused",
+    items: [
       {
-        id: "questionnaire-351-bnss",
-        label: "Questionnaire under section 351 BNSS",
+        id: "plea",
+        label: "313 Examination and Plea · Anand Traders",
+        href: CASE_FILE_PDF.examinationAccused,
+        page: 2,
       },
+    ],
+  },
+  {
+    id: "written-statement-accused",
+    label: "Written Statement by Accused",
+    items: [
       {
         id: "signed-statement-accused",
-        label: "Signed statement of accused",
+        label: "Written Statement · Anand Traders",
+        href: CASE_FILE_PDF.examinationAccused,
+        page: 4,
+      },
+    ],
+  },
+  {
+    id: "evidence-accused",
+    label: "Evidence of Accused",
+    items: [
+      {
+        id: "witness-deposition-dw1",
+        label: "Deposition of DW-1",
+        href: CASE_FILE_PDF.evidenceAccused,
+        page: 3,
       },
       {
-        id: "defence-evidence-election",
-        label: "Defence evidence election memo",
+        id: "exhibit-index-d1-d3",
+        label: "Exhibit D1",
+        href: CASE_FILE_PDF.evidenceAccused,
+        page: 4,
       },
-    ]),
+    ],
+  },
+  {
+    id: "pending-applications",
+    label: "Pending Applications",
+    items: [
+      {
+        id: "application-production-return-memo",
+        label: "Production of documents",
+        href: "/case-file/17-application-production-return-memo.pdf",
+      },
+    ],
+  },
+  {
+    id: "disposed-applications",
+    label: "Disposed Applications",
+    items: [
+      {
+        id: "application-advancement",
+        label: "Advancement/reschedule · CMP 214/2025",
+        href: "/case-file/14-application-advancement.pdf",
+      },
+      {
+        id: "application-additional-witnesses",
+        label: "Others · CMP 236/2025",
+        href: "/case-file/15-application-additional-witnesses.pdf",
+      },
+      {
+        id: "application-withdrawal",
+        label: "Withdrawal · CMP 241/2025",
+        href: "/case-file/16-application-withdrawal.pdf",
+      },
+    ],
+  },
+  {
+    id: "memos",
+    label: "Memos",
+    items: [
+      {
+        id: "memo-cheque-calculation",
+        label: "Memo",
+        href: "/case-file/10-memo-cheque-calculation.pdf",
+      },
+    ],
+  },
+  {
+    id: "processes",
+    label: "Processes",
+    items: [
+      {
+        id: "process-summons",
+        label: "Summons",
+        href: CASE_FILE_PDF.orders,
+        page: 3,
+      },
+    ],
+  },
+  {
+    id: "payment-receipts",
+    label: "Payment Receipts",
+    items: [
+      "case-filing-payment",
+      "summons-payment-receipt",
+      "witness-process-fee",
+      "partial-compensation-deposit",
+    ].map((id, index) => ({
+      id,
+      label: `Payment Receipt ${index + 1}`,
+      href: CASE_FILE_PDF.paymentReceipts,
+      page: index + 2,
+    })),
   },
   {
     id: "orders",
-    number: "9",
     label: "Orders",
-    children: filed("9", CASE_FILE_PDF.orders, [
+    items: [
       { id: "order-cognizance", label: "Order taking cognizance" },
       { id: "order-issuing-summons", label: "Order issuing summons" },
       {
@@ -276,7 +375,7 @@ export const CASE_FILE_TREE: CaseFileNode[] = [
       },
       {
         id: "order-day-evidence-complainant",
-        label: "Order of the day - evidence of complainant",
+        label: "Order of the day · evidence of complainant",
       },
       {
         id: "order-closing-complainant-evidence",
@@ -284,7 +383,7 @@ export const CASE_FILE_TREE: CaseFileNode[] = [
       },
       {
         id: "order-day-351-examination",
-        label: "Order of the day - section 351 examination",
+        label: "Order of the day · section 351 examination",
       },
       {
         id: "order-closing-defence-evidence",
@@ -292,6 +391,38 @@ export const CASE_FILE_TREE: CaseFileNode[] = [
       },
       { id: "order-reserving-judgment", label: "Order reserving judgment" },
       { id: "judgment", label: "Judgment and sentence order" },
-    ]),
+    ].map((item, index) => ({
+      ...item,
+      href: CASE_FILE_PDF.orders,
+      page: index + 2,
+    })),
   },
+];
+
+/** Complaint is the registry's first section and always a single document, so
+ *  it stands as a leaf rather than a folder of one. */
+export const CASE_FILE_TREE: CaseFileNode[] = [
+  {
+    id: "complaint",
+    number: "1",
+    label: "Complaint",
+    href: CASE_FILE_PDF.complaint,
+  },
+  ...REGISTRY.filter((section) => section.items.length > 0).map(
+    (section, index): CaseFileNode => {
+      const number = String(index + 2);
+      return {
+        id: section.id,
+        number,
+        label: section.label,
+        children: section.items.map((item, itemIndex) => ({
+          id: item.id,
+          number: `${number}.${itemIndex + 1}`,
+          label: item.label,
+          href: item.href,
+          page: item.page,
+        })),
+      };
+    }
+  ),
 ];
