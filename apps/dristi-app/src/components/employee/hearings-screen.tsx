@@ -1,16 +1,12 @@
 "use client";
 
 import * as React from "react";
-import {
-  CalendarX2Icon,
-  SearchXIcon,
-  VideoIcon,
-} from "lucide-react";
+import { CalendarX2Icon, SearchXIcon, VideoIcon } from "lucide-react";
 
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { HearingOverviewDialog } from "@/components/employee/hearing-overview-dialog";
 import {
-  HearingCaseLink,
+  HearingCaseButton,
   HearingRowActions,
   HearingsTable,
 } from "@/components/employee/hearings-table";
@@ -19,7 +15,6 @@ import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { useCourtRole } from "@/components/employee/use-court-role";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { useHearingSession } from "@/components/employee/use-hearing-session";
-import { QueueItemRow } from "@/components/employee/queue-item-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +25,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { CourtFilters } from "@/components/employee/court-filters";
 import {
   Tooltip,
   TooltipContent,
@@ -38,7 +32,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { CourtRole } from "@/lib/employee/content";
-import { seatHasBenchControls } from "@/lib/employee/court-role";
 import {
   markHearingEnded,
   markHearingOngoing,
@@ -65,6 +58,8 @@ import {
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
 import { Identifier } from "@/components/chrome/identifier";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
+import { CourtFilters } from "@/components/employee/court-filters";
 
 /**
  * Today's hearings — the court's cause list for the day it is sitting.
@@ -103,47 +98,80 @@ export function HearingsScreen() {
      the three writes a court record; that part of the bargain is unchanged. */
   const session = useHearingSession();
   const [liveMessage, setLiveMessage] = React.useState<string | null>(null);
-  /* The matter the bench has called and is reading, held as an id rather than a row:
-     the row it names has just changed status, and a copy taken at click time would
+  /* The matter being read over the list — opened by the cause title, or by the call
+     that also marks it ongoing. Held as an id rather than a row because in the second
+     case the row it names has just changed status, and a copy taken at click time would
      show the overlay a listing that is still scheduled. */
   const [openHearingId, setOpenHearingId] = React.useState<string | null>(null);
 
   const listed = withHearingSession(hearingsForDay(activeDay, today), session);
   const rows = filterHearings(listed, filters);
 
-  /* All three announcements stay with the list, because the bench stays with it —
-     Start hearing opens an overlay over this screen rather than navigating off it.
-     The overlay names the matter and its new chip on open, so the line is a second
-     confirmation for a reader who dismisses it, not the only one.
-     None of the three runs in a seat that does not run the sitting: the controls that
-     call them are simply not on the row, so the overlay never opens there either. The
-     case overview is still one click away for that seat — the cause title, which reads
-     rather than calls, and goes to the page. */
-  function startHearing(hearing: CourtHearing) {
-    markHearingOngoing(hearing.id);
+  /**
+   * Reading a matter without calling it — the cause title on the row, and the row
+   * itself, which delegates to it.
+   *
+   * The whole of it is opening the overlay. It writes no session mark, announces
+   * nothing and touches no status: a reader who opens item 4 to see what it is has not
+   * started hearing item 4, and a screen that recorded otherwise would be lying about
+   * the one thing this list is for. That is also why it needs no seat test — reading is
+   * not one of the acts a seat has or lacks (`lib/employee/court-role.ts`), so the
+   * typist gets the same overview from the same cell the bench does.
+   */
+  function openCase(hearing: CourtHearing) {
     setOpenHearingId(hearing.id);
-    setLiveMessage(`Hearing started for ${causeTitle(hearing)}`);
   }
 
   /**
-   * The typist walking into a listing's order.
+   * Calling a matter. It marks the listing ongoing and nothing else.
    *
-   * For the bench, opening the composer is just navigation — the sitting is ended from
-   * the row, deliberately, and a trip to type an order must not do it by accident.
+   * **It does not open the overlay** (owner, 2026-09-12). It used to, on the argument
+   * that the bench would want the matter in front of them the moment they called it —
+   * but that made one press do two things, and the second one was the one nobody asked
+   * for: a sheet over the day, to be dismissed, before the next item could be called.
+   * Calling the list is a run of presses down a column, and a modal between each of them
+   * is a modal in the way. Reading a matter is its own act, with its own control on the
+   * same row (`openCase`), and now they are cleanly separated — press to call, click the
+   * name to read.
    *
-   * The typist has no session controls at all, so the trip is the whole sitting: the
-   * matter is marked heard on the way in, which is what makes the row read Completed
-   * when the trail brings them back. Marking it here rather than on the order screen is
-   * what keeps the composer honest — it opens already knowing the sitting is over, so
-   * the order it opens on is the finished one (`order-demo.ts`) rather than an empty
-   * composer that fills in underneath the typing.
+   * The row says it happened without any of that: the chip turns Ongoing, the slot the
+   * press landed on becomes End hearing under the pointer, and the Orders control opens.
+   * Three changes on the row the eye is already on, which is what an in-place outcome is
+   * supposed to look like.
    *
-   * Still not a court record. It is the same screen mark End hearing makes.
+   * All three marks announce from here, and here is where the announcement belongs now
+   * that none of them opens anything: the list is what stays on screen. None of the
+   * three runs in a seat that does not run the sitting — the controls that call them are
+   * simply not on the row, so the mark never happens there.
    */
-  function openOrder(hearing: CourtHearing) {
-    if (seatHasBenchControls(seat)) return;
-    markHearingEnded(hearing.id);
+  function startHearing(hearing: CourtHearing) {
+    markHearingOngoing(hearing.id);
+    setLiveMessage(`Hearing started for ${causeTitle(hearing)}`);
   }
+
+  /*
+   * **Opening an order marks nothing, since 2026-09-15.**
+   *
+   * The typist's trip into a listing used to mark the matter heard on the way in, so the
+   * row would read Completed when the trail brought them back. Two things were wrong with
+   * it, and the owner hit the second: *"whenever I click on an order icon and land in the
+   * order page, on default the order is already typed out. That shouldn't happen."*
+   *
+   * It was doing exactly that, and this line was why. `initialOrderDraft` opens a
+   * **completed** listing on a written order (D23) — the roll called, the applications
+   * allowed, a paragraph per purpose — and it reads the *live* status, which this made
+   * `completed` at the instant of arrival. So the typist reached a composer that had
+   * already written the order they came to type, and the words were not theirs.
+   *
+   * The other thing was quieter and worse: Completed is a claim about a sitting, and
+   * opening a screen is not a sitting. "What a court record must not do is quietly imply a
+   * fact nobody entered" is this area's own rule, and a status set by navigation breaks it.
+   *
+   * Nothing takes its place, because nothing needs to: a listing the typist has actually
+   * dictated on now carries the draft mark in the Orders column (`hearings-table.tsx`), so
+   * the trail is drawn by work that exists rather than by a trip that happened. A listing
+   * opened and left shows no mark, which is the truth about it.
+   */
 
   function endHearing(hearing: CourtHearing) {
     markHearingEnded(hearing.id);
@@ -167,7 +195,8 @@ export function HearingsScreen() {
   /* Read from `listed`, not from `rows`: a filter set to Scheduled drops the matter
      the bench has just called out of the filtered list, and the overlay reading it
      should not close because of that. */
-  const openHearing = listed.find((hearing) => hearing.id === openHearingId) ?? null;
+  const openHearing =
+    listed.find((hearing) => hearing.id === openHearingId) ?? null;
 
   function changeFilters(next: HearingFilters) {
     setFilters(next);
@@ -238,20 +267,20 @@ export function HearingsScreen() {
                 <HearingsTable
                   rows={pageRows}
                   seat={seat}
+                  onOpenCase={openCase}
                   onStartHearing={startHearing}
                   onEndHearing={endHearing}
                   onPassOver={passOverHearing}
-                  onOpenOrder={openOrder}
                 />
               </div>
               <div className="md:hidden">
                 <HearingsItemList
                   rows={pageRows}
                   seat={seat}
+                  onOpenCase={openCase}
                   onStartHearing={startHearing}
                   onEndHearing={endHearing}
                   onPassOver={passOverHearing}
-                  onOpenOrder={openOrder}
                 />
               </div>
             </div>
@@ -280,11 +309,20 @@ export function HearingsScreen() {
         )}
       </div>
 
-      {/* Focus goes back to the control that opened it, which by then reads End
-          hearing — same slot, same node, the next move on the same matter. Radix
-          restores it; nothing here has to. */}
+      {/* Focus goes back to the cause title that opened it — the only thing that opens
+          it now. Radix restores that; nothing here has to. */}
       <HearingOverviewDialog
         hearing={openHearing}
+        seat={seat}
+        /* The same two handlers the row presses, so a sitting called from the overlay
+           and one called from the row are one act with one set of marks — including
+           the announcement, which the overlay makes again inside itself because a
+           modal hides this screen's announcer from assistive tech.
+           Neither handler opens anything, which is what lets them be shared: pressed
+           from in here the overlay is already open and stays open, and pressed from the
+           row it does not open. */
+        onStartHearing={startHearing}
+        onEndHearing={endHearing}
         onOpenChange={(open) => {
           if (!open) setOpenHearingId(null);
         }}
@@ -456,6 +494,7 @@ function HearingsEmpty({
 function HearingsItemList({
   rows,
   seat,
+  onOpenCase,
   onStartHearing,
   onEndHearing,
   onPassOver,
@@ -463,10 +502,12 @@ function HearingsItemList({
 }: {
   rows: CourtHearing[];
   seat: CourtRole;
+  onOpenCase: (hearing: CourtHearing) => void;
   onStartHearing: (hearing: CourtHearing) => void;
   onEndHearing: (hearing: CourtHearing) => void;
   onPassOver: (hearing: CourtHearing) => void;
-  onOpenOrder: (hearing: CourtHearing) => void;
+  /** Optional, and unsupplied: see the note where `openOrder` used to be. */
+  onOpenOrder?: (hearing: CourtHearing) => void;
 }) {
   return (
     <ul className="flex flex-col gap-3">
@@ -474,17 +515,24 @@ function HearingsItemList({
         const complainant = counselFor(hearing, "complainant");
         const accused = counselFor(hearing, "accused");
         return (
-          <QueueItemRow
-            key={hearing.id}
-            className="flex flex-col gap-2"
-          >
-            <p className="min-w-0 text-body-compact font-medium">
-              <span className="text-muted-foreground tabular-nums">
+          <QueueItemRow key={hearing.id} className="flex flex-col gap-2">
+            {/* The serial and the cause stay one reading — a block opener would orphan
+                the number on a line of its own. It is a flex row rather than inline
+                flow because the opener is now a button, and a button does not flow
+                between words the way an anchor's text did: the row keeps the number
+                at the left and lets the cause wrap beside it. `min-h-0` drops the
+                40×40 floor `rowOpenerClass` sets for the table cell — on a phone the
+                whole item is the target (`rowActivation`), and a 40px box here would
+                only lift the title off the number's baseline. */}
+            <p className="flex min-w-0 items-baseline gap-1 text-body-compact font-medium">
+              <span className="shrink-0 text-muted-foreground tabular-nums">
                 {hearing.item}.
-              </span>{" "}
-              {/* Stays inline: the serial and the cause are one reading here, and a
-                  block box would orphan the number on its own line. */}
-              <HearingCaseLink hearing={hearing} className="w-fit" />
+              </span>
+              <HearingCaseButton
+                hearing={hearing}
+                onOpen={onOpenCase}
+                className="min-h-0 w-fit"
+              />
             </p>
             <Badge
               variant={courtHearingStatusVariant(hearing.status)}
