@@ -19,7 +19,7 @@ import { CaseHearingsSection } from "@/components/cases/hearings-register";
 import { CaseOrders, OrdersLoading } from "@/components/cases/case-orders";
 import { CaseOverview } from "@/components/cases/case-overview";
 import { CaseParties } from "@/components/cases/case-parties";
-import { CaseServiceOfProcess } from "@/components/cases/case-service-of-process";
+import { CaseProcessStatus } from "@/components/cases/case-process-status";
 import { CaseTimeline } from "@/components/cases/case-timeline";
 import {
   CaseSectionTabs,
@@ -118,7 +118,7 @@ export default async function CaseDetailPage(
         ) : section === "complaint" ? (
           <CaseComplaint record={record} partId={partId} />
         ) : section === "notice-process-status" ? (
-          <CaseServiceOfProcess record={record} />
+          <CaseProcessStatus record={record} />
         ) : section === "hearings" ? (
           <CaseHearingsSection
             caseId={record.id}
