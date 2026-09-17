@@ -2,24 +2,23 @@
 
 import * as React from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
-import { DocumentPreview } from "@/components/cases/document-preview";
-import { SignMethodDialog } from "@/components/employee/sign-method-dialog";
-import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
 import {
-  useHeld,
-  useSignStepHandoff,
-} from "@/components/employee/use-sign-step-handoff";
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
+import { DocumentPreview } from "@/components/cases/document-preview";
+import {
+  SIGN_SCENES,
+  SIGN_STAGES,
+  SignatureActions,
+  SignatureStage,
+  type SignStage,
+} from "@/components/employee/sign-method-stage";
+import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
+import { useHeldRecord } from "@/components/employee/use-held-record";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
+import { Dialog } from "@/components/ui/dialog";
 import { causeTitle } from "@/lib/employee/hearings";
 import {
   buildSignOrderDocument,
@@ -31,8 +30,9 @@ import {
   type SignOrderDocument,
 } from "@/lib/employee/sign-orders";
 import { Identifier } from "@/components/chrome/identifier";
+import { DialogDescription } from "@/components/ui/dialog";
 
-/** What the paper is called in the signature overlay's copy. */
+/** What the paper is called in the signature stage's copy. */
 const NOUN = "order";
 
 /**
@@ -49,23 +49,22 @@ function orderSubject(order: SignOrder): string {
 /**
  * One order, read and then signed — the single-order path off the signing queue.
  *
- * Two overlays, and each gets its own size for the reason `SignFormDialog` gives. Reading
- * is the wide step: the document *is* the task, so it is a `height="fill"`
- * `DocumentPreview` in a tall overlay. Signing is the narrow step: a note saying what is
- * about to be signed, the choice of how (e-sign or upload), and Submit.
+ * **One overlay, two stages** (owner, 2026-09-16). Reading is the wide stage: the
+ * document *is* the task, so it is a `height="fill"` `DocumentPreview` on the canvas.
+ * Signing is the narrow stage: what is about to be signed, the choice of how, and Submit,
+ * in a reading-width column centred in the same window. The window itself does not move —
+ * same width, same height, the header and footer standing still while the stage travels
+ * in from the right and back from the left.
  *
- * **The signature overlay is owner-requested (2026-09-06).** The original build took Sign
+ * It was two `Dialog`s until now, closed and opened in sequence so the second played an
+ * entrance. See `sign-method-stage.tsx` for why that was the right complaint and the
+ * wrong cure.
+ *
+ * **The signature stage is owner-requested (2026-09-06).** The original build took Sign
  * and publish as the act itself, because an order is signed by the bench already logged
  * in and the 1.0 reference asked nothing about how. The owner now wants the same choice
- * the forms and bail-bond queues ask, reached from that same button — so the first
- * overlay still says Sign and publish, and the second is where the signature is chosen.
- *
- * They are two Dialogs, sequenced, rather than two steps inside one. Swapping the
- * content of an already-open overlay skips the DS enter animation and jumps the box
- * from the document size to the method size in one frame — which is how Add signature
- * used to come up. `useSignStepHandoff` closes the document first, then opens the
- * method dialog after that close has finished, so one focus scope is kept at a time
- * and the second overlay fades and zooms in.
+ * the forms and bail-bond queues ask, reached from that same button — so the footer still
+ * says Sign and publish, and the stage it opens is where the signature is chosen.
  *
  * A signed order opens here too, read-only. It is the only way to see what was signed
  * without leaving the screen, and offering it costs nothing but the button.
@@ -85,85 +84,67 @@ export function SignOrderDialog({
   onSign: (order: SignOrder) => void;
   onReturnFocus: () => void;
 }) {
-  const held = useHeld(order);
-  const handoff = useSignStepHandoff(order !== null);
-  const choice = useSignatureChoice(NOUN);
-
-  React.useEffect(() => {
-    if (!order) return;
-    choice.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on identity, not on every choice render
-  }, [order?.id]);
-
-  if (!held) return null;
-
-  function dismiss() {
-    onOpenChange(null);
-  }
+  const { held, opening } = useHeldRecord(order);
 
   return (
-    <>
-      <Dialog
-        open={handoff.readOpen}
-        onOpenChange={(open) => handoff.onReadOpenChange(open, dismiss)}
-      >
-        <SignOrderReadBody
+    <Dialog
+      open={order !== null}
+      onOpenChange={(open) => {
+        if (!open) onOpenChange(null);
+      }}
+    >
+      {/* Keyed on the opening, not on the order: a fresh window starts on the document
+          with an empty signature, and the one that is leaving keeps the stage the bench
+          left it on for the length of its exit. */}
+      {held ? (
+        <SignOrderBody
+          key={opening}
           order={held}
-          onProceed={handoff.goToSign}
-          onCloseAutoFocus={(event) =>
-            handoff.onReadCloseAutoFocus(event, onReturnFocus)
-          }
+          onSign={onSign}
+          onReturnFocus={onReturnFocus}
         />
-      </Dialog>
-
-      <SignMethodDialog
-        open={handoff.signOpen}
-        onOpenChange={(open) => handoff.onSignOpenChange(open, dismiss)}
-        onCloseAutoFocus={(event) =>
-          handoff.onSignCloseAutoFocus(event, onReturnFocus)
-        }
-        noun={NOUN}
-        subject={orderSubject(held)}
-        warning="Signing publishes this order and cannot be reversed."
-        download={{
-          prompt: "Want to read the order again?",
-          onDownload: () => downloadSignOrderDocument(held),
-        }}
-        choice={choice}
-        onBack={handoff.goToRead}
-        onSubmit={() => onSign(held)}
-      />
-    </>
+      ) : null}
+    </Dialog>
   );
 }
 
-function SignOrderReadBody({
+function SignOrderBody({
   order,
-  onProceed,
-  onCloseAutoFocus,
+  onSign,
+  onReturnFocus,
 }: {
   order: SignOrder;
-  onProceed: () => void;
-  onCloseAutoFocus: (event: Event) => void;
+  onSign: (order: SignOrder) => void;
+  onReturnFocus: () => void;
 }) {
+  const flow = useStagedFlow<SignStage>({
+    order: SIGN_STAGES,
+    scene: SIGN_SCENES,
+  });
+  const choice = useSignatureChoice(NOUN);
   const document = React.useMemo(() => buildSignOrderDocument(order), [order]);
   const pending = order.status === "pending-signature";
+  const reading = flow.stage === "read";
 
   return (
-    <ChromeDialogContent
-      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh]"
-      onCloseAutoFocus={onCloseAutoFocus}
-    >
-      {/* `pr-16` keeps the title clear of the close button the DS places top-right. */}
-      <DialogHeader className="shrink-0 gap-2 p-6 pr-16">
-        <div className="flex flex-wrap items-center gap-2">
-          <DialogTitle className="text-title-s font-semibold">
-            {signOrderTypeLabel(order.type)}
-          </DialogTitle>
-          <Badge variant={pending ? "warning" : "success"}>
-            {signOrderStatusLabel(order.status)}
-          </Badge>
-        </div>
+    <StagedOverlay
+      /* The width and the height the *document* needs, held for both stages. A definite
+         height at every width rather than `md:` and up: the facsimile is longer than any
+         phone, so the reading stage stands at 85dvh there too, and a signature stage that
+         sized itself would shrink the panel and slide it up the screen — the one thing
+         the frame exists to prevent. With a definite height the canvas needs no floor. */
+      className="h-[85dvh] sm:max-w-4xl"
+      title={reading ? signOrderTypeLabel(order.type) : "Add signature"}
+      titleRef={flow.titleRef}
+      titleAside={
+        <Badge variant={pending ? "warning" : "success"}>
+          {signOrderStatusLabel(order.status)}
+        </Badge>
+      }
+      /* The record's own line, on both stages. It is the order that does not change when
+         the stage does, and saying it again under "Add signature" is what keeps the
+         signature attached to the paper the bench just read. */
+      description={
         <DialogDescription className="text-body-compact text-muted-foreground">
           {causeTitle(order)} <span aria-hidden>· </span>
           {/* No copy control inside the dialog's accessible description. */}
@@ -173,11 +154,38 @@ function SignOrderReadBody({
             ? `Added ${formatSignOrderDate(order.addedOn)}`
             : `Signed ${formatSignOrderDate(order.signedOn ?? order.addedOn)}`}
         </DialogDescription>
-      </DialogHeader>
-      <Separator />
-      <div className="flex min-h-0 flex-1 flex-col p-6">
+      }
+      sceneKey={flow.sceneKey}
+      motion={flow.motion}
+      /* The row that opened this overlay is gone by the time it closes — signing takes it
+         out of the queue — so the screen says where focus goes rather than Radix. */
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        onReturnFocus();
+      }}
+      footer={
+        reading ? (
+          pending ? (
+            <Button type="button" onClick={() => flow.go("sign")}>
+              Sign and publish
+            </Button>
+          ) : null
+        ) : (
+          <SignatureActions
+            choice={choice}
+            onBack={() => flow.go("read")}
+            onSubmit={() => onSign(order)}
+          />
+        )
+      }
+    >
+      {reading ? (
         <DocumentPreview
-          className="min-h-96 md:min-h-0"
+          /* The stage canvas is a flex column, so the preview only takes the height the
+             window can spare if it says so: a flex item's height is never stretched for
+             it. The grid callers get this from a `minmax(0,1fr)` row; here it is
+             `flex-1`, and `min-h-0` lets it shrink rather than pushing the footer. */
+          className="min-h-0 flex-1"
           height="fill"
           title={document.title}
           source={{
@@ -189,16 +197,19 @@ function SignOrderReadBody({
             label: `Download the ${document.title.toLowerCase()} order`,
           }}
         />
-      </div>
-
-      {pending ? (
-        <DialogFooter className="mx-0 mb-0 shrink-0">
-          <Button type="button" onClick={onProceed}>
-            Sign and publish
-          </Button>
-        </DialogFooter>
-      ) : null}
-    </ChromeDialogContent>
+      ) : (
+        <SignatureStage
+          noun={NOUN}
+          subject={orderSubject(order)}
+          warning="Signing publishes this order and cannot be reversed."
+          download={{
+            prompt: "Want to read the order again?",
+            onDownload: () => downloadSignOrderDocument(order),
+          }}
+          choice={choice}
+        />
+      )}
+    </StagedOverlay>
   );
 }
 

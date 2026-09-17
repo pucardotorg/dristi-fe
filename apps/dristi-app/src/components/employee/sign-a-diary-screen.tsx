@@ -7,7 +7,6 @@ import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { SignADiaryDialog } from "@/components/employee/sign-a-diary-dialog";
 import { SignADiaryTable } from "@/components/employee/sign-a-diary-table";
-import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
   rowOpener,
   rowOpenerClass,
@@ -41,6 +40,7 @@ import {
   type ADiaryFilters,
 } from "@/lib/employee/sign-a-diary";
 import { Identifier } from "@/components/chrome/identifier";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 
 /**
  * The day the bench is sitting on is the reader's, not the server's — a court in Kollam
@@ -66,8 +66,8 @@ const readToday = () => isoDay(new Date());
  *
  * - **It is read a day at a time.** The one filter is a date, and it opens on the day the
  *   court is sitting, as the reference draws it. There is no "every day": the register is
- *   dated paper, and Clear returns to today rather than pouring three days into a table
- *   whose columns cannot tell them apart.
+ *   dated paper, and clearing the picker returns to today rather than pouring three days
+ *   into a table whose columns cannot tell them apart.
  * - **There is no bulk act.** The reference gives this queue no checkboxes, and it is
  *   right to: the two signing queues above it sign papers the court has already
  *   finished, while signing the diary means reading what was written and correcting it
@@ -194,7 +194,6 @@ export function SignADiaryScreen() {
           filters={filters}
           today={today}
           onChange={changeFilters}
-          onClear={showToday}
         />
 
         {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -281,26 +280,24 @@ export function SignADiaryScreen() {
  * button to put one on. Signing happens one entry at a time in the overlay, where the
  * teal already is. Nothing was promoted to fill the gap.
  *
- * "Show today" rather than the reference's "Clear search": it returns the register to
- * today rather than emptying a control, and it stays because the picker's own clear does
- * not say what clearing a mandatory day means.
+ * There is no "Show today" beside the picker either. The register always shows one day,
+ * so clearing the calendar means today, and naming a second day is already the picker's
+ * job. A way back from an empty other day lives on that empty state, not on this row.
  */
 function SignADiaryFilters({
   filters,
   today,
   onChange,
-  onClear,
 }: {
   filters: ADiaryFilters;
   today: string;
   onChange: (filters: ADiaryFilters) => void;
-  onClear: () => void;
 }) {
   const day = resolveADiaryDay(filters, today);
 
   return (
     <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
+      className="flex min-w-0 flex-col"
       onSubmit={(event) => event.preventDefault()}
     >
       {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names a
@@ -309,7 +306,7 @@ function SignADiaryFilters({
 
           The `key` is not decoration. `DatePicker` treats `value === undefined` as "I am
           uncontrolled" and falls back to its own last selection, so a date driven from
-          outside — Clear returning the filter to today — would keep showing the day the
+          outside — the empty state's return to today — would keep showing the day the
           bench had picked. Remounting on the value is the only fix that does not edit the
           primitive; upstream DS bug, logged in the build report. */}
       <div className="flex min-w-0 flex-col gap-2">
@@ -329,13 +326,6 @@ function SignADiaryFilters({
           />
         </div>
       </div>
-
-      {/* The only button left on the row, and it is not an undo: the register always
-          shows exactly one day, so there is no "no day" for a clear to return to. It
-          names what it does instead. */}
-      <Button type="button" variant="ghost" onClick={onClear}>
-        Show today
-      </Button>
     </form>
   );
 }
@@ -430,10 +420,7 @@ function SignADiaryItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((entry) => (
-        <QueueItemRow
-          key={entry.id}
-          className="flex flex-col gap-2"
-        >
+        <QueueItemRow key={entry.id} className="flex flex-col gap-2">
           <button
             type="button"
             onClick={() => onOpen(entry)}

@@ -119,12 +119,6 @@
     "mt-5",
     "py-10"
   ],
-  "src/components/employee/sign-bulk-confirm-dialog.tsx": [
-    "pr-14",
-    "pr-14",
-    "py-5",
-    "py-5"
-  ],
   "src/components/filing/bail-application-dialog.tsx": [
     "gap-5",
     "gap-5",
