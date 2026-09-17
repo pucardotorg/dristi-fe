@@ -31,7 +31,6 @@ import {
   batchAction,
   filingStatusLabel,
   filingStatusVariant,
-  submissionKindLabel,
   submissionTypeLabel,
   submittedByName,
   submittedBySideLabel,
@@ -144,7 +143,7 @@ function BatchBody({
           <DialogTitle
             ref={titleRef}
             tabIndex={-1}
-            className="text-title font-semibold outline-none"
+            className="text-title-s font-semibold outline-none"
           >
             {step === "review"
               ? action.confirm(count)
@@ -162,17 +161,23 @@ function BatchBody({
             {step === "signed" ? "Signed" : filingStatusLabel(group.status)}
           </Badge>
         </div>
-        <DialogDescription className="text-body text-muted-foreground">
+        <DialogDescription className="text-body-compact text-muted-foreground">
           {step === "review"
             ? `${submittedBySideLabel(lead, peopleById)} · ${submittedByName(
                 lead,
                 peopleById
               )}`
             : step === "method"
-              ? "Choose how these submissions will be signed."
+              ? count === 1
+                ? "Choose how this application will be signed."
+                : "Choose how these applications will be signed."
               : step === "upload"
-                ? `One signed copy signs all ${count} submissions.`
-                : "These submissions are signed and ready to file."}
+                ? count === 1
+                  ? "Upload the signed copy."
+                  : `One signed copy signs all ${count} applications.`
+                : count === 1
+                  ? "This application is signed. Payment is next."
+                  : "These applications are signed. Payment is next."}
         </DialogDescription>
       </DialogHeader>
       <Separator />
@@ -194,15 +199,11 @@ function BatchBody({
                   className="items-start gap-3 p-4 hover:bg-card"
                 >
                   <ItemContent className="min-w-0 gap-1">
-                    <ItemTitle className="line-clamp-none text-body font-medium text-foreground">
-                      {submission.title}
+                    <ItemTitle className="line-clamp-none">
+                      {submissionTypeLabel(submission.type)}
                     </ItemTitle>
                     <ItemDescription className="line-clamp-none text-body-compact text-muted-foreground">
-                      {submissionKindLabel(submission.kind)}
-                      {" · "}
-                      {submissionTypeLabel(submission.type)}
-                      {" · "}
-                      {formatCaseDate(submission.addedOn)}
+                      Created {formatCaseDate(submission.addedOn)}
                     </ItemDescription>
                   </ItemContent>
                 </Item>
@@ -266,7 +267,7 @@ function BatchBody({
               <Banner variant="success">
                 Signatures added to {count} submissions.
               </Banner>
-              <p className="text-body text-muted-foreground">
+              <p className="text-body-compact text-muted-foreground">
                 Each one moves to Pending payment in the register, where the
                 court fee finishes the filing.
               </p>

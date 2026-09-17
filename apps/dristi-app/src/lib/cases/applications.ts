@@ -158,7 +158,7 @@ export function nextStepCopy(status: FilingStatus): string | null {
 }
 
 export function filingActionLabel(status: FilingStatus): string {
-  return nextStepCopy(status) ?? "View submission";
+  return nextStepCopy(status) ?? "View application";
 }
 
 /** Filings that still need a step from you — pin these above the register. */
@@ -187,9 +187,13 @@ export type BatchAction = {
  */
 const BATCH_ACTIONS: Partial<Record<FilingStatus, BatchAction>> = {
   "pending-signature": {
-    title: (count) => `${count} submissions need a signature`,
+    title: (count) =>
+      count === 1
+        ? "1 application needs a signature"
+        : `${count} applications need a signature`,
     cta: "Add signatures",
-    confirm: (count) => `Add signatures to ${count} submissions`,
+    confirm: (count) =>
+      count === 1 ? "Add signature" : `Add signatures to ${count} applications`,
   },
 };
 
