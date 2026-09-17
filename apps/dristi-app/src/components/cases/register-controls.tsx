@@ -190,4 +190,4 @@ export function useRecentRow() {
 
 /** On the `tr`: an outline draws around the whole row without moving it. */
 export const RECENT_ROW =
-  "rounded-lg outline-2 -outline-offset-2 outline-primary";
+  "rounded-lg outline -outline-offset-1 outline-primary";
