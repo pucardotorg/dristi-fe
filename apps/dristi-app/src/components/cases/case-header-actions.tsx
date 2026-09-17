@@ -21,7 +21,15 @@ import {
 import { ShareDialog } from "@/components/access/share-dialog";
 import type { AccessPerson } from "@/lib/access/content";
 import { useCaseBail } from "@/components/cases/case-bail-flow";
+import { DownloadCaseFileDialog } from "@/components/cases/download-case-file-dialog";
 import type { AccessCase } from "@/lib/access/content";
+
+/**
+ * Share access is out of v1 and returns in the next version (owner, Sept 17).
+ * The button, the dialog and their props all stay wired; flip this to bring
+ * the entry back.
+ */
+const SHARE_ACCESS_ENABLED = false;
 
 /**
  * Case-file header actions. Beyond Neer's own filings, this is the case-access hub:
@@ -31,10 +39,15 @@ import type { AccessCase } from "@/lib/access/content";
  */
 export function CaseHeaderActions({
   accessCase,
+  disposed = false,
   shareReadOnly = false,
   shareExtraPeople,
 }: {
   accessCase: AccessCase;
+  /** A disposed case still takes applications and documents (certified
+   *  copies, restoration, return of documents), but no fresh bail filings.
+   *  Working guess, open question Q-5. */
+  disposed?: boolean;
   /** The viewer holds only office access here — share becomes view-only. */
   shareReadOnly?: boolean;
   /** The case's own nama advocates and staff, derived server-side. */
@@ -42,25 +55,28 @@ export function CaseHeaderActions({
 }) {
   const bail = useCaseBail();
   const [shareOpen, setShareOpen] = React.useState(false);
+  const [downloadOpen, setDownloadOpen] = React.useState(false);
   const caseId = accessCase.id;
 
   return (
     <TooltipProvider>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="Share access to this case"
-              onClick={() => setShareOpen(true)}
-            >
-              <Share2Icon aria-hidden />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Share access to this case</TooltipContent>
-        </Tooltip>
+        {SHARE_ACCESS_ENABLED ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Share access to this case"
+                onClick={() => setShareOpen(true)}
+              >
+                <Share2Icon aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Share access to this case</TooltipContent>
+          </Tooltip>
+        ) : null}
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -68,17 +84,13 @@ export function CaseHeaderActions({
               type="button"
               variant="outline"
               size="icon"
-              aria-label="Download case file — not available yet"
-              aria-disabled="true"
-              className="cursor-not-allowed opacity-50"
-              onClick={(event) => event.preventDefault()}
+              aria-label="Download case file"
+              onClick={() => setDownloadOpen(true)}
             >
               <DownloadIcon aria-hidden />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">
-            Download case file — not available yet
-          </TooltipContent>
+          <TooltipContent side="bottom">Download case file</TooltipContent>
         </Tooltip>
 
         <DropdownMenu>
@@ -100,22 +112,26 @@ export function CaseHeaderActions({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                bail.openApplication();
-              }}
-            >
-              Raise bail application
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                bail.openBondDirect();
-              }}
-            >
-              Generate bail bond
-            </DropdownMenuItem>
+            {disposed ? null : (
+              <>
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    bail.openApplication();
+                  }}
+                >
+                  Raise bail application
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    bail.openBondDirect();
+                  }}
+                >
+                  Generate bail bond
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();
@@ -128,6 +144,13 @@ export function CaseHeaderActions({
         </DropdownMenu>
       </div>
 
+      <DownloadCaseFileDialog
+        open={downloadOpen}
+        onOpenChange={setDownloadOpen}
+        caseNumber={accessCase.caseNumber}
+      />
+
+      {SHARE_ACCESS_ENABLED ? (
       <ShareDialog
         open={shareOpen}
         onOpenChange={setShareOpen}
@@ -136,6 +159,7 @@ export function CaseHeaderActions({
         readOnly={shareReadOnly}
         extraPeople={shareExtraPeople}
       />
+      ) : null}
     </TooltipProvider>
   );
 }

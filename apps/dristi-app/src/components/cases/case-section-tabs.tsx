@@ -25,14 +25,14 @@ import { cn } from "@/lib/utils";
 const STRIP_LABEL = "Case file sections";
 
 /** The scrolling gutter the row sits in, and the rule under it. */
-const STRIP_ROW = "overflow-x-auto border-b border-border";
+const STRIP_ROW = "overflow-x-auto border-b border-hairline";
 
 /**
  * What this file sets on a destination, either side of the branch below: the
- * control height, no flex-grow so labels keep their own widths, and
- * `text-body` because these are screen copy rather than control chrome.
+ * control height and no flex-grow, so labels keep their own widths. Type
+ * stays the primitive's own compact size, as on every other tab strip.
  */
-const STRIP_ITEM = "h-10 flex-none px-3 text-body";
+const STRIP_ITEM = "h-10 flex-none px-3 text-body-compact";
 
 /**
  * `TabsTrigger`'s own resting appearance, for the branch that cannot use
@@ -90,7 +90,7 @@ export function CaseSectionTabs({
 
   if (!isNavSection(section)) {
     return (
-      <div className="flex min-w-0 flex-col gap-6">
+      <div className="flex min-w-0 flex-col gap-4">
         <div className={STRIP_ROW}>
           {/* `gap-1` and the transparent fill are the line TabsList's own
               metrics, so both rows land on the same grid. */}
@@ -121,7 +121,7 @@ export function CaseSectionTabs({
         if (!isCaseSection(value)) return;
         router.replace(caseSectionHref(caseId, value), { scroll: false });
       }}
-      className="flex min-w-0 flex-col gap-6"
+      className="flex min-w-0 flex-col gap-4"
     >
       <div className={STRIP_ROW}>
         <TabsList
@@ -169,7 +169,7 @@ export function SectionPending({ label }: { label: string }) {
         <EmptyTitle className="text-title-s font-semibold">
           {label} is not designed yet
         </EmptyTitle>
-        <EmptyDescription className="text-body">
+        <EmptyDescription>
           The case header is in place. This section of the file still needs to
           be built.
         </EmptyDescription>

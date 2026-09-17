@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeftIcon } from "lucide-react";
 
 import {
   ApplicationsLoading,
@@ -30,7 +28,6 @@ import {
   CaseSectionTabs,
   SectionPending,
 } from "@/components/cases/case-section-tabs";
-import { Button } from "@/components/ui/button";
 import { parseCaseFileDoc, parseCaseFileView } from "@/lib/cases/case-file";
 import {
   complaintTree,
@@ -103,16 +100,8 @@ export default async function CaseDetailPage(
           views of this one page, and a breadcrumb names pages, not tabs — moving
           between tabs must not move the trail (owner, Sept 9). */}
       <CaseBreadcrumbs caseId={record.id} caseNumber={record.caseNumber} />
-      <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
-        <div>
-          <Button variant="ghost" asChild>
-            <Link href="/cases">
-              <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-              Back to cases
-            </Link>
-          </Button>
-        </div>
-
+      {/* No "Back to cases" row: the trail above already carries that link. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-6 p-6 md:p-8">
         <CaseHeader
           record={record}
           hideLongPendingFlag={origin === "long-pending"}
