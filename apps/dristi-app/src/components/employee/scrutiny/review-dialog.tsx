@@ -164,6 +164,33 @@ export function ReviewDialog({
   );
   const total = Object.values(groups).reduce((n, v) => n + v.length, 0);
 
+  /**
+   * Field labels that **more than one raised item shares**, and therefore the only ones
+   * that still print the group they came from.
+   *
+   * The owner asked for the group gone (2026-09-17): *"it should just show 'mobile
+   * number' and complainant details can be removed, its confusing me"* — and for almost
+   * every field they are right, because 31 of the form's 36 labels are unique across the
+   * whole filing and naming the group is words the reader already knows.
+   *
+   * Five are not. `Full name`, `Mobile number` and `Permanent address` each exist under
+   * both Complainant Details and Accused Details, `Age` under Accused and Witness, and
+   * `Affidavit` in two sections. Flag the complainant's mobile number *and* the accused's
+   * and the send-back would list two rows reading `Mobile number`, with different values
+   * and nothing to say whose — which is the kind of miss this whole screen exists to
+   * catch. So the group returns only where it is the difference between two rows, and the
+   * reader sees it exactly when it is load-bearing.
+   */
+  const shared = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of Object.values(groups).flat()) {
+      counts.set(item.field.label, (counts.get(item.field.label) ?? 0) + 1);
+    }
+    return new Set(
+      [...counts].filter(([, n]) => n > 1).map(([label]) => label),
+    );
+  }, [groups]);
+
   if (!decision) return null;
 
   const head =
@@ -403,6 +430,7 @@ export function ReviewDialog({
                       <SummaryItem
                         key={item.field.id}
                         item={item}
+                        withGroup={shared.has(item.field.label)}
                         onGoToItem={(fieldId) => {
                           onOpenChange(false);
                           onGoToItem(fieldId);
@@ -431,9 +459,12 @@ export function ReviewDialog({
 
 function SummaryItem({
   item,
+  withGroup,
   onGoToItem,
 }: {
   item: Item;
+  /** Name the group this came from — only where another item shares the label. */
+  withGroup: boolean;
   onGoToItem: (fieldId: string) => void;
 }) {
   const { docById, docRow } = useScrutinyCase();
@@ -450,22 +481,28 @@ function SummaryItem({
   return (
     <li className="@container flex flex-col gap-2 border-b border-hairline py-4 last:border-0">
       {/*
-       * **The field's address, read as a path.** Side by side — "ID proof" then
-       * "Complainant Details" — the two read as a name and a tag, and the owner could not
-       * tell that the second contained the first (2026-09-17: *"I see what you're trying
-       * to do… but that's not very clearly evident. It either needs like a breadcrumb
-       * sort of treatment"*). Reversed and chevroned, containment is the grammar: the
-       * group leads in muted ink, the field lands at the end at 600, which is also the
-       * order the officer will hunt for it in when they go back to the workbench.
+       * **Usually just the field.** The group was here on every item and the owner read
+       * it as noise, which it is when the label already says everything — see `shared`
+       * above for the five labels where it does not.
+       *
+       * Where it is needed it reads as a path rather than as a tag beside the name: side
+       * by side, "ID proof" then "Complainant Details" read as a name and a category and
+       * the containment was not evident (owner, 2026-09-17). Leading, muted, and
+       * chevroned into the field at 600, it is the same order the officer will hunt for
+       * it in when they go back to the workbench.
        *
        * `items-center`, not baseline: a 12px glyph has no baseline worth aligning to.
        */}
       <h4 className="flex flex-wrap items-center gap-1 text-body-compact">
-        <span className="text-muted-foreground">{field.group}</span>
-        <ChevronRightIcon
-          aria-hidden="true"
-          className="size-3 shrink-0 text-muted-foreground"
-        />
+        {withGroup ? (
+          <>
+            <span className="text-muted-foreground">{field.group}</span>
+            <ChevronRightIcon
+              aria-hidden="true"
+              className="size-3 shrink-0 text-muted-foreground"
+            />
+          </>
+        ) : null}
         <span className="font-semibold">{field.label}</span>
       </h4>
 
