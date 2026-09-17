@@ -86,8 +86,8 @@ const STICKY_TOP = `calc(${BAR_HEIGHT} + 2rem)`;
  * docked rail on purpose — a phone has no second column to lose the width to, and the
  * court's footer names a court in full without truncating.
  */
-const RAIL_WIDTH = "16rem";
-const RAIL_WIDTH_ICON = "4rem";
+export const RAIL_WIDTH = "16rem";
+export const RAIL_WIDTH_ICON = "4rem";
 const RAIL_WIDTH_SHEET = "18rem";
 const PAGE_LEFT_OPEN = "md:left-68";
 const PAGE_LEFT_FOLDED = "md:left-20";
@@ -265,6 +265,27 @@ export function useChromePageDialog(): string {
   // `transition-[left]` because ⌘B is bound at the window and fires with a dialog open:
   // without it the box jumps 192px while the rail behind it takes 200ms to get there.
   return `${left} md:right-4 md:mx-auto md:w-auto md:translate-x-0 md:transition-[left] md:duration-200 md:ease-linear`;
+}
+
+/**
+ * How far into the window the page column starts — the rail's current width.
+ *
+ * The companion to `useChromePageDialog`, for chrome that cannot be handed a class.
+ * A dialog gets `left`/`right` utilities computed in-tree; the toaster's own stylesheet
+ * sets `left` at a specificity no utility can reach, so what it is handed instead is
+ * this number, as a custom property on an ancestor, and one rule in `globals.css` does
+ * the arithmetic. The value is *read* in-tree, where the rail state is in scope — the
+ * same discipline, a different delivery.
+ *
+ * Nothing here cares about the off-canvas rail below `md`. The rule that consumes this
+ * is gated at `md`, so below it the window and the page are the same box and the
+ * variable goes unread rather than having to say zero.
+ */
+export function chromePageInset(
+  folds: boolean,
+  state: "expanded" | "collapsed"
+): string {
+  return folds && state === "collapsed" ? RAIL_WIDTH_ICON : RAIL_WIDTH;
 }
 
 /**
@@ -529,7 +550,12 @@ function ChromePageColumn({
     <div
       className="group/chrome-page flex min-h-svh min-w-0 flex-1 flex-col bg-background"
       data-rail-folded={folds && state === "collapsed"}
-      style={{ "--chrome-sticky-top": STICKY_TOP } as React.CSSProperties}
+      style={
+        {
+          "--chrome-sticky-top": STICKY_TOP,
+          "--chrome-page-inset": chromePageInset(folds, state),
+        } as React.CSSProperties
+      }
     >
       {topBar}
       <div className="flex min-h-0 min-w-0 flex-1">{children}</div>

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 import { TasksProvider } from "@/lib/tasks/store";
 import { AccessProvider } from "@/components/access/access-state";
-import { Toaster } from "@/components/ui/sonner";
 import { AppShell } from "@/components/shell/app-shell";
 
 export const metadata: Metadata = {
@@ -19,7 +18,6 @@ export default function CasesLayout({ children }: { children: React.ReactNode })
     <TasksProvider>
       <AccessProvider>
         <AppShell>{children}</AppShell>
-        <Toaster position="bottom-right" />
       </AccessProvider>
     </TasksProvider>
   );

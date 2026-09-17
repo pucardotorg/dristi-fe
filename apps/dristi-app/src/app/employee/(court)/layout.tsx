@@ -1,5 +1,4 @@
 import { EmployeeArea } from "@/components/employee/employee-area";
-import { Toaster } from "@/components/ui/sonner";
 
 /**
  * The court chrome — everything behind the court-staff sign-in.
@@ -23,8 +22,6 @@ export default function CourtLayout({
   return (
     <>
       <EmployeeArea>{children}</EmployeeArea>
-      {/* Per-area, as every other area mounts it: scrutiny's removal toast needs it. */}
-      <Toaster position="bottom-right" />
     </>
   );
 }
