@@ -71,6 +71,7 @@ import {
 } from "@/lib/employee/hearings";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 
 /**
  * The day the bench is standing on is the reader's, not the server's — the same clock
@@ -1242,12 +1243,25 @@ function RescheduleItemList({
         const isSelected = selection?.selected.has(row.id) ?? false;
 
         return (
-          <li
+          /* The queue's own line item, not a fourth hand-rolled one: `QueueItemRow`
+             carries the fill, the radius, the padding and the hover that every other
+             stacked list wears (owner, 2026-09-15 — this one had picked up a stray
+             hairline and lost the hover). Selection reads from the box, as it does on
+             the sign queues; the row toggles it so twenty-three matters are not
+             twenty-three small targets. Passing `onClick` replaces the shell's opener
+             delegation, which has nothing to open here. */
+          <QueueItemRow
             key={row.id}
-            className={cn(
-              "flex gap-3 rounded-lg border border-hairline p-4 transition-colors",
-              isSelected ? "bg-accent-strong" : "bg-surface-sunken",
-            )}
+            className="flex gap-3"
+            onClick={
+              selection
+                ? (event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.closest("button, a, [role=checkbox], label")) return;
+                    selection.onToggle(row.id, !isSelected);
+                  }
+                : undefined
+            }
           >
             {/* The design system's box expands its own hit area to 40×40; the name it
                 carries is the matter, not the column, because a row read aloud has no
@@ -1283,7 +1297,7 @@ function RescheduleItemList({
                 </p>
               ) : null}
             </div>
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>
