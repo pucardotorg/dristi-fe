@@ -108,8 +108,13 @@ export function ScrutinyQueueTable({ rows }: { rows: Filing[] }) {
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Stage
           </TableHead>
+          {/* Where Reason used to be. The case type was the quiet second line under the
+              parties, which is a column's worth of fact hiding inside another column's
+              cell — the owner asked for the swap on 2026-09-17: the type earns a heading,
+              and "1 item open" was saying in prose what Stage and Waiting already say in
+              their own columns. */}
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
-            Reason
+            Case type
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Advocate
@@ -137,24 +142,19 @@ export function ScrutinyQueueTable({ rows }: { rows: Filing[] }) {
             <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
               <FilingNo filing={filing} />
             </TableCell>
-            {/* The row's one emphasised cell, with the instrument under it as the
-                quieter second line — two weights, no third. */}
+            {/* The row's one emphasised cell, and now only that: the case type moved to
+                its own column, so the cause is a single line at a single weight. */}
             <TableCell className={cn(TABLE_CELL, "min-w-64 whitespace-normal")}>
               <span className="font-medium">{filing.parties}</span>
-              <span className="block text-caption text-muted-foreground">
-                {filing.type}
-              </span>
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
               {filing.stage}
             </TableCell>
-            <TableCell
-              className={cn(
-                TABLE_CELL,
-                "max-w-44 truncate text-muted-foreground",
-              )}
-            >
-              {filing.reason}
+            {/* Foreground ink, not muted: as a second line under the parties this was
+                subordinate to them, and as its own column it is a fact of the same
+                standing as Stage. */}
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              {filing.type}
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "max-w-44 truncate")}>
               {filing.advocate}
@@ -201,8 +201,6 @@ export function ScrutinyQueueItemList({ rows }: { rows: Filing[] }) {
             {filing.type}
             {" · "}
             {filing.stage}
-            {" · "}
-            {filing.reason}
           </p>
           <p className="text-caption text-muted-foreground">
             {filing.advocate}

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   ClockIcon,
   FilesIcon,
@@ -10,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { useRoomInRem } from "@/hooks/use-min-width";
+import { nextFilingAfter } from "@/lib/employee/scrutiny/queue";
 import type { Rect, ScrutinyCase } from "@/lib/employee/scrutiny/types";
 import { useScrutinyState } from "@/lib/employee/scrutiny/use-scrutiny-state";
 import { ScrutinyCaseProvider } from "@/components/employee/scrutiny/scrutiny-case-context";
@@ -80,7 +80,6 @@ export function CaseWorkbench({
   /** With AI off the workbench still works; it just stops asserting readings. */
   aiOn?: boolean;
 }) {
-  const router = useRouter();
   const arrival = useArrival();
 
   /*
@@ -344,8 +343,15 @@ export function CaseWorkbench({
 
       {threePane ? (
         /* The floors are in `rem`, not percentages: a percentage floor is a floor on
-           nothing, which is how the index rail reached 135px. */
-        <ResizablePanelGroup className="min-h-0 flex-1 px-4">
+           nothing, which is how the index rail reached 135px.
+ 
+           **Full bleed, no side inset.** A `px-4` here left a 16px strip of the page's
+           warm canvas down both edges of the screen, between white bars that run the
+           whole width — and against the panes' own `surface-sunken` that strip measured a
+           1.5% step, close enough to read as a smudge rather than as an edge (owner,
+           2026-09-17: *"what is this slight difference of color… shouldn't it look
+           seamless?"*). The panes carry their own insets, so the frame wants none. */
+        <ResizablePanelGroup className="min-h-0 flex-1">
           <ResizablePanel
             defaultSize="34%"
             minSize="18rem"
@@ -384,7 +390,7 @@ export function CaseWorkbench({
         /* One surface at a time. Only the chosen pane is mounted — both would put two
            copies of every `doc-*` anchor in the document and the bundle's own scrolling
            would land on whichever came first. */
-        <div className="flex min-h-0 flex-1 flex-col px-4">
+        <div className="flex min-h-0 flex-1 flex-col">
           {pane === "fields" ? (
             <FieldsPanel
               ref={fields}
@@ -457,11 +463,9 @@ export function CaseWorkbench({
         flags={controller.flags}
         onGoToItem={goToItem}
         onOpenChange={(open) => !open && setDecision(null)}
-        onDone={() => {
-          setDecision(null);
-          controller.reset();
-          router.push("/employee/scrutiny");
-        }}
+        /* The settled stage offers the next file rather than the queue, and navigates
+           with a `Link` of its own — so nothing is pushed from here. */
+        nextFiling={nextFilingAfter(filingNo) ?? null}
       />
     </div>
     </TooltipProvider>

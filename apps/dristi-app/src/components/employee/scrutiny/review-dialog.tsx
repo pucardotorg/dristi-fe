@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   CheckIcon,
+  ChevronRightIcon,
   CornerUpLeftIcon,
   MicIcon,
   TriangleAlertIcon,
@@ -10,10 +12,12 @@ import {
 
 import { docName } from "@/lib/employee/scrutiny/field";
 import type {
+  Filing,
   Flag,
   FlagMap,
   FlatField,
 } from "@/lib/employee/scrutiny/types";
+import { markArrival } from "@/components/employee/use-arrival";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -122,13 +126,17 @@ export function ReviewDialog({
   decision,
   flags,
   onOpenChange,
-  onDone,
+  nextFiling,
   onGoToItem,
 }: {
   decision: Decision | null;
   flags: FlagMap;
   onOpenChange: (open: boolean) => void;
-  onDone: () => void;
+  /**
+   * The next file to scrutinise, or `null` at the end of the list — what the settled
+   * stage offers instead of the queue. See `nextFilingAfter`.
+   */
+  nextFiling: Filing | null;
   /** A record you can act on: closes the dialog and lands on the item. */
   onGoToItem: (fieldId: string) => void;
 }) {
@@ -192,11 +200,13 @@ export function ReviewDialog({
       ? {
           title: `Sent back to ${party.advocate}`,
           state: "Sent back",
-          body: `${total} item${total > 1 ? "s" : ""} ${
-            total > 1 ? "are" : "is"
-          } with ${
-            party.advocate
-          } to answer. The file returns to your queue when they resubmit — nothing more is needed from you until then.`,
+          /* One short line. The long version explained that the file comes back and
+             that nothing more is needed — reassurance for a first-timer, and this is a
+             desk somebody works all day (owner, 2026-09-17: *"that is enough. They'll do
+             this on a daily basis. They don't need more reassurance from the system"*).
+             "Act on" rather than "correct", because a third of these are re-uploads and a
+             third are confirmations. */
+          body: `${total} item${total > 1 ? "s" : ""} sent for the advocate to act on.`,
           /* **A return is not a completion.** Green with a tick said the act succeeded
              where it had handed the file on, and this is the ordinary route — most files
              take it at least once — not a failure and not a win. So the mark wears the
@@ -210,10 +220,10 @@ export function ReviewDialog({
           title: "Case registered",
           state: "Registered",
           body: total
-            ? `The case is on the Magistrate's list, and the ${total} open item${
-                total > 1 ? "s travel" : " travels"
-              } with it for them to see when taking cognizance.`
-            : "Every field was checked against the bundle. The case is on the Magistrate's list for cognizance.",
+            ? `On the Magistrate's list, with ${total} open item${
+                total > 1 ? "s" : ""
+              } attached.`
+            : "On the Magistrate's list for cognizance.",
           /* Registering *is* a terminal good outcome, so this one keeps the success
              muted and the tick. */
           tone: "bg-success-muted text-success-muted-foreground",
@@ -263,7 +273,36 @@ export function ReviewDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Stay here
               </Button>
-              <Button onClick={onDone}>Next file</Button>
+              {/*
+               * **Next file opens the next file, not the list.** It used to push back to
+               * the queue, which made the officer re-find their place in it for every one
+               * of thirty decisions (owner, 2026-09-17: *"can you… bring up the next file
+               * instead of taking me back to the list"*).
+               *
+               * A real `Link` rather than a router push, the way Take cognizance and
+               * Register cases already walk their queues: it prefetches, it middle-clicks,
+               * and `markArrival("next")` hands the workbench that mounts the entrance to
+               * play — the file rising onto the desk, which is the same motion opening one
+               * from the queue makes. At the end of the list there is nothing to rise, so
+               * the button becomes the way back and says so.
+               */}
+              <Button asChild>
+                {nextFiling ? (
+                  <Link
+                    href={`/employee/scrutiny/${encodeURIComponent(nextFiling.no)}`}
+                    onClick={() => markArrival("next")}
+                  >
+                    Next file
+                  </Link>
+                ) : (
+                  <Link
+                    href="/employee/scrutiny"
+                    onClick={() => markArrival("back")}
+                  >
+                    Back to scrutiny
+                  </Link>
+                )}
+              </Button>
             </>
           ) : (
             <>
@@ -410,10 +449,25 @@ function SummaryItem({
    */
   return (
     <li className="@container flex flex-col gap-2 border-b border-hairline py-4 last:border-0">
-      <div className="flex flex-wrap items-baseline gap-x-2">
-        <h4 className="text-body-compact font-semibold">{field.label}</h4>
-        <span className="text-caption text-muted-foreground">{field.group}</span>
-      </div>
+      {/*
+       * **The field's address, read as a path.** Side by side — "ID proof" then
+       * "Complainant Details" — the two read as a name and a tag, and the owner could not
+       * tell that the second contained the first (2026-09-17: *"I see what you're trying
+       * to do… but that's not very clearly evident. It either needs like a breadcrumb
+       * sort of treatment"*). Reversed and chevroned, containment is the grammar: the
+       * group leads in muted ink, the field lands at the end at 600, which is also the
+       * order the officer will hunt for it in when they go back to the workbench.
+       *
+       * `items-center`, not baseline: a 12px glyph has no baseline worth aligning to.
+       */}
+      <h4 className="flex flex-wrap items-center gap-1 text-body-compact">
+        <span className="text-muted-foreground">{field.group}</span>
+        <ChevronRightIcon
+          aria-hidden="true"
+          className="size-3 shrink-0 text-muted-foreground"
+        />
+        <span className="font-semibold">{field.label}</span>
+      </h4>
 
       <RecordList>
         {flag.correction ? (
