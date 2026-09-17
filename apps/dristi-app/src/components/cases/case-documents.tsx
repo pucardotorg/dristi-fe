@@ -27,6 +27,10 @@ import {
 } from "@/components/chrome/table-plate";
 import { PANEL_CLASS } from "@/components/shell/panel";
 import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@/components/ui/segmented-control";
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -67,7 +71,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -536,40 +539,40 @@ function KindTabs({
   onKindChange: (kind: DocumentKind) => void;
 }) {
   return (
-    <Tabs
+    <SegmentedControl
+      type="single"
+      size="compact"
       value={kind}
       onValueChange={(next) => {
         if (isDocumentKind(next)) onKindChange(next);
       }}
-      className="gap-0"
+      aria-label="Document group"
     >
-      {/*
-        Default TabsList (surface-sunken + hairline), never line — these are two
-        mutually exclusive populations, not page sections. Height only
-        on TabsList (h-10). Triggers keep DS h-[calc(100%-1px)].
-      */}
-      <TabsList
-        className="h-10 group-data-horizontal/tabs:h-10"
-        aria-label="Document group"
+      {/* The count is part of the label, in plain muted text, rather than a
+          badge inside a control. */}
+      <SegmentedControlItem
+        value="documents"
+        aria-label={`Documents, ${documentsCount}`}
       >
-        <TabsTrigger
-          value="documents"
-          className="flex-none px-3 after:opacity-0 data-[state=active]:text-primary"
-          aria-label={`Documents, ${documentsCount}`}
-        >
+        <span className="flex items-center gap-1.5">
           Documents
-          <Badge variant="secondary">{documentsCount}</Badge>
-        </TabsTrigger>
-        <TabsTrigger
-          value="bail-bonds"
-          className="flex-none px-3 after:opacity-0 data-[state=active]:text-primary"
-          aria-label={`Bail bonds, ${bailBondsCount}`}
-        >
+          <span className="font-normal tabular-nums text-muted-foreground">
+            {documentsCount}
+          </span>
+        </span>
+      </SegmentedControlItem>
+      <SegmentedControlItem
+        value="bail-bonds"
+        aria-label={`Bail bonds, ${bailBondsCount}`}
+      >
+        <span className="flex items-center gap-1.5">
           Bail bonds
-          <Badge variant="secondary">{bailBondsCount}</Badge>
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+          <span className="font-normal tabular-nums text-muted-foreground">
+            {bailBondsCount}
+          </span>
+        </span>
+      </SegmentedControlItem>
+    </SegmentedControl>
   );
 }
 

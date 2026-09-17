@@ -142,7 +142,7 @@ function Round({
       defaultOpen={latest}
       className="rounded-lg border border-hairline"
     >
-      <CollapsibleTrigger className="group/round flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+      <CollapsibleTrigger className="group/round flex min-h-10 w-full items-center gap-2 rounded-lg px-6 py-2 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
         <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-body-compact font-medium text-foreground">
             Round {number}
@@ -163,8 +163,12 @@ function Round({
         />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="flex flex-col gap-6 border-t border-hairline p-4">
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* One left edge for everything in the round: the facts sit on the
+            same inset as the table's cell text, and pack to the left at their
+            own widths rather than being spread into thirds that line up with
+            nothing below them. */}
+        <div className="flex flex-col gap-4 border-t border-hairline px-2 pt-4 pb-2">
+          <dl className="flex flex-wrap gap-x-12 gap-y-3 px-4">
             <Fact label="Linked hearing">
               {round.hearing ? (
                 <>
@@ -267,11 +271,11 @@ function Round({
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-1">
       <dt className="text-caption font-medium text-muted-foreground">
         {label}
       </dt>
-      <dd className="flex min-w-0 flex-col gap-0.5 text-body-compact font-medium text-foreground">
+      <dd className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-body-compact font-medium text-foreground">
         {children}
       </dd>
     </div>

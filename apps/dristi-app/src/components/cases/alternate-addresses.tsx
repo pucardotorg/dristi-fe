@@ -51,13 +51,13 @@ export function AlternateAddresses({ subjectName }: { subjectName: string }) {
           className="flex min-h-12 min-w-0 items-center gap-2 rounded-md bg-surface-sunken py-2 pr-2 pl-3"
         >
           <span className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-            <span className="block truncate text-body font-medium text-foreground">
+            <span className="block truncate text-body-compact font-medium text-foreground">
               {[address.address.door, address.address.building, address.address.locality]
                 .map((part) => part.trim())
                 .filter(Boolean)
                 .join(", ")}
             </span>
-            <span className="block truncate text-body text-muted-foreground">
+            <span className="block truncate text-caption font-medium text-muted-foreground">
               {[
                 `${address.address.city}, ${address.address.district}`,
                 `${address.address.state} ${address.address.pin}`.trim(),
@@ -84,13 +84,19 @@ export function AlternateAddresses({ subjectName }: { subjectName: string }) {
         </div>
       ))}
 
-      <p className="text-body text-muted-foreground">
+      <p className="text-body-compact text-muted-foreground">
         {addresses.length === 0
           ? "Give the court another address to try, beyond what the complaint holds."
           : "The court tries every address listed here."}
       </p>
       <div>
-        <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="max-sm:h-10"
+          onClick={() => setOpen(true)}
+        >
           <PlusIcon data-icon="inline-start" aria-hidden />
           Add address
         </Button>
