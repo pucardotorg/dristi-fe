@@ -20,6 +20,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Spinner } from "@/components/ui/spinner";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The app's search, opened from the rail.
@@ -130,9 +131,16 @@ function Results({ onNavigate }: { onNavigate: () => void }) {
                     {draftTitle(d)}
                   </span>
                   <span className="truncate text-caption text-muted-foreground">
-                    <span className="font-mono tabular-nums">
-                      {d.sign.caseFileNumber ?? "No case number"}
-                    </span>
+                    {/* A command result is an option — no control nested inside it. */}
+                    {d.sign.caseFileNumber ? (
+                      <Identifier
+                        value={d.sign.caseFileNumber}
+                        label="case number"
+                        copyable={false}
+                      />
+                    ) : (
+                      "No case number"
+                    )}
                     {d.filedAt ? (
                       <>
                         {" · filed "}

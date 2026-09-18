@@ -17,7 +17,6 @@ import { useCourtToday } from "@/components/employee/use-court-today";
 import { useHearingSession } from "@/components/employee/use-hearing-session";
 import { useOrderDrafts } from "@/components/employee/use-order-draft";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -74,6 +73,8 @@ import {
   type SignOrderFilters,
 } from "@/lib/employee/sign-orders";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -255,7 +256,7 @@ export function SignOrdersScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Sign orders
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
@@ -699,10 +700,7 @@ function SignOrdersItemList({
         const pending = order.status === "pending-signature";
         const title = signOrderTypeLabel(order.type);
         return (
-          <li
-            key={order.id}
-            {...rowActivation("flex gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
-          >
+          <QueueItemRow key={order.id} className="flex gap-3">
             {/* The DS box expands its own hit area to 40×40; the name it carries is the
                 order and its case, not the column, because a row read aloud has no
                 column header. A signed order has nothing to select. */}
@@ -734,7 +732,7 @@ function SignOrdersItemList({
               </button>
               <p className="min-w-0 text-body-compact">{title}</p>
               <p className="text-caption text-muted-foreground">
-                <span className="tabular-nums">{order.caseNumber}</span>
+                <Identifier value={order.caseNumber} label="case number" />
                 {" · Added "}
                 <span className="tabular-nums">
                   {formatSignOrderDate(order.addedOn)}
@@ -744,7 +742,7 @@ function SignOrdersItemList({
                 {signOrderStatusLabel(order.status)}
               </Badge>
             </div>
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>
@@ -806,12 +804,7 @@ function DraftOrdersItemList({ rows }: { rows: CourtHearing[] }) {
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((hearing) => (
-        <li
-          key={hearing.id}
-          {...rowActivation(
-            "flex min-w-0 flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong",
-          )}
-        >
+        <QueueItemRow key={hearing.id} className="flex min-w-0 flex-col gap-2">
           <p className="flex min-w-0 items-baseline gap-1 text-body-compact font-medium">
             <span className="shrink-0 text-muted-foreground tabular-nums">
               {hearing.item}.
@@ -840,11 +833,11 @@ function DraftOrdersItemList({ rows }: { rows: CourtHearing[] }) {
             )}
           />
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{hearing.caseNumber}</span>
+            <Identifier value={hearing.caseNumber} label="case number" />
             {" · Listed for "}
             {courtHearingPurposeLabel(hearing.purpose)}
           </p>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

@@ -1,0 +1,31 @@
+/* Measured disclosure travel keeps surrounding content in flow. Both desktop
+   and touch use the same timing; only the action tray has a subtle settling bounce. */
+.hearing-reveal[data-state="open"] {
+  animation: hearing-reveal-open 280ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.hearing-reveal[data-state="closed"] {
+  animation: hearing-reveal-close 280ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.hearing-reveal[data-state="open"] > .hearing-actions {
+  animation: hearing-actions-settle 280ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-pointer-motion="false"] > .hearing-reveal,
+[data-pointer-motion="false"] > .hearing-reveal > .hearing-actions {
+  animation: none;
+}
+@keyframes hearing-reveal-open {
+  from { height: 0; }
+  to { height: var(--radix-collapsible-content-height); }
+}
+@keyframes hearing-reveal-close {
+  from { height: var(--radix-collapsible-content-height); }
+  to { height: 0; }
+}
+@keyframes hearing-actions-settle {
+  0% { transform: translateY(-12%); }
+  72% { transform: translateY(2%); }
+  100% { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hearing-reveal, .hearing-actions { animation: none !important; }
+}

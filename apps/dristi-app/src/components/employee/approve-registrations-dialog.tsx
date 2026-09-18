@@ -64,6 +64,7 @@ import {
   type WaitTone,
 } from "@/lib/employee/approve-registrations";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One registration request, verified and then approved or rejected — the whole decision,
@@ -275,11 +276,11 @@ function RequestBody({
   const factsRef = React.useRef<HTMLDivElement>(null);
 
   /**
-   * The stage, its direction and the focus that follows it — `chrome/staged-overlay.tsx`,
-   * which is where this overlay's own interaction went when the owner asked for it on
-   * every court-side modal (2026-09-16).
+   * The stage, the direction it travelled and the focus that follows it —
+   * `chrome/staged-overlay.tsx`, which is where this overlay's own interaction went when
+   * the owner asked for it on every court-side modal (2026-09-16).
    *
-   * Everything it does here it used to do in this file: Reject lands on the textarea,
+   * Everything it does here it used to do in this file. Reject lands on the textarea,
    * because writing the reason is the only thing that stage is for; every other stage
    * lands on the title, which has just changed to say what the stage is. A **different
    * request arriving** resets to Review, rises rather than slides — nothing progressed,
@@ -288,7 +289,7 @@ function RequestBody({
    *
    * `onRecordChange` is the part that is still this file's business: a rejection reason
    * typed about somebody else must not survive onto the next request, and it is cleared
-   * during render so the new request is never painted carrying it.
+   * during render, so the new request is never painted carrying it.
    */
   const flow = useStagedFlow({
     order: ORDER,
@@ -310,9 +311,9 @@ function RequestBody({
   return (
     <StagedOverlay
       /* Wide, and with a *definite* height: the paper being examined is the task, and a
-         reading surface that changed size between the record and the decision would be the
-         same fault this frame exists to prevent. A definite height also means no `floor` —
-         there is nothing for one to do. */
+         reading surface that changed size between the record and the decision would be
+         the same fault this frame exists to prevent. A definite height also means no
+         `floor` — there would be nothing for one to do. */
       className="sm:max-w-5xl md:h-[85dvh]"
       /* Title, state, and the one string the advocate can quote — and nothing else
          (brief D16). The name is **not** here: it is a value under verification, and a
@@ -322,10 +323,17 @@ function RequestBody({
       titleRef={flow.titleRef}
       titleAside={<Badge variant={badge.variant}>{badge.label}</Badge>}
       /* Back to the one string the applicant can quote (D16): the role is in the title
-         now, and saying it here as well would be one fact twice in one header. */
+         now, and saying it here as well would be one fact twice in one header. The node
+         form, because the frame's plain-string description cannot carry an identifier —
+         and this one is the product's identifier treatment with its copy control off,
+         since nothing interactive belongs inside a dialog's accessible description. */
       description={
-        <DialogDescription className="text-body-compact tabular-nums text-muted-foreground">
-          {request.applicationNumber}
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          <Identifier
+            value={request.applicationNumber}
+            label="application number"
+            copyable={false}
+          />
         </DialogDescription>
       }
       /* Keyed on the request so the title, the state and the number fade in with the
@@ -333,7 +341,7 @@ function RequestBody({
          half the abruptness. This overlay is the one that walks from one record to the
          next without closing, which is why it is the one that needs this. */
       headerKey={request.id}
-      /* The request as well as the scene: a different record must remount the stage, or
+      /* The request as well as the scene: a different record has to remount the stage, or
          its `arrive` rise has nothing to play on. */
       sceneKey={`${request.id}:${flow.sceneKey}`}
       motion={flow.motion}
@@ -633,9 +641,11 @@ function DecisionStage({
           </p>
           {/* The number under the name: it means nothing until you know which register it
               belongs to, and the pill above has just said. */}
-          <p className="font-mono text-body-compact tabular-nums text-muted-foreground">
-            {request.registrationNumber}
-          </p>
+          <Identifier
+            value={request.registrationNumber}
+            label="registration number"
+            className="self-start text-body-compact text-muted-foreground"
+          />
         </div>
         {/* **The card the decision turns on, at a size that can carry it.** Twice sized up
             and twice read as decoration — *"too small to be useful right now… if we intend
@@ -946,6 +956,17 @@ function FactRowView({ row }: { row: FactRow }) {
     /* A category, shown as the same pill everywhere it appears — the queue's Account type
        column included. */
     <Badge variant={row.pill}>{row.value}</Badge>
+  ) : row.format === "code" ? (
+    /* The one identifier among these facts — the registration number, which the officer
+       reads against the card and quotes into the register. It takes the product's one
+       identifier treatment rather than a local mono class; a row carrying a finding puts
+       its value inside the disclosure trigger below, and nothing nests a control there. */
+    <Identifier
+      value={row.value}
+      label={row.term.toLowerCase()}
+      className={cn("min-w-0", row.tone && toneClass[row.tone])}
+      copyable={!row.detail}
+    />
   ) : (
     <span
       lang={row.valueLang}

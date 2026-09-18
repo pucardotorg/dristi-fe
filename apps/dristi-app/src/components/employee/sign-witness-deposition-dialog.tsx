@@ -16,6 +16,7 @@ import {
   type WitnessDeposition,
   type WitnessDepositionDocument,
 } from "@/lib/employee/sign-witness-deposition";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One deposition, read and then signed — the single-sheet path off the evidence queue.
@@ -100,7 +101,10 @@ function SignWitnessDepositionBody({
       titleAside={<Badge variant="warning">Pending signature</Badge>}
       description={
         <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(deposition)} · {deposition.caseNumber} · Recorded{" "}
+          {causeTitle(deposition)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={deposition.caseNumber} label="case number" copyable={false} />{" "}
+          · Recorded{" "}
           {formatDepositionDate(deposition.depositionOn)}
         </DialogDescription>
       }

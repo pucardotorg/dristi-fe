@@ -28,6 +28,7 @@ import {
   type SignEvidence,
 } from "@/lib/employee/sign-evidence";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The evidence signing queue as a table: which markings are picked for signature, the
@@ -154,9 +155,9 @@ export function SignEvidenceTable({
                 </button>
               </TableCell>
               <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {row.caseNumber}
+                <Identifier value={row.caseNumber} label="case number" />
               </TableCell>
               {/* Plain text, not a chip. Ten document heads tinted down a column is
                   decoration, and the words are already the whole fact (ui-craft §4). */}

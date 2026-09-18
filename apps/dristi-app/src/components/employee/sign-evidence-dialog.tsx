@@ -48,6 +48,7 @@ import {
   type EvidenceMarking,
   type SignEvidence,
 } from "@/lib/employee/sign-evidence";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One marking, read and then signed — the single-document path off the evidence queue.
@@ -207,7 +208,9 @@ function SignEvidenceBody({
       titleAside={<Badge variant="warning">Pending signature</Badge>}
       description={
         <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(row)} · {row.caseNumber}
+          {causeTitle(row)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={row.caseNumber} label="case number" copyable={false} />
         </DialogDescription>
       }
       sceneKey={flow.sceneKey}
@@ -330,7 +333,7 @@ function DetailsStage({
               {witnessLabel(markedThroughWitness(row))}
             </ReviewRow>
             <ReviewRow term="Evidence number">
-              <span className="tabular-nums">{evidenceNumber(row)}</span>
+              <Identifier value={evidenceNumber(row)} label="evidence number" />
             </ReviewRow>
           </DescriptionList>
         </CardContent>

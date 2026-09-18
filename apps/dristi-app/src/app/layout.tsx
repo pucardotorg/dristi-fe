@@ -6,6 +6,8 @@ import { LocaleProvider } from "@/components/shell/locale";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import "./globals.css";
+/* App-owned rules on chrome we do not author; globals.css is synced from the DS. */
+import "./chrome.css";
 
 export const metadata: Metadata = {
   title: {

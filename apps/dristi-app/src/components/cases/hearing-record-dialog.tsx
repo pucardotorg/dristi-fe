@@ -53,6 +53,7 @@ import {
 } from "@/lib/cases/hearings";
 import { formatCaseDate } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 export type HearingRecordKind = "transcript" | "depositions";
 
@@ -532,7 +533,12 @@ function DepositionPanel({
               >
                 <ItemContent>
                   <ItemTitle className="line-clamp-none text-body font-medium text-foreground">
-                    {deposition.witnessNumber} — {deposition.witnessName}
+                    <Identifier
+                      value={deposition.witnessNumber}
+                      label="witness number"
+                      copyable={false}
+                    />
+                    {` — ${deposition.witnessName}`}
                   </ItemTitle>
                   <ItemDescription className="line-clamp-none text-body">
                     {deposition.witnessType}
@@ -567,7 +573,9 @@ function DepositionPanel({
       ) : null}
 
       <DescriptionList>
-        <RecordRow term="Witness number">{selected.witnessNumber}</RecordRow>
+        <RecordRow term="Witness number">
+          <Identifier value={selected.witnessNumber} label="witness number" />
+        </RecordRow>
         <RecordRow term="Witness name">{selected.witnessName}</RecordRow>
         <RecordRow term="Witness type">{selected.witnessType}</RecordRow>
         <RecordRow term="Hearing">{heading}</RecordRow>
@@ -586,7 +594,7 @@ function DepositionPanel({
           <ul className="flex flex-col gap-1">
             {selected.exhibits.map((code) => (
               <li key={code} className="text-body">
-                {code}
+                <Identifier value={code} label="exhibit" />
                 <span aria-hidden> — </span>
                 {exhibitLabel(code)}
               </li>
@@ -645,7 +653,9 @@ function HearingDetailsPanel({
       ) : null}
 
       <DescriptionList>
-        <RecordRow term="Hearing ID">{hearing.id}</RecordRow>
+        <RecordRow term="Hearing ID">
+          <Identifier value={hearing.id} label="hearing id" />
+        </RecordRow>
         {hearing.status ? (
           <RecordRow term="Status">
             <Badge variant={hearingStatusVariant(hearing.status)}>

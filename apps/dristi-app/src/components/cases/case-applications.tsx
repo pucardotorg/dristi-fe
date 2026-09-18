@@ -108,6 +108,7 @@ import {
 } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 type SubmitterOption = {
   value: string;
@@ -1085,7 +1086,7 @@ function ApplicationsTable({
             <TableCell
               className={cn(
                 cellClass,
-                "min-w-0 font-mono whitespace-normal text-muted-foreground"
+                "min-w-0 whitespace-normal text-muted-foreground"
               )}
             >
               <SubmissionIdValue submission={submission} />
@@ -1145,7 +1146,8 @@ function SubmissionTypeCell({ submission }: { submission: Submission }) {
  * at all, and the column header supplies the "ID" half of the announcement.
  */
 function SubmissionIdValue({ submission }: { submission: Submission }) {
-  if (submission.submissionId) return <>{submission.submissionId}</>;
+  if (submission.submissionId)
+    return <Identifier value={submission.submissionId} label="submission id" />;
   return (
     <>
       <span aria-hidden>—</span>
@@ -1193,10 +1195,7 @@ function ApplicationsItemList({
               </p>
               {/* No column header to lean on here, so the ID names itself. */}
               <p className="text-body-compact text-muted-foreground">
-                ID{" "}
-                <span className="font-mono">
-                  <SubmissionIdValue submission={submission} />
-                </span>
+                ID <SubmissionIdValue submission={submission} />
               </p>
               {submission.courtResult ? (
                 <p className="text-body-compact">

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { CalendarX2Icon } from "lucide-react";
 
+import { Identifier } from "@/components/chrome/identifier";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { useHearingSession } from "@/components/employee/use-hearing-session";
 import { Badge } from "@/components/ui/badge";
@@ -244,9 +245,12 @@ function HearingOverview({ hearing }: { hearing: CourtHearing }) {
 export function HearingOverviewCaption({ hearing }: { hearing: CourtHearing }) {
   return (
     <>
+      {/* The item is a *position* in today's board and keeps plain figures; the case
+          number is an identifier and takes the treatment. The rule is by kind of fact,
+          which is why these two sit side by side wearing different faces. */}
       Item <span className="tabular-nums">{hearing.item}</span>
       {" · "}
-      <span className="tabular-nums">{hearing.caseNumber}</span>
+      <Identifier value={hearing.caseNumber} label="case number" />
       {" · "}
       {courtHearingPurposeLabel(hearing.purpose)}
     </>

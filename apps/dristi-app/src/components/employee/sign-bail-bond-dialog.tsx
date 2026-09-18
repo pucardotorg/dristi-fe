@@ -26,6 +26,8 @@ import {
   type SignBailBond,
   type SignBailBondDocument,
 } from "@/lib/employee/sign-bail-bonds";
+import { Identifier } from "@/components/chrome/identifier";
+import { DialogDescription } from "@/components/ui/dialog";
 
 /** What the paper is called in the signature stage's copy. */
 const NOUN = "bail bond";
@@ -138,9 +140,14 @@ function SignBailBondBody({
       /* The litigant leads the supporting line rather than the case number, because with
          two bonds to a case the litigant is the only thing that says which of them is
          open. It stands on both stages: it is what the signature is being put to. */
-      description={`Executed by ${bond.litigant} · ${bond.caseNumber} · Added ${formatSignBailBondDate(
-        bond.addedOn,
-      )}`}
+      description={
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          Executed by {bond.litigant} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={bond.caseNumber} label="case number" copyable={false} />{" "}
+          · Added {formatSignBailBondDate(bond.addedOn)}
+        </DialogDescription>
+      }
       sceneKey={flow.sceneKey}
       motion={flow.motion}
       onCloseAutoFocus={(event) => {

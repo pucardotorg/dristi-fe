@@ -107,6 +107,7 @@ import {
 import { SectionRail } from "@/components/scrutiny/section-rail";
 import { SectionBody } from "@/components/scrutiny/section-body";
 import { useTaskActions } from "@/components/tasks/use-task-actions";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** Where the correction round starts when nothing is flagged on a step yet. */
 const FALLBACK_STEP: StepId = "cheque";
@@ -643,7 +644,7 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
         {kase.stNumber ? (
           <>
             {" · "}
-            <span className="font-mono tabular-nums">{kase.stNumber}</span>
+            <Identifier value={kase.stNumber} label="case number" />
           </>
         ) : (
           " · Not yet numbered"

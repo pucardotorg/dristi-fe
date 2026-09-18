@@ -30,6 +30,8 @@ import {
   type SignForm,
   type SignFormDocument,
 } from "@/lib/employee/sign-forms";
+import { Identifier } from "@/components/chrome/identifier";
+import { DialogDescription } from "@/components/ui/dialog";
 
 /**
  * One form, read and then signed — the single-document path off the signing queue.
@@ -116,7 +118,13 @@ function SignFormBody({
          court-side review overlays report a pending state the same way. It stands on both
          stages, because nothing has been signed until Submit. */
       titleAside={<Badge variant="warning">Pending signature</Badge>}
-      description={`${causeTitle(form)} · ${form.caseNumber}`}
+      description={
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          {causeTitle(form)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={form.caseNumber} label="case number" copyable={false} />
+        </DialogDescription>
+      }
       sceneKey={flow.sceneKey}
       motion={flow.motion}
       onCloseAutoFocus={(event) => {

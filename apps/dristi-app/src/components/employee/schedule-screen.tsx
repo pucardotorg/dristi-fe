@@ -6,8 +6,15 @@ import { CalendarCheck2Icon, SearchXIcon } from "lucide-react";
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { CourtFilters } from "@/components/employee/court-filters";
+import { NotBuiltDialog } from "@/components/employee/not-built-dialog";
 import { ScheduleTable } from "@/components/employee/schedule-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
+import {
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -17,14 +24,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   causeTitle,
   counselFor,
@@ -40,6 +39,7 @@ import {
   type ScheduleFilters,
   type SchedulingCase,
 } from "@/lib/employee/schedule";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Schedule hearing — the matters this court owes a date.
@@ -68,6 +68,9 @@ export function ScheduleScreen() {
   );
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
+  /* The row a clerk opened. Scheduling itself is not built, so opening a matter lands on
+     the shared not-built end state rather than a flow that is not there. */
+  const [open, setOpen] = React.useState<SchedulingCase | null>(null);
 
   const rows = filterSchedulingCases(SCHEDULING_QUEUE, filters);
 
@@ -89,15 +92,12 @@ export function ScheduleScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Schedule hearing
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
-            rather than restating the title — the same header shape "Scrutinise submitted
-            cases" uses, because a clerk moving between court screens should meet the same
-            furniture. It counts the whole queue, not the filtered page, so it holds still
-            while the filters move. Singular is spelled out because "1 matters" is the kind
-            of thing a court notices. */}
+            rather than restating the title. Singular is spelled out because "1 matters"
+            is the kind of thing a court notices. */}
         <p className="text-body text-muted-foreground">
           {SCHEDULING_QUEUE.length === 1
             ? "1 matter is waiting for a hearing date."
@@ -132,10 +132,10 @@ export function ScheduleScreen() {
               {/* Four columns do not survive a phone. Below `md` the same rows stack as
                   items — the cause list's own answer. */}
               <div className="hidden md:block">
-                <ScheduleTable rows={pageRows} />
+                <ScheduleTable rows={pageRows} onOpen={setOpen} />
               </div>
               <div className="md:hidden">
-                <ScheduleItemList rows={pageRows} />
+                <ScheduleItemList rows={pageRows} onOpen={setOpen} />
               </div>
             </div>
 
@@ -156,6 +156,15 @@ export function ScheduleScreen() {
           </div>
         )}
       </section>
+
+      <NotBuiltDialog
+        item={open ? causeTitle(open) : null}
+        opens="the scheduling flow"
+        open={open !== null}
+        onOpenChange={(next) => {
+          if (!next) setOpen(null);
+        }}
+      />
     </div>
   );
 }
@@ -184,53 +193,30 @@ function ScheduleFiltersRow({
   onClear: () => void;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="schedule-stage" className="w-fit text-body-compact">
-          Stage
-        </Label>
-        <Select
-          value={filters.stage}
-          onValueChange={(value) =>
-            onChange({
-              ...filters,
-              stage: value as ScheduleFilters["stage"],
-            })
-          }
-        >
-          <SelectTrigger id="schedule-stage" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All stages</SelectItem>
-            {CASE_STAGES.map((stage) => (
-              <SelectItem key={stage.id} value={stage.id}>
-                {stage.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-72"
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number or advocate"
-      />
-
-      {/* The only button left on the row. It stays because it undoes more than the
-          search box's own `×` does — it returns every control here to the view the
-          screen opens on — and it is labelled for that rather than for the text it
-          also happens to clear. */}
-      <Button type="button" variant="ghost" onClick={onClear}>
-        Clear filters
-      </Button>
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or advocate",
+      }}
+      fields={[
+        {
+          id: "schedule-stage",
+          label: "Stage",
+          value: filters.stage,
+          all: "all",
+          allLabel: "All stages",
+          options: CASE_STAGES.map((stage) => ({
+            value: stage.id,
+            label: stage.label,
+          })),
+          onApply: (value) =>
+            onChange({ ...filters, stage: value as ScheduleFilters["stage"] }),
+        },
+      ]}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -287,19 +273,31 @@ function ScheduleEmpty({
  * the columns that only support scanning drop to a caption line rather than forcing a
  * five-column table through a 375px screen.
  */
-function ScheduleItemList({ rows }: { rows: SchedulingCase[] }) {
+function ScheduleItemList({
+  rows,
+  onOpen,
+}: {
+  rows: SchedulingCase[];
+  onOpen: (matter: SchedulingCase) => void;
+}) {
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((matter) => (
-        <li
+        <QueueItemRow
           key={matter.id}
-          className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-4"
+          className="flex flex-col gap-2"
         >
-          <p className="min-w-0 text-body-compact font-medium">
+          <button
+            type="button"
+            onClick={() => onOpen(matter)}
+            {...rowOpener}
+            className={cn(rowOpenerClass, "min-w-0")}
+          >
+            <span className="sr-only">Open </span>
             {causeTitle(matter)}
-          </p>
+          </button>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{matter.caseNumber}</span> ·{" "}
+            <Identifier value={matter.caseNumber} label="case number" /> ·{" "}
             {caseStageLabel(matter.stage)}
           </p>
           {/* Comfortable, not dense: on a phone the +N chip gets the full 40×40 target,
@@ -312,7 +310,7 @@ function ScheduleItemList({ rows }: { rows: SchedulingCase[] }) {
               (counsel) => counsel.name,
             )}
           />
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

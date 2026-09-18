@@ -105,6 +105,7 @@ import {
 } from "@/lib/cases/documents";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 type SubmitterOption = {
   value: string;
@@ -795,9 +796,7 @@ function DocumentsTable({
                 <span aria-hidden> · </span>
                 {/* The id the register's search matches — shown so a found
                     row identifies itself. */}
-                <span className="font-mono tabular-nums">
-                  {document.filingId}
-                </span>
+                <Identifier value={document.filingId} label="filing number" />
               </p>
             </TableCell>
             <TableCell className={cn(cellClass, "min-w-0 whitespace-normal")}>
@@ -901,7 +900,9 @@ function DocumentsItemList({
               </button>
             </ItemTitle>
             <p className="text-caption font-medium text-muted-foreground">
-              <span className="font-mono">{document.id}</span>
+              {/* The title button's `after:inset-0` covers this whole card, so a copy
+                  control here could never be clicked — the face only. */}
+              <Identifier value={document.id} label="document id" copyable={false} />
               {" · "}
               {documentSourceLabel(document.source)}
             </p>
@@ -951,7 +952,9 @@ function EvidenceValue({ document }: { document: CaseDocument }) {
       {evidenceNumber ? (
         <>
           <span aria-hidden>·</span>
-          <span className="font-mono">{evidenceNumber}</span>
+          {/* The badge carries its own `aria-label`, so nothing inside it is
+              announced and a control here would be unreachable by name. */}
+          <Identifier value={evidenceNumber} label="evidence number" copyable={false} />
         </>
       ) : null}
     </Badge>

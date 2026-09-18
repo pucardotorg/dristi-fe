@@ -6,11 +6,11 @@ import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { CourtFilters } from "@/components/employee/court-filters";
 import { OtherApplicationDialog } from "@/components/employee/other-application-dialog";
 import { OtherApplicationsTable } from "@/components/employee/other-applications-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -23,14 +23,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   causeTitle,
   counselFor,
@@ -49,6 +41,7 @@ import {
   type OtherApplication,
   type OtherApplicationFilters,
 } from "@/lib/employee/other-applications";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Others — every application in front of this court, whatever it asks for.
@@ -125,7 +118,7 @@ export function OtherApplicationsScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Others
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
@@ -230,86 +223,50 @@ function OtherApplicationFiltersForm({
   onClear: () => void;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="other-applications-stage" className="w-fit text-body-compact">
-          Stage
-        </Label>
-        <Select
-          value={filters.stage}
-          onValueChange={(value) =>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or advocate",
+      }}
+      searchRef={searchRef}
+      fields={[
+        {
+          id: "other-applications-stage",
+          label: "Stage",
+          value: filters.stage,
+          all: "all",
+          allLabel: "All stages",
+          options: OTHER_APPLICATION_STAGES.map((stage) => ({
+            value: stage.id,
+            label: stage.label,
+          })),
+          onApply: (value) =>
             onChange({
               ...filters,
               stage: value as OtherApplicationFilters["stage"],
-            })
-          }
-        >
-          <SelectTrigger id="other-applications-stage" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All stages</SelectItem>
-            {OTHER_APPLICATION_STAGES.map((stage) => (
-              <SelectItem key={stage.id} value={stage.id}>
-                {stage.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-72"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number or advocate"
-      />
-
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="other-applications-type" className="w-fit text-body-compact">
-          Application type
-        </Label>
-        {/* The two longest heads run past the trigger and clamp to one line — the
-            primitive's own behaviour, kept rather than widened. All fourteen are unique
-            well inside the width that survives, the full text is in the list, and a
-            trigger wide enough for "Application for extension of submission deadline"
-            would push the filter row onto two lines at every laptop width. */}
-        <Select
-          value={filters.type}
-          onValueChange={(value) =>
+            }),
+        },
+        {
+          id: "other-applications-type",
+          label: "Application type",
+          value: filters.type,
+          all: "all",
+          allLabel: "All application types",
+          options: OTHER_APPLICATION_TYPES.map((type) => ({
+            value: type.id,
+            label: type.label,
+          })),
+          onApply: (value) =>
             onChange({
               ...filters,
               type: value as OtherApplicationFilters["type"],
-            })
-          }
-        >
-          <SelectTrigger id="other-applications-type" className="w-full sm:w-72">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All application types</SelectItem>
-            {OTHER_APPLICATION_TYPES.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                {type.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* The only button left on the row. It stays because it undoes more than the
-          search box's own `×` does — it returns every control here to the view the
-          screen opens on — and it is labelled for that rather than for the text it
-          also happens to clear. */}
-      <Button type="button" variant="ghost" onClick={onClear}>
-        Clear filters
-      </Button>
-    </form>
+            }),
+        },
+      ]}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -380,9 +337,9 @@ function OtherApplicationsItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((application) => (
-        <li
+        <QueueItemRow
           key={application.id}
-          {...rowActivation("flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+          className="flex flex-col gap-2"
         >
             <button
               type="button"
@@ -397,7 +354,7 @@ function OtherApplicationsItemList({
             {otherApplicationTypeLabel(application.type)}
           </p>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{application.caseNumber}</span>
+            <Identifier value={application.caseNumber} label="case number" />
             {" · "}
             {otherApplicationStageLabel(application.stage)}
             {" · Applied "}
@@ -413,7 +370,7 @@ function OtherApplicationsItemList({
               (counsel) => counsel.name,
             )}
           />
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

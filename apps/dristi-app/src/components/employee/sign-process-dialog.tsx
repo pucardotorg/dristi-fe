@@ -29,6 +29,8 @@ import {
   type CourtProcess,
   type ProcessDocument,
 } from "@/lib/employee/sign-process";
+import { Identifier } from "@/components/chrome/identifier";
+import { DialogDescription } from "@/components/ui/dialog";
 
 /** What the paper is called in the signature stage's copy. */
 const NOUN = "process";
@@ -133,9 +135,17 @@ function SignProcessBody({
          is the stage *with its own date on it* — the fact the row's fourth column carries
          and the one a reader loses when the table goes behind the overlay. It stands on
          both stages, because the record is the same record on both. */
-      description={`${causeTitle(process)} · ${process.caseNumber} · ${processChannelLabel(
-        process.channel,
-      )}${day ? ` · ${stage.dateColumn} ${formatProcessDate(day)}` : ""}`}
+      description={
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          {causeTitle(process)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={process.caseNumber} label="case number" copyable={false} />{" "}
+          ·{" "}
+          {`${processChannelLabel(process.channel)}${
+            day ? ` · ${stage.dateColumn} ${formatProcessDate(day)}` : ""
+          }`}
+        </DialogDescription>
+      }
       sceneKey={flow.sceneKey}
       motion={flow.motion}
       onCloseAutoFocus={(event) => {

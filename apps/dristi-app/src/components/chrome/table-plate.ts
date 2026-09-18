@@ -63,16 +63,57 @@ import { cn } from "@/lib/utils";
  * class that never reaches the stylesheet.
  */
 
-/** Header cells. The strip is a well inside the panel, so it carries the sunken fill. */
+/**
+ * Header cells. The strip is a well inside the panel, so it carries the sunken fill.
+ *
+ * The label reads at `text-body-compact` (14px), the same size as the data below it, not
+ * a step smaller. 12px column headers were the last 12px left in the staff tables, and the
+ * owner does not want that size doing label work in the product (2026-09-14). The header
+ * still recedes under the data — it is `font-semibold` on the muted ink, over the sunken
+ * fill, against foreground-weight body text — so the hierarchy now comes from weight and
+ * colour rather than from a size the eye has to squint at.
+ */
 export const TABLE_HEAD =
-  "h-10 bg-surface-sunken px-4 py-3 text-caption font-semibold text-muted-foreground";
+  "h-10 bg-surface-sunken px-4 py-3 text-body-compact font-semibold text-muted-foreground";
 
 /**
  * Body cells. Add `align-top` where rows are tall enough that centring strands the
  * short cells (the A-Diary); everything else takes this unchanged.
  */
+/**
+ * Data cells. `h-16` is the row's floor, and it is the reason a queue reads the same
+ * on two screens.
+ *
+ * Nothing here used to name a height, so a row was as tall as whatever its tallest column
+ * happened to hold. Most queues land at 65px by accident: `/employee/hearings/schedule`
+ * because its Advocates column stacks two counsel, `sign-process` because the cause title
+ * wraps in a 315px column, `/cases` at 77px because it stacks two counsel *and* a chip.
+ * Bulk reschedule has no column that stacks anything, so the same table on the same plate
+ * collapsed to 46px and read as a different component (owner, 2026-09-17: *"the same
+ * information structure — why can't you just match the same height"*).
+ *
+ * 64px of cell plus the hairline is the 65px the court queues already sit at, so this
+ * lifts the short rows and moves nothing else: a row with two lines in any column is
+ * already past the floor and stays where it was, `/cases` included.
+ *
+ * **The padding is `2.5`, and that is what makes the floor bind.** A row opener carries
+ * `min-h-10` for the touch target, so with `py-3` an opener row measured 40 + 24 + 1 =
+ * 65 and sailed past a 64 floor — every queue with a clickable row sat 1px above every
+ * queue without one, which is where the bulk board's odd height came from (measured,
+ * 2026-09-18). At `py-2.5` the opener fits inside the floor and every single-line queue
+ * lands on 64 exactly, bulk reschedule included.
+ *
+ * Lowering the floor was the other candidate and it does not work: at `h-14` only the
+ * bulk board moves, to 56, because every other table is held up by its opener. Measured
+ * across the queues, 56 restores the mismatch rather than removing it.
+ *
+ * It is `h-16` and not `min-h-16` because this is a table cell. The CSS table model
+ * treats a cell's `height` as a *minimum* — the row takes the tallest cell and grows past
+ * it for content — while `min-height` on a cell is simply ignored, which is how the first
+ * attempt at this floor changed nothing.
+ */
 export const TABLE_CELL =
-  "border-b border-hairline px-4 py-3 align-middle text-left text-body-compact";
+  "h-16 border-b border-hairline px-4 py-2.5 align-middle text-left text-body-compact";
 
 /**
  * The header row: no hover (nothing in it is live) and rounded ends, so the strip reads

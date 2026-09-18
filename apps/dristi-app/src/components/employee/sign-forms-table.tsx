@@ -28,6 +28,7 @@ import {
   type SignForm,
 } from "@/lib/employee/sign-forms";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The signing queue as a table: which forms are picked for signature, the cause, its
@@ -145,9 +146,9 @@ export function SignFormsTable({
                 </button>
               </TableCell>
               <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {form.caseNumber}
+                <Identifier value={form.caseNumber} label="case number" />
               </TableCell>
               {/* Plain text, not a chip. Three tinted process types down a column is
                   decoration, and the word is already the whole fact (ui-craft §4). */}

@@ -145,6 +145,7 @@ import {
   type OrderCatalogueContext,
   type OrderGroupId,
 } from "@/lib/employee/order-templates";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The composer's signature overlay, stated as a flow with one stage in it.
@@ -1684,8 +1685,8 @@ function PendingApplications({
             <p className="text-body-compact min-w-0 font-medium">
               {listingApplicationLabel(application)}
             </p>
-            <p className="text-caption tabular-nums text-muted-foreground">
-              {application.number}
+            <p className="text-caption text-muted-foreground">
+              <Identifier value={application.number} label="application number" />
             </p>
           </div>
 
@@ -1813,8 +1814,8 @@ function AnsweredApplications({
               <p className="text-body-compact min-w-0 font-medium">
                 {listingApplicationLabel(application)}
               </p>
-              <p className="text-caption tabular-nums text-muted-foreground">
-                {application.number}
+              <p className="text-caption text-muted-foreground">
+                <Identifier value={application.number} label="application number" />
               </p>
             </div>
           </div>
@@ -2413,9 +2414,15 @@ function MatterFacts({ hearing }: { hearing: CourtHearing }) {
   /* `figures` is not styling for its own sake: the serial and the case number sit in a
      row the eye runs along, and a stage or a purpose is a word. Lining figures on a word
      buys nothing and costs the shape of it. */
-  const rows: { label: string; value: string; figures: boolean }[] = [
+  const rows: {
+    label: string;
+    value: string;
+    figures: boolean;
+    /** The value is an identifier, not a figure — it takes the product's own treatment. */
+    id?: true;
+  }[] = [
     { label: "Item", value: String(hearing.item), figures: true },
-    { label: "Case", value: hearing.caseNumber, figures: true },
+    { label: "Case", value: hearing.caseNumber, figures: true, id: true },
     {
       label: "Stage",
       value: courtCaseStageLabel(hearing.stage),
@@ -2447,7 +2454,11 @@ function MatterFacts({ hearing }: { hearing: CourtHearing }) {
               stays, matching that block, and the pairs keep `gap-x-6` between them, so
               the 3:1 ratio is what groups a label with its own value. */}
           <span className="font-medium text-muted-foreground">{`${row.label}:`}</span>
-          <span className={cn(row.figures && "tabular-nums")}>{row.value}</span>
+          {row.id ? (
+            <Identifier value={row.value} label={row.label.toLowerCase()} />
+          ) : (
+            <span className={cn(row.figures && "tabular-nums")}>{row.value}</span>
+          )}
         </p>
       ))}
     </div>

@@ -66,16 +66,10 @@ import {
   causeTitle,
   counselFor,
   formatListingDate,
+  isoDay,
   parseIsoDay,
-  shiftDay,
 } from "./hearings";
 import { formatCaseDate, formatChequeAmount } from "./hearing-overview";
-import {
-  FILING_WINDOW_DAYS,
-  NOTICE_WINDOW_DAYS,
-  PAYMENT_WINDOW_DAYS,
-  PRESENTATION_WINDOW_DAYS,
-} from "./ni-act";
 import { registerCaseById, type RegisterCase } from "./register-cases";
 
 /**
@@ -368,6 +362,12 @@ export type CaseFact = {
   source?: CaseFactSource;
   /** A number, an amount or a date — set in a column of its own kind. */
   numeric?: boolean;
+  /**
+   * A unique identifier — a cheque number, an IFSC, a bar registration, a receipt
+   * number. Transcribed character by character into another system, rather than read as
+   * a quantity the way the amount and the dates beside it are.
+   */
+  id?: boolean;
   /**
    * This value is the exception, and the exception has a consequence for the decision
    * the reader is about to take.
@@ -1176,6 +1176,13 @@ function numberOf(seed: number, salt: number, count: number): number {
   return low + (mixed % (10 ** count - low));
 }
 
+/** `YYYY-MM-DD`, moved by whole days. */
+function shiftDay(day: string, delta: number): string {
+  const date = parseIsoDay(day);
+  date.setDate(date.getDate() + delta);
+  return isoDay(date);
+}
+
 const BANKS = [
   { name: "State Bank of India", ifsc: "SBIN" },
   { name: "Federal Bank", ifsc: "FDRL" },
@@ -1404,15 +1411,17 @@ function chainFor(
   };
 }
 
-/* The statute's own numbers live in `ni-act.ts` — this file measures with them but does
-   not own them, and the case overview counts with the same four. Re-exported because
-   this module is where they were first reached from. */
-export {
-  FILING_WINDOW_DAYS,
-  NOTICE_WINDOW_DAYS,
-  PAYMENT_WINDOW_DAYS,
-  PRESENTATION_WINDOW_DAYS,
-} from "./ni-act";
+/** The month §142(b) allows for filing, counted from the cause of action. */
+export const FILING_WINDOW_DAYS = 30;
+
+/** The three months §138(a) allows between the date of a cheque and its presentation. */
+export const PRESENTATION_WINDOW_DAYS = 90;
+
+/** The thirty days §138(b) allows between the return of a cheque and the notice. */
+export const NOTICE_WINDOW_DAYS = 30;
+
+/** The fifteen days §138(c) allows the drawer to pay before the offence is complete. */
+export const PAYMENT_WINDOW_DAYS = 15;
 
 /**
  * The §138 dates behind one complaint, as days rather than as the sentences the screen
@@ -1993,7 +2002,7 @@ function caseSpecificSection(
               term: FACT_TERMS.chequeNumber,
               value: String(chequeNumber),
               source: "dishonoured-cheque",
-              numeric: true,
+              id: true,
             },
             /* `source` on every row the brief's §5a-iii table gives a document for, and
                on no other. The payee's bank sits on the deposit proof (it is the bank
@@ -2028,7 +2037,7 @@ function caseSpecificSection(
               term: FACT_TERMS.payeeIfsc,
               value: payee.ifsc,
               source: "deposit-proof",
-              numeric: true,
+              id: true,
             },
             {
               term: FACT_TERMS.payerBank,
@@ -2044,7 +2053,7 @@ function caseSpecificSection(
               term: FACT_TERMS.payerIfsc,
               value: payer.ifsc,
               source: "dishonoured-cheque",
-              numeric: true,
+              id: true,
             },
             {
               term: FACT_TERMS.depositedOn,
@@ -2331,7 +2340,7 @@ function additionalSection(
                  and keyed per record, so the third advocate's row points at the third
                  advocate's card rather than at the first one's. */
               source: advocateSlotKey(index + 1, "bar-id-card"),
-              numeric: true,
+              id: true,
             },
           ],
           documents: [
@@ -2370,7 +2379,7 @@ function paymentSection(seed: number, marks: CaseFileMarks): CaseSection {
             term: FACT_TERMS.receiptNumber,
             value: `KL-CF-${String(seed).padStart(6, "0")}`,
             source: "payment-receipt",
-            numeric: true,
+            id: true,
           },
         ],
         documents: [

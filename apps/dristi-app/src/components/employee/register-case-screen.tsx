@@ -47,8 +47,7 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Step, StepGroup } from "@/components/employee/step-timeline";
-import { Timeline } from "@/components/ui/timeline";
+import { Timeline, TimelineItem } from "@/components/ui/timeline";
 import {
   CASE_REVIEW_STATUS,
   caseReviewFor,
@@ -68,6 +67,7 @@ import {
   type RegisterCase,
 } from "@/lib/employee/register-cases";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Register cases — one waiting complaint, as the magistrate reads it before taking it on
@@ -166,7 +166,7 @@ function ComplaintPage({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip">
       <div
         className={cn(
-          "flex w-full min-w-0 flex-1 flex-col gap-8 px-6 pt-6 pb-16 md:px-8 md:pt-8 xl:px-12",
+          "flex w-full min-w-0 flex-1 flex-col gap-8 px-6 pt-6 pb-16 md:px-8 md:pt-8",
           arrival && ARRIVAL[arrival],
         )}
       >
@@ -245,9 +245,11 @@ function ComplaintHeader({
       className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="text-body-compact tabular-nums text-muted-foreground">
-          {complaint.caseNumber}
-        </p>
+        <Identifier
+          value={complaint.caseNumber}
+          label="case number"
+          className="self-start text-body-compact text-muted-foreground"
+        />
         <h1
           id="complaint-title"
           className="text-balance font-semibold text-title"
@@ -430,7 +432,7 @@ function ComplaintTabs({
       {/* Sticky under the 56px bar, on the canvas's own fill and bled to the page edge
           so what scrolls beneath is covered cleanly. The rule is the band's, full width,
           as a sticky bar's edge is. */}
-      <div className="sticky top-14 z-20 -mx-6 border-b border-hairline bg-muted px-6 md:-mx-8 md:px-8 xl:-mx-12 xl:px-12 dark:bg-background">
+      <div className="sticky top-14 z-20 -mx-6 border-b border-hairline bg-muted px-6 md:-mx-8 md:px-8 dark:bg-background">
         {/* The acts sit at the far end of the tab row, at the size they are in the header
             — a button that shrinks as it crosses into the bar reads as a glitch, not as a
             transition (owner, 2026-09-12). The **tabs keep their own height**: stretching
@@ -563,8 +565,8 @@ function SynopsisPanel({ summary }: { summary: CaseSummary }) {
             >
               {cheque.amount}
             </Fact>
-            <Fact term={SYNOPSIS_FIELDS.chequeNumber} format="figure">
-              {cheque.number}
+            <Fact term={SYNOPSIS_FIELDS.chequeNumber}>
+              <Identifier value={cheque.number} label="cheque number" />
             </Fact>
             <Fact term={SYNOPSIS_FIELDS.drawnOn} note={synopsis.cheque.drawerBranch}>
               {synopsis.cheque.drawerBank}
@@ -580,8 +582,8 @@ function SynopsisPanel({ summary }: { summary: CaseSummary }) {
 
           <SynopsisSection label={SUMMARY_TERMS.notice}>
             <Fact term={SYNOPSIS_FIELDS.mode}>{synopsis.notice.mode}</Fact>
-            <Fact term={SYNOPSIS_FIELDS.tracking} format="code">
-              {synopsis.notice.tracking}
+            <Fact term={SYNOPSIS_FIELDS.tracking}>
+              <Identifier value={synopsis.notice.tracking} label="tracking number" />
             </Fact>
             <Fact term={SYNOPSIS_FIELDS.replied}>
               {synopsis.notice.replied ? "Received" : <Absent>None</Absent>}
@@ -645,11 +647,13 @@ function SynopsisSection({
   );
 }
 
-/** How a value is set: plain, as a figure that lines up, or as a code. */
+/**
+ * How a value is set: plain, or as a figure that lines up. An identifier is not a format
+ * here — it composes `Identifier`, which owns that treatment for the whole product.
+ */
 const FORMAT = {
   text: "",
   figure: "tabular-nums",
-  code: "font-mono tabular-nums",
 } as const;
 
 type FactFormat = keyof typeof FORMAT;
@@ -935,6 +939,79 @@ const WINDOW_COUNTED_FROM: Record<CaseSummaryWindow["id"], string> = {
   filing: "the cause of action",
 };
 
+/** One column of dated steps, under the phase it belongs to. */
+function StepGroup({ heading, children }: { heading: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <h3 className="text-body-compact font-semibold text-muted-foreground">{heading}</h3>
+      <Timeline className="text-body-compact">{children}</Timeline>
+    </div>
+  );
+}
+
+/**
+ * One step: its name, and its date against the far edge where dates line up. Composed as
+ * the item's children because the DS item's own title slot takes a string, and a step's
+ * date is a `<time>`.
+ *
+ * **The spacing between steps lives inside the step, not under it.** The DS item spaces
+ * itself with `pb-6` on the `li`, and its rail stretches only to the item's content box —
+ * so on the render the line stopped at every step and the gap between them was blank.
+ * Moving the spacing into the content makes the rail run through it to the next dot.
+ * Upstream DS feedback: the rail should span the item's padding (brief §0.5).
+ */
+function Step({
+  status = "past",
+  label,
+  date,
+  note,
+  aside,
+  tone,
+}: {
+  status?: "past" | "current";
+  label: string;
+  date: React.ReactNode;
+  /** What the step means for the decision — a statutory limit, or the wait so far. */
+  note?: string;
+  /** A second fact about the same step, always quiet — "condonation sought". */
+  aside?: string;
+  tone?: "warning";
+}) {
+  return (
+    <TimelineItem status={status} className="pb-0">
+      {/* Three columns once the panel is wide: the step, what it means, and the day it
+          closed. The date column is fixed, so every date in the chain shares one edge
+          and one right margin however long the step's name runs. Narrow, the note drops
+          to a line of its own under the step and the date keeps the far corner. */}
+      <div className="pb-4 group-last/timeline-item:pb-0">
+        <div className="-mx-3 -my-2 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 rounded-lg px-3 py-2 transition-colors hover:bg-surface-sunken @xl:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_6.5rem]">
+        {/* Regular weight: the group's heading is the one semibold line in the column, and
+            the date's muted ink is what separates it from the step's name. */}
+        <span className="col-start-1 row-start-1 min-w-0">{label}</span>
+        <span className="col-start-2 row-start-1 shrink-0 text-right tabular-nums text-muted-foreground @xl:col-start-3">
+          {date}
+        </span>
+        {note ? (
+          <span
+            className={cn(
+              "col-span-2 col-start-1 row-start-2 min-w-0 @xl:col-span-1 @xl:col-start-2 @xl:row-start-1",
+              tone === "warning" ? "text-warning-ink" : "text-muted-foreground",
+            )}
+          >
+            {note}
+            {aside ? (
+              <span className={cn("block", tone === "warning" && "text-muted-foreground")}>
+                {aside}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
+        </div>
+      </div>
+    </TimelineItem>
+  );
+}
+
 function days(count: number): string {
   return `${count} ${count === 1 ? "day" : "days"}`;
 }
@@ -1122,7 +1199,8 @@ function ActBody({
           </span>
         </DialogTitle>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          <span className="tabular-nums">{complaint.caseNumber}</span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={complaint.caseNumber} label="case number" copyable={false} />
           {" · "}
           {causeTitle(complaint)}
         </DialogDescription>
@@ -1159,7 +1237,7 @@ function ActBody({
           <p className="text-body-compact text-pretty">
             {settled
               ? "The complaint is on the register. It appears in the court's case list from today."
-              : "Registering takes cognizance of the complaint. It cannot be undone from this screen."}
+              : "Registering puts the complaint on the register and gives it a number. Taking cognizance is a separate act, and it comes after. It cannot be undone from this screen."}
           </p>
         )}
 

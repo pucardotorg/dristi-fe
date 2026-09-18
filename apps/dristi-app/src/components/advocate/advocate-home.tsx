@@ -2,15 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, CloudAlert, LayoutGrid, List, RotateCw, Video } from "lucide-react";
+import { toast } from "sonner";
+import type { CauseListRow, TimelineHearing } from "@/lib/advocate/home";
+import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
+import { CloudAlert, RotateCw } from "lucide-react";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyDescription,
@@ -18,281 +16,132 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-} from "@/components/ui/segmented-control";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Locale } from "@/lib/onboarding/content";
 import { pick } from "@/lib/onboarding/content";
-import { cn } from "@/lib/utils";
 import { advHome, fillCopy } from "@/lib/advocate/content";
 import {
-  advocateRosterOn,
-  boardOf,
   caseRecordFor,
   courtLabelsOf,
   courtRooms,
   dayKeyOf,
+  daySlotsOn,
   nextHearingDayAfter,
   weekOf,
-  type AdvocateOption,
-  type Board,
-  type HomeHearing,
 } from "@/lib/advocate/home";
+import { ADVOCATE_HOME_CONFIG } from "@/lib/advocate/config";
 import { useTasks } from "@/lib/tasks/store";
 import { TASKS_HOME } from "@/lib/tasks/routes";
 import { caseOf, type World } from "@/lib/tasks/selectors";
-import { canView, verbFor } from "@/lib/tasks/permissions";
-import type { PersonId } from "@/lib/tasks/types";
+import type { Task } from "@/lib/tasks/types";
+import { archive } from "@/lib/tasks/transitions";
+import { useTaskActions } from "@/components/tasks/use-task-actions";
+import { verbFor } from "@/lib/tasks/permissions";
 import { useTaskAct } from "@/components/tasks/task-act-layer";
-import { PersonAvatar } from "@/components/tasks/person-avatar";
 import { CasePeekSurface } from "@/components/cases/case-peek";
 import { CasePeekProvider, useCasePeek } from "@/components/cases/use-case-peek";
-import {
-  CourtBoard,
-  type BoardView,
-  type CourtSection,
-} from "@/components/advocate/court-board";
 import { HomeGreeting } from "@/components/advocate/home-greeting";
 import {
   CompanionRail,
   useRailSection,
 } from "@/components/advocate/companion-rail";
+import {
+  HearingTimeline,
+  type CourtOption,
+} from "@/components/advocate/hearing-timeline";
+import { CauseListDialog } from "@/components/advocate/cause-list-dialog";
+import { JoinHearingDialog } from "@/components/advocate/join-hearing-dialog";
 
 /** The shell top bar is `h-14`; the sticky rail hangs below it. */
 const TOP_BAR = "3.5rem";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** A clock that ticks once a minute so due cues stay honest on a long-open tab. */
+/** Where the court filter is remembered — cleared when the calendar day turns. */
+const COURTS_KEY = "advocate-home:courts";
+
+/**
+ * The home's clock. The sandbox lists a normal court day (10:00–17:00); pinning
+ * the clock to mid-afternoon makes the day always read as one in progress — a
+ * morning already concluded, a slot being called now, an afternoon still to come —
+ * whatever the wall-clock hour the demo is opened at. The calendar date stays
+ * real, so the greeting and week strip are still today. Drop the `setHours` line
+ * to run on the live clock.
+ */
 function useNow(): number {
-  const [now, setNow] = React.useState(() => Date.now());
-  React.useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(t);
-  }, []);
+  const [now] = React.useState(() => {
+    const d = new Date();
+    d.setHours(14, 10, 0, 0);
+    return d.getTime();
+  });
   return now;
 }
 
-/** Past this many advocates the tail collapses into a "+N" menu, not more rows. */
-const MAX_CHIPS = 7;
-
-/** The advocate's own label, "(you)" folded in for the signed-in account. */
-function advocateLabel(locale: Locale, option: AdvocateOption): string {
-  return option.you
-    ? fillCopy(advHome.switcherYou, locale, { name: option.person.name })
-    : option.person.name;
+/**
+ * The court filter, backed by localStorage so it survives a refresh and clears
+ * when the day turns.
+ *
+ * It reads through `useSyncExternalStore` rather than an effect that sets state:
+ * that keeps the server render (no selection) and the client's stored value from
+ * disagreeing at hydration, and same-tab writes announce themselves with a
+ * `storage` event so the read re-runs. The raw string is the stable snapshot;
+ * parsing happens in the component, cached against it.
+ */
+function subscribeCourts(onChange: () => void): () => void {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
 }
 
-/**
- * One advocate in the roster, as a pressable face.
- *
- * The switcher is names the advocate says, not a permission model: holding the
- * vakalatnama is a property of one matter and never a cut that removes matters
- * from a cause list. Selection is one quiet cue — a brand ring on the chosen
- * disc — per the loudness ladder; a ring *and* a fill would be a costume. The
- * 40px hit target holds even though the disc inside it is smaller.
- */
-function AdvocateChip({
-  option,
-  selected,
-  locale,
-  onSelect,
-}: {
-  option: AdvocateOption;
-  selected: boolean;
-  locale: Locale;
-  onSelect: (id: PersonId) => void;
-}) {
-  const label = advocateLabel(locale, option);
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-pressed={selected}
-          aria-label={label}
-          onClick={() => onSelect(option.person.id)}
-          className="flex size-10 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <span
-            className={cn(
-              "flex items-center justify-center rounded-full transition-shadow",
-              selected && "ring-2 ring-brand-accent"
-            )}
-          >
-            <PersonAvatar
-              person={option.person}
-              you={option.you}
-              size="default"
-              surface="card"
-            />
-          </span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  );
+function courtsSnapshot(): string {
+  try {
+    return window.localStorage.getItem(COURTS_KEY) ?? "";
+  } catch {
+    return "";
+  }
 }
 
-/**
- * The per-court toolbar, below the court tabs.
- *
- * Two groups by role: what the board *contains* — the advocate it is seen
- * through — and how it is *drawn* on the left; the two real per-court actions on
- * the right. "View cause list" opens the court's full official day list (every
- * matter, not just the viewer's); "Join this courtroom" — the one bg-primary
- * action on the board — joins that court's virtual room. Both act on the
- * selected court, and both are honest stubs: no endpoint exists yet (§16.6 Q11).
- */
-function BoardToolbar({
-  locale,
-  roster,
-  selected,
-  onToggle,
-  view,
-  onViewChange,
-  section,
-  onViewCauseList,
-  onJoinCourt,
-}: {
-  locale: Locale;
-  roster: AdvocateOption[];
-  selected: readonly PersonId[];
-  onToggle: (id: PersonId) => void;
-  view: BoardView;
-  onViewChange: (view: BoardView) => void;
-  /** The court the per-court actions act on. */
-  section: CourtSection;
-  onViewCauseList: (court: string) => void;
-  onJoinCourt: (court: string) => void;
-}) {
-  const shown = roster.slice(0, MAX_CHIPS);
-  const rest = roster.slice(MAX_CHIPS);
-  const restSelected = rest.some((option) =>
-    selected.includes(option.person.id)
+function useStoredCourts(todayKey: string): [string[], (next: string[]) => void] {
+  const raw = React.useSyncExternalStore(subscribeCourts, courtsSnapshot, () => "");
+  const courts = React.useMemo(() => {
+    try {
+      const parsed = raw ? (JSON.parse(raw) as { day?: string; courts?: unknown }) : null;
+      if (parsed && parsed.day === todayKey && Array.isArray(parsed.courts)) {
+        return parsed.courts.filter((c): c is string => typeof c === "string");
+      }
+    } catch {
+      /* A corrupt entry just reads as no filter. */
+    }
+    return [];
+  }, [raw, todayKey]);
+
+  const setCourts = React.useCallback(
+    (next: string[]) => {
+      try {
+        window.localStorage.setItem(
+          COURTS_KEY,
+          JSON.stringify({ day: todayKey, courts: next })
+        );
+        // A same-tab write does not fire `storage` on its own — announce it so
+        // the store subscription re-reads and the view updates at once.
+        window.dispatchEvent(new StorageEvent("storage", { key: COURTS_KEY }));
+      } catch {
+        /* No store, no persistence — the selection simply will not survive a refresh. */
+      }
+    },
+    [todayKey]
   );
 
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 pt-3 pb-3 md:px-8">
-      <span className="text-caption font-medium text-muted-foreground">
-        {pick(advHome.viewCases, locale)}
-      </span>
-
-      <div
-        role="group"
-        aria-label={pick(advHome.whoseMatters, locale)}
-        className="flex items-center gap-1"
-      >
-        {shown.map((option) => (
-          <AdvocateChip
-            key={option.person.id}
-            option={option}
-            selected={selected.includes(option.person.id)}
-            locale={locale}
-            onSelect={onToggle}
-          />
-        ))}
-
-        {/* The roster is unbounded — an establishment day can list many
-            advocates — so past seven the tail is a menu, not another row. */}
-        {rest.length ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={pick(advHome.moreAdvocates, locale)}
-                className={cn(
-                  "flex size-10 items-center justify-center rounded-full text-caption font-medium text-muted-foreground outline-none transition-colors hover:bg-accent-strong focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:bg-accent-strong",
-                  restSelected && "ring-2 ring-brand-accent"
-                )}
-              >
-                +{rest.length}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-auto min-w-56">
-              {rest.map((option) => (
-                <DropdownMenuItem
-                  key={option.person.id}
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    onToggle(option.person.id);
-                  }}
-                >
-                  <PersonAvatar person={option.person} size="sm" />
-                  <span className="truncate text-body-compact">
-                    {advocateLabel(locale, option)}
-                  </span>
-                  <span className="ml-auto flex items-center gap-2 text-caption tabular-nums text-muted-foreground">
-                    {option.count}
-                    {selected.includes(option.person.id) ? (
-                      <Check aria-hidden="true" className="size-4 text-foreground" />
-                    ) : null}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
-      </div>
-
-      <SegmentedControl
-        type="single"
-        size="compact"
-        value={view}
-        onValueChange={(next) => next && onViewChange(next as BoardView)}
-        aria-label={pick(advHome.layoutLabel, locale)}
-      >
-        {(
-          [
-            ["cards", advHome.layoutCards, LayoutGrid],
-            ["list", advHome.layoutList, List],
-          ] as const
-        ).map(([value, label, Icon]) => (
-          <SegmentedControlItem key={value} value={value}>
-            <span className="flex items-center gap-1.5">
-              <Icon aria-hidden="true" className="size-4" />
-              {pick(label, locale)}
-            </span>
-          </SegmentedControlItem>
-        ))}
-      </SegmentedControl>
-
-      {/* The two per-court actions — a court is a place with a cause list and a
-          courtroom of its own. Join is the one saturated action on the board. */}
-      <div className="ml-auto flex items-center gap-2">
-        <Button
-          variant="outline"
-          onClick={() => onViewCauseList(section.court)}
-        >
-          {pick(advHome.viewCauseList, locale)}
-        </Button>
-        {section.hasVirtualRoom ? (
-          <Button onClick={() => onJoinCourt(section.court)}>
-            <Video aria-hidden="true" />
-            {pick(advHome.joinCourtroom, locale)}
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  );
+  return [courts, setCourts];
 }
 
 /**
  * The advocate home — the day in court, and what stands in its way.
  *
- * One world, three surfaces: the cause-list board (from `Case.nextHearingAt`),
- * the pending-tasks rail (the coming week of the Needs-action tab), and the
- * case peek — the same peek Your Cases uses, over the bridged record, so one
- * component answers "what is this case" everywhere. Acting on a task happens
- * in place, through the same modal-and-flow table /tasks runs.
+ * One world, three surfaces: the unified cause-list timeline (from
+ * `Case.nextHearingAt`, grouped by time across every court), the pending-tasks
+ * rail (the coming week of the Needs-action tab), and the case peek — the same
+ * peek Your Cases uses, over the bridged record. Acting on a task happens in
+ * place, through the same modal-and-flow table /tasks runs.
  */
 export function AdvocateHome(props: {
   locale: Locale;
@@ -300,7 +149,10 @@ export function AdvocateHome(props: {
 }) {
   const now = useNow();
   return (
-    <CasePeekProvider now={now}>
+    // Docked: the redesigned full-height panel that slides in from the right and
+    // sits over the screen, the same shape the cases landing uses — not the older
+    // inset floating card.
+    <CasePeekProvider now={now} docked>
       <HomeBody {...props} now={now} />
     </CasePeekProvider>
   );
@@ -315,10 +167,25 @@ function HomeBody({
   profileFirstName: string;
   now: number;
 }) {
+  const isMobile = useIsMobile();
   const store = useTasks();
   const { state, people, cases, tasks, user, reload } = store;
   const router = useRouter();
   const { run: actOn, layer: actLayer } = useTaskAct();
+  const { act: runTaskAction } = useTaskActions();
+
+  // Archive a task straight from the rail — it drops out of Pending and lands in
+  // the Archived tab on the tasks page (restorable there).
+  const onArchiveTask = React.useCallback(
+    (task: Task) => {
+      void runTaskAction(
+        task.id,
+        archive,
+        "Archived — find it under the Archived tab"
+      );
+    },
+    [runTaskAction]
+  );
   const peek = useCasePeek();
 
   const world = React.useMemo<World>(
@@ -330,88 +197,115 @@ function HomeBody({
   const [selectedDay, setSelectedDay] = React.useState<string>(todayKey);
   /** Which week the strip shows — pages independently of today. */
   const [weekAnchor, setWeekAnchor] = React.useState<number>(now);
-  const [view, setView] = React.useState<BoardView>("cards");
-  // A per-session lens, deliberately not persisted: "my matters" is the right
-  // thing to land on every morning. Multi-select and additive — you start on
-  // your own matters, and picking a colleague *adds* theirs to the board rather
-  // than replacing yours; the board shows the union. Deselect everyone and the
-  // filter is off: the court's whole day shows.
-  const [selected, setSelected] = React.useState<readonly PersonId[]>(() => [
-    user.id,
-  ]);
-  const toggleAdvocate = React.useCallback((id: PersonId) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }, []);
-  const mine = selected.length === 1 && selected[0] === user.id;
-  /** Which court's board is shown; null falls back to the first tab. */
-  const [courtId, setCourtId] = React.useState<string | null>(null);
   // Not `useState`: which panel stands open is remembered per user, so a rail
   // closed last week is still closed. First run opens the tasks panel.
   const [railSection, setRailSection] = useRailSection();
+
+  // Clicking a hearing's "pending" flag opens the tasks rail and traces a stroke
+  // around that case's tasks. The nonce lets the same case re-trigger the trace.
+  // (One of two competing patterns on show — the peek also lists pending work —
+  // to be resolved with the team.)
+  const [taskHighlight, setTaskHighlight] = React.useState<{
+    caseId: string;
+    taskIds: string[];
+    nonce: number;
+  } | null>(null);
+  const openTasksForCase = React.useCallback(
+    (caseId: string, taskIds: string[]) => {
+      if (!isMobile) setRailSection("tasks");
+      setTaskHighlight({ caseId, taskIds, nonce: Date.now() });
+    },
+    [isMobile, setRailSection]
+  );
+
+  // The court filter. No selection means every court; a chosen set narrows the
+  // timeline. It survives a refresh (localStorage) but resets when the day turns:
+  // yesterday's filter is not today's day.
+  const [selectedCourts, changeCourts] = useStoredCourts(todayKey);
 
   const week = React.useMemo(
     () => weekOf(world, now, weekAnchor),
     [world, now, weekAnchor]
   );
-  const rooms = React.useMemo(
-    () => courtRooms(world, selectedDay, now),
-    [world, selectedDay, now]
+
+  // The full day cause list opens in a near-fullscreen modal over the board.
+  const [causeListOpen, setCauseListOpen] = React.useState(false);
+  const onViewCauseList = React.useCallback(() => setCauseListOpen(true), []);
+  // Clicking a hearing's cause-list icon opens the list and traces that matter's
+  // row — the per-hearing "where does my matter stand in the docket?" jump. The
+  // nonce lets the same matter re-trigger the trace.
+  const [causeListHighlight, setCauseListHighlight] = React.useState<{
+    caseId: string;
+    nonce: number;
+  } | null>(null);
+  const onViewInCauseList = React.useCallback((caseId: string) => {
+    setCauseListHighlight({ caseId, nonce: Date.now() });
+    setCauseListOpen(true);
+  }, []);
+  // The "Join hearing" button opens a picker of the advocate's own hearings being
+  // called now; the cause list is the wider door (any ongoing hearing). No courtroom
+  // URL is supplied yet (§16.6 Q11), so a join is an honest, explicit stub.
+  const [joinOpen, setJoinOpen] = React.useState(false);
+  const onJoinCourt = React.useCallback(() => setJoinOpen(true), []);
+  const announceJoin = React.useCallback(
+    (parties: string, courtLabel: string, courtNumber: string | null) => {
+      toast.info(pick({ en: "Hearing link unavailable", ml: "വിചാരണ ലിങ്ക് ലഭ്യമല്ല" }, locale), {
+        description: `${parties} · ${courtLabel}${courtNumber ? ` · ${courtNumber}` : ""}`,
+      });
+    },
+    [locale]
+  );
+  const onJoinHearing = React.useCallback(
+    (row: CauseListRow) => announceJoin(row.parties, row.courtLabel, row.courtNumber),
+    [announceJoin]
+  );
+  const onJoinFromModal = React.useCallback(
+    (hearing: TimelineHearing) => {
+      setJoinOpen(false);
+      announceJoin(
+        hearing.kase.parties,
+        courtIdentity(hearing.courtLabel).name,
+        courtNumberFor(hearing.court, hearing.kase.courtNumber)
+      );
+    },
+    [announceJoin]
   );
 
-  /** The establishment every court name shares — computed, never matched. */
-  const courtLabels = React.useMemo(
-    () => courtLabelsOf(rooms.map((room) => room.court)),
-    [rooms]
+  // The courts the filter offers: those with a matter listed on the day. A court
+  // with nothing today is not worth offering — selecting it would only empty the
+  // view. Labels share the establishment run so the option reads "CJM Court", not
+  // "CJM Court, Kollam".
+  const courtOptions = React.useMemo<CourtOption[]>(() => {
+    const rooms = courtRooms(world, selectedDay, now).filter((r) => r.count > 0);
+    const labels = courtLabelsOf(rooms.map((r) => r.court));
+    return rooms.map((room) => ({
+      court: room.court,
+      label: labels.shortOf(room.court),
+      count: room.count,
+    }));
+  }, [world, selectedDay, now]);
+
+  // The day as court sittings — one board each, built to the launch config
+  // (flat lists, no times or conflicts) or the fuller view. One sitting shows no
+  // tab bar; the machinery is there for a day the court splits in two.
+  const daySlots = React.useMemo(
+    () => daySlotsOn(world, selectedDay, now, ADVOCATE_HOME_CONFIG, selectedCourts),
+    [world, selectedDay, now, selectedCourts]
   );
 
-  const roster = React.useMemo(
-    () => advocateRosterOn(world, selectedDay, now),
-    [world, selectedDay, now]
+  // The advocate's hearings being called now, across every sitting — what the
+  // Join picker lists.
+  const nowHearings = React.useMemo(
+    () => daySlots.flatMap((slot) => slot.board.now.flatMap((s) => s.hearings)),
+    [daySlots]
   );
 
-  const boards = React.useMemo(() => {
-    const map = new Map<string, Board>();
-    for (const room of rooms) {
-      map.set(room.court, boardOf(world, room.court, selectedDay, now));
-    }
-    return map;
-  }, [world, rooms, selectedDay, now]);
-
-  // Every court the viewer can see gets a tab — including one that lists nothing
-  // today, which stays a landmark and leads to its own empty-state jump. The
-  // switcher narrows a board's contents, never the cause list's numbering: item
-  // numbers come from the full world, so a filtered board still says "item 7".
-  const sections = React.useMemo<CourtSection[]>(() => {
-    // Union: keep a matter if any chosen advocate is on it. No one chosen means
-    // no filter — the court's full day shows.
-    const keep = (h: HomeHearing) =>
-      selected.length === 0 || selected.some((id) => canView(id, h.kase));
-    return rooms.map((room) => {
-      const full = boards.get(room.court)!;
-      const board: Board = {
-        now: full.now && keep(full.now) ? full.now : null,
-        upcoming: full.upcoming.filter(keep),
-        concluded: full.concluded.filter(keep),
-      };
-      return {
-        court: room.court,
-        label: courtLabels.shortOf(room.court),
-        count:
-          (board.now ? 1 : 0) + board.upcoming.length + board.concluded.length,
-        live: !!board.now,
-        // Every court is assumed to have a virtual room for now; §16.6 Q11 owns
-        // the real answer (only the 24×7 ON Court, or all of them).
-        hasVirtualRoom: true,
-        board,
-      };
-    });
-  }, [rooms, boards, courtLabels, selected]);
-
-  const visibleMatterCount = sections.reduce((sum, s) => sum + s.count, 0);
-  const court = courtId ?? sections[0]?.court ?? null;
-  const current = sections.find((s) => s.court === court) ?? sections[0] ?? null;
+  // Where the selected day sits relative to today. `dayKeyOf` is a zero-padded
+  // YYYY-MM-DD, so a plain string compare orders the days. A past day is wholly
+  // concluded; a future day is wholly upcoming — the timeline drops the
+  // "nothing is being called" line off today and opens the concluded pile behind.
+  const dayPhase: "past" | "today" | "future" =
+    selectedDay === todayKey ? "today" : selectedDay < todayKey ? "past" : "future";
 
   const jump = React.useMemo(() => {
     const next = nextHearingDayAfter(world, selectedDay);
@@ -442,7 +336,7 @@ function HomeBody({
     [cases, peek]
   );
 
-  /** The viewer's verb for a task — what the hover overlay names. */
+  /** The viewer's verb for a task — what the rail's hover overlay names. */
   const verbOf = React.useCallback(
     (task: (typeof tasks)[number]) => {
       const kase = caseOf({ cases }, task);
@@ -455,19 +349,6 @@ function HomeBody({
     const id = peek.record?.id;
     return id?.startsWith("tw-") ? id.slice(3) : null;
   }, [peek.record]);
-
-  // The two per-court actions the owner confirmed are real features. No endpoint
-  // exists yet — the courtroom-conferencing route and the official cause-list
-  // service are both open (§16.6 Q11) — so these are honest no-op stubs, wired
-  // as live actions rather than hidden until the backend lands.
-  const onJoinCourt = React.useCallback((court: string) => {
-    // TODO(Q11): open the court's virtual courtroom for `court`.
-    void court;
-  }, []);
-  const onViewCauseList = React.useCallback((court: string) => {
-    // TODO(Q11): open the full official day cause list for `court`.
-    void court;
-  }, []);
 
   // A failure and a slow load are not the same screen. One spinner stood for
   // both, so a failed load spun forever with no way out of it.
@@ -493,7 +374,11 @@ function HomeBody({
     );
   }
 
-  if (state !== "ready") {
+  // A reload keeps the board on screen (stale while it re-reads) rather than
+  // dropping to a spinner: the store holds the last data through the load, so a
+  // refresh updates the list in place instead of blanking the whole page. The
+  // spinner is only for the very first load, when there is nothing to show yet.
+  if (state !== "ready" && cases.length === 0) {
     return (
       <main className="flex min-w-0 flex-1 items-center justify-center">
         <Spinner className="size-6 text-muted-foreground" />
@@ -501,105 +386,55 @@ function HomeBody({
     );
   }
 
+  const hasDay = courtOptions.length > 0;
+
   return (
-    <CasePeekSurface className="flex min-h-0 min-w-0 flex-1">
+    <CasePeekSurface mobileDrawer className="flex min-h-0 min-w-0 flex-1">
       {/* A container, not just a column: the rail narrows the board without
-          narrowing the viewport, so what the board puts on one line has to
+          narrowing the viewport, so what the timeline puts on one line has to
           answer to its own width. */}
       <main className="@container flex min-w-0 flex-1 flex-col">
-        <div className="px-4 pt-6 pb-4 md:px-8">
+        <div className="px-4 pt-6 pb-0 lg:px-8 lg:pb-6">
           <HomeGreeting
             locale={locale}
             firstName={profileFirstName}
             now={now}
             week={week}
             selectedDay={selectedDay}
-            matterCount={visibleMatterCount}
             onSelectDay={selectDay}
             onShiftWeek={(delta) => setWeekAnchor((a) => a + delta * 7 * DAY_MS)}
             onPickDate={(date) => selectDay(dayKeyOf(date))}
           />
         </div>
 
-        {court ? (
-          <Tabs value={court} onValueChange={setCourtId}>
-            {/* The tab band scrolls rather than clips: a section header would
-                wrap, but a court is a place with per-court actions, so a tab —
-                which keeps one court selected for the toolbar to act on — is the
-                right shape. Short names keep the establishment out of the band.
-                The active underline sits ON the band's own rule (`-mb-px` +
-                `after:bottom-0`), never floating above a second line. */}
-            <div className="border-b border-hairline px-4 md:px-8">
-              <TabsList
-                variant="line"
-                className="min-w-0 grow basis-full justify-start gap-1 overflow-x-auto px-0 pb-0 group-data-horizontal/tabs:h-auto"
-              >
-                {sections.map((section) => (
-                  <TabsTrigger
-                    key={section.court}
-                    value={section.court}
-                    className="-mb-px flex-none gap-2 px-3 pt-2 pb-3 group-data-horizontal/tabs:h-auto group-data-horizontal/tabs:after:bottom-0 group-data-[variant=line]/tabs-list:data-active:after:bg-brand-accent"
-                  >
-                    {section.live ? (
-                      <span
-                        aria-hidden="true"
-                        className="size-2 rounded-full bg-success"
-                      />
-                    ) : null}
-                    <span className="text-body-compact font-semibold">
-                      {section.label}
-                    </span>
-                    <span className="text-caption tabular-nums text-muted-foreground">
-                      {section.count}
-                    </span>
-                    {section.live ? (
-                      <span className="sr-only">
-                        {pick(advHome.inSession, locale)}
-                      </span>
-                    ) : null}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
+        {/* A hairline closes the header off from the board's controls and stats,
+            inset to the content margins rather than running edge to edge. */}
+        <div className="hidden px-4 lg:block lg:px-8" aria-hidden="true">
+          <div className="border-b border-hairline" />
+        </div>
 
-            {current ? (
-              <BoardToolbar
-                locale={locale}
-                roster={roster}
-                selected={selected}
-                onToggle={toggleAdvocate}
-                view={view}
-                onViewChange={setView}
-                section={current}
-                onViewCauseList={onViewCauseList}
-                onJoinCourt={onJoinCourt}
-              />
-            ) : null}
-
-            {sections.map((section) => (
-              <TabsContent
-                key={section.court}
-                value={section.court}
-                className="px-4 md:px-8"
-              >
-                <CourtBoard
-                  world={world}
-                  locale={locale}
-                  section={section}
-                  view={view}
-                  selectedCaseId={selectedCaseId}
-                  mine={mine}
-                  jump={jump}
-                  onOpenCase={openCase}
-                  onAct={actOn}
-                  onJump={selectDay}
-                  onShowYours={() => setSelected([user.id])}
-                />
-              </TabsContent>
-            ))}
-          </Tabs>
+        {hasDay ? (
+          <div className="px-4 pt-0 lg:px-8 lg:pt-4">
+            <HearingTimeline
+              daySlots={daySlots}
+              showTimes={ADVOCATE_HOME_CONFIG.showHearingTimes}
+              showConflicts={ADVOCATE_HOME_CONFIG.showConflicts}
+              dayPhase={dayPhase}
+              courts={courtOptions}
+              selectedCourts={selectedCourts}
+              onCourtsChange={changeCourts}
+              onViewCauseList={onViewCauseList}
+              onJoinCourt={onJoinCourt}
+              onRefresh={() => void reload()}
+              selectedCaseId={selectedCaseId}
+              onOpenCase={openCase}
+              onOpenTasks={openTasksForCase}
+              onViewInCauseList={onViewInCauseList}
+              locale={locale}
+            />
+          </div>
         ) : (
-          <div className="px-4 pt-4 pb-8 md:px-8">
+          <div className="px-4 pt-4 pb-8 lg:px-8">
             <Empty className="bg-surface-sunken">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -632,11 +467,41 @@ function HomeBody({
         locale={locale}
         section={railSection}
         topOffset={TOP_BAR}
-        onSectionChange={setRailSection}
+        onSectionChange={(section) => {
+          setTaskHighlight(null);
+          setRailSection(section);
+        }}
+        highlight={taskHighlight}
         verbOf={verbOf}
         onAct={actOn}
-        onOpenCase={openCase}
+        onArchive={onArchiveTask}
         onViewAllTasks={() => router.push(TASKS_HOME)}
+      />
+
+      <CauseListDialog
+        open={causeListOpen}
+        onOpenChange={(open) => {
+          setCauseListOpen(open);
+          if (!open) setCauseListHighlight(null);
+        }}
+        world={world}
+        now={now}
+        day={selectedDay}
+        highlight={causeListHighlight}
+        onJoin={onJoinHearing}
+        locale={locale}
+      />
+
+      <JoinHearingDialog
+        open={joinOpen}
+        onOpenChange={setJoinOpen}
+        hearings={nowHearings}
+        onJoin={onJoinFromModal}
+        onViewCauseList={() => {
+          setJoinOpen(false);
+          setCauseListOpen(true);
+        }}
+        locale={locale}
       />
 
       {actLayer}

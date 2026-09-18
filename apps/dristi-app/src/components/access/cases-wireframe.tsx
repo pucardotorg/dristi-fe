@@ -42,6 +42,7 @@ import {
 } from "@/lib/filing/content";
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Wireframes of the two screens that HOST access management but are not this
@@ -153,7 +154,9 @@ export function CasesWireframe({
             <div className="flex min-w-0 flex-col gap-1">
               <h1 className="text-title text-balance font-semibold">{openCase.title}</h1>
               <p className="text-caption text-muted-foreground">
-                {openCase.caseNumber} · {openCase.court}
+                <Identifier value={openCase.caseNumber} label="case number" />
+                <span aria-hidden> · </span>
+                {openCase.court}
               </p>
             </div>
             {/* The two real controls on this wireframe. Make filings is the
@@ -254,7 +257,11 @@ export function CasesWireframe({
                     <p className="text-body-compact font-medium">
                       {pick(bondCopy.bondTypeSurety, locale)}
                     </p>
-                    <p className="font-mono text-caption text-muted-foreground">{BOND_ID}</p>
+                    <Identifier
+                      value={BOND_ID}
+                      label="bond number"
+                      className="self-start text-caption text-muted-foreground"
+                    />
                   </div>
                   <Badge variant="warning">
                     {pick(
@@ -403,7 +410,9 @@ export function CasesWireframe({
                     {entry.title}
                   </Label>
                   <p className="text-caption text-muted-foreground">
-                    {entry.caseNumber} · {entry.court}
+                    <Identifier value={entry.caseNumber} label="case number" />
+                    <span aria-hidden> · </span>
+                    {entry.court}
                   </p>
                   <Badge variant="outline" className="mt-1 w-fit">
                     {fillCopy(casesCopy.nextHearing, locale, { date: entry.nextHearing })}

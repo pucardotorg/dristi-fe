@@ -29,6 +29,7 @@ import { type ActContext } from "@/components/tasks/act/shared";
 import { type ActMode } from "@/components/tasks/use-task-actions";
 import { FileBody } from "@/components/tasks/act/file-page";
 import { PayBody } from "@/components/tasks/act/pay-page";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** The one quiet line per flow that says what is not real here. */
 const SANDBOX: Record<ActMode, string> = {
@@ -97,7 +98,10 @@ export function TaskActModal({
       {kase.stNumber ? (
         <>
           {" · "}
-          <span className="font-mono tabular-nums">{kase.stNumber}</span>
+          {/* Inside the dialog's accessible description — a copy control here would be
+              announced as part of the description and could take the dialog's first focus,
+              so the face is restored without the affordance. */}
+          <Identifier value={kase.stNumber} label="case number" copyable={false} />
         </>
       ) : (
         " · Not yet numbered"

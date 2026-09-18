@@ -93,6 +93,7 @@ import { SectionNotice } from "@/components/filing/notices";
 import { CourtDocument } from "@/components/filing/sections/preview/court-document";
 import { pickErrorMessage, useFilePicker } from "@/components/filing/use-file-picker";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { Identifier } from "@/components/chrome/identifier";
 
 type ModalKey =
   | "choose"
@@ -778,8 +779,12 @@ export function SignSection() {
           <dt className="text-caption font-medium text-muted-foreground">
             Case file number
           </dt>
-          <dd className="text-body font-semibold tabular-nums">
-            {sign.caseFileNumber ?? "—"}
+          <dd className="text-body font-semibold">
+            {sign.caseFileNumber ? (
+              <Identifier value={sign.caseFileNumber} label="case file number" />
+            ) : (
+              <span className="tabular-nums">—</span>
+            )}
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
@@ -798,8 +803,12 @@ export function SignSection() {
           <dt className="text-caption font-medium text-muted-foreground">
             Payment reference
           </dt>
-          <dd className="font-mono text-body-compact font-medium break-all">
-            {sign.paymentRef ?? "—"}
+          <dd className="text-body-compact font-medium break-all">
+            {sign.paymentRef ? (
+              <Identifier value={sign.paymentRef} label="payment reference" />
+            ) : (
+              "—"
+            )}
           </dd>
         </div>
       </dl>
@@ -1652,8 +1661,12 @@ export function SignSection() {
                 <p className="text-caption font-medium text-muted-foreground">
                   Case file number
                 </p>
-                <p className="text-body font-semibold tabular-nums">
-                  {sign.caseFileNumber ?? "—"}
+                <p className="text-body font-semibold">
+                  {sign.caseFileNumber ? (
+                    <Identifier value={sign.caseFileNumber} label="case file number" />
+                  ) : (
+                    <span className="tabular-nums">—</span>
+                  )}
                 </p>
               </div>
               <Button type="button" variant="ghost" onClick={copyLink}>
@@ -1670,7 +1683,13 @@ export function SignSection() {
             </div>
             <div className="flex items-center justify-between gap-4 text-body-compact">
               <span className="text-muted-foreground">Payment reference</span>
-              <span className="font-mono text-foreground">{sign.paymentRef ?? "—"}</span>
+              <span className="text-foreground">
+                {sign.paymentRef ? (
+                  <Identifier value={sign.paymentRef} label="payment reference" />
+                ) : (
+                  "—"
+                )}
+              </span>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">

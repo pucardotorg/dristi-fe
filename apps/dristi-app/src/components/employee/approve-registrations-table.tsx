@@ -31,6 +31,7 @@ import {
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** Plain at rest; the exception gets the ink. See `registrationWaitTone`. */
 const waitClass: Record<WaitTone, string> = {
@@ -148,10 +149,11 @@ export function RegistrationsTable({
                   type="button"
                   onClick={() => onOpen(request)}
                   {...rowOpener}
-                  className={cn(rowOpenerClass, "tabular-nums")}
+                  className={rowOpenerClass}
                 >
                   <span className="sr-only">Review </span>
-                  {request.applicationNumber}
+                  {/* The number is the row's opener — the face without a second control. */}
+                  <Identifier value={request.applicationNumber} label="application number" copyable={false} />
                 </button>
               </TableCell>
               {/* The emphasised cell — what identifies a person. It wraps and never
@@ -177,10 +179,11 @@ export function RegistrationsTable({
                   {roleLabel(request.registrantKind)}
                 </Badge>
               </TableCell>
-              <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
-              >
-                {request.registrationNumber}
+              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                <Identifier
+                  value={request.registrationNumber}
+                  label="registration number"
+                />
               </TableCell>
               {/* **Text, not a pill** (owner, 2026-09-11: *"the request type can remain as
                   a text… now the two pills look a little odd"*). With the account type in a

@@ -24,7 +24,6 @@ export const QUEUE: Filing[] = [
     who: "Biju B",
     days: 2,
     self: true,
-    openable: true,
   },
   {
     no: "F/AHM/2026/00338",

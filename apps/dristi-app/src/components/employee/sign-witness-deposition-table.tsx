@@ -30,6 +30,7 @@ import {
   type WitnessDeposition,
 } from "@/lib/employee/sign-witness-deposition";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The evidence queue as a table: which sheets are picked for signature, the cause, its
@@ -163,9 +164,9 @@ export function SignWitnessDepositionTable({
                 </button>
               </TableCell>
               <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {deposition.caseNumber}
+                <Identifier value={deposition.caseNumber} label="case number" />
               </TableCell>
               {/* The name carries the fact; the tag labels it, so it recedes to muted
                   the way the `(C)` / `(A)` marks do in the advocates cell beside it.

@@ -57,6 +57,7 @@ import {
 import { SELF } from "@/lib/access/content";
 import { formatCaseDate } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** The case, as the paper names it — passed down from whoever holds it. */
 export type CaseRef = {
@@ -96,7 +97,9 @@ export function PartyApplicationDocument({
       <div className="rounded-lg bg-surface-sunken p-4">
         <DescriptionList>
           <ReviewRow term="Application">{doc.matter}</ReviewRow>
-          <ReviewRow term="Case">{caseRef.caseNumber}</ReviewRow>
+          <ReviewRow term="Case">
+            <Identifier value={caseRef.caseNumber} label="case number" />
+          </ReviewRow>
           <ReviewRow term="Generated on">{generatedOn}</ReviewRow>
         </DescriptionList>
       </div>

@@ -42,6 +42,7 @@ import { passwordProblem } from "@/lib/registration/password-policy";
 import { cn } from "@/lib/utils";
 
 import { MaskedOtp, OTP_LENGTH } from "./masked-otp";
+import { Identifier } from "@/components/chrome/identifier";
 
 type Step = "role" | "name" | "contact" | "password" | "verification" | "terms" | "success" | "application";
 type AccountRole = "litigant" | "advocate" | "advocateClerk" | "poa" | "";
@@ -173,7 +174,7 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
           <DescriptionRow><DescriptionTerm>{pick(applicationView.mobile, locale)}</DescriptionTerm><DescriptionDetails>+91 {mobile}</DescriptionDetails></DescriptionRow>
           {email ? <DescriptionRow><DescriptionTerm>{pick(applicationView.email, locale)}</DescriptionTerm><DescriptionDetails>{email}</DescriptionDetails></DescriptionRow> : null}
           <DescriptionRow><DescriptionTerm>{pick(applicationView.role, locale)}</DescriptionTerm><DescriptionDetails>{pick(role === "advocateClerk" ? roleStep.advocateClerk : roleStep.advocate, locale)}</DescriptionDetails></DescriptionRow>
-          <DescriptionRow><DescriptionTerm>{pick(verification.numberLabel, locale)}</DescriptionTerm><DescriptionDetails>{regNumber}</DescriptionDetails></DescriptionRow>
+          <DescriptionRow><DescriptionTerm>{pick(verification.numberLabel, locale)}</DescriptionTerm><DescriptionDetails><Identifier value={regNumber} label="registration number" /></DescriptionDetails></DescriptionRow>
           {idFile ? <DescriptionRow className="items-center"><DescriptionTerm>{pick(verification.uploadLabel, locale)}</DescriptionTerm><DescriptionDetails><DocumentRowValue file={idFile} locale={locale} /></DescriptionDetails></DescriptionRow> : null}
         </DescriptionList>
       </div>
@@ -189,6 +190,13 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
         >
           {journeyKeys.map((key, index) => <StepperItem key={key} step={index + 1} title={pick(journeySteps[key].title, locale)} status={index < journeyIndex ? "complete" : index === journeyIndex ? "current" : "upcoming"} />)}
         </Stepper>
+        {/* Six names do not fit under six circles on a phone (Malayalam collides
+            even at caption size), so below md one line names the step you are on. */}
+        <p className="mt-3 text-center text-caption text-muted-foreground md:hidden">
+          {pick(registrationUi.stepOf, locale).replace("{current}", String(journeyIndex + 1)).replace("{total}", String(journeyKeys.length))}
+          {" · "}
+          <span className="font-medium text-foreground">{pick(journeySteps[journeyKeys[journeyIndex]].title, locale)}</span>
+        </p>
       </div>
 
       <div className="mx-auto w-full max-w-xl">

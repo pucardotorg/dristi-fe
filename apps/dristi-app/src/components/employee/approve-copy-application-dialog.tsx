@@ -2,14 +2,20 @@
 
 import { useMemo } from "react";
 
-import { StagedOverlay } from "@/components/chrome/staged-overlay";
+import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { DocumentPreview } from "@/components/cases/document-preview";
 import { ReviewRow } from "@/components/cases/filing-form-shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { DescriptionList } from "@/components/ui/description-list";
-import { Dialog, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import {
   buildCopyApplicationDocument,
   copiesLine,
@@ -20,6 +26,7 @@ import {
   type CopyApplicationDocument,
 } from "@/lib/employee/approve-copy-application";
 import { causeTitle } from "@/lib/employee/hearings";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One copy application, read and then allowed or refused — the single-application path
@@ -27,25 +34,21 @@ import { causeTitle } from "@/lib/employee/hearings";
  *
  * The same overlay as `ReschedulingRequestDialog`, because it is the same job: an
  * application somebody filed, in front of a bench that has to say yes or no. The
- * particulars sit in a compact card, and the application itself is what is being
- * reviewed — so from `xl` the two stand side by side, facts on the left and a
+ * particulars sit in a compact sunken well, and the application itself is what is being
+ * reviewed — so from `xl` the two stand side by side, well on the left and a
  * `DocumentPreview` filling the full height of the column on the right. The bench reads
  * and decides here, it does not annotate.
  *
- * Stacked, the facts ate the first fold and left the document a strip you had to open
+ * Stacked, the well ate the first fold and left the document a strip you had to open
  * Full view to read. Side by side it keeps around 700px of width and the whole height of
  * the overlay, which is a page of it on screen at once. The split waits for `xl` because
  * the rail takes 17rem off the page column first: below that width two columns leave
  * neither the particulars nor the document a usable measure, so they stack.
  *
- * Download does not sit in the footer. The document's own frame carries Download and
- * Full view in its strip, and repeating Download below would be the same control twice
- * in one overlay — so the footer keeps only the two decisions the overlay exists to
+ * Download does not sit in the footer. `DocumentPreview` owns a sticky header with
+ * Download and Full view in it, and repeating Download below would be the same control
+ * twice in one overlay — so the footer keeps only the two decisions the overlay exists to
  * take.
- *
- * The overlay itself is `StagedOverlay` at one stage: the rise, the chrome that holds
- * still over a tinted stage, and the footer in its own register are how every court-side
- * modal opens, and an act with one question simply never changes scene.
  *
  * **Accept and Reject perform no judicial act.** Both drop the row from the demo queue and
  * close — see `lib/employee/approve-copy-application.ts`. No copy is ordered or refused,
@@ -103,64 +106,45 @@ function ApplicationBody({
   );
 
   return (
-    <StagedOverlay
-      /* Document-first, so the overlay is as wide as the paper needs and takes a
-         definite height rather than a floor — `md:h-[85dvh]` already holds the frame
-         still. */
-      className="sm:max-w-4xl md:h-[85dvh] xl:max-w-6xl"
-      title="Review application"
-      /* The application's own state — waiting on this bench — in the DS's sentence
-         case rather than the reference's Title Case. `warning` is the variant the
-         court-side review overlays already spend on a pending application, so all four
-         report a pending state the same way. This is the one place the state is stated:
-         the list behind it is entirely pending, so it says it once, here, instead of
-         thirty times down a column. */
-      titleAside={<Badge variant="warning">Pending approval</Badge>}
-      /* A node rather than a string: the application number is set in `tabular-nums`
-         beside the cause title, so the caller owns the element the frame would
-         otherwise wrap for it. */
-      description={
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          <span className="tabular-nums">{application.applicationNumber}</span>
-          {" · "}
-          {causeTitle(application)}
-        </DialogDescription>
-      }
-      /* One stage, which never changes — reading the application *is* the act, and the
-         answer leaves the overlay. It is on the frame because the rise, the white chrome
-         over a tinted stage and the `bg-card` footer are how every court-side modal
-         opens, whatever it goes on to ask. */
-      sceneKey="review"
-      motion="forward"
-      /* A full-height two-column reading surface that manages its own insets and its own
-         scrolling, so the frame's padding stays off it. */
-      padded={false}
-      footer={
-        <>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => onReject(application)}
-          >
-            Reject
-          </Button>
-          <Button type="button" onClick={() => onAccept(application)}>
-            Accept
-          </Button>
-        </>
-      }
+    <ChromeDialogContent
+      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh] xl:max-w-6xl"
       onCloseAutoFocus={(event) => {
         event.preventDefault();
         onReturnFocus();
       }}
     >
+      <DialogHeader className="shrink-0 gap-2 p-6 pr-16">
+        <div className="flex flex-wrap items-center gap-2">
+          <DialogTitle className="text-title-s font-semibold">
+            Review application
+          </DialogTitle>
+          {/* The application's own state — waiting on this bench — in the DS's sentence
+              case rather than the reference's Title Case. `warning` is the variant the
+              court-side review overlays already spend on a pending application, so all
+              four report a pending state the same way. This is the one place the state is
+              stated: the list behind it is entirely pending, so it says it once, here,
+              instead of thirty times down a column. */}
+          <Badge variant="warning">Pending approval</Badge>
+        </div>
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier
+            value={application.applicationNumber}
+            label="application number"
+            copyable={false}
+          />
+          {" · "}
+          {causeTitle(application)}
+        </DialogDescription>
+      </DialogHeader>
+      <Separator />
       <div className="grid min-h-0 flex-1 grid-rows-[auto_auto] gap-6 overflow-y-auto p-6 md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:grid-rows-1">
         {/* The particulars a bench checks before reading the application itself. The
             reference's three rows — type, submission date and filer — are thin for a
             copy application, where what is asked for and how much of it is the whole
             question, so the case and the record sought join them.
 
-            The wrapper is the grid cell and the card is its content, so the card keeps
+            The wrapper is the grid cell and the well is its content, so the well keeps
             its own height instead of stretching into a tall empty panel. Six rows fit
             the column at the heights a laptop actually has; on a short window, or once a
             label triples in translation, the cell scrolls rather than cropping the last
@@ -168,47 +152,38 @@ function ApplicationBody({
 
             Both of those are `xl:` on purpose. Stacked, the rows are `auto` inside a
             container of definite height, and `min-height: 0` is what lets a grid compress
-            such a row below its content — the card then ran straight under the document
+            such a row below its content — the well then ran straight under the document
             below it. Off the split, the cell keeps its automatic minimum. */}
         <div className="xl:min-h-0 xl:overflow-y-auto">
-          {/* Lifted, not sunken: on the tinted stage a sunken fill is the stage's own
-              tone and the well would have no edge at all. */}
-          <Card size="sm" className="border-hairline shadow-raised">
-            <CardContent>
-              <DescriptionList>
-                <ReviewRow term="Application type">Copy application</ReviewRow>
-                <ReviewRow term="Case number">
-                  <span className="font-mono">{application.caseNumber}</span>
-                </ReviewRow>
-                <ReviewRow term="Copy sought">
-                  {application.record.description}
-                  {", dated "}
-                  <span className="tabular-nums">
-                    {formatCopyApplicationLongDate(application.record.dated)}
-                  </span>
-                </ReviewRow>
-                <ReviewRow term="Copies required">
-                  {copiesLine(application)}
-                </ReviewRow>
-                <ReviewRow term="Submission date">
-                  <span className="tabular-nums">
-                    {formatCopyApplicationLongDate(application.raisedOn)}
-                  </span>
-                </ReviewRow>
-                <ReviewRow term="Application filer">
-                  {copyApplicationFiler(application)}
-                </ReviewRow>
-              </DescriptionList>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg bg-surface-sunken p-4">
+            <DescriptionList>
+              <ReviewRow term="Application type">Copy application</ReviewRow>
+              <ReviewRow term="Case number">
+                <Identifier value={application.caseNumber} label="case number" />
+              </ReviewRow>
+              <ReviewRow term="Copy sought">
+                {application.record.description}
+                {", dated "}
+                <span className="tabular-nums">
+                  {formatCopyApplicationLongDate(application.record.dated)}
+                </span>
+              </ReviewRow>
+              <ReviewRow term="Copies required">
+                {copiesLine(application)}
+              </ReviewRow>
+              <ReviewRow term="Submission date">
+                <span className="tabular-nums">
+                  {formatCopyApplicationLongDate(application.raisedOn)}
+                </span>
+              </ReviewRow>
+              <ReviewRow term="Application filer">
+                {copyApplicationFiler(application)}
+              </ReviewRow>
+            </DescriptionList>
+          </div>
         </div>
-        {/* The framed well: a white sheet with a hairline and its two actions in a strip
-            above the rule, because the dialog's own title already names the application
-            and a sunken well has no edge against the stage. */}
         <DocumentPreview
-          variant="quiet"
-          surface="card"
-          className="min-h-96 shadow-raised md:min-h-0"
+          className="min-h-96 md:min-h-0"
           height="fill"
           title={document.title}
           source={{
@@ -221,7 +196,19 @@ function ApplicationBody({
           }}
         />
       </div>
-    </StagedOverlay>
+      <DialogFooter className="mx-0 mb-0 shrink-0">
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => onReject(application)}
+        >
+          Reject
+        </Button>
+        <Button type="button" onClick={() => onAccept(application)}>
+          Accept
+        </Button>
+      </DialogFooter>
+    </ChromeDialogContent>
   );
 }
 

@@ -18,6 +18,7 @@ import {
   type ADiaryDocument,
   type ADiaryEntry,
 } from "@/lib/employee/sign-a-diary";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One day's entry, read, corrected, and then signed.
@@ -164,7 +165,10 @@ function SignADiaryBody({
       titleRef={titleRef}
       description={
         <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(entry)} · {entry.caseNumber} · Dated{" "}
+          {causeTitle(entry)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={entry.caseNumber} label="case number" copyable={false} />{" "}
+          · Dated{" "}
           <span className="tabular-nums">{formatADiaryDate(entry.dated)}</span>
         </DialogDescription>
       }

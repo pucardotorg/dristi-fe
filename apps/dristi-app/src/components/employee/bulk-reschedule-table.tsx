@@ -24,6 +24,7 @@ import {
 } from "@/lib/employee/hearings";
 import { type ReschedulableHearing } from "@/lib/employee/bulk-reschedule";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The matters in range, and which of them the bench has picked.
@@ -179,10 +180,25 @@ export function BulkRescheduleTable({
             <TableRow
               key={row.id}
               data-state={isSelected ? "selected" : undefined}
-              className={tableRowClass({
-                hover: false,
-                selectable: Boolean(selection),
-              })}
+              /* The whole row picks the matter, so the row lights under the pointer —
+                 the plate withholds hover from a row that does nothing, and this one
+                 does. The same handling the pending-tasks table uses: a click that
+                 landed on a control inside the row belongs to that control. Picking
+                 twenty-three matters through a 16px box each is the act this screen
+                 exists for, and it should not need aim. */
+              className={cn(
+                tableRowClass({ selectable: Boolean(selection) }),
+                selection && "cursor-pointer"
+              )}
+              onClick={
+                selection
+                  ? (event) => {
+                      const target = event.target as HTMLElement;
+                      if (target.closest("button, a, [role=checkbox], label")) return;
+                      selection.onToggle(row.id, !isSelected);
+                    }
+                  : undefined
+              }
             >
               {selection ? (
                 <TableCell className={cn(TABLE_CELL, "w-12")}>
@@ -202,8 +218,8 @@ export function BulkRescheduleTable({
               >
                 {row.title}
               </TableCell>
-              <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
-                {row.caseNumber}
+              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                <Identifier value={row.caseNumber} label="case number" />
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
                 {courtCaseStageLabel(row.stage)}

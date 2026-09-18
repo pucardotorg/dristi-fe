@@ -29,6 +29,8 @@ import {
   type SignOrder,
   type SignOrderDocument,
 } from "@/lib/employee/sign-orders";
+import { Identifier } from "@/components/chrome/identifier";
+import { DialogDescription } from "@/components/ui/dialog";
 
 /** What the paper is called in the signature stage's copy. */
 const NOUN = "order";
@@ -142,11 +144,17 @@ function SignOrderBody({
       /* The record's own line, on both stages. It is the order that does not change when
          the stage does, and saying it again under "Add signature" is what keeps the
          signature attached to the paper the bench just read. */
-      description={`${causeTitle(order)} · ${order.caseNumber} · ${
-        pending
-          ? `Added ${formatSignOrderDate(order.addedOn)}`
-          : `Signed ${formatSignOrderDate(order.signedOn ?? order.addedOn)}`
-      }`}
+      description={
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          {causeTitle(order)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={order.caseNumber} label="case number" copyable={false} />{" "}
+          ·{" "}
+          {pending
+            ? `Added ${formatSignOrderDate(order.addedOn)}`
+            : `Signed ${formatSignOrderDate(order.signedOn ?? order.addedOn)}`}
+        </DialogDescription>
+      }
       sceneKey={flow.sceneKey}
       motion={flow.motion}
       /* The row that opened this overlay is gone by the time it closes — signing takes it

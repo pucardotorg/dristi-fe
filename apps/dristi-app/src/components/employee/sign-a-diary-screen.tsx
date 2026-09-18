@@ -8,7 +8,6 @@ import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { SignADiaryDialog } from "@/components/employee/sign-a-diary-dialog";
 import { SignADiaryTable } from "@/components/employee/sign-a-diary-table";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -40,6 +39,8 @@ import {
   type ADiaryEntry,
   type ADiaryFilters,
 } from "@/lib/employee/sign-a-diary";
+import { Identifier } from "@/components/chrome/identifier";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 
 /**
  * The day the bench is sitting on is the reader's, not the server's — a court in Kollam
@@ -167,7 +168,7 @@ export function SignADiaryScreen() {
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="text-title text-balance font-semibold outline-none sm:text-title-l"
+          className="text-title text-balance font-semibold outline-none"
         >
           Sign A-Diary
         </h1>
@@ -419,10 +420,7 @@ function SignADiaryItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((entry) => (
-        <li
-          key={entry.id}
-          {...rowActivation("flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
-        >
+        <QueueItemRow key={entry.id} className="flex flex-col gap-2">
           <button
             type="button"
             onClick={() => onOpen(entry)}
@@ -435,13 +433,13 @@ function SignADiaryItemList({
             <span className="line-clamp-4">{entry.business}</span>
           </button>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{entry.caseNumber}</span>
+            <Identifier value={entry.caseNumber} label="case number" />
             {" · Next hearing "}
             <span className="tabular-nums">
               {formatADiaryDate(entry.nextHearing)}
             </span>
           </p>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );
