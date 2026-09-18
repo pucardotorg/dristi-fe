@@ -3,12 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  ArrowRightIcon,
   CheckIcon,
   MicIcon,
   RotateCcwIcon,
   TriangleAlertIcon,
-  UploadIcon,
 } from "lucide-react";
 
 import { docName } from "@/lib/employee/scrutiny/field";
@@ -508,22 +506,29 @@ function SummaryItem({
         <span className="font-semibold">{field.label}</span>
       </h4>
 
-      {/* The correction, as the one movement it is. `aria-hidden` on the glyph and the
-          words in `sr-only`, because an arrow is not a word. */}
+      {/*
+       * **The correction is the value.** `ValueLines` in the field row settled this
+       * shape already — *"a saved correction shows the proposed value as THE value, with
+       * the filed value on one quiet line beneath — no strikethrough noise in the
+       * primary position"* — and this window kept reinventing it: first as two labelled
+       * rows, then as a struck `old → new` pair, both of which lead with the value that
+       * no longer stands (owner, 2026-09-18: *"you already solved this… why is it
+       * getting so complicated here"*).
+       *
+       * So the corrected value comes first at weight, and what was filed sits under it
+       * as one quiet line. No strike: "was" is the word that says superseded, and a rule
+       * drawn through a value the advocate still has to recognise only makes it harder
+       * to read.
+       */}
       {flag.correction ? (
-        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="text-muted-foreground line-through">
-            <FieldValue field={field} value={field.value} copyable={false} />
-          </span>
-          <ArrowRightIcon
-            aria-hidden="true"
-            className="size-3.5 shrink-0 self-center text-muted-foreground"
-          />
-          <span className="sr-only">corrected to</span>
-          <span className="font-medium">
+        <>
+          <p className="font-medium">
             <FieldValue field={field} value={flag.correction} />
-          </span>
-        </p>
+          </p>
+          <p className="text-muted-foreground">
+            was <FieldValue field={field} value={field.value} copyable={false} />
+          </p>
+        </>
       ) : null}
 
       {/* A document issue has no before and after — the reason *is* the finding, so it
@@ -556,9 +561,10 @@ function SummaryItem({
             </span>
           ) : null}
 
+          {/* No glyph of its own: `RecordLink` already ends in one, and two icons on a
+              three-word line is the clutter this pass is removing. */}
           {reupload ? (
             <RecordLink onClick={() => onGoToItem(reupload.id)}>
-              <UploadIcon className="size-3.5 shrink-0" aria-hidden="true" />
               Re-upload {docName(reupload.docrow ?? "", docById)}
             </RecordLink>
           ) : null}
