@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 
 import { useCompactBoard } from "./use-compact-board";
+import { useCanHover } from "./use-can-hover";
+import { Identifier } from "@/components/chrome/identifier";
 import { LocateHearingIcon } from "./locate-hearing-icon";
 import { MobileHearingCard } from "@/components/advocate/mobile-hearing-card";
 import { Badge } from "@/components/ui/badge";
@@ -571,6 +573,7 @@ function HearingRow({
 }) {
   const showTimes = useShowTimes();
   const isMobile = useCompactBoard();
+  const canHover = useCanHover();
   const onOpenTasks = React.useContext(OpenTasksContext);
   const onViewInCauseList = React.useContext(ViewInCauseListContext);
   if (isMobile) return <MobileHearingCard hearing={hearing} locale={locale} selected={selected} onOpenCase={onOpenCase} onOpenTasks={onOpenTasks} onViewInCauseList={onViewInCauseList} time={showTime && showTimes ? <HearingTime at={hearing.at} approx={hearing.approxTime} locale={locale} /> : null} />;
@@ -609,10 +612,19 @@ function HearingRow({
               </span>
             ) : null}
           </div>
-          <span className="text-body-compact text-muted-foreground lg:truncate">
-            {hearing.kase.stage}
-            <span className="hidden lg:inline"> · </span>
-            <span className="block break-words text-caption tabular-nums lg:inline lg:text-body-compact">{hearing.kase.cnr || hearing.kase.stNumber}</span>
+          {/* The case number is never cut short: when the line runs out of room it is
+              the stage that truncates. The number is an Identifier (mono, and on a
+              mouse-driven screen click-to-copy); it sits above the row's full-bleed
+              click target so copying it does not open the case. */}
+          <span className="flex h-5 min-w-0 items-baseline text-body-compact text-muted-foreground">
+            <span className="min-w-0 truncate" title={hearing.kase.stage}>{hearing.kase.stage}</span>
+            <span aria-hidden="true" className="shrink-0 whitespace-pre"> · </span>
+            <Identifier
+              value={hearing.kase.cnr || hearing.kase.stNumber}
+              label="case number"
+              copyable={canHover}
+              className="relative z-10 shrink-0 whitespace-nowrap"
+            />
           </span>
         </div>
         <div className="flex shrink-0 flex-col items-start gap-1.5 lg:@xl:items-end">

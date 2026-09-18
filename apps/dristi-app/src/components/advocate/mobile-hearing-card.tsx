@@ -10,6 +10,7 @@ import { advHome, fillCopy } from "@/lib/advocate/content";
 import type { TimelineHearing } from "@/lib/advocate/home";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import { passedOverLabel } from "@/lib/advocate/passed-over";
+import { Identifier } from "@/components/chrome/identifier";
 import { cn } from "@/lib/utils";
 import "./mobile-hearing.css";
 import { LocateHearingIcon } from "./locate-hearing-icon";
@@ -44,7 +45,8 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
           <ItemChip item={hearing.item} size="lg" />
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className={cn("truncate text-body-compact font-semibold", ongoing ? "text-primary" : "text-foreground")}>{hearing.kase.parties}</span>
-            <span className="text-body-compact wrap-anywhere tabular-nums text-muted-foreground">{hearing.kase.cnr || hearing.kase.stNumber}</span>
+            {/* The whole card is one tap target, so the number keeps the face only. */}
+            <Identifier value={hearing.kase.cnr || hearing.kase.stNumber} label="case number" copyable={false} className="text-body-compact wrap-anywhere text-muted-foreground" />
           </span>
           {count > 0 ? (
             <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center self-start rounded-full border border-warning bg-warning-muted text-warning-muted-foreground md:size-6">

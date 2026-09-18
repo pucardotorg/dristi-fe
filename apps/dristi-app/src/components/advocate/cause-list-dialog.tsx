@@ -70,6 +70,8 @@ import { advHome, fillCopy } from "@/lib/advocate/content";
 import type { Locale } from "@/lib/onboarding/content";
 import { pick } from "@/lib/onboarding/content";
 import { passedOverLabel } from "@/lib/advocate/passed-over";
+import { Identifier } from "@/components/chrome/identifier";
+import { useCanHover } from "./use-can-hover";
 import { cn } from "@/lib/utils";
 import { RefreshIcon, useRefreshPhase } from "@/components/advocate/refresh-button";
 
@@ -697,7 +699,7 @@ function CauseListBody({
                 <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-32")}>{pick(advHome.colCourt, locale)}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-24 whitespace-nowrap")}>{copy("Court no.", "കോടതി നമ്പർ")}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-1/6")}>{pick(advHome.colAdvocates, locale)}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD)}>{pick(advHome.colCaseNumber, locale)}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-52")}>{pick(advHome.colCaseNumber, locale)}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, STICKY_HEAD)}>{pick(advHome.colHearingType, locale)}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-36")}>{pick(advHome.colStatus, locale)}<span className="sr-only"> / {copy("Actions", "പ്രവർത്തനങ്ങൾ")}</span></TableHead>
               </TableRow>
@@ -745,6 +747,7 @@ function CauseListBody({
  * without relying on colour. Only this row's right-hand content makes room. */
 function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; onJoin: (row: CauseListRow) => void }) {
   const cell = cn(TABLE_CELL, "align-middle");
+  const canHover = useCanHover();
   const joinLabel = locale === "ml" ? "ഹിയറിംഗിൽ ചേരുക" : "Join hearing";
   return (
     // A matter the advocate is on wears a soft warm-neutral fill so it reads out of
@@ -770,7 +773,8 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
       <td className={cell}><span className="block truncate" title={row.courtLabel}>{row.courtLabel}</span></td>
       <td className={cn(cell, "tabular-nums")}>{row.courtNumber ?? "N/A"}</td>
       <td className={cn(cell, "text-muted-foreground")}><span className="block truncate" title={row.advocates}>{row.advocates}</span></td>
-      <td className={cn(cell, "text-muted-foreground")}><span className="block truncate" title={row.caseNumber}>{row.caseNumber}</span></td>
+      {/* Never truncated: the column is sized to hold a full CNR. */}
+      <td className={cn(cell, "whitespace-nowrap text-muted-foreground")}><Identifier value={row.caseNumber} label="case number" copyable={canHover} /></td>
       <td className={cell}><span className="block truncate" title={row.hearingType}>{row.hearingType}</span></td>
       {/* The status tag is left-aligned like the other columns' content. Only an
           ongoing hearing can be joined: on hover its chip fades and a green Join
@@ -860,7 +864,7 @@ function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale;
           <ItemChip item={row.item} size="lg" surface={row.mine ? "sunken" : "card"} />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <h3 className={cn("text-body-compact font-semibold wrap-anywhere", ongoing ? "text-primary" : "text-foreground")}>{row.parties}</h3>
-            <p className="text-body-compact tabular-nums wrap-anywhere text-muted-foreground">{row.caseNumber}</p>
+            <p className="text-body-compact wrap-anywhere text-muted-foreground"><Identifier value={row.caseNumber} label="case number" copyable={false} /></p>
           </div>
           {/* A live matter says so with the pulsing dot alone, no tag to spend a row on. */}
           {ongoing ? <span className="flex size-4 shrink-0 items-center justify-center md:col-start-4 md:row-start-1 md:justify-self-end md:w-9 md:self-start">
