@@ -1,40 +1,46 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { COURT_HOME, courtTrail, isCourtNavActive } from "./navigation";
-
-const HOME = { label: "Court home", href: "/employee" };
+import {
+  COURT_CASES_PAGE,
+  COURT_DASHBOARD,
+  COURT_NAV_GROUPS,
+  COURT_NAV_LINKS,
+  courtTrail,
+  courtWaitingGroups,
+  isCourtNavActive,
+} from "./navigation";
 
 /**
- * The contract the owner set on 2026-09-11: **every trail ends with the current page**,
- * as a step with no href, which the bar renders through the DS `BreadcrumbPage` slot.
- * Until then the page was deliberately never a step. These tests are the new convention;
- * the argument for the old one, and why it survives only at the court home, is in
- * `courtTrail`'s own comment.
+ * Two contracts, set a day apart.
+ *
+ * 2026-09-11: **every trail ends with the current page**, as a step with no href, which
+ * the bar renders through the DS `BreadcrumbPage` slot. Until then the page was
+ * deliberately never a step.
+ *
+ * 2026-09-14: **no trail has a root**. `Court home` was a placeholder screen nothing
+ * linked to; the rail is what gets you anywhere, so the trail says where you are and
+ * lets you climb one step, and nothing more. The argument is in `courtTrail`'s own
+ * comment.
  */
 describe("courtTrail", () => {
-  it("is empty on the court home — there is nothing above it to say", () => {
-    /* The one place a page is still not a step. A lone `Court home` crumb would restate
-       the heading below it and lead nowhere, which is the whole of what a trail is for. */
-    assert.deepEqual(courtTrail(COURT_HOME.href), []);
+  it("is empty on the dashboard — nothing nests under it", () => {
+    assert.deepEqual(courtTrail(COURT_DASHBOARD.href), []);
   });
 
-  it("on a queue, ends with the queue and links only the way home", () => {
-    /* Three steps: the way home, the section as context, and the page. The section
-       carries no href because it is a disclosure in the rail — there is no page called
-       "Sign" — and the queue carries none because it is where the reader already is. */
+  it("on a queue, is the section and the queue — no root", () => {
+    /* Two steps: the section as context, and the page. The section carries no href
+       because it is a disclosure in the rail — there is no page called "Sign" — and the
+       queue carries none because it is where the reader already is. */
     assert.deepEqual(courtTrail("/employee/hearings"), [
-      HOME,
       { label: "Hearings" },
       { label: "Today’s hearings" },
     ]);
     assert.deepEqual(courtTrail("/employee/sign-orders"), [
-      HOME,
       { label: "Sign" },
       { label: "Sign orders" },
     ]);
     assert.deepEqual(courtTrail("/employee/scrutiny"), [
-      HOME,
       { label: "Actions" },
       { label: "Scrutinise submitted cases" },
     ]);
@@ -46,10 +52,11 @@ describe("courtTrail", () => {
        type. The order composer is the same view of the same listing, so it reads the
        same — the composer is not a second record. */
     const trail = [
-      HOME,
       { label: "Hearings", href: "/employee/hearings" },
       { label: "Today’s hearings", href: "/employee/hearings" },
-      { label: "ST/241/2026" },
+      /* The record crumb carries `mono`: its label *is* a number, so the bar gives it
+         the identifier face the record wears on the page below. */
+      { label: "ST/241/2026", mono: true },
     ];
     assert.deepEqual(courtTrail("/employee/hearings/h-241"), trail);
     assert.deepEqual(courtTrail("/employee/hearings/h-241/order"), trail);
@@ -57,10 +64,9 @@ describe("courtTrail", () => {
 
   it("on a complaint's file, ends with the complaint's number", () => {
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840"), [
-      HOME,
       { label: "Actions", href: "/employee/register-cases" },
       { label: "Register cases", href: "/employee/register-cases" },
-      { label: "CMP/1840/2025" },
+      { label: "CMP/1840/2025", mono: true },
     ]);
   });
 
@@ -73,10 +79,9 @@ describe("courtTrail", () => {
        trail, which is the point: the crumb says which record, not which part of it is
        unfolded. */
     const trail = [
-      HOME,
       { label: "Actions", href: "/employee/register-cases" },
       { label: "Register cases", href: "/employee/register-cases" },
-      { label: "CMP/1840/2025" },
+      { label: "CMP/1840/2025", mono: true },
     ];
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840"), trail);
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840/"), trail);
@@ -93,7 +98,7 @@ describe("courtTrail", () => {
   });
 
   it("does not treat an unknown complaint as nested", () => {
-    assert.deepEqual(courtTrail("/employee/register-cases/r-nope"), [HOME]);
+    assert.deepEqual(courtTrail("/employee/register-cases/r-nope"), []);
   });
 
   it("on a scrutiny workbench, ends with the filing number it decoded", () => {
@@ -102,10 +107,9 @@ describe("courtTrail", () => {
     assert.deepEqual(
       courtTrail(`/employee/scrutiny/${encodeURIComponent("F/AHM/2026/00341")}`),
       [
-        HOME,
-        { label: "Actions", href: "/employee/scrutiny" },
+          { label: "Actions", href: "/employee/scrutiny" },
         { label: "Scrutinise submitted cases", href: "/employee/scrutiny" },
-        { label: "F/AHM/2026/00341" },
+        { label: "F/AHM/2026/00341", mono: true },
       ],
     );
   });
@@ -115,21 +119,20 @@ describe("courtTrail", () => {
        at all and gets the way home and nothing else — rather than claiming to sit
        under a complaint that is not there, or naming a record it cannot identify. The
        screen behind it says the same thing in its own words. */
-    assert.deepEqual(courtTrail("/employee/register-cases/r-nope"), [HOME]);
+    assert.deepEqual(courtTrail("/employee/register-cases/r-nope"), []);
   });
 
   it("does not treat a hearings sibling as a nested listing", () => {
     /* `schedule` is a queue of its own, not a listing under today's list — so it gets a
        queue's trail, ending in its own name. */
     assert.deepEqual(courtTrail("/employee/hearings/schedule"), [
-      HOME,
       { label: "Hearings" },
       { label: "Schedule hearing" },
     ]);
   });
 
   it("still offers the way home on a route the rail does not know", () => {
-    assert.deepEqual(courtTrail("/employee/not-a-queue"), [HOME]);
+    assert.deepEqual(courtTrail("/employee/not-a-queue"), []);
   });
 
   it("gives every trail it can name a last step that goes nowhere", () => {
@@ -151,6 +154,65 @@ describe("courtTrail", () => {
       const trail = courtTrail(path);
       assert.ok(trail.length > 1, path);
       assert.equal(trail.at(-1)?.href, undefined, path);
+    }
+  });
+});
+
+describe("the court's standalone rows", () => {
+  /* Both were dead external rows transcribed from the reference. Both are built now, and
+     they stay two rows: a health check and a register are two questions. */
+  it("are the dashboard and the register, both internal and both built", () => {
+    assert.deepEqual(
+      COURT_NAV_LINKS.map((row) => row.href),
+      [COURT_DASHBOARD.href, COURT_CASES_PAGE.href],
+    );
+    for (const row of COURT_NAV_LINKS) {
+      assert.ok(row.href, `${row.id} still goes nowhere`);
+      assert.equal(row.external, undefined, `${row.id} still leaves the app`);
+      /* The rail paints its counts in destructive red, and neither of these numbers is
+         a backlog. */
+      assert.equal(row.count, undefined, `${row.id} carries a count`);
+    }
+  });
+
+  it("carry no trail, because nothing nests under them", () => {
+    assert.deepEqual(courtTrail(COURT_DASHBOARD.href), []);
+    assert.deepEqual(courtTrail(COURT_CASES_PAGE.href), []);
+  });
+});
+
+describe("courtWaitingGroups", () => {
+  it("keeps the rail's groups, and only built, non-empty queues in them", () => {
+    const groups = courtWaitingGroups();
+    assert.ok(groups.length > 0);
+    for (const group of groups) {
+      assert.ok(group.label, `${group.id} has no label`);
+      assert.ok(group.icon, `${group.id} has no mark`);
+      assert.ok(group.items.length > 0, `${group.id} is an empty heading`);
+      for (const queue of group.items) {
+        assert.ok(queue.href, `${queue.id} has no destination`);
+        assert.ok(queue.count > 0, `${queue.id} is empty and still listed`);
+      }
+    }
+  });
+
+  it("totals each group from its own rows", () => {
+    for (const group of courtWaitingGroups()) {
+      const sum = group.items.reduce((total, item) => total + item.count, 0);
+      assert.equal(group.total, sum, `${group.id} total disagrees with its rows`);
+    }
+  });
+
+  /* The panel reads the rail's own data so the two cannot disagree about a queue. */
+  it("takes each row's label and count from the rail's own row", () => {
+    const rows = COURT_NAV_GROUPS.flatMap((group) => group.items);
+    for (const group of courtWaitingGroups()) {
+      for (const queue of group.items) {
+        const row = rows.find((item) => item.id === queue.id);
+        assert.ok(row);
+        assert.equal(queue.label, row.label);
+        assert.equal(queue.count, row.count);
+      }
     }
   });
 });

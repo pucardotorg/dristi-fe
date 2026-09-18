@@ -26,6 +26,7 @@ import {
   type CopyApplicationDocument,
 } from "@/lib/employee/approve-copy-application";
 import { causeTitle } from "@/lib/employee/hearings";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One copy application, read and then allowed or refused — the single-application path
@@ -126,7 +127,12 @@ function ApplicationBody({
           <Badge variant="warning">Pending approval</Badge>
         </div>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          <span className="tabular-nums">{application.applicationNumber}</span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier
+            value={application.applicationNumber}
+            label="application number"
+            copyable={false}
+          />
           {" · "}
           {causeTitle(application)}
         </DialogDescription>
@@ -153,7 +159,7 @@ function ApplicationBody({
             <DescriptionList>
               <ReviewRow term="Application type">Copy application</ReviewRow>
               <ReviewRow term="Case number">
-                <span className="font-mono">{application.caseNumber}</span>
+                <Identifier value={application.caseNumber} label="case number" />
               </ReviewRow>
               <ReviewRow term="Copy sought">
                 {application.record.description}

@@ -1,16 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { FileSignatureIcon, SearchXIcon } from "lucide-react";
+import Link from "next/link";
+import { FilePenLineIcon, FileSignatureIcon, SearchXIcon } from "lucide-react";
 
+import { CounselCell } from "@/components/employee/counsel-cell";
+import { DraftOrdersTable } from "@/components/employee/draft-orders-table";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignOrderDialog } from "@/components/employee/sign-order-dialog";
 import { SignOrdersTable } from "@/components/employee/sign-orders-table";
+import { useCourtRole } from "@/components/employee/use-court-role";
+import { useCourtToday } from "@/components/employee/use-court-today";
+import { useHearingSession } from "@/components/employee/use-hearing-session";
+import { useOrderDrafts } from "@/components/employee/use-order-draft";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -34,11 +40,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  draftOrderHref,
+  draftOrdersForSitting,
+} from "@/lib/employee/draft-orders";
 import {
   causeTitle,
+  counselFor,
+  courtHearingPurposeLabel,
+  courtHearingStatusLabel,
+  courtHearingStatusVariant,
+  hearingsForDay,
   isoDay,
   parseIsoDay,
+  withHearingSession,
   PAGE_SIZE,
+  type CourtHearing,
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
 import {
@@ -54,6 +72,9 @@ import {
   type SignOrder,
   type SignOrderFilters,
 } from "@/lib/employee/sign-orders";
+import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -82,8 +103,24 @@ function plural(count: number, one: string, many: string): string {
  * comes here to clear work. Signed orders stay reachable through the same filter rather
  * than disappearing, so an order signed last month can be read without leaving.
  *
- * **Nothing is signed or published.** Both paths only move a row's status in the demo
- * queue — see `lib/employee/sign-orders.ts`.
+ * **Two tabs, because an order has a life before this queue** (owner, 2026-09-16). What
+ * is waiting for a signature is only half of what the bench has drawn up: the other half
+ * is being written at today's sitting, in the order composer, and until now it was
+ * reachable only by going back to the cause list and finding the right row. So the screen
+ * splits — the signing queue it has always been, and the day's open drafts beside it —
+ * and opens on the queue, because that is what the rail sends the bench here for.
+ *
+ * The strip is composed the way `SignProcessScreen` composes its stages one row below in
+ * the rail, and for the same reason: the tab is the *screen's* question, so it stands
+ * above the panel and each tab's panel holds its own controls. Nothing above the strip
+ * moves when the tab changes but the line that describes it, and no control is left
+ * standing over a list it cannot narrow — the status filter belongs to the signing queue
+ * and there is nothing for it to say about a draft.
+ *
+ * **Nothing is signed, published or sent.** Both signing paths only move a row's status
+ * in the demo queue (`lib/employee/sign-orders.ts`), and the drafts tab lists work in
+ * progress without acting on it — the way to finish a draft is the composer it came from
+ * (`lib/employee/draft-orders.ts`).
  */
 export function SignOrdersScreen() {
   /* The queue is state because signing changes it. One list, so the table, the rail
@@ -109,6 +146,34 @@ export function SignOrdersScreen() {
   const searchRef = React.useRef<HTMLInputElement>(null);
   /* The bulk confirmation hands focus back here on the way out — see its `triggerRef`. */
   const signRef = React.useRef<HTMLButtonElement>(null);
+
+  /**
+   * Which list is on screen.
+   *
+   * **The signing queue is the default and the work; the drafts are the day's other
+   * half** (owner, 2026-09-16). The rail sends the bench here with a count of orders
+   * waiting for a signature, so that is what the screen opens on — a tab that landed on
+   * today's drafts would answer a question the rail did not ask.
+   */
+  const [tab, setTab] = React.useState<"pending" | "drafts">("pending");
+
+  /**
+   * The orders drawn up at today's sitting and not yet sent for signature.
+   *
+   * Derived from the day's own board rather than held as a list, so this tab and the
+   * cause list cannot disagree about which matters have an order on them — the rule for
+   * that is one function, in `lib/employee/draft-orders.ts`. The three stores it reads
+   * are the same three the cause list reads: the reader's day, this sitting's marks, and
+   * the composer's own text.
+   */
+  const today = useCourtToday();
+  const seat = useCourtRole();
+  const session = useHearingSession();
+  const orderDrafts = useOrderDrafts();
+  const draftRows = draftOrdersForSitting(
+    withHearingSession(hearingsForDay(today, today), session),
+    orderDrafts,
+  );
 
   const pending = orders.filter(
     (order) => order.status === "pending-signature",
@@ -191,23 +256,41 @@ export function SignOrdersScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Sign orders
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
             rather than restating the title. Singular is spelled out because "1 orders"
-            is the kind of thing a court notices. */}
+            is the kind of thing a court notices.
+
+            **The line belongs to the tab, not to the page** — the same call
+            `SignProcessScreen` makes for the same reason: what is worth saying under the
+            title is how much work is standing in the list the bench is actually looking
+            at, and that sentence is a different one on each tab. */}
         <p className="text-body text-muted-foreground">
-          {pending.length === 1
-            ? "1 order is waiting for your signature."
-            : `${pending.length} orders are waiting for your signature.`}
+          {tab === "pending"
+            ? pending.length === 1
+              ? "1 order is waiting for your signature."
+              : `${pending.length} orders are waiting for your signature.`
+            : draftRows.length === 1
+              ? "1 order from today's sitting has not been sent for signature."
+              : `${draftRows.length} orders from today's sitting have not been sent for signature.`}
         </p>
       </header>
 
-      {/* One panel: filters, list and footer are one unit of work, so they share one
-          lifted sheet — the same recipe every other court-side queue uses. Nothing
-          inside draws a second frame. */}
+      {/* One panel: the filters, the two lists and the pagination are one unit of work,
+          so they share one lifted sheet — the same recipe every other court-side queue
+          uses, and the tab strip sits **inside** it, under the filters, exactly where
+          bulk reschedule puts its own (owner, 2026-09-16). Nothing inside draws a second
+          frame. */}
       <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
+        {/* The controls sit above the tab strip, where they read as this panel's — and
+            **they narrow the signing queue only.** That is the same scope bulk reschedule
+            gives its own range: a status, a date added and a case search are facts the
+            queue carries, and the draft list is one day of this court's board, which none
+            of them has anything to cut on. Chrome does not move when the content under it
+            changes (ui-craft §2), so they stay put rather than appearing and disappearing
+            with the tab. */}
         <SignOrderFiltersForm
           filters={filters}
           searchRef={searchRef}
@@ -215,61 +298,139 @@ export function SignOrdersScreen() {
           onClear={clearFilters}
         />
 
-        {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
-        <QueueAnnouncer
-          from={start + 1}
-          to={start + pageRows.length}
-          total={rows.length}
-        />
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as "pending" | "drafts")}
+          className="flex min-w-0 flex-col gap-6"
+        >
+          {/* Line `TabsList`, not the pill track — the same composition bulk reschedule
+              and the process queue both use for the same job, down to the
+              `after:-bottom-px` that sits the mark on the gutter's own rule instead of
+              floating a second line above it. Two labels fit a phone, but the row scrolls
+              rather than crushing them (RESPONSIVE). */}
+          <div className="overflow-x-auto border-b border-hairline">
+            <TabsList
+              variant="line"
+              aria-label="Which orders to show"
+              className="h-10 w-max min-w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
+            >
+              {(
+                [
+                  ["pending", "Pending signature", pending.length],
+                  ["drafts", "Draft orders", draftRows.length],
+                ] as const
+              ).map(([value, label, count]) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
+                >
+                  {label}
+                  {/* How much is standing here, inheriting the trigger's colour so the
+                      count and its label read as one thing rather than as a badge stuck
+                      to a tab (ui-craft §2). */}
+                  <span className="font-normal tabular-nums">{count}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
-        {pageRows.length === 0 ? (
-          <SignOrdersEmpty isFiltered={isFiltered} onClear={clearFilters} />
-        ) : (
-          <div className="flex min-w-0 flex-col gap-4">
-            {/* min-w-0 lets this flex item shrink below the table's content width, so a
-                wide table scrolls inside the panel instead of pushing the page
-                sideways. */}
-            <div className="min-w-0 overflow-x-auto">
-              {/* Six columns do not survive a phone. Below `md` the same rows stack as
-                  items — the answer the rest of the court side already gives. */}
-              <div className="hidden md:block">
-                <SignOrdersTable
-                  rows={pageRows}
-                  selectedIds={selectedIds}
-                  onToggle={toggle}
-                  onToggleAll={toggleAllInView}
-                  onOpen={setOpen}
-                />
-              </div>
-              <div className="md:hidden">
-                <SignOrdersItemList
-                  rows={pageRows}
-                  selectedIds={selectedIds}
-                  onToggle={toggle}
-                  onOpen={setOpen}
-                />
-              </div>
-            </div>
-
-            <ListFooter
-              id="sign-orders-page-size"
+          <TabsContent value="pending" className="min-w-0 outline-none">
+            {/* Mounted whatever the list is doing, including empty — see
+                `QueueAnnouncer`. One per tab, because switching tabs changes the answer
+                and the inactive pane is unmounted. */}
+            <QueueAnnouncer
               from={start + 1}
               to={start + pageRows.length}
               total={rows.length}
-              page={currentPage}
-              pageCount={pageCount}
-              onPageChange={setPage}
-              pageSize={pageSize}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-              }}
             />
-          </div>
-        )}
+
+            {pageRows.length === 0 ? (
+              <SignOrdersEmpty isFiltered={isFiltered} onClear={clearFilters} />
+            ) : (
+              <div className="flex min-w-0 flex-col gap-4">
+                {/* min-w-0 lets this flex item shrink below the table's content width, so
+                    a wide table scrolls inside the panel instead of pushing the page
+                    sideways. */}
+                <div className="min-w-0 overflow-x-auto">
+                  {/* Six columns do not survive a phone. Below `md` the same rows stack
+                      as items — the answer the rest of the court side already gives. */}
+                  <div className="hidden md:block">
+                    <SignOrdersTable
+                      rows={pageRows}
+                      selectedIds={selectedIds}
+                      onToggle={toggle}
+                      onToggleAll={toggleAllInView}
+                      onOpen={setOpen}
+                    />
+                  </div>
+                  <div className="md:hidden">
+                    <SignOrdersItemList
+                      rows={pageRows}
+                      selectedIds={selectedIds}
+                      onToggle={toggle}
+                      onOpen={setOpen}
+                    />
+                  </div>
+                </div>
+
+                <ListFooter
+                  id="sign-orders-page-size"
+                  from={start + 1}
+                  to={start + pageRows.length}
+                  total={rows.length}
+                  page={currentPage}
+                  pageCount={pageCount}
+                  onPageChange={setPage}
+                  pageSize={pageSize}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setPage(1);
+                  }}
+                />
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent
+            value="drafts"
+            className="flex min-w-0 flex-col gap-4 outline-none"
+          >
+            {/* Mounted whatever the list holds, including nothing — a live region has to
+                be in the DOM before the change to be read out at all. */}
+            <QueueAnnouncer
+              from={1}
+              to={draftRows.length}
+              total={draftRows.length}
+            />
+
+            {draftRows.length === 0 ? (
+              <DraftOrdersEmpty />
+            ) : (
+              /* No pager under it: this tab is one day of one court's board — twenty-three
+                 listings at the outside, and only the ones with an order open — so a
+                 footer would be paging a page that cannot fill. The same call bulk
+                 reschedule makes about its own record. */
+              <div className="min-w-0 overflow-x-auto">
+                {/* Seven columns do not survive a phone. Below `md` the same rows stack
+                    as items — today's cause list's own answer for the same table. */}
+                <div className="hidden md:block">
+                  <DraftOrdersTable rows={draftRows} seat={seat} />
+                </div>
+                <div className="md:hidden">
+                  <DraftOrdersItemList rows={draftRows} />
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </section>
 
-      {selected.length > 0 || signableInView > 0 ? (
+      {/* The bar belongs to one tab. It commits a selection, the drafts have none to
+          make, and a sticky teal signature over a list of unfinished orders would be
+          offering an act that list cannot perform — the same call bulk reschedule makes
+          about its own commit bar. */}
+      {tab === "pending" && (selected.length > 0 || signableInView > 0) ? (
         <SignBar
           count={selected.length}
           notice={notice}
@@ -338,7 +499,7 @@ function SignOrderFiltersForm({
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-orders-status" className="w-fit text-body">
+        <Label htmlFor="sign-orders-status" className="w-fit text-body-compact">
           Status
         </Label>
         <Select
@@ -374,7 +535,7 @@ function SignOrderFiltersForm({
           the value is the only fix that does not edit the primitive — upstream DS bug,
           logged in the build report. */}
       <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-orders-date-label" className="w-fit text-body font-medium">
+        <span id="sign-orders-date-label" className="w-fit text-body-compact font-medium">
           Date added
         </span>
         <div role="group" aria-labelledby="sign-orders-date-label">
@@ -539,10 +700,7 @@ function SignOrdersItemList({
         const pending = order.status === "pending-signature";
         const title = signOrderTypeLabel(order.type);
         return (
-          <li
-            key={order.id}
-            {...rowActivation("flex gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
-          >
+          <QueueItemRow key={order.id} className="flex gap-3">
             {/* The DS box expands its own hit area to 40×40; the name it carries is the
                 order and its case, not the column, because a row read aloud has no
                 column header. A signed order has nothing to select. */}
@@ -574,7 +732,7 @@ function SignOrdersItemList({
               </button>
               <p className="min-w-0 text-body-compact">{title}</p>
               <p className="text-caption text-muted-foreground">
-                <span className="tabular-nums">{order.caseNumber}</span>
+                <Identifier value={order.caseNumber} label="case number" />
                 {" · Added "}
                 <span className="tabular-nums">
                   {formatSignOrderDate(order.addedOn)}
@@ -584,9 +742,103 @@ function SignOrdersItemList({
                 {signOrderStatusLabel(order.status)}
               </Badge>
             </div>
-          </li>
+          </QueueItemRow>
         );
       })}
+    </ul>
+  );
+}
+
+/**
+ * The drafts tab with nothing on it — which is the ordinary state of a morning.
+ *
+ * One state, not two: there are no filters on this tab, so an empty list can only mean
+ * that nothing has been drawn up yet. It says where orders come from and offers the trip
+ * there, because the answer is on another screen — today's cause list — rather than on
+ * this one. (Bulk reschedule's record refuses the equivalent button, correctly: there the
+ * answer was the tab next door, and a button that only switched tabs would be a third
+ * way to press a tab.)
+ *
+ * Borderless and unpadded; the panel is already the frame.
+ */
+function DraftOrdersEmpty() {
+  return (
+    <Empty className="border-0 p-0">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FilePenLineIcon aria-hidden />
+        </EmptyMedia>
+        <EmptyTitle className="text-title-s font-semibold">
+          No orders are being written
+        </EmptyTitle>
+        <EmptyDescription className="text-body">
+          An order is drawn up at the sitting it belongs to. Orders you start on
+          today&apos;s cause list appear here until they are sent for signature.
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button asChild variant="outline">
+          <Link href="/employee/hearings">Go to today&apos;s hearings</Link>
+        </Button>
+      </EmptyContent>
+    </Empty>
+  );
+}
+
+/**
+ * The same draft rows below `md`, stacked.
+ *
+ * Today's cause list's own phone row, carrying the same facts the table above carries:
+ * the serial and the cause on one reading, where the matter stands, who appears, and what
+ * it was listed for. Seven columns do not survive 375px, and this is the shape the court
+ * side already answers that with.
+ *
+ * The cause name is the opener here rather than the Orders control: there is no column
+ * for a glyph to sit under on a phone, and the whole card opens the order in any case
+ * (`rowActivation`). `min-h-0` drops the 40×40 floor `rowOpenerClass` sets for a table
+ * cell — the card is the target, and a 40px box on a baseline row would only lift the
+ * title off the number's baseline, which is the correction the cause list's phone row
+ * already makes.
+ */
+function DraftOrdersItemList({ rows }: { rows: CourtHearing[] }) {
+  return (
+    <ul className="flex flex-col gap-3">
+      {rows.map((hearing) => (
+        <QueueItemRow key={hearing.id} className="flex min-w-0 flex-col gap-2">
+          <p className="flex min-w-0 items-baseline gap-1 text-body-compact font-medium">
+            <span className="shrink-0 text-muted-foreground tabular-nums">
+              {hearing.item}.
+            </span>
+            <Link
+              href={draftOrderHref(hearing)}
+              {...rowOpener}
+              className={cn(rowOpenerClass, "min-h-0 w-fit")}
+            >
+              <span className="sr-only">Open the order in </span>
+              {causeTitle(hearing)}
+            </Link>
+          </p>
+          <Badge
+            variant={courtHearingStatusVariant(hearing.status)}
+            className="w-fit"
+          >
+            {courtHearingStatusLabel(hearing.status)}
+          </Badge>
+          <CounselCell
+            complainant={counselFor(hearing, "complainant").map(
+              (counsel) => counsel.name,
+            )}
+            accused={counselFor(hearing, "accused").map(
+              (counsel) => counsel.name,
+            )}
+          />
+          <p className="text-caption text-muted-foreground">
+            <Identifier value={hearing.caseNumber} label="case number" />
+            {" · Listed for "}
+            {courtHearingPurposeLabel(hearing.purpose)}
+          </p>
+        </QueueItemRow>
+      ))}
     </ul>
   );
 }

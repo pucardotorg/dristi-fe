@@ -1,4 +1,5 @@
 import type { CaseDocumentKind } from "@/lib/employee/case-review";
+import type { ZoneRect } from "@/lib/employee/document-zones";
 
 /**
  * A page, at thumbnail size, in the DS's document-facsimile tokens.
@@ -311,6 +312,30 @@ function FormMarks() {
 /* ───────────────────────────── the full page ─────────────────────────────── */
 
 /**
+ * The box each kind of page is drawn and framed in — its viewBox, cropped to what the
+ * facsimile actually draws rather than a shared A4 portrait.
+ *
+ * The marks below are all laid out in one `0 0 60 80` grid, but a kind rarely fills it: a
+ * cheque is a wide slip across the top quarter, a memo a short stamped slip, an ID two
+ * cards. Framed in a fixed 3:4 box they floated in dead white — the box was scoped to the
+ * page, not to the document on it (owner, 2026-09-15). So each kind names the sub-rectangle
+ * of that grid its content occupies (plus a hairline of margin), and both the SVG viewBox
+ * and the container's aspect ratio come from here (`document-scroller.tsx`). The draw
+ * functions keep their original coordinates; only the window onto them tightens.
+ *
+ * These same rectangles are the coordinate space the annotation zones live in
+ * (`document-zones.ts`), so a zone reads straight off the marks it points at.
+ */
+export const SHEET_BOX: Record<CaseDocumentKind, ZoneRect> = {
+  letter: { x: 3, y: 3, w: 54, h: 72 },
+  cheque: { x: 3, y: 5, w: 54, h: 29 },
+  memo: { x: 4, y: 4, w: 52, h: 53 },
+  receipt: { x: 4, y: 4, w: 52, h: 63 },
+  id: { x: 6, y: 4, w: 48, h: 62 },
+  form: { x: 4, y: 3, w: 52, h: 65 },
+};
+
+/**
  * A page at reading size — the same six kinds, drawn finely enough to hold a whole page.
  *
  * `PageFacsimile` is a thumbnail: its marks are sized to read at 24px, and scaled to fill
@@ -319,11 +344,15 @@ function FormMarks() {
  * heading, paragraphs of hairline-thin rules with ragged ends, a signature block, the
  * slip, the stamp, the ruled form — still in the paper tokens, and still illegible: the
  * shape of each document, never its words.
+ *
+ * The viewBox is the kind's own `SHEET_BOX`, so the drawing fills the frame instead of
+ * sitting in the top of an A4 sheet.
  */
 export function PageSheet({ kind }: { kind: CaseDocumentKind }) {
+  const box = SHEET_BOX[kind];
   return (
     <svg
-      viewBox="0 0 60 80"
+      viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
       className="size-full"
       role="presentation"
       aria-hidden

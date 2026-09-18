@@ -22,6 +22,7 @@ import {
 import { NEW_FILING } from "@/lib/filing/steps";
 import { cn } from "@/lib/utils";
 import { withOrigin } from "@/lib/nav/origin";
+import { Identifier } from "@/components/chrome/identifier";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -507,7 +508,13 @@ function renderCell(
 ): React.ReactNode {
   switch (column) {
     case "ref":
-      return <span className="font-medium tabular-nums">{row.ref}</span>;
+      /* Not copyable: the row's stretched action link lies over this cell (see the
+         z-index note on the checkbox), so a button here would be unreachable. With the
+         affordance off there is no accessible name to give — and the heading it would
+         borrow is "E-filing no." on one tab and "Case no." on the next. */
+      return row.ref ? (
+        <Identifier value={row.ref} copyable={false} className="font-medium" />
+      ) : null;
     case "parties":
       return row.parties;
     case "court":

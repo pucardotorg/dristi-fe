@@ -8,8 +8,8 @@ import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignEvidenceDialog } from "@/components/employee/sign-evidence-dialog";
 import { SignEvidenceTable } from "@/components/employee/sign-evidence-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -41,6 +41,7 @@ import {
   type SignEvidence,
   type SignEvidenceFilters,
 } from "@/lib/employee/sign-evidence";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -181,7 +182,7 @@ export function SignEvidenceScreen() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 pb-0 md:p-8 md:pb-0">
         <header className="flex flex-col gap-2">
-          <h1 className="text-title text-balance font-semibold sm:text-title-l">
+          <h1 className="text-title text-balance font-semibold">
             Sign evidence
           </h1>
           {/* The count is the whole point of the queue, so the supporting line carries it
@@ -465,9 +466,9 @@ function SignEvidenceItemList({
         const document = evidenceDocumentLabel(row.document);
         const exhibit = evidenceNumber(row);
         return (
-          <li
+          <QueueItemRow
             key={row.id}
-            {...rowActivation("flex items-start gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+            className="flex items-start gap-3"
           >
             {/* The DS box expands its own hit area to 40×40; the name it carries is the
                 marking and its case, not the column, because a row read aloud has no
@@ -488,14 +489,17 @@ function SignEvidenceItemList({
                 <span className="sr-only">Read and sign </span>
                 {document}
                 {", "}
-                <span className="tabular-nums">{exhibit}</span>
+                {/* The mark is inside the row's opener — the face, no second control. */}
+                <Identifier value={exhibit} label="evidence number" copyable={false} />
               </button>
               <p className="min-w-0 text-body-compact">{causeTitle(row)}</p>
-              <p className="text-caption text-muted-foreground tabular-nums">
-                {row.caseNumber}
-              </p>
+              <Identifier
+                value={row.caseNumber}
+                label="case number"
+                className="self-start text-caption text-muted-foreground"
+              />
             </div>
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>

@@ -36,6 +36,7 @@ import {
   type RegisterCase,
   type RegisterFilters,
 } from "@/lib/employee/register-cases";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Register cases — complaints this court has not yet taken on the register.
@@ -92,7 +93,7 @@ export function RegisterCasesScreen() {
       )}
     >
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Register cases
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries
@@ -272,7 +273,7 @@ function RegisterCasesItemList({ rows }: { rows: RegisterCase[] }) {
             className="flex min-h-10 min-w-0 items-center"
           />
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{matter.caseNumber}</span>
+            <Identifier value={matter.caseNumber} label="case number" />
             {" · "}
             <span className="tabular-nums text-warning-ink">
               {matter.daysSinceSubmitted}

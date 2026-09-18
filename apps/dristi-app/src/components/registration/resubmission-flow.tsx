@@ -56,6 +56,7 @@ import {
 } from "@/lib/registration/content";
 import type { RejectedRegistration } from "@/lib/registration/rejection";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 type Step = "name" | "contact" | "verification" | "success" | "application";
 type StepKey = (typeof STEP_KEYS)[number];
@@ -216,7 +217,9 @@ export function ResubmissionFlow({
           ) : null}
           <DescriptionRow>
             <DescriptionTerm>{pick(verification.numberLabel, locale)}</DescriptionTerm>
-            <DescriptionDetails>{regNumber}</DescriptionDetails>
+            <DescriptionDetails>
+              <Identifier value={regNumber} label="registration number" />
+            </DescriptionDetails>
           </DescriptionRow>
           {idFile ? (
             <DescriptionRow className="items-center">

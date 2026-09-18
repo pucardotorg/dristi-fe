@@ -8,9 +8,10 @@
  *
  * **It is demo text, and it is not a transcript.** Nothing in this build listens to a
  * courtroom, and no word here was said by anybody. It is the same bargain the rest of
- * `/employee` makes (`hearings.ts`, `order-drafts.ts`): the composer's own footer note
- * says so on the screen, the draft dies on a reload, and nothing is filed, signed or
- * notified. What this module buys is a screen that can be walked through end to end —
+ * `/employee` makes (`hearings.ts`, `order-drafts.ts`): the draft dies on a reload, and
+ * nothing is filed, signed or notified. The screen says as much where it acts — the
+ * Add-signature overlay's own warning, and the note read out when a signature is
+ * recorded — rather than in a standing line of footer prose, which it has never had. What this module buys is a screen that can be walked through end to end —
  * call a matter, end it, open the order — without somebody having to type an order first.
  *
  * It is the listing's *opening* draft, not a lock on it: the moment the bench changes
@@ -25,19 +26,31 @@ import {
   type CourtHearingPurposeId,
   type CourtHearingStatus,
 } from "./hearings";
-import { applicationsForListing } from "./listing-applications";
+import {
+  applicationsForListing,
+  listingApplicationSentence,
+} from "./listing-applications";
 import {
   appearancesFor,
+  attendanceRecital,
   EMPTY_ORDER_DRAFT,
+  nextListingRecital,
+  orderTemplateFacts,
   type AttendanceMark,
   type OrderDraft,
 } from "./order-draft";
 import {
+  appendRichText,
   createOrderItem,
   richTextFromPlain,
+  upsertRichTextFact,
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "./order-items";
+import type { OrderTemplateFacts } from "./order-templates";
+/* Type-only, as everywhere else in `/employee`: a value import here would drag a
+   client component into a module a node test reads. */
+import type { RichTextValue } from "@/components/cases/rich-text-field";
 
 /**
  * The item, as the bench would have dictated it on this listing.
@@ -91,11 +104,14 @@ const ITEM_TYPES: Record<CourtHearingPurposeId, OrderItemTypeId[]> = {
   appearance: ["others"],
   arguments: ["others"],
   bail: ["bail"],
-  cognizance: ["order-for-taking-cognizance", "summons"],
+  cognizance: ["cognizance", "issue-of-summons"],
   "delay-condonation": ["others"],
   "evidence-of-complainant": ["others"],
   "examination-of-accused-351": ["others"],
-  "for-reports": ["miscellaneous-process"],
+  /* The old catalogue had a "miscellaneous process" of this app's own invention; the
+     court's twenty-seven have no such type, so a report that has not arrived is an order
+     the catalogue cannot name — which is what `others` is for. */
+  "for-reports": ["others"],
   judgement: ["judgement"],
   plea: ["others"],
 };
@@ -111,20 +127,22 @@ const ITEM_TYPES: Record<CourtHearingPurposeId, OrderItemTypeId[]> = {
  * `null` is a real answer and not a gap: after judgement there is no next date, which is
  * what the composer's own "no next date" choice says.
  */
-const NEXT_PURPOSE: Record<CourtHearingPurposeId, CourtHearingPurposeId | null> =
-  {
-    admission: "cognizance",
-    appearance: "plea",
-    arguments: "judgement",
-    bail: "plea",
-    cognizance: "appearance",
-    "delay-condonation": "cognizance",
-    "evidence-of-complainant": "evidence-of-complainant",
-    "examination-of-accused-351": "arguments",
-    "for-reports": "for-reports",
-    judgement: null,
-    plea: "evidence-of-complainant",
-  };
+const NEXT_PURPOSE: Record<
+  CourtHearingPurposeId,
+  CourtHearingPurposeId | null
+> = {
+  admission: "cognizance",
+  appearance: "plea",
+  arguments: "judgement",
+  bail: "plea",
+  cognizance: "appearance",
+  "delay-condonation": "cognizance",
+  "evidence-of-complainant": "evidence-of-complainant",
+  "examination-of-accused-351": "arguments",
+  "for-reports": "for-reports",
+  judgement: null,
+  plea: "evidence-of-complainant",
+};
 
 /** Three weeks on, and never on a weekend the court does not sit. */
 const NEXT_LISTING_DAYS = 21;
@@ -155,6 +173,28 @@ function attendanceOf(hearing: CourtHearing): Record<string, AttendanceMark> {
  * screen arguing with itself. Both sentences the document can print are still reachable
  * — the bench answers these itself from the composer, and either way is one click.
  */
+/**
+ * The disposals, as the order's own opening sentences.
+ *
+ * A completed sitting answered its applications before it passed anything, and the
+ * sentences that record that live in the passage now rather than in a band above it —
+ * so the fixture writes them where the live screen writes them (`decide`), ahead of the
+ * directions the templates contribute. A draft that answered the applications without
+ * the words being in the order would be showing a state the composer cannot reach.
+ */
+function disposalsOf(hearing: CourtHearing): RichTextValue {
+  return applicationsForListing(hearing.id).reduce<RichTextValue>(
+    (written, application) =>
+      appendRichText(
+        written,
+        richTextFromPlain(
+          listingApplicationSentence(hearing, application, "allowed"),
+        ),
+      ),
+    { html: "", text: "" },
+  );
+}
+
 function decisionsOf(hearing: CourtHearing): OrderDraft["applications"] {
   return Object.fromEntries(
     applicationsForListing(hearing.id).map((application) => [
@@ -171,11 +211,31 @@ function decisionsOf(hearing: CourtHearing): OrderDraft["applications"] {
  * completed matter opens on the same items every time — the editors are keyed on them,
  * and an id that changed between renders would restart the typist's cursor.
  */
-function itemsOf(hearing: CourtHearing): OrderItemDraft[] {
+function itemsOf(
+  hearing: CourtHearing,
+  /* The same auto-fill pass a live add runs (`orderTemplateFacts`). Without it a
+     completed listing would open on raw `[…]` tokens while clicking the identical order
+     on a live one opened on filled text — one screen with two answers to what an order
+     opens on. It changes nothing visible on today's fixtures, because the only item any
+     of them carries past the first is the cognizance summons and its tokens are all
+     parties, which stay the judge's to choose. That is the point: it is wired so it
+     cannot drift, not because it currently shows. */
+  facts: OrderTemplateFacts,
+): OrderItemDraft[] {
   return ITEM_TYPES[hearing.purpose].map((type, index) => {
-    const item = createOrderItem(hearing, type, `${hearing.id}-item-${index + 1}`);
+    const item = createOrderItem(
+      type,
+      `${hearing.id}-item-${index + 1}`,
+      facts,
+    );
     if (index > 0) return item;
-    return { ...item, text: richTextFromPlain(ITEM_TEXT[hearing.purpose]) };
+    /* Marked like any other item's passage (`ORDER_ITEM_ATTRIBUTE`): a completed
+       sitting's first item is pulled in exactly as a live one is, and a row whose words
+       carry no mark would arrive unremovable and vanish from its own list. */
+    return {
+      ...item,
+      text: richTextFromPlain(ITEM_TEXT[hearing.purpose], item.id),
+    };
   });
 }
 
@@ -201,12 +261,44 @@ export function initialOrderDraft(
 
   const nextPurpose = NEXT_PURPOSE[hearing.purpose];
 
-  return {
+  /* The sitting without its items, so the auto-fill pass can read the next listing this
+     draft is about to claim — the facts depend on the draft and the items depend on the
+     facts, so the draft is assembled in that order rather than all at once. */
+  const sitting: OrderDraft = {
     marks: attendanceOf(hearing),
     applications: decisionsOf(hearing),
     next: nextPurpose ? "list" : "none",
     nextPurpose: nextPurpose ?? "",
     nextDate: nextPurpose ? nextSittingDay(today) : null,
-    items: itemsOf(hearing),
+    body: { html: "", text: "" },
+    items: [],
+  };
+
+  /* The same two passes a live sitting makes, in the same order: the templates are
+     chosen, then their words land in the one box. `items` stays the record of what was
+     pulled in and `body` is what the bench would be reading — a fixture that filled one
+     without the other would be showing a state the composer cannot actually reach. */
+  const items = itemsOf(hearing, orderTemplateFacts(hearing, sitting, today));
+  /* Disposals first, then the directions — the order a court takes them in, and the
+     order the live screen produces them in when the panel opens on the applications. */
+  const written = items.reduce(
+    (passage, item) => appendRichText(passage, item.text),
+    /* **And the roll opens it**, because this sitting's roll was called: the live screen
+       recites into the passage as each office is answered (`mark`), so a completed matter
+       that arrived with every mark set and no recital in its order would be the one state
+       the composer cannot reach. Written before the directions rather than prepended
+       after them, which is the same thing `upsertRichTextFact` does and says so at the
+       call site. */
+    upsertRichTextFact(
+      disposalsOf(hearing),
+      "attendance",
+      attendanceRecital(appearancesFor(hearing), sitting.marks),
+    ),
+  );
+  return {
+    ...sitting,
+    items,
+    /* And the posting closes it, last, as `postNext` leaves it. */
+    body: upsertRichTextFact(written, "next", nextListingRecital(sitting)),
   };
 }

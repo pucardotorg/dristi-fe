@@ -30,6 +30,7 @@ import {
 } from "@/lib/employee/register-cases";
 import { markArrival } from "@/components/employee/use-arrival";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * A complaint's cause title, as the way into its file.
@@ -142,8 +143,8 @@ export function RegisterCasesTable({ rows }: { rows: RegisterCase[] }) {
                 className="flex min-h-10 w-full items-center"
               />
             </TableCell>
-            <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
-              {matter.caseNumber}
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              <Identifier value={matter.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-normal")}>
               <CounselCell

@@ -136,6 +136,18 @@ const DATE_FIELDS = new Set([
 ]);
 
 /**
+ * Fields whose value is a unique identifier — a cheque number, an IFSC, the tracking
+ * number of a posted notice. These are transcribed character by character, where the
+ * amount and the dates beside them are read as quantities.
+ */
+const ID_FIELDS = new Set(["chequeNumber", "ifsc", "tracking"]);
+
+/** Is the value at this target an identifier rather than a quantity, a date or prose? */
+export function isIdentifierTarget(target: DefectTarget): boolean {
+  return target.kind === "field" && ID_FIELDS.has(target.field);
+}
+
+/**
  * Which control the inset's "Your corrected value" should be (brief §15.2, tier 3): the
  * same kind the flagged field uses, so a corrected date is picked and a corrected amount
  * is typed in rupees rather than both being loose text.

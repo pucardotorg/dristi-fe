@@ -17,6 +17,7 @@ import {
 import { pick, type Locale } from "@/lib/onboarding/content";
 import { caseDetails, type JoinCase } from "@/lib/join/content";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The one case-details block, shared by the summons modal, the join dialog, and the
@@ -97,12 +98,22 @@ export function CaseDetails({
   extended?: boolean;
   className?: string;
 }) {
-  const rows: { label: keyof typeof caseDetails; value: string }[] = [
-    { label: "caseNumber", value: joinCase.caseNumber },
+  /* `idLabel` marks the rows whose value is a registry identifier rather than a
+     fact about the case — they carry the identifier face and can be copied. */
+  const rows: {
+    label: keyof typeof caseDetails;
+    value: string;
+    idLabel?: string;
+  }[] = [
+    { label: "caseNumber", value: joinCase.caseNumber, idLabel: "case number" },
     ...(extended
       ? ([
-          { label: "cnr", value: joinCase.cnr },
-          { label: "filingNumber", value: joinCase.filingNumber },
+          { label: "cnr", value: joinCase.cnr, idLabel: "CNR" },
+          {
+            label: "filingNumber",
+            value: joinCase.filingNumber,
+            idLabel: "filing number",
+          },
         ] as const)
       : []),
     { label: "filingDate", value: joinCase.filingDate },
@@ -130,7 +141,8 @@ export function CaseDetails({
         <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
         {compact ? (
           <p className="text-body-compact text-muted-foreground">
-            {pick(caseDetails.caseNumber, locale)}: {joinCase.caseNumber}
+            {pick(caseDetails.caseNumber, locale)}:{" "}
+            <Identifier value={joinCase.caseNumber} label="case number" />
           </p>
         ) : null}
       </div>
@@ -199,7 +211,11 @@ export function CaseDetails({
                       </PopoverContent>
                     </Popover>
                   </span>
-                ) : row.value}
+                ) : row.idLabel ? (
+                  <Identifier value={row.value} label={row.idLabel} />
+                ) : (
+                  row.value
+                )}
               </DescriptionDetails>
             </DescriptionRow>
           ))}

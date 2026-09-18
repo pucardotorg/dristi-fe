@@ -3,17 +3,21 @@
 import * as React from "react";
 import { Link2Icon } from "lucide-react";
 
+import type { Field } from "@/lib/employee/scrutiny/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The grammar a raised item is read in — one label column, one value column, rows only
  * where they apply.
  *
- * It lives here rather than inside the field row because two surfaces render the same
- * item: the record in the workbench, and the summary in the send-back dialog. Those are
- * one data type, so they get one rendering (ui-craft §2) — an officer who has learnt to
- * scan "FSO's value / Filed value / Annotation" down the left edge reads the dialog
- * without learning anything new, however many items it holds.
+ * **The workbench's record.** It was the send-back dialog's too, on the argument that
+ * one data type gets one rendering (ui-craft §2). That held while the dialog listed two
+ * or three items and broke at twenty: a label column is the fastest way to *find* a
+ * value in one record and the slowest way to *scan* many, because the names end up
+ * outweighing the facts (owner, 2026-09-18). The two surfaces still share the
+ * vocabulary — the same facts under the same names — and the dialog composes them for
+ * scanning instead; see `SummaryItem` in `review-dialog.tsx`.
  *
  * The two columns collapse to one below `22rem` of container width, so a record stays
  * legible when the fields pane is dragged to its floor. `@container` is declared by the
@@ -48,14 +52,45 @@ export function RecordRow({
 }) {
   return (
     <>
-      <dt className="pt-px text-caption text-muted-foreground @[22rem]:pt-0.5">
-        {label}
-      </dt>
+      {/* 14px muted, not 12: the owner's standing rule for key-value data (2026-09-11,
+          restated 2026-09-18 on this dialog — *"avoid the use of 12 size copy for these
+          kind of things"*). Hierarchy here is colour and column, not size, so the label
+          and its value are one size and the whole record reads as one table. */}
+      <dt className="text-body-compact text-muted-foreground">{label}</dt>
       <dd className="-mt-1 min-w-0 text-body-compact leading-snug @[22rem]:mt-0">
         {children}
       </dd>
     </>
   );
+}
+
+/**
+ * A filed value, set as an identifier where the field holds one.
+ *
+ * It lives beside the rows rather than in either screen because the same value is read
+ * in three places — the field row, the item's record, the send-back dialog — and a
+ * cheque number that is monospaced in one of them and not the others reads as two
+ * different numbers.
+ */
+export function FieldValue({
+  field,
+  value,
+  copyable = true,
+}: {
+  field: Field;
+  value: string;
+  /**
+   * Off on a value that has been superseded. The rows that show what was filed strike
+   * it through, and a strike drawn across the copy pill and its glyph offers a taking
+   * of the one value on the row that is no longer the answer — the composer's own
+   * `Filed as` declines for the same reason.
+   */
+  copyable?: boolean;
+}) {
+  if (!field.ident) return <>{value}</>;
+  /* Copyable even in the field row, which is an option rather than a button:
+     `Identifier` keeps the click from reaching the row and selecting it. */
+  return <Identifier value={value} label={field.label} copyable={copyable} />;
 }
 
 /**

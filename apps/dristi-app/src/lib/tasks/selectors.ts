@@ -1,21 +1,37 @@
 /**
- * Filtering, sorting and counting — pure, over the loaded world.
+ * Filtering, sorting, grouping and counting — pure, over the loaded world.
  *
- * The screen's state (view tab, card kind, the labelled filters, search, sort) lives in
- * the URL as `Filters`. Card counts are computed on the view's population before the
- * other filters apply, so the cards always describe the view.
+ * The screen's state (view tab, kind pill, the labelled filters, search) lives in the
+ * URL as `Filters`.
+ *
+ * ## One count contract
+ *
+ * Every count on the screen follows the rows the list is showing, except the four tab
+ * counts, which have to be cross-view to be any use. So a pill's number is what
+ * pressing it yields — `kindCounts` applies the whole filter set *except* the kind —
+ * and a band's number is the rows under it. The pills used to be six cards counting the
+ * tab while the table counted the filters, which is how a card could read 5 above an
+ * empty list (2026-09-15).
+ *
+ * Everything here is presentation-agnostic: the home screen shows the same tasks in a
+ * smaller frame, so grouping and counting live in this module rather than in the screen.
  */
 
-import { canView, canViewTask, cardKindOf, TERMINAL, viewOf, WAITING } from "./permissions";
+import { canView, canViewTask, cardKindOf, isBinding, TERMINAL, viewOf } from "./permissions";
 import { compareUrgency, consequenceAt, daysUntil, isOverdue } from "./urgency";
-import type { Case, CardKind, Person, PersonId, Task, TaskView } from "./types";
+import type { Case, PillKind, Person, PersonId, Task, TaskView } from "./types";
+
+/** Past its date *and* still binding — the one rule the cell, the filter and the band share. */
+export function readsAsOverdue(task: Task, now: Date | string): boolean {
+  return isBinding(task) && isOverdue(task, now);
+}
 
 export type DueFilter = "any" | "overdue" | "today" | "week" | "before-hearing";
 
 export type Filters = {
   view: TaskView;
   /** One card at a time; null = every kind. */
-  kind: CardKind | null;
+  kind: PillKind | null;
   due: DueFilter;
   /** A court name; "" = all courts. */
   court: string;
@@ -33,19 +49,21 @@ export const DEFAULT_FILTERS: Filters = {
   query: "",
 };
 
-/** Every card names an act. "Draft" is a state, so it is not one of them — see `cardKindOf`. */
-export const CARD_ORDER: CardKind[] = ["sign", "pay", "file", "returned", "review", "hearing"];
+/**
+ * Every pill names an act. "Draft" is a state, so it is not one of them — see
+ * `cardKindOf`, which files a draft under the act it will become.
+ */
+export const KIND_ORDER = ["sign", "pay", "file", "returned", "review", "hearing"] as const satisfies readonly PillKind[];
 
-export const CARD_LABELS: Record<CardKind, string> = {
+export const KIND_LABELS: Record<PillKind, string> = {
   sign: "To sign",
   pay: "To pay",
   file: "To file",
   returned: "Returned by scrutiny",
   review: "To review",
-  /* "To submit" over "For a hearing" — the PM's wording (Sept 2026): the card holds
+  /* "To submit" over "For a hearing" — the PM's wording (Sept 2026): the pill holds
      what must be produced or presented at a posting, and "submit" names that act. */
   hearing: "To submit",
-  draft: "Drafts",
 };
 
 export const VIEW_LABELS: Record<TaskView, string> = {
@@ -105,10 +123,13 @@ function matchesSearch(task: Task, kase: Case, q: string): boolean {
 function matchesDue(task: Task, due: DueFilter, now: Date | string): boolean {
   if (due === "any") return true;
   if (due === "before-hearing") return !!task.hearingAt && daysUntil(task.hearingAt, now) >= 0;
+  // "Overdue" means what the row says it means. The filter used to compare dates of its
+  // own accord, so a closed task could be listed under an Overdue chip while its own
+  // Due cell refused the word (2026-09-15).
+  if (due === "overdue") return readsAsOverdue(task, now);
   const at = consequenceAt(task);
   if (!at) return false;
   const days = daysUntil(at, now);
-  if (due === "overdue") return days < 0;
   if (due === "today") return days === 0;
   return days >= 0 && days <= 7;
 }
@@ -164,43 +185,105 @@ export function applyFilters(world: World, f: Filters): Task[] {
   return sortTasks(world, rows);
 }
 
-export type CardCount = {
-  count: number;
-  overdue: number;
-  /** The nearest upcoming consequence date among the kind's tasks, if any. */
-  nextDue?: string;
+/** One count per pill. `draft` has no pill, so it is not a key here. */
+export type KindCounts = Record<(typeof KIND_ORDER)[number], number>;
+
+/**
+ * What each kind pill counts: the rows pressing it would leave. Every filter applies
+ * except the kind itself, so a pill reading 5 always yields five rows — and the pill
+ * row stays a control, not a second summary of the tab (2026-09-15).
+ */
+export function kindCounts(world: World, f: Filters): KindCounts {
+  const out = Object.fromEntries(KIND_ORDER.map((k) => [k, 0])) as KindCounts;
+  for (const t of tasksInView(world, f.view)) {
+    const kase = caseOf(world, t);
+    if (!kase || !passesFilters(t, kase, f, world.now)) continue;
+    out[cardKindOf(t)] += 1;
+  }
+  return out;
+}
+
+/* ───────────────────────────── when it bites ───────────────────────────── */
+
+export type DueBucket = "overdue" | "today" | "week" | "later" | "none";
+
+/**
+ * The bands the open lists are cut into. Plain calendar language: a band says when the
+ * work bites, so the first screenful is the part that hurts. Closed and archived lists
+ * are not banded — they are ordered by when they closed, and "overdue" is meaningless
+ * once nothing binds.
+ */
+export const DUE_BUCKET_ORDER: DueBucket[] = ["overdue", "today", "week", "later", "none"];
+
+export const DUE_BUCKET_LABELS: Record<DueBucket, string> = {
+  overdue: "Overdue",
+  today: "Due today",
+  week: "This week",
+  later: "Later",
+  none: "No date set",
 };
 
 /**
- * What each overview card says for a view: how many, how many overdue, and the next
- * date. Counts respect the view only — not the other filters — so the cards always
- * describe the tab.
+ * The views whose rows are banded by date — the main list, and only it.
+ *
+ * Waiting on others was banded too for an afternoon, and the bands lied: a filing that
+ * has been with the court since 14 Aug is not binding, so it is not overdue and its own
+ * Due cell prints a bare "Due 14 Aug" — under a band reading "Due today". Nothing there
+ * is this viewer's move, the "Waiting on" column already says whose it is, and a band
+ * has to be able to say something true about every row beneath it.
  */
-export function cardCounts(world: World, view: TaskView): Record<CardKind, CardCount> {
-  const out = Object.fromEntries(CARD_ORDER.map((k) => [k, { count: 0, overdue: 0 }])) as Record<CardKind, CardCount>;
-  for (const t of tasksInView(world, view)) {
-    const c = out[cardKindOf(t)];
-    c.count += 1;
-    // Only actionable work is overdue or due next; other tabs just count.
-    if (view !== "needs-action") continue;
-    if (isOverdue(t, world.now)) {
-      c.overdue += 1;
-      continue;
-    }
-    const at = consequenceAt(t);
-    if (at && (!c.nextDue || new Date(at) < new Date(c.nextDue))) c.nextDue = at;
+export const BANDED_VIEWS: ReadonlySet<TaskView> = new Set<TaskView>(["needs-action"]);
+
+export function dueBucketOf(task: Task, now: Date | string): DueBucket {
+  if (readsAsOverdue(task, now)) return "overdue";
+  const at = consequenceAt(task);
+  if (!at) return "none";
+  const days = daysUntil(at, now);
+  // Inside a banded view every task still binds, so a non-positive count is today. A
+  // settled task reaching here — from a caller that bands a closed list — would land
+  // under Today with a cell that refuses the word, which is why `BANDED_VIEWS` is one
+  // view and this function is not asked about the others.
+  if (days <= 0) return "today";
+  if (days <= 7) return "week";
+  return "later";
+}
+
+export type DueBand = { bucket: DueBucket; label: string; tasks: Task[] };
+
+/**
+ * Cut an already-sorted list into its bands, keeping `sortTasks`'s order inside each
+ * one. Empty bands are dropped, so a list with nothing overdue shows no Overdue band.
+ *
+ * Banding does outrank one part of the comparator, and deliberately: `compareUrgency`
+ * lifts a task that blocks an upcoming hearing above one merely due sooner, so a filing
+ * for Friday's hearing used to sit above a fee due today. Under bands that filing reads
+ * under "This week" and the fee under "Due today", because the band answers *when it
+ * bites* and Friday is not today. Inside "This week" the blocking filing still leads.
+ * The alternative — bands that run out of date order to honour the comparator — is a
+ * heading that lies about its own contents.
+ */
+export function bandByDue(tasks: Task[], now: Date | string): DueBand[] {
+  const bins = new Map<DueBucket, Task[]>();
+  for (const t of tasks) {
+    const b = dueBucketOf(t, now);
+    const bin = bins.get(b);
+    if (bin) bin.push(t);
+    else bins.set(b, [t]);
   }
-  return out;
+  return DUE_BUCKET_ORDER.filter((b) => bins.get(b)?.length).map((b) => ({
+    bucket: b,
+    label: DUE_BUCKET_LABELS[b],
+    tasks: bins.get(b)!,
+  }));
 }
 
 /** "26 need action · 4 waiting on others · 5 overdue" — the header line. */
 export function summaryOf(world: World): { action: number; waiting: number; overdue: number } {
   const action = tasksInView(world, "needs-action");
   const waiting = tasksInView(world, "waiting");
-  // Overdue counts every open-state task past its date, whoever's move it is.
-  const overdue = [...action, ...waiting].filter(
-    (t) => !WAITING.has(t.status) && isOverdue(t, world.now)
-  ).length;
+  // Overdue counts every still-binding task past its date, whoever's move it is — the
+  // same rule the row's Due cell and the Overdue band use.
+  const overdue = [...action, ...waiting].filter((t) => readsAsOverdue(t, world.now)).length;
   return { action: action.length, waiting: waiting.length, overdue };
 }
 

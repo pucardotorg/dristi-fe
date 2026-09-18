@@ -13,6 +13,7 @@ import { useLocale } from "@/components/shell/locale";
 import { useProfile } from "@/components/shell/profile";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import { DEMO_JOIN_CASE, fill, home, shell, type JoinCase } from "@/lib/join/content";
+import { Identifier } from "@/components/chrome/identifier";
 
 type HomeCase = { joinCase: JoinCase; status: "joined" | "approval" };
 type VisibleHomeCase = HomeCase | { joinCase: JoinCase; status: "summons" };
@@ -109,7 +110,7 @@ export function HomeScreen({
                       <p>
                         <span className="font-medium text-foreground">{pick(home.caseNumberLabel, locale)}</span>
                         <br />
-                        {entry.joinCase.caseNumber}
+                        <Identifier value={entry.joinCase.caseNumber} label="case number" />
                       </p>
                       <p>
                         <span className="font-medium text-foreground">{pick(home.hearingLabel, locale)}</span>

@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDownIcon, SettingsIcon } from "lucide-react";
 
-import { useCourtRole } from "@/components/employee/use-court-role";
+import {
+  useCourtRole,
+  useCourtSession,
+} from "@/components/employee/use-court-role";
 import {
   COURT_ROLE_LABEL,
   COURT_SEATS,
-  CURRENT_STAFF,
   type CourtRole,
 } from "@/lib/employee/content";
 import { setCourtRole } from "@/lib/employee/court-role";
@@ -613,13 +615,15 @@ function initialsOf(name: string): string {
  * this is still not a route — it is a menu, because the one setting the court side
  * actually has is small enough to answer in place.
  *
- * **Two seats** (`COURT_SEATS`). Same rail, same queues, same screens, nothing granted
+ * **Four seats** (`COURT_SEATS`) — the same four `/employee/login` signs in to, so the
+ * menu can always name the seat the person arrived in. Same rail, same queues, same
+ * screens, nothing granted
  * and nothing hidden; what differs is what a cause-list row offers — the bench's session
  * controls, or a row that ends at its order (`court-role.ts`). Beyond the sitting, what a
  * typist's work is as against a bench clerk's comes from product, and this build must not
  * answer that by quietly showing a different app. The menu is honest by being small.
  *
- * A radio group rather than two items: the seats are one mutually exclusive answer, and
+ * A radio group rather than plain items: the seats are one mutually exclusive answer, and
  * the menu has to show which one is being worked in without being opened twice. `w-auto
  * min-w-48` because the primitive otherwise inherits the trigger's width, and a 40px
  * trigger would pinch "Bench clerk" to a column of letters.
@@ -677,8 +681,8 @@ function CourtSettingsControl() {
  *
  * A block, not a menu. The advocate's footer is a popover because an advocate's account
  * has things to switch between — a litigant profile, a sandbox user, a rail plate. None
- * of those exist here: the court side runs as one staff member with no sign-in, and the
- * plate is charcoal by decision rather than by preference (`rail-plate.ts`). The one
+ * of those exist here: the court side runs as whoever came through `/employee/login`,
+ * and the plate is charcoal by decision rather than by preference (`rail-plate.ts`). The one
  * thing there *is* to switch — the seat — belongs to the settings control beside this
  * block, where a court would look for a setting; folding it into the person's name would
  * hide it behind an identity that is not itself a menu.
@@ -693,8 +697,9 @@ function CourtSettingsControl() {
  * is headed with that court — and the chrome says it nowhere else, because the mark at
  * the head of the rail is the product's and not the court's.
  *
- * The name is `CURRENT_STAFF`'s demo given name; no honorific and no designation are
- * added to it here.
+ * The name is the signed-in account's demo given name (`session.ts`), falling back to
+ * `CURRENT_STAFF` when nobody has signed in; no honorific and no designation are added
+ * to it here.
  *
  * Folded, the text goes `sr-only` rather than `hidden`. The disc keeps the initial, and
  * the identity stays in the accessibility tree in both states — which is what a static
@@ -702,7 +707,7 @@ function CourtSettingsControl() {
  * person's name off a hover the keyboard cannot reach.
  */
 function CourtIdentityFooter() {
-  const { name, court } = CURRENT_STAFF;
+  const { name, court } = useCourtSession();
   const role = useCourtRole();
   /* The settings control leaves the layout with the labels, so folding while it holds
      focus drops the keyboard the same way a section's rows do. Its fallback is the fold

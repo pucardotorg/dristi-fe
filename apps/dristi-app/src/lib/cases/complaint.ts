@@ -24,6 +24,8 @@ export type ComplaintNode = {
   /** Outline number: "1", "2.1". */
   number: string;
   label: string;
+  /** An identifier the label names — a cheque's own number. Apart, so it can be set as one. */
+  labelId?: string;
   children?: ComplaintNode[];
 };
 
@@ -32,6 +34,11 @@ export type ComplaintField = {
   value: string;
   /** Missing / not uploaded / not applicable — muted, still a row. */
   empty?: boolean;
+  /**
+   * A unique identifier — an IFSC, a filing id, an exhibit code. Read character by
+   * character and transcribed elsewhere, so it is set as one (`chrome/identifier.tsx`).
+   */
+  id?: true;
 };
 
 export type ComplaintBlock = {
@@ -53,6 +60,8 @@ export type ComplaintDocument = {
 
 export type ComplaintPane = {
   title: string;
+  /** An identifier the title names — a cheque's own number. Apart, so it can be set as one. */
+  titleId?: string;
   badges?: string[];
   /** Scope note — accused joinder only, so far. */
   notice?: string;
@@ -271,6 +280,11 @@ function field(term: string, value: string): ComplaintField {
   return { term, value };
 }
 
+/** The same row for a value that is an identifier rather than prose. */
+function idField(term: string, value: string): ComplaintField {
+  return { term, value, id: true };
+}
+
 function empty(
   term: string,
   value: "Not provided" | "Not uploaded" | "Not applicable" | "Not filed"
@@ -389,17 +403,18 @@ function partyPane(party: PackParty): ComplaintPane {
 
 function chequePane(cheque: PackCheque): ComplaintPane {
   return {
-    title: `Cheque number ${cheque.chequeNumber}`,
+    title: "Cheque number",
+    titleId: cheque.chequeNumber,
     fields: [
       field("Signatory", cheque.nameOfSignatoryOfDishonouredCheque),
       field("Payee", cheque.payeeNameOnCheque),
       field("Payee bank", cheque.payeeBankName),
       field("Payee branch", cheque.payeeBankBranchName),
-      field("Payee IFSC", cheque.payeeIfscCode),
+      idField("Payee IFSC", cheque.payeeIfscCode),
       field("Date of cheque", on(cheque.dateOfCheque)),
       field("Payer bank", cheque.payerBankName),
       field("Payer branch", cheque.payerBankBranchName),
-      field("Payer IFSC", cheque.payerIfscCode),
+      idField("Payer IFSC", cheque.payerIfscCode),
       field("Amount", money(cheque.chequeAmount)),
       field(
         "Jurisdiction",
@@ -498,7 +513,8 @@ function buildTree(): ComplaintNode[] {
   const cheques = chequeGroup.cheques.map((cheque, index) => ({
     id: cheque.chequeId,
     number: `2.${index + 1}`,
-    label: `Cheque number ${cheque.chequeNumber}`,
+    label: "Cheque number",
+    labelId: cheque.chequeNumber,
   }));
   let caseSpecificN = cheques.length;
   const submissions = joinSection.submissions.map((item, index) => ({

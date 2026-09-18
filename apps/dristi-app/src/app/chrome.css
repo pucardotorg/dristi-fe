@@ -1,0 +1,42 @@
+/*
+ * App-owned rules on chrome the product does not author.
+ *
+ * `globals.css` is synced from the DS and a hand-edit there is lost at the next sync and
+ * fails `check:ui-sync` meanwhile, so anything the product needs to say about a
+ * third-party stylesheet says it here. Keep this file small: a rule earns a place only
+ * when the thing it corrects cannot be reached by a prop, a class or a token.
+ */
+
+/*
+ * The toaster centres on the page column, not on the window.
+ *
+ * Sonner pins a bottom-centre toaster with `left: 50%; transform: translateX(-50%)`, so
+ * it centres on the viewport — and the viewport starts up to 16rem left of where the work
+ * does. A toast then sits visibly off-axis under a wide rail (owner, 2026-09-16: *"center
+ * aligned to the workspace, the primary view that we have, excluding the side tab"*).
+ * Shifting `left` by half the rail puts the midpoint on the column's own centre, which is
+ * what the reader's eye measures against.
+ *
+ * `--chrome-page-inset` is published by whichever column the toaster is mounted in —
+ * `ChromePageColumn` for the court, `AppShell`'s own column until that shell migrates onto
+ * the same frame. It is read here rather than computed here because only the shell knows
+ * whether the rail is folded; see `chromePageInset`.
+ *
+ * Three attribute selectors, because sonner's own rule is two and no utility class could
+ * outrank it. Gated at `md`: below that the rail is off-canvas and the window *is* the
+ * page, and under 600px sonner lays the toast out full width on its own terms — this must
+ * reach neither case. The transition matches the rail's own fold, so the two move together
+ * when ⌘B fires with a toast on screen.
+ */
+@media (min-width: 48rem) {
+  [data-sonner-toaster][data-x-position="center"][data-y-position="bottom"] {
+    left: calc(50% + var(--chrome-page-inset, 0px) / 2);
+    transition: left 200ms linear;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toaster][data-x-position="center"][data-y-position="bottom"] {
+    transition: none;
+  }
+}
