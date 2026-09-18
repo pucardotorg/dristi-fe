@@ -72,6 +72,7 @@ import {
 } from "@/lib/filing/content";
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The bail bond, in its three entries:
@@ -510,7 +511,9 @@ export function BailBondDialog({
             </DialogTitle>
             <DialogDescription className="text-pretty">{headerCopy.body}</DialogDescription>
             <p className="text-caption text-muted-foreground">
-              {accessCase.caseNumber} · {accessCase.title}
+              <Identifier value={accessCase.caseNumber} label="case number" />
+              <span aria-hidden> · </span>
+              {accessCase.title}
             </p>
           </DialogHeader>
         )}
@@ -1080,7 +1083,9 @@ export function BailBondDialog({
               <DescriptionList>
                 <DescriptionRow className="items-center border-hairline">
                   <DescriptionTerm>{pick(bondCopy.bondIdLabel, locale)}</DescriptionTerm>
-                  <DescriptionDetails className="font-mono">{BOND_ID}</DescriptionDetails>
+                  <DescriptionDetails>
+                    <Identifier value={BOND_ID} label="bond number" />
+                  </DescriptionDetails>
                 </DescriptionRow>
                 {method === "esign" ? (
                   <DescriptionRow className="items-center border-hairline">

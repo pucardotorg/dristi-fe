@@ -38,6 +38,7 @@ import { type ActContext } from "@/components/tasks/act/shared";
 import { FileBody } from "@/components/tasks/act/file-page";
 import { PayBody } from "@/components/tasks/act/pay-page";
 import { SignBody } from "@/components/tasks/act/sign-page";
+import { Identifier } from "@/components/chrome/identifier";
 
 export type ActPageAction = "sign" | "continue";
 
@@ -169,7 +170,7 @@ export function TaskActPage({ action }: { action: ActPageAction }) {
               {kase.stNumber ? (
                 <>
                   {" · "}
-                  <span className="font-sans tabular-nums">{kase.stNumber}</span>
+                  <Identifier value={kase.stNumber} label="case number" />
                 </>
               ) : (
                 " · Not yet numbered"

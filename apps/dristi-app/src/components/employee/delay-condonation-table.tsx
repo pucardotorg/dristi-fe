@@ -27,6 +27,7 @@ import {
 } from "@/lib/employee/delay-condonation";
 import { causeTitle, counselFor } from "@/lib/employee/hearings";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The delay-condonation queue as a table: the cause, its number, where the
@@ -103,9 +104,9 @@ export function DelayCondonationTable({
               </button>
             </TableCell>
             <TableCell
-              className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+              className={cn(TABLE_CELL, "whitespace-nowrap")}
             >
-              {matter.caseNumber}
+              <Identifier value={matter.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
               {delayCondonationStageLabel(matter.stage)}

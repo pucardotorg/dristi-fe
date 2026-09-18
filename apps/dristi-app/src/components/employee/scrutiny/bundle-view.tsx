@@ -9,7 +9,6 @@ import {
   ZoomOutIcon,
 } from "lucide-react";
 
-import { BUNDLE, DOC_BY_ID } from "@/lib/employee/scrutiny/bundle";
 import { collectMarks, rectStyle } from "@/lib/employee/scrutiny/field";
 import type { BundleTool, Rect } from "@/lib/employee/scrutiny/types";
 import type { ScrutinyController } from "@/lib/employee/scrutiny/use-scrutiny-state";
@@ -19,6 +18,8 @@ import {
 } from "@/hooks/use-local-storage-value";
 import { cn } from "@/lib/utils";
 import { GENERATED_PAGES } from "@/components/employee/scrutiny/generated-pages";
+import { PageSheet, SHEET_BOX } from "@/components/employee/page-facsimile";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -50,6 +51,7 @@ export function BundleView({
   onOpenFlag: (fieldId: string) => void;
   ref?: React.Ref<BundleHandle>;
 }) {
+  const { bundle } = useScrutinyCase();
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const bundleRef = React.useRef<HTMLDivElement>(null);
   const [zoomBase, setZoomBase] = React.useState(880);
@@ -335,39 +337,43 @@ export function BundleView({
          * `flex-1` alone let the tools take everything and collapse this to "C…"; the
          * floor keeps the title readable and the subtitle drops out first.
          */}
-        <div className="me-auto flex min-w-26 flex-1 flex-col leading-tight">
-          <b className="truncate text-body-compact font-semibold">Case bundle</b>
-          <span className="hidden truncate text-caption text-muted-foreground @md:block">
-            {BUNDLE.length} documents · filed 4 Jul 2026
-          </span>
-        </div>
+        <b className="me-auto min-w-0 flex-1 truncate text-body-compact font-semibold">
+          Case bundle
+        </b>
 
-        {/* The DS ships the segmented control: `outline` draws the item edges and
-            `spacing={0}` collapses the borders and rounds the two ends. The hand-rolled
-            version restated all of that in classNames and added an `overflow-hidden`
-            that clipped the focus ring off the end items. */}
+        {/* No segmented outline: the default variant is borderless — transparent at rest,
+            `accent-strong` on the pressed tool — so Select and Mark read as the same plain
+            ghost icon buttons as the zoom controls beside them, the active one filled
+            rather than boxed (owner, 2026-09-15). */}
         <ToggleGroup
           type="single"
           value={tool}
           onValueChange={(value) => value && controller.setTool(value as BundleTool)}
-          spacing={0}
-          variant="outline"
-          className="bg-surface-sunken"
           aria-label="Bundle tool"
         >
-          {/* The DS toggle tops out at `lg` (36px), so the height comes from the call
-              site: a segmented control sharing a bar with 40px buttons has to be 40px
-              too, and the 40px touch floor applies to it no less than to them. Recorded
-              as upstream DS feedback — the primitive wants a size that matches a
-              default control. */}
-          <ToggleGroupItem value="select" className="h-10" aria-label="Select tool">
-            <MousePointer2Icon />
-            Select
-          </ToggleGroupItem>
-          <ToggleGroupItem value="rect" className="h-10" aria-label="Mark tool">
-            <SquareDashedIcon />
-            Mark
-          </ToggleGroupItem>
+          {/* Icon-only, 40px square — the same compact treatment as the zoom controls
+              beside them. The label lives in the tooltip and the accessible name; 40px is
+              the touch floor the registry's tablets need. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <ToggleGroupItem
+                value="select"
+                className="size-10"
+                aria-label="Select"
+              >
+                <MousePointer2Icon />
+              </ToggleGroupItem>
+            </TooltipTrigger>
+            <TooltipContent>Select</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <ToggleGroupItem value="rect" className="size-10" aria-label="Mark">
+                <SquareDashedIcon />
+              </ToggleGroupItem>
+            </TooltipTrigger>
+            <TooltipContent>Mark</TooltipContent>
+          </Tooltip>
         </ToggleGroup>
 
         {/* `bg-border` is the darkest non-text mark in the system, and a chrome bar is
@@ -455,8 +461,15 @@ export function BundleView({
           onPointerUp={endDraw}
           onDragStart={(event) => drawing && event.preventDefault()}
         >
-          {BUNDLE.map((doc) => {
-            const Generated = GENERATED_PAGES[doc.id];
+          {bundle.map((doc) => {
+            /* A derived filing draws every page as an illegible facsimile; the authored
+               case has real scans and legible generated pages. The facsimile is a
+               `size-full` SVG with no intrinsic height, so — unlike an `<img>`, which
+               sizes its own box — its page needs an explicit aspect ratio from the kind's
+               own `SHEET_BOX`, the same frame the read-only scroller uses. */
+            const sheet = doc.kind === "facsimile" ? doc.sheet : undefined;
+            const box = sheet ? SHEET_BOX[sheet] : null;
+            const Generated = sheet ? undefined : GENERATED_PAGES[doc.id];
             const docMarks = marks.filter((m) => m.evidence.doc === doc.id);
             const draftMark =
               draft?.evidence?.doc === doc.id ? draft.evidence : null;
@@ -478,6 +491,7 @@ export function BundleView({
                     "relative overflow-hidden rounded-xl bg-paper shadow-raised",
                     drawing && "touch-none select-none [&_*]:touch-none",
                   )}
+                  style={box ? { aspectRatio: `${box.w} / ${box.h}` } : undefined}
                 >
                   {doc.kind === "image" && doc.src ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -487,6 +501,8 @@ export function BundleView({
                       className="block h-auto w-full select-none"
                       draggable={false}
                     />
+                  ) : sheet ? (
+                    <PageSheet kind={sheet} />
                   ) : Generated ? (
                     <Generated />
                   ) : null}
@@ -513,8 +529,8 @@ export function BundleView({
                       }}
                       aria-label={
                         mark.count > 1
-                          ? `Mark on ${DOC_BY_ID[doc.id]?.name}, ${mark.count} items — open the item it belongs to`
-                          : `Mark on ${DOC_BY_ID[doc.id]?.name} — open the item it belongs to`
+                          ? `Mark on ${doc.name}, ${mark.count} items — open the item it belongs to`
+                          : `Mark on ${doc.name} — open the item it belongs to`
                       }
                     >
                       {/*

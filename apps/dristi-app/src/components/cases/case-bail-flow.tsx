@@ -33,6 +33,7 @@ import {
 } from "@/lib/filing/content";
 import { dueStatusView } from "@/lib/cases/peek";
 import { pick } from "@/lib/onboarding/content";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The whole bail lifecycle on a case, held in one place so the header's "Make filings"
@@ -238,9 +239,11 @@ export function BondTaskRow({
               locale,
             )}
           </Badge>
-          <span className="font-mono text-caption text-muted-foreground">
-            {BOND_ID}
-          </span>
+          <Identifier
+            value={BOND_ID}
+            label="bond number"
+            className="text-caption text-muted-foreground"
+          />
         </div>
       </ItemContent>
       <ItemActions className="shrink-0 max-sm:basis-full">

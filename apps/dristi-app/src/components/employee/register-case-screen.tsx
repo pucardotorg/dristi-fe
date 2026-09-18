@@ -67,6 +67,7 @@ import {
   type RegisterCase,
 } from "@/lib/employee/register-cases";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Register cases — one waiting complaint, as the magistrate reads it before taking it on
@@ -165,7 +166,7 @@ function ComplaintPage({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip">
       <div
         className={cn(
-          "flex w-full min-w-0 flex-1 flex-col gap-8 px-6 pt-6 pb-16 md:px-8 md:pt-8 xl:px-12",
+          "flex w-full min-w-0 flex-1 flex-col gap-8 px-6 pt-6 pb-16 md:px-8 md:pt-8",
           arrival && ARRIVAL[arrival],
         )}
       >
@@ -244,9 +245,11 @@ function ComplaintHeader({
       className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="text-body-compact tabular-nums text-muted-foreground">
-          {complaint.caseNumber}
-        </p>
+        <Identifier
+          value={complaint.caseNumber}
+          label="case number"
+          className="self-start text-body-compact text-muted-foreground"
+        />
         <h1
           id="complaint-title"
           className="text-balance font-semibold text-title"
@@ -429,7 +432,7 @@ function ComplaintTabs({
       {/* Sticky under the 56px bar, on the canvas's own fill and bled to the page edge
           so what scrolls beneath is covered cleanly. The rule is the band's, full width,
           as a sticky bar's edge is. */}
-      <div className="sticky top-14 z-20 -mx-6 border-b border-hairline bg-muted px-6 md:-mx-8 md:px-8 xl:-mx-12 xl:px-12 dark:bg-background">
+      <div className="sticky top-14 z-20 -mx-6 border-b border-hairline bg-muted px-6 md:-mx-8 md:px-8 dark:bg-background">
         {/* The acts sit at the far end of the tab row, at the size they are in the header
             — a button that shrinks as it crosses into the bar reads as a glitch, not as a
             transition (owner, 2026-09-12). The **tabs keep their own height**: stretching
@@ -562,8 +565,8 @@ function SynopsisPanel({ summary }: { summary: CaseSummary }) {
             >
               {cheque.amount}
             </Fact>
-            <Fact term={SYNOPSIS_FIELDS.chequeNumber} format="figure">
-              {cheque.number}
+            <Fact term={SYNOPSIS_FIELDS.chequeNumber}>
+              <Identifier value={cheque.number} label="cheque number" />
             </Fact>
             <Fact term={SYNOPSIS_FIELDS.drawnOn} note={synopsis.cheque.drawerBranch}>
               {synopsis.cheque.drawerBank}
@@ -579,8 +582,8 @@ function SynopsisPanel({ summary }: { summary: CaseSummary }) {
 
           <SynopsisSection label={SUMMARY_TERMS.notice}>
             <Fact term={SYNOPSIS_FIELDS.mode}>{synopsis.notice.mode}</Fact>
-            <Fact term={SYNOPSIS_FIELDS.tracking} format="code">
-              {synopsis.notice.tracking}
+            <Fact term={SYNOPSIS_FIELDS.tracking}>
+              <Identifier value={synopsis.notice.tracking} label="tracking number" />
             </Fact>
             <Fact term={SYNOPSIS_FIELDS.replied}>
               {synopsis.notice.replied ? "Received" : <Absent>None</Absent>}
@@ -644,11 +647,13 @@ function SynopsisSection({
   );
 }
 
-/** How a value is set: plain, as a figure that lines up, or as a code. */
+/**
+ * How a value is set: plain, or as a figure that lines up. An identifier is not a format
+ * here — it composes `Identifier`, which owns that treatment for the whole product.
+ */
 const FORMAT = {
   text: "",
   figure: "tabular-nums",
-  code: "font-mono tabular-nums",
 } as const;
 
 type FactFormat = keyof typeof FORMAT;
@@ -1194,7 +1199,8 @@ function ActBody({
           </span>
         </DialogTitle>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          <span className="tabular-nums">{complaint.caseNumber}</span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={complaint.caseNumber} label="case number" copyable={false} />
           {" · "}
           {causeTitle(complaint)}
         </DialogDescription>
@@ -1231,7 +1237,7 @@ function ActBody({
           <p className="text-body-compact text-pretty">
             {settled
               ? "The complaint is on the register. It appears in the court's case list from today."
-              : "Registering takes cognizance of the complaint. It cannot be undone from this screen."}
+              : "Registering puts the complaint on the register and gives it a number. Taking cognizance is a separate act, and it comes after. It cannot be undone from this screen."}
           </p>
         )}
 

@@ -2,8 +2,17 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAUSE_LIST, parseIsoDay } from "./hearings";
-import { applicationsForListing } from "./listing-applications";
-import { appearancesFor, assembleOrder } from "./order-draft";
+import {
+  applicationsForListing,
+  listingApplicationSentence,
+} from "./listing-applications";
+import {
+  appearancesFor,
+  assembleOrder,
+  attendanceRecital,
+  nextListingRecital,
+} from "./order-draft";
+import { orderItemsInBody, recitalText } from "./order-items";
 import { initialOrderDraft, nextSittingDay } from "./order-demo";
 
 const today = "2026-09-07";
@@ -58,13 +67,95 @@ describe("initialOrderDraft", () => {
     const draft = initialOrderDraft(cognizance, "completed", today);
     assert.deepEqual(
       draft.items.map((item) => item.type),
-      ["order-for-taking-cognizance", "summons"],
+      ["cognizance", "issue-of-summons"],
     );
-    assert.match(draft.items[1].text.text, /Issue summons to /);
-    assert.match(draft.items[1].text.text, new RegExp(cognizance.parties.accused));
+    assert.match(draft.items[1].text.text, /^Issue summons to /);
+    /* The party is a slot, not a name. Which party is summoned is a choice the source
+       says the system cannot make — a §138 case can have more than one accused, and a
+       summons at an evidence listing goes to a witness. The old build wrote the accused's
+       name in and read as finished while nobody had chosen. */
+    assert.match(draft.items[1].text.text, /\[Party Name\]/);
+    assert.ok(!draft.items[1].text.text.includes(cognizance.parties.accused));
   });
 
-  it("keeps an item's id stable, so the editor is not remounted under the typist", () => {
+  it("writes every template it pulled in into the one box, in order", () => {
+    /* The invariant the composer itself keeps (`mark`, `decide`, `addItem`, `postNext`):
+       what the panel pulled in, what the bench answered and what the sitting settled is
+       what the paper reads. A fixture that set `items`, `applications` or the marks
+       without `body` would show a state the screen cannot reach — a list of orders
+       standing over an empty page, or a roll called nowhere in the order.
+
+       The whole passage, in the order a court takes it: the roll opens it, the disposals
+       follow, then the directions, and the posting closes it. */
+    for (const row of CAUSE_LIST) {
+      const draft = initialOrderDraft(row, "completed", today);
+      const disposals = applicationsForListing(row.id).map((application) =>
+        listingApplicationSentence(row, application, "allowed"),
+      );
+      assert.equal(
+        draft.body.text,
+        [
+          recitalText(attendanceRecital(appearancesFor(row), draft.marks)),
+          ...disposals,
+          ...draft.items.map((item) => item.text.text),
+          recitalText(nextListingRecital(draft)),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+        `${row.caseNumber} has a body its sitting does not account for`,
+      );
+      for (const item of draft.items) {
+        assert.ok(
+          draft.body.html.includes(item.text.html),
+          `${row.caseNumber} lost ${item.type} on the way into the box`,
+        );
+      }
+    }
+  });
+
+  it("opens the order with the applications it answered, ahead of the directions", () => {
+    /* A disposal is a sentence *of* the order now rather than a band printed above it
+       (owner, 2026-09-15), so a completed sitting has to arrive with its answers in the
+       passage — and ahead of the directions, which is the order a court takes them in.
+       Without this the only listing on the board that carries applications would answer
+       them in the panel and say nothing about them on the page. */
+    const withApplications = CAUSE_LIST.find(
+      (row) => applicationsForListing(row.id).length > 0,
+    );
+    assert.ok(withApplications);
+    const draft = initialOrderDraft(withApplications, "completed", today);
+    const disposals = applicationsForListing(withApplications.id).map(
+      (application) =>
+        listingApplicationSentence(withApplications, application, "allowed"),
+    );
+    /* Behind the roll, which opens the order — the disposals lead the part of it the
+       bench composed, not the page. */
+    assert.ok(
+      draft.body.text.startsWith(
+        `${recitalText(attendanceRecital(appearancesFor(withApplications), draft.marks))}\n\n${disposals[0]}`,
+      ),
+    );
+    for (const sentence of disposals) {
+      assert.ok(
+        draft.body.text.includes(sentence),
+        `answered without reaching the order: ${sentence}`,
+      );
+    }
+    /* And no listing invents one. A matter with nothing pending opens on its directions,
+       with no sentence about applications at all. */
+    for (const row of CAUSE_LIST) {
+      if (applicationsForListing(row.id).length > 0) continue;
+      const other = initialOrderDraft(row, "completed", today);
+      assert.ok(!other.body.text.includes("The application of the"));
+    }
+  });
+
+  it("opens the box on words, never on a blank line before them", () => {
+    const draft = initialOrderDraft(hearing, "completed", today);
+    assert.equal(draft.body.text, draft.body.text.trimStart());
+  });
+
+  it("keeps an item's id stable, so a row does not jump under the typist", () => {
     const first = initialOrderDraft(hearing, "completed", today);
     const second = initialOrderDraft(hearing, "completed", today);
     assert.deepEqual(
@@ -86,7 +177,10 @@ describe("initialOrderDraft", () => {
      left waiting to be filled in. */
   it("assembles an order with no block still pending", () => {
     for (const row of CAUSE_LIST) {
-      const order = assembleOrder(row, initialOrderDraft(row, "completed", today));
+      const order = assembleOrder(
+        row,
+        initialOrderDraft(row, "completed", today),
+      );
       const pending = order.blocks.filter((block) => block.pending);
       assert.deepEqual(
         pending.map((block) => block.heading),
@@ -108,5 +202,26 @@ describe("nextSittingDay", () => {
 
   it("counts the days from the day it is given", () => {
     assert.equal(nextSittingDay("2026-09-07", 7), "2026-09-14");
+  });
+});
+
+/**
+ * A part-heard listing opens on items that were pulled in before this screen existed,
+ * and the composer now reads its list off the document rather than off the record of
+ * adds (`orderItemsInBody`). So the fixture has to arrive marked like anything a live
+ * sitting pulls in: an unmarked passage would give a typist a row they cannot remove
+ * and a list that empties itself on arrival.
+ */
+describe("a completed listing's items", () => {
+  it("arrive carried by the order they open on", () => {
+    for (const row of CAUSE_LIST) {
+      const draft = initialOrderDraft(row, "completed", today);
+      if (draft.items.length === 0) continue;
+      assert.deepEqual(
+        orderItemsInBody(draft.items, draft.body.html).map((item) => item.id),
+        draft.items.map((item) => item.id),
+        row.id,
+      );
+    }
   });
 });

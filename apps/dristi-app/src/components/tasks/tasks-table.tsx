@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { CircleCheckIcon, SearchXIcon } from "lucide-react";
+import { ChevronDownIcon, CircleCheckIcon, SearchXIcon } from "lucide-react";
 
 import { dueCueOf, outcomeOf, secondLineOf, waitingOnOf } from "@/lib/tasks/format";
-import { canArchive, verbFor } from "@/lib/tasks/permissions";
+import { canArchive, verbFor, whoCanActOn } from "@/lib/tasks/permissions";
+import { BANDED_VIEWS, bandByDue, type DueBand, type DueBucket } from "@/lib/tasks/selectors";
 import type { Case, Person, Task, TaskId, TaskView, Verb } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { useMinWidth } from "@/hooks/use-min-width";
@@ -29,6 +30,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  TABLE_CELL,
+  TABLE_HEAD,
+  TABLE_HEAD_ROW,
+  tableBodyClass,
+  tableRowClass,
+} from "@/components/chrome/table-plate";
+import { Identifier } from "@/components/chrome/identifier";
 import { PANEL_CLASS } from "@/components/shell/panel";
 import { AdvocateStack } from "@/components/tasks/advocate-stack";
 
@@ -45,7 +54,7 @@ function CaseCell({ kase }: { kase: Case }) {
       <span className="text-body-compact text-foreground">{kase.parties}</span>
       <span className="text-caption text-muted-foreground">
         {kase.stNumber ? (
-          <span className="font-sans tabular-nums">{kase.stNumber}</span>
+          <Identifier value={kase.stNumber} label="case number" />
         ) : (
           "Not yet numbered"
         )}
@@ -136,6 +145,134 @@ const FIFTH_HEAD: Record<TaskView, string | null> = {
   archived: "Outcome",
 };
 
+/* ───────────────────────────── bands ───────────────────────────── */
+
+/**
+ * The list cut into when-it-bites bands — Overdue, Due today, This week, Later, No date
+ * set — so the first screenful is the part that hurts, and a task due in three weeks
+ * stops sitting flush against one that is 41 days late (2026-09-15).
+ *
+ * The bands are a cut of the one order, not a second order: `sortTasks` has already
+ * arranged the rows and `bandByDue` keeps that arrangement inside each band. Closed and
+ * archived lists are never banded — they are ordered by when they closed, and a
+ * deadline means nothing once nothing binds.
+ *
+ * A single band is not worth a header, so a list that lands entirely in one band shows
+ * none: the header would be repeating what the tab and the filters already said.
+ */
+function bandsOf(rows: Task[], view: TaskView, now: Date, banded: boolean): DueBand[] | null {
+  if (!banded || !BANDED_VIEWS.has(view)) return null;
+  const bands = bandByDue(rows, now);
+  return bands.length > 1 ? bands : null;
+}
+
+/**
+ * Each row's place in the walk — counted over the order the rows are *drawn* in, not the
+ * order `sortTasks` returned, because banding moves rows relative to that (a hearing
+ * later in the week drops below today's deadline). `focusRow` walks the DOM, so an index
+ * taken from the sorted list would send ↓ past the neighbour on screen.
+ */
+function indexOf(drawn: Task[]): Map<TaskId, number> {
+  return new Map(drawn.map((t, i) => [t.id, i]));
+}
+
+/**
+ * Which bands are folded away, and the rows that are actually on screen because of it.
+ *
+ * The walk's indices and the DOM have to agree (a folded band renders no rows at all),
+ * so `shown` is the one source for "the order the rows are drawn in" — banded, minus
+ * anything folded. Kept per bucket, so folding Later and then switching tabs does not
+ * carry a fold into a view where that band means something else.
+ */
+function useFoldedBands(bands: DueBand[] | null) {
+  const [folded, setFolded] = React.useState<ReadonlySet<DueBucket>>(() => new Set());
+  const toggleBand = React.useCallback((bucket: DueBucket) => {
+    setFolded((prev) => {
+      const next = new Set(prev);
+      if (next.has(bucket)) next.delete(bucket);
+      else next.add(bucket);
+      return next;
+    });
+  }, []);
+  const shown = React.useCallback(
+    (rows: Task[]) =>
+      bands ? bands.filter((b) => !folded.has(b.bucket)).flatMap((b) => b.tasks) : rows,
+    [bands, folded]
+  );
+  return { folded, toggleBand, shown };
+}
+
+/**
+ * A band's header: its name at caption scale, how many sit under it, and the disclosure
+ * on the right, over a hairline that separates it from its own rows.
+ *
+ * It began as a filled sunken strip; the owner cut it back to a divider, then to this
+ * (2026-09-16). Three deliberate details: the label is the 12px caption role, because a
+ * group header names a set rather than stating a fact — the 14px floor the data cards
+ * keep is for the facts inside them; the rule sits *below* the label, so the header
+ * belongs to the rows it introduces rather than to the band above; and more air above
+ * than below, which does the same work as the rule without drawing a second line.
+ *
+ * The whole header is the disclosure control, with a hover fill so it reads as
+ * actionable, and the count stays visible when it is folded — a folded band should be
+ * readable, not merely gone.
+ */
+function BandLabel({
+  band,
+  id,
+  heading,
+  open = true,
+  onToggle,
+}: {
+  band: DueBand;
+  id: string;
+  heading?: boolean;
+  /** Whether the band's rows are showing. */
+  open?: boolean;
+  onToggle?: () => void;
+}) {
+  const hot = band.bucket === "overdue";
+  const label = (
+    <span
+      id={id}
+      className={cn("text-caption font-semibold", hot ? "text-destructive-ink" : "text-foreground")}
+    >
+      {band.label}
+    </span>
+  );
+  const body = (
+    <>
+      {heading ? <h3 className="contents">{label}</h3> : label}
+      <span className="text-caption tabular-nums text-muted-foreground">{band.tasks.length}</span>
+      <ChevronDownIcon
+        aria-hidden
+        className={cn(
+          "ml-auto size-4 shrink-0 text-muted-foreground transition-transform",
+          !open && "-rotate-90"
+        )}
+      />
+    </>
+  );
+  const shell = "flex w-full items-center gap-2 border-b border-hairline px-4 pt-4 pb-2 text-left";
+  if (!onToggle) return <div className={shell}>{body}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={cn(
+        shell,
+        /* A bare `button` inherits the browser's arrow cursor, which undercuts the
+           hover fill's whole job of saying this is actionable. */
+        "cursor-pointer outline-none transition-colors hover:bg-surface-sunken focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      )}
+    >
+      {body}
+      <span className="sr-only">{open ? "Hide these tasks" : "Show these tasks"}</span>
+    </button>
+  );
+}
+
 /* ───────────────────────────── the table ───────────────────────────── */
 
 export type TasksTableProps = {
@@ -146,12 +283,18 @@ export type TasksTableProps = {
   now: Date;
   view: TaskView;
   query?: string;
-  openId: string | null;
+  /** Every selectable row is ticked. */
+  allSelected: boolean;
+  /** Some but not all — the header box shows a dash. */
+  someSelected: boolean;
   selected: Set<TaskId>;
   offline: boolean;
+  /** Off for a frame too small for bands — a short list in a card needs no headings. */
+  banded?: boolean;
   emptyKind: "none" | "filtered";
   onClearFilters: () => void;
-  onOpen: (task: Task) => void;
+  /** Tick or clear every selectable row in the list at once. */
+  onToggleAll: (select: boolean) => void;
   onVerb: (task: Task, verb: Verb) => void;
   onToggleSelect: (task: Task) => void;
 };
@@ -162,6 +305,12 @@ export type TasksTableProps = {
  * action row would otherwise repeat; Waiting rows say who they wait on, Completed and
  * Archived rows how they ended. Clicking a row (not its controls) opens the detail;
  * ↑/↓ move between rows, Enter opens.
+ *
+ * The wide table's header, cells, rows and bodies are the product's one table treatment,
+ * read from `components/chrome/table-plate.ts` like every other queue — this list had
+ * kept its own tones, including the heavy `accent` hover the owner replaced on Sept 11
+ * (owner, 2026-09-16). The due bands are the only thing the plate does not know about,
+ * and they are built from plain rows so they stay out of its row states.
  */
 export function TasksTable(props: TasksTableProps) {
   const { rows, emptyKind, query, view, onClearFilters } = props;
@@ -211,7 +360,7 @@ export function TasksTable(props: TasksTableProps) {
               <EmptyDescription>
                 {query?.trim()
                   ? "Try another spelling or a party name, or clear the search."
-                  : "Clear a filter or the pressed card to see more."}
+                  : "Clear a filter or the chosen kind to see more."}
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
@@ -253,7 +402,9 @@ export function TasksTable(props: TasksTableProps) {
 
   return (
     // A container, not just a panel: the push panel narrows the table without narrowing
-    // the viewport, so which columns fit has to answer to the table's own width.
+    // the viewport, so which columns fit has to answer to the table's own width. The
+    // clip is for the stacked list, which runs its rows and band strips full-bleed into
+    // the card's rounded corners; the wide table is inset and rounds its own well.
     <Card className={cn(PANEL_CLASS, "@container gap-0 overflow-clip py-0")}>
       <div ref={listRef} onKeyDown={onKeyDown}>
         {wide ? <WideTable {...props} /> : <StackedRows {...props} />}
@@ -262,20 +413,26 @@ export function TasksTable(props: TasksTableProps) {
   );
 }
 
-function WideTable({
-  rows,
-  cases,
-  people,
-  user,
-  now,
-  view,
-  openId,
-  selected,
-  offline,
-  onOpen,
-  onVerb,
-  onToggleSelect,
-}: TasksTableProps) {
+/** What every row needs that the table worked out once. */
+type RowCtx = TasksTableProps & {
+  caseById: Map<string, Case>;
+  anySelectable: boolean;
+  fifthHead: string | null;
+  /** Whether the "Who can act" column is drawn — see `ACTOR_VIEWS`. */
+  actorsShown: boolean;
+  /** Each row's place in the drawn order, so ↑/↓ walk across bands, not inside one. */
+  indexById: Map<TaskId, number>;
+};
+
+/**
+ * "Who can act" is only a question while someone still can. A closed or archived task
+ * needs nobody, so the column stands down there rather than heading a stack of people
+ * with a capability that no longer exists — the Outcome column says how it ended.
+ */
+const ACTOR_VIEWS: ReadonlySet<TaskView> = new Set<TaskView>(["needs-action", "waiting"]);
+
+function WideTable(props: TasksTableProps) {
+  const { rows, cases, user, now, view, banded = true, allSelected, someSelected, onToggleAll } = props;
   const caseById = React.useMemo(() => new Map(cases.map((c) => [c.id, c])), [cases]);
   // The select column exists wherever a listed task can still be acted on outside the
   // system — marked done by hand or archived. Closed and archived rows have neither.
@@ -284,132 +441,253 @@ function WideTable({
     return k && canArchive(user, t, k);
   });
   const fifthHead = FIFTH_HEAD[view];
-  const headClass = "h-10 px-4 text-caption font-semibold text-muted-foreground";
-
+  const bands = bandsOf(rows, view, now, banded);
+  const { folded, toggleBand, shown } = useFoldedBands(bands);
+  const actorsShown = ACTOR_VIEWS.has(view);
+  // One head for the table, so a band never restates the columns; a band label spans
+  // every cell a row has — Task, Case, Due and the verb, plus the select box, who can
+  // act and the fifth column where they are drawn.
+  const columns = 4 + (anySelectable ? 1 : 0) + (actorsShown ? 1 : 0) + (fifthHead ? 1 : 0);
+  const ctx: RowCtx = {
+    ...props,
+    caseById,
+    anySelectable,
+    fifthHead,
+    actorsShown,
+    indexById: indexOf(shown(rows)),
+  };
   return (
-    <Table className="text-body-compact">
-      <TableHeader className="bg-surface-sunken [&_tr]:border-hairline">
-        <TableRow className="hover:bg-surface-sunken">
-          {anySelectable ? (
-            <TableHead className={cn(headClass, "w-10 pr-0")}>
-              <span className="sr-only">Select</span>
+    /* The panel insets the table, the way every sibling queue's section insets its own
+       (cases, and the court-side queues at `p-6`), so the header strip reads as a
+       rounded well rather than a band welded across the panel. The DS table's own
+       horizontal scroller sits inside the inset. */
+    <div className="p-4">
+      <Table className="w-full border-separate border-spacing-0 text-body-compact">
+        <TableHeader>
+          {/* The strip's fill and its corners are the plate's. Under `border-separate`
+              each cell paints its own fill, so the well's radius lives on the two end
+              cells rather than on the row (see the plate's docstring). */}
+          <TableRow className={TABLE_HEAD_ROW}>
+            {anySelectable ? (
+              <TableHead className={cn(TABLE_HEAD, "w-10 pr-0")}>
+                {/* Select-all, where a table is expected to keep it (owner, 2026-09-16).
+                    It answers for the rows the filters left, not the whole tab — the
+                    list you can see is the list it ticks. */}
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={() => onToggleAll(!allSelected)}
+                  aria-label={allSelected ? "Clear the whole list" : "Select the whole list"}
+                />
+              </TableHead>
+            ) : null}
+            <TableHead className={TABLE_HEAD}>Task</TableHead>
+            <TableHead className={TABLE_HEAD}>Case</TableHead>
+            {/* The rows are always most-urgent first (`sortTasks`); the headers no longer
+                re-sort — a task queue has one order, and offering others was table
+                convention, not a need (owner, 2026-08-24). */}
+            <TableHead className={TABLE_HEAD}>Due</TableHead>
+            {/* Who may act on this task — never an assignment ("Owners" claimed one the
+                product does not have; owner, 2026-09-15). The cell answers the header
+                exactly: the advocates who hold this task's acting verb, which for a
+                signing or paying task is the vakalatnama holders and for a courtroom task
+                is everyone on the case. The panel names all the advocates itself, so when
+                the push panel narrows the table past the full width this column stands
+                down rather than wrapping every other cell to three lines. */}
+            {actorsShown ? (
+              <TableHead className={cn(TABLE_HEAD, "hidden @4xl:table-cell")}>Who can act</TableHead>
+            ) : null}
+            {fifthHead ? <TableHead className={TABLE_HEAD}>{fifthHead}</TableHead> : null}
+            <TableHead className={cn(TABLE_HEAD, "text-right")}>
+              <span className="sr-only">Action</span>
             </TableHead>
-          ) : null}
-          <TableHead className={headClass}>Task</TableHead>
-          <TableHead className={headClass}>Case</TableHead>
-          {/* The rows are always most-urgent first (`sortTasks`); the headers no longer
-              re-sort — a task queue has one order, and offering others was table
-              convention, not a need (owner, 2026-08-24). */}
-          <TableHead className={headClass}>Due</TableHead>
-          {/* The panel names the advocates itself; when it narrows the table past
-              the full width, this column stands down rather than wrapping every
-              other cell to three lines. */}
-          <TableHead className={cn(headClass, "hidden @4xl:table-cell")}>Owners</TableHead>
-          {fifthHead ? <TableHead className={headClass}>{fifthHead}</TableHead> : null}
-          <TableHead className={cn(headClass, "text-right")}>
-            <span className="sr-only">Action</span>
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((task, index) => {
-          const kase = caseById.get(task.caseId);
-          if (!kase) return null;
-          const verb = verbFor(user, task, kase);
-          const selectable = canArchive(user, task, kase);
-          const open = openId === task.id;
-          const isSelected = selected.has(task.id);
-          const fifth = fifthCellOf(view, task, kase, people);
-          const note = secondLineOf(task, user, people);
-          return (
-            <TableRow
-              key={task.id}
-              data-task-row
-              data-task-id={task.id}
-              data-index={index}
-              data-state={isSelected ? "selected" : undefined}
-              aria-current={open ? "true" : undefined}
-              className={cn("cursor-pointer border-hairline", open && !isSelected && "bg-accent")}
-              onClick={(event) => {
-                const target = event.target as HTMLElement;
-                if (target.closest("button, a, [role=checkbox], label")) return;
-                onOpen(task);
-              }}
+          </TableRow>
+        </TableHeader>
+        {bands ? (
+          /* Each band is a `tbody`, and it takes the plate's other half — every rule
+             that has to see a row's neighbours: the last row's rule, the rule above a
+             lit row, the rounding of a run of selected rows. Those rules cannot look
+             across a `tbody`, so a run of picked rows rounds inside its own band. */
+          bands.map((band) => (
+            <TableBody
+              key={band.bucket}
+              className={tableBodyClass({ selectable: true })}
             >
-              {anySelectable ? (
-                <TableCell className="w-10 py-3 pl-4 pr-0 align-middle">
-                  {selectable ? (
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => onToggleSelect(task)}
-                      aria-label={`Select: ${task.title}`}
-                    />
-                  ) : null}
-                </TableCell>
-              ) : null}
-              <TableCell className="min-w-44 max-w-md whitespace-normal px-4 py-3 align-middle">
-                <div className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    data-task-title
-                    onClick={() => onOpen(task)}
-                    className="rounded-sm text-left text-body-compact font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {task.title}
-                  </button>
-                  {note ? <span className="text-caption text-muted-foreground">{note}</span> : null}
-                </div>
-              </TableCell>
-              <TableCell className="min-w-32 max-w-xs whitespace-normal px-4 py-3 align-middle">
-                <CaseCell kase={kase} />
-              </TableCell>
-              <TableCell className="px-4 py-3 align-middle">
-                <DueCell task={task} now={now} />
-              </TableCell>
-              <TableCell className="hidden px-4 py-3 align-middle @4xl:table-cell">
-                <AdvocateStack kase={kase} people={people} user={user} />
-              </TableCell>
-              {fifthHead ? (
-                <TableCell className="min-w-28 max-w-56 whitespace-normal px-4 py-3 align-middle text-body-compact text-foreground">
-                  {fifth}
-                </TableCell>
-              ) : null}
-              <TableCell className="px-4 py-3 text-right align-middle">
-                <VerbButton verb={verb} disabled={offline} onClick={() => onVerb(task, verb)} />
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+              {/* The label heads the rows below it, not a column — a plain `tr`, so the
+                  DS row's own three fills never land on a strip that is not a record.
+                  Its rule sits above the label, between this band and the one before, so
+                  nothing runs between the label and its own rows — and nothing can cut
+                  the top corners of the first row when that row is lit. */}
+              <tr>
+                <th scope="rowgroup" colSpan={columns} className="p-0 text-left">
+                  <BandLabel
+                    band={band}
+                    id={`band-${band.bucket}`}
+                    open={!folded.has(band.bucket)}
+                    onToggle={() => toggleBand(band.bucket)}
+                  />
+                </th>
+              </tr>
+              {folded.has(band.bucket)
+                ? null
+                : band.tasks.map((task) => <WideRow key={task.id} ctx={ctx} task={task} />)}
+            </TableBody>
+          ))
+        ) : (
+          <TableBody className={tableBodyClass({ selectable: true })}>
+            {/* The header is a well, not a band welded to the rows — it needs the panel's
+                fill under it or its rounded bottom corners read as cut off (ui-craft §4),
+                which is the inert row's whole job here. */}
+            <tr aria-hidden="true">
+              <td colSpan={columns} className="h-2 p-0" />
+            </tr>
+            {rows.map((task) => (
+              <WideRow key={task.id} ctx={ctx} task={task} />
+            ))}
+          </TableBody>
+        )}
+      </Table>
+    </div>
+  );
+}
+
+function WideRow({ ctx, task }: { ctx: RowCtx; task: Task }) {
+  const { caseById, anySelectable, fifthHead, actorsShown, indexById, people, user, now, view, selected, offline, onVerb, onToggleSelect } = ctx;
+  const index = indexById.get(task.id) ?? 0;
+  const kase = caseById.get(task.caseId);
+  if (!kase) return null;
+  const verb = verbFor(user, task, kase);
+  const selectable = canArchive(user, task, kase);
+  const isSelected = selected.has(task.id);
+  const fifth = fifthCellOf(view, task, kase, people);
+  const note = secondLineOf(task, user, people);
+  return (
+    <TableRow
+      data-task-row
+      data-task-id={task.id}
+      data-index={index}
+      data-state={isSelected ? "selected" : undefined}
+      /* Every fill and every corner is the plate's, including the hover — the lighter
+         warm tone design chose over the old grey `accent` (owner, 2026-09-11). Being
+         open is a persistent "you are looking at this one" mark and it loses to
+         selection, so the precedence is decided here rather than in CSS, where the two
+         fills would race on source order. */
+      className={cn(
+        tableRowClass({ selectable: true }),
+        "cursor-pointer"
+      )}
+      onClick={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest("button, a, [role=checkbox], label")) return;
+        onVerb(task, verb);
+      }}
+    >
+      {anySelectable ? (
+        <TableCell className={cn(TABLE_CELL, "w-10 pr-0")}>
+          {selectable ? (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect(task)}
+              aria-label={`Select: ${task.title}`}
+            />
+          ) : null}
+        </TableCell>
+      ) : null}
+      <TableCell className={cn(TABLE_CELL, "min-w-44 max-w-md whitespace-normal")}>
+        <div className="flex flex-col gap-0.5">
+          <button
+            type="button"
+            data-task-title
+            onClick={() => onVerb(task, verb)}
+            className="rounded-sm text-left text-body-compact font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {task.title}
+          </button>
+          {note ? <span className="text-caption text-muted-foreground">{note}</span> : null}
+        </div>
+      </TableCell>
+      <TableCell className={cn(TABLE_CELL, "min-w-32 max-w-xs whitespace-normal")}>
+        <CaseCell kase={kase} />
+      </TableCell>
+      <TableCell className={TABLE_CELL}>
+        <DueCell task={task} now={now} />
+      </TableCell>
+      {actorsShown ? (
+        <TableCell className={cn(TABLE_CELL, "hidden @4xl:table-cell")}>
+          <AdvocateStack
+            kase={kase}
+            people={people}
+            user={user}
+            advocates={whoCanActOn(task, kase, people)}
+            label="Who can act"
+          />
+        </TableCell>
+      ) : null}
+      {fifthHead ? (
+        <TableCell
+          className={cn(TABLE_CELL, "min-w-28 max-w-56 whitespace-normal text-foreground")}
+        >
+          {fifth}
+        </TableCell>
+      ) : null}
+      <TableCell className={cn(TABLE_CELL, "text-right")}>
+        <VerbButton verb={verb} disabled={offline} onClick={() => onVerb(task, verb)} />
+      </TableCell>
+    </TableRow>
   );
 }
 
 /** Below `md`: the same columns as labelled stacked rows — one fact per line. */
-function StackedRows({
-  rows,
-  cases,
-  people,
-  user,
-  now,
-  view,
-  openId,
-  selected,
-  offline,
-  onOpen,
-  onVerb,
-  onToggleSelect,
-}: TasksTableProps) {
+function StackedRows(props: TasksTableProps) {
+  const { rows, cases, user, now, view, banded = true } = props;
   const caseById = React.useMemo(() => new Map(cases.map((c) => [c.id, c])), [cases]);
-  const fifthHead = FIFTH_HEAD[view];
+  const anySelectable = rows.some((t) => {
+    const k = caseById.get(t.caseId);
+    return k && canArchive(user, t, k);
+  });
+  const bands = bandsOf(rows, view, now, banded);
+  const { folded, toggleBand, shown } = useFoldedBands(bands);
+  const ctx: RowCtx = {
+    ...props,
+    caseById,
+    anySelectable,
+    fifthHead: FIFTH_HEAD[view],
+    actorsShown: ACTOR_VIEWS.has(view),
+    indexById: indexOf(shown(rows)),
+  };
+  if (!bands) return <StackedList ctx={ctx} tasks={rows} />;
+  return (
+    <div>
+      {bands.map((band) => {
+        const open = !folded.has(band.bucket);
+        return (
+          /* A group, not a landmark: five date bands would put five regions in the
+             phone's landmark list, none of which is a section of the page. */
+          <div key={band.bucket} role="group" aria-labelledby={`band-${band.bucket}`}>
+            <BandLabel
+              band={band}
+              id={`band-${band.bucket}`}
+              heading
+              open={open}
+              onToggle={() => toggleBand(band.bucket)}
+            />
+            {open ? <StackedList ctx={ctx} tasks={band.tasks} /> : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StackedList({ ctx, tasks }: { ctx: RowCtx; tasks: Task[] }) {
+  const { caseById, indexById, people, user, now, view, selected, offline, fifthHead, actorsShown, onVerb, onToggleSelect } = ctx;
   return (
     <ul className="divide-y divide-hairline">
-      {rows.map((task, index) => {
+      {tasks.map((task) => {
+        const index = indexById.get(task.id) ?? 0;
         const kase = caseById.get(task.caseId);
         if (!kase) return null;
         const verb = verbFor(user, task, kase);
         const selectable = canArchive(user, task, kase);
-        const open = openId === task.id;
         const isSelected = selected.has(task.id);
         const fifth = fifthCellOf(view, task, kase, people);
         const note = secondLineOf(task, user, people);
@@ -419,15 +697,14 @@ function StackedRows({
             data-task-row
             data-task-id={task.id}
             data-index={index}
-            aria-current={open ? "true" : undefined}
-            className={cn(
+                  className={cn(
               "flex flex-col gap-3 px-4 py-4 transition-colors",
-              isSelected ? "bg-accent-strong" : open ? "bg-accent" : "bg-transparent"
+              isSelected ? "bg-accent-strong" : "bg-transparent"
             )}
             onClick={(event) => {
               const target = event.target as HTMLElement;
               if (target.closest("button, a, [role=checkbox], label")) return;
-              onOpen(task);
+              onVerb(task, verb);
             }}
           >
             <div className="flex items-start gap-3">
@@ -444,7 +721,7 @@ function StackedRows({
                 <button
                   type="button"
                   data-task-title
-                  onClick={() => onOpen(task)}
+                  onClick={() => onVerb(task, verb)}
                   className="rounded-sm text-left text-body-compact font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {task.title}
@@ -461,10 +738,20 @@ function StackedRows({
               <dd>
                 <DueCell task={task} now={now} />
               </dd>
-              <dt className="text-caption text-muted-foreground">Owners</dt>
-              <dd>
-                <AdvocateStack kase={kase} people={people} user={user} />
-              </dd>
+              {actorsShown ? (
+                <>
+                  <dt className="text-caption text-muted-foreground">Who can act</dt>
+                  <dd>
+                    <AdvocateStack
+                      kase={kase}
+                      people={people}
+                      user={user}
+                      advocates={whoCanActOn(task, kase, people)}
+                      label="Who can act"
+                    />
+                  </dd>
+                </>
+              ) : null}
               {fifthHead && fifth ? (
                 <>
                   <dt className="text-caption text-muted-foreground">{fifthHead}</dt>
@@ -488,12 +775,16 @@ function StackedRows({
 export function TasksTableSkeleton() {
   return (
     <Card className={cn(PANEL_CLASS, "gap-0 py-0")} aria-busy="true" aria-label="Loading tasks">
-      <div className="flex h-10 items-center gap-6 bg-surface-sunken px-4">
-        <Skeleton className="h-3 w-12" />
-        <Skeleton className="h-3 w-12" />
-        <Skeleton className="h-3 w-10" />
-      </div>
-      <ul className="divide-y divide-hairline">
+      {/* Inset from `md` — the width at which the rows that arrive are the wide table,
+          which its panel insets by the same 16px. Below that the stacked list runs
+          full-bleed and so does this, so the rows never shift as they land. */}
+      <div className="md:p-4">
+        <div className="flex h-10 items-center gap-6 bg-surface-sunken px-4 md:rounded-lg">
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="h-3 w-10" />
+        </div>
+        <ul className="divide-y divide-hairline">
         {Array.from({ length: 7 }).map((_, i) => (
           <li key={i} className="flex min-h-16 items-center gap-6 px-4 py-3">
             <div className="flex flex-1 flex-col gap-2">
@@ -505,7 +796,8 @@ export function TasksTableSkeleton() {
             <Skeleton className="h-8 w-16 rounded-lg" />
           </li>
         ))}
-      </ul>
+        </ul>
+      </div>
     </Card>
   );
 }

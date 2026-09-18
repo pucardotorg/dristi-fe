@@ -1,6 +1,7 @@
 import { ChromeShell } from "@/components/chrome/app-chrome";
 import { EmployeeNav } from "@/components/employee/employee-nav";
 import { EmployeeTopBar } from "@/components/employee/employee-top-bar";
+import { AppToaster } from "@/components/shell/app-toaster";
 
 /**
  * The court-staff area wrapper.
@@ -42,6 +43,9 @@ export function EmployeeArea({ children }: { children: React.ReactNode }) {
       <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted dark:bg-background">
         {children}
       </main>
+      {/* Inside the page column, so it inherits the column's `--chrome-page-inset` and
+          centres on the bench's workspace rather than on the window. */}
+      <AppToaster />
     </ChromeShell>
   );
 }

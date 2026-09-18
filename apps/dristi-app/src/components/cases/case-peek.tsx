@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils";
 
 import { CaseFlags } from "./case-identity";
 import { CASE_PEEK_ID, useCasePeek } from "./use-case-peek";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Card that owns peek state in the tree, floating variant. The panel portals to the
@@ -269,11 +270,11 @@ function CasePeekBody({
               {title}
             </Title>
             <p className="text-body-compact text-muted-foreground">
-              <span className="font-sans">{record.caseNumber}</span>
+              <Identifier value={record.caseNumber} label="case number" />
               {extras.altCaseNumber ? (
                 <>
                   <span aria-hidden> · </span>
-                  {extras.altCaseNumber}
+                  <Identifier value={extras.altCaseNumber} label="other case number" />
                 </>
               ) : null}
               <span aria-hidden> · </span>

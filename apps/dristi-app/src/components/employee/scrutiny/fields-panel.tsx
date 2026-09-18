@@ -3,17 +3,20 @@
 import * as React from "react";
 
 import { GROUP_ICONS } from "@/lib/employee/scrutiny/icons";
-import { FIELD_BY_ID, SECTIONS } from "@/lib/employee/scrutiny/sections";
 import type { ScrutinyController } from "@/lib/employee/scrutiny/use-scrutiny-state";
 import { cn } from "@/lib/utils";
 import { FieldRow } from "@/components/employee/scrutiny/field-row";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
+import { Card } from "@/components/ui/card";
 import { DescriptionList } from "@/components/ui/description-list";
+
+/**
+ * The group card's recipe, shared with Register cases and Take cognizance
+ * (`register-case-screen.tsx`, `cognizance-case-screen.tsx`): a hairline-edged, raised
+ * sheet with no padding of its own, so a header band and the rows below it each set their
+ * own — divided by one hairline, the same stroke the case file uses.
+ */
+const SHEET = "gap-0 overflow-hidden border-hairline py-0 shadow-raised";
 
 export interface FieldsPanelHandle {
   scrollToRow: (fieldId: string) => void;
@@ -46,8 +49,9 @@ export function FieldsPanel({
   onGoToItem: (fieldId: string) => void;
   ref?: React.Ref<FieldsPanelHandle>;
 }) {
+  const { sections, fieldById } = useScrutinyCase();
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const [active, setActive] = React.useState(SECTIONS[0].id);
+  const [active, setActive] = React.useState(sections[0].id);
   const lock = React.useRef(false);
   const lockTimer = React.useRef<number>(0);
   const frame = React.useRef<number>(0);
@@ -64,17 +68,17 @@ export function FieldsPanel({
   const syncSpy = React.useCallback(() => {
     const sc = scrollRef.current;
     if (!sc || lock.current) return;
-    if (sc.scrollTop <= 8) return setActive(SECTIONS[0].id);
+    if (sc.scrollTop <= 8) return setActive(sections[0].id);
     if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 8) {
-      return setActive(SECTIONS[SECTIONS.length - 1].id);
+      return setActive(sections[sections.length - 1].id);
     }
-    let current = SECTIONS[0].id;
-    for (const section of SECTIONS) {
+    let current = sections[0].id;
+    for (const section of sections) {
       const el = document.getElementById(`sec-${section.id}`);
       if (el && el.offsetTop - sc.scrollTop <= 96) current = section.id;
     }
     setActive(current);
-  }, []);
+  }, [sections]);
 
   React.useEffect(() => {
     const sc = scrollRef.current;
@@ -141,7 +145,7 @@ export function FieldsPanel({
           fought the primitive for the same effect and clipped its own labels to "ails". */}
       <div className="flex h-14 shrink-0 items-stretch overflow-x-auto border-b border-hairline bg-card px-4">
         <nav aria-label="Sections" className="flex items-stretch gap-1">
-          {SECTIONS.map((section) => {
+          {sections.map((section) => {
             const current = active === section.id;
             return (
               <button
@@ -166,7 +170,7 @@ export function FieldsPanel({
       </div>
 
       <div className="relative flex-1 overflow-y-auto p-4" ref={scrollRef}>
-        {SECTIONS.map((section, index) => (
+        {sections.map((section, index) => (
           <section
             className={cn(
               "flex scroll-mt-3 flex-col gap-3",
@@ -175,51 +179,57 @@ export function FieldsPanel({
             id={`sec-${section.id}`}
             key={section.id}
           >
-            {/* The rule after the label is the separator; the label itself stays quiet. */}
-            <h2 className="flex items-center gap-3 py-2 text-caption font-medium text-muted-foreground after:h-px after:flex-1 after:bg-hairline after:content-['']">
-              <span>
-                {section.num} · {section.title}
-              </span>
+            {/* The rule after the label is the separator; the label itself stays quiet.
+                No section number here — the sticky tab strip above already carries it, so
+                repeating it on the in-scroll heading said the same "1" twice a few px
+                apart. The heading stays for the landmark; only the number goes.
+                `px-4` sets the label on the card's own content edge, so "Party Details"
+                and "Complainant Details" share one left margin (owner, 2026-09-15). */}
+            <h2 className="flex items-center gap-3 px-4 py-2 text-caption font-medium text-muted-foreground after:h-px after:flex-1 after:bg-hairline after:content-['']">
+              <span>{section.title}</span>
             </h2>
             <div className="flex flex-col gap-4">
               {section.groups.map((group) => {
                 const Icon = GROUP_ICONS[group.icon];
                 return (
-                  /* The panel recipe, on the thing that is actually a panel: a lifted
-                     card on the sunken canvas, hairline-edged. `Card` already supplies
-                     the border width, so only the colour and the shadow are added here
-                     (ui-craft §4). */
-                  <Card
-                    size="sm"
-                    key={group.id}
-                    className="w-full border-hairline shadow-raised"
-                  >
-                    <CardHeader>
-                      <div className="flex items-center gap-2.5">
-                        <span className="inline-flex text-muted-foreground">
-                          <Icon className="size-4" />
-                        </span>
-                        <CardTitle>{group.title}</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <DescriptionList role="listbox" aria-label={group.title}>
-                        {/*
-                         * `FIELD_BY_ID` rather than re-flattening inline: the object
-                         * identity has to be stable across renders.
-                         */}
-                        {group.fields.map((field) => (
-                          <FieldRow
-                            key={field.id}
-                            field={FIELD_BY_ID[field.id]}
-                            controller={controller}
-                            aiOn={aiOn}
-                            onGoToDoc={onGoToDoc}
-                            onGoToItem={onGoToItem}
-                          />
-                        ))}
-                      </DescriptionList>
-                    </CardContent>
+                  /* The case-file card treatment (owner, 2026-09-15): a lifted, hairline
+                     sheet whose header band is divided from its rows by one hairline, the
+                     same stroke Register cases and Take cognizance use. Layout unchanged —
+                     the icon leads the title, the rows sit below. */
+                  <Card key={group.id} className={cn(SHEET, "w-full @container")}>
+                    {/* The register case-file header (`register-case-file.tsx`): a sunken
+                        band with the title at 14 — the panes are narrow, so the header
+                        takes body-compact, not body (owner, 2026-09-15) — and the group
+                        icon in a rounded square on the right, divided from the rows by one
+                        hairline. */}
+                    <div className="flex items-center justify-between gap-4 bg-surface-sunken px-4 py-3">
+                      <h3 className="min-w-0 truncate text-body-compact font-semibold">
+                        {group.title}
+                      </h3>
+                      <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-hairline bg-card text-muted-foreground">
+                        <Icon className="size-5" />
+                      </span>
+                    </div>
+                    <DescriptionList
+                      role="listbox"
+                      aria-label={group.title}
+                      className="border-t border-hairline px-4 py-1"
+                    >
+                      {/*
+                       * The flattened field (`fieldById`) rather than re-flattening
+                       * inline: the object identity has to be stable across renders.
+                       */}
+                      {group.fields.map((field) => (
+                        <FieldRow
+                          key={field.id}
+                          field={fieldById[field.id]}
+                          controller={controller}
+                          aiOn={aiOn}
+                          onGoToDoc={onGoToDoc}
+                          onGoToItem={onGoToItem}
+                        />
+                      ))}
+                    </DescriptionList>
                   </Card>
                 );
               })}

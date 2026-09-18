@@ -25,6 +25,7 @@ import {
   type ADiaryEntry,
 } from "@/lib/employee/sign-a-diary";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /* The A-Diary's rows run to several lines, and centring strands the short
  * cells against them. */
@@ -95,9 +96,9 @@ export function SignADiaryTable({
         {rows.map((entry) => (
           <TableRow key={entry.id} {...rowActivation(tableRowClass())}>
             <TableCell
-              className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+              className={cn(cellClass, "whitespace-nowrap")}
             >
-              {entry.caseNumber}
+              <Identifier value={entry.caseNumber} label="case number" />
             </TableCell>
             {/* The row's one emphasised cell, and its only opener. Quiet
                 `text-foreground` rather than the reference's teal underline: the teal is

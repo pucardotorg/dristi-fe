@@ -3,12 +3,7 @@
 import * as React from "react";
 import { SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 
-import {
-  CARD_LABELS,
-  DUE_LABELS,
-  type DueFilter,
-  type Filters,
-} from "@/lib/tasks/selectors";
+import { DUE_LABELS, type DueFilter, type Filters } from "@/lib/tasks/selectors";
 import type { Person } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { AppliedChip } from "@/components/shell/applied-chip";
@@ -256,13 +251,10 @@ export function FilterRow({
         </SheetContent>
       </Sheet>
 
-      {/* Applied state, always out here — the peek hides controls, never what is on. */}
-      {filters.kind ? (
-        <AppliedChip
-          label={CARD_LABELS[filters.kind]}
-          onClear={() => onChange({ kind: null })}
-        />
-      ) : null}
+      {/* Applied state, always out here — the peek hides controls, never what is on.
+          The kind is not among these: it has its own pill row directly above, and a
+          pressed pill saying "Pay" over a chip saying "Pay" was the same state twice
+          (2026-09-15). Everything the sheet hides still reports itself here. */}
       {filters.due !== "any" ? (
         <AppliedChip label={DUE_LABELS[filters.due]} onClear={() => onChange({ due: "any" })} />
       ) : null}

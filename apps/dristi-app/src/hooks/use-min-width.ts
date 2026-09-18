@@ -3,6 +3,14 @@
 import * as React from "react";
 
 /**
+ * `useLayoutEffect` on the client, `useEffect` on the server — the standard guard that
+ * lets a measurement run before the browser paints without tripping React's
+ * "useLayoutEffect does nothing on the server" warning during SSR.
+ */
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+
+/**
  * Viewport width check, mirroring the DS `useIsMobile` pattern for the breakpoints that
  * hook does not cover. `false` on the server and before mount.
  */
@@ -38,13 +46,14 @@ export function useMinWidth(minWidth: number): boolean {
  * eighty, and three panes sized for eighty leave a rail too narrow to read a word in.
  * Folding on *effective* width is what keeps the labels whole (`ACCESSIBILITY.md` §10).
  *
- * `false` before mount, so the narrow layout renders first and never claims room it has
- * not measured.
+ * `false` before mount. The measurement runs in a layout effect, not a passive one, so on
+ * a wide viewport the correct layout lands on the first paint after hydration rather than
+ * a frame of the narrow layout snapping to the wide one.
  */
 export function useRoomInRem(rem: number): boolean {
   const [fits, setFits] = React.useState(false);
 
-  React.useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     /*
      * A one-rem probe, because there is no event for "the root font size changed".
      * Observing the document element does not work — its box is the viewport, which does

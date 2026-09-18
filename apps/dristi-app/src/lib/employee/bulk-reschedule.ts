@@ -5,11 +5,14 @@
  * a court holiday declared late, a strike. The court pulls up everything listed across a
  * span of days and puts it on a new date in one act, rather than opening 20 case files.
  *
- * **There is no backend, and this build moves nothing.** The screen is live up to the
- * point of commitment — selection, the new date, validation, the confirmation and its
- * summary all work — and stops there, because listing a matter on a new date is a real
- * judicial act. `BulkRescheduleScreen` says so plainly at the point of the act rather
- * than performing it silently. Same bargain the row menu on today's cause list makes.
+ * **There is no backend; the move is a demo move.** Confirming inside the overlay writes
+ * the new date onto the matters for this session and nothing further — the board reads
+ * back what the bench did, so the flow can be walked end to end, and that is the whole of
+ * it. No notification is drawn up for the parties (the court's own
+ * `notification-for-bulk-reschedule`), nobody is told, and nothing survives a reload. The
+ * settled stage of the overlay says the second half of that out loud rather than letting
+ * the screen imply the court has finished the act. Same bargain the registrations overlay
+ * makes with its queue.
  *
  * **Today's rows are not restated here.** They are read out of `CAUSE_LIST` in
  * `./hearings`, so the two court-side screens cannot disagree about what this bench is
@@ -21,9 +24,12 @@
  * leaves the screen permanently empty; an offset is right whenever the screen is opened.
  */
 
+import { CURRENT_STAFF, PRESIDING_MAGISTRATE } from "./content";
 import {
   CAUSE_LIST,
   causeTitle,
+  formatOrderDate,
+  isSittingDay,
   isoDay,
   parseIsoDay,
   type CourtCaseStage,
@@ -39,11 +45,41 @@ export type ReschedulableHearing = {
   stage: CourtCaseStage;
   /** What this sitting is listed for. Not the same fact as the stage. */
   purpose: CourtHearingPurposeId;
-  /** The date the matter currently stands listed for, `YYYY-MM-DD`. */
+  /** The day the court's board has this matter on, `YYYY-MM-DD`. */
   date: string;
+  /**
+   * Where this session's bulk move has put it — absent on a matter nobody has moved.
+   *
+   * Held beside `date` rather than written over it, because a move is a change and a
+   * change has two ends. A board that only ever showed where a matter now stands could
+   * not tell the bench what it had just done: twenty rows would quietly take a new day
+   * and the act that moved them would leave no mark on the thing it acted on. So the
+   * day the matter was listed on stays where it is, this is the day it goes to, and the
+   * board shows the pair (owner, 2026-09-15).
+   */
+  newDate?: string;
 };
 
-/** A listing on a day the court has already fixed, held as a distance from today. */
+/**
+ * The day a matter actually sits on — where this session moved it, else where it was
+ * listed. Everything that asks *when* asks this; only the board, which shows the change
+ * itself, reads the two fields apart.
+ */
+export function listedOn(row: ReschedulableHearing): string {
+  return row.newDate ?? row.date;
+}
+
+/**
+ * A listing on a day the court has already fixed, held as a distance from today **in
+ * sitting days** — `offset: 1` is the next day this court sits, not tomorrow.
+ *
+ * Calendar days were the first reading and they cannot survive the sitting-day rule: an
+ * offset of 5 from a Monday is a Saturday, so the fixture at that distance simply vanished
+ * — and *which* fixtures vanished changed with the day of the week the screen was opened,
+ * which is a board that cannot be tested or pointed at. Counting in sitting days keeps
+ * every fixture on the board and keeps all of them on days the court is open, whatever
+ * today happens to be.
+ */
 type UpcomingListing = Omit<ReschedulableHearing, "date"> & { offset: number };
 
 /**
@@ -183,7 +219,127 @@ const UPCOMING: UpcomingListing[] = [
     purpose: "evidence-of-complainant",
     offset: 9,
   },
+  /* Past the fortnight, and then past the month. A court fixes evidence and arguments
+     six weeks out as a matter of course, and the board used to stop nine days from
+     today — which left the range filter with almost nothing to do: every span wider
+     than a week selected the whole screen, so asking for one looked like a control that
+     did not work. A range is only worth drawing over a board deep enough to narrow. */
+  {
+    id: "r-276",
+    caseNumber: "ST/276/2026",
+    title: "Zainaba Musthafa v. Ashtamudi Cashew Exports",
+    stage: "evidence",
+    purpose: "evidence-of-complainant",
+    offset: 13,
+  },
+  {
+    id: "r-851",
+    caseNumber: "CMP/851/2026",
+    title: "Vinod Kumar P v. Thattamala Steels",
+    stage: "cognizance",
+    purpose: "admission",
+    offset: 17,
+  },
+  {
+    id: "r-277",
+    caseNumber: "ST/277/2026",
+    title: "Remani Amma v. Kundara Poultry Farms",
+    stage: "evidence",
+    purpose: "examination-of-accused-351",
+    offset: 24,
+  },
+  {
+    id: "r-278",
+    caseNumber: "ST/278/2026",
+    title: "Shajahan Kunju v. Paravur Cements",
+    stage: "arguments",
+    purpose: "arguments",
+    offset: 36,
+  },
+  {
+    id: "r-279",
+    caseNumber: "ST/279/2026",
+    title: "Preetha Krishnan v. Chavara Fisheries Co-operative",
+    stage: "judgement",
+    purpose: "judgement",
+    offset: 47,
+  },
 ];
+
+/** How far ahead the prototype's board reaches — forty sittings, about eight weeks. */
+const BOARD_SITTINGS = 40;
+
+/**
+ * Names for the days the hand-written fixtures do not reach.
+ *
+ * `UPCOMING` above is deliberate: long titles, every stage, complaint numbers beside
+ * summary-trial ones. It covers twelve sittings out of forty, which was enough while
+ * the board opened unasked and the bench arrived on everything. It is not enough now that
+ * the screen opens on one day and the range is the way around: a bench moving Thursday's
+ * board wants Thursday to have something on it (owner, 2026-09-16 — *"cases for all
+ * dates"*).
+ *
+ * So every sitting day the fixtures miss gets two or three matters drawn from these,
+ * deterministically by day, because a board that reshuffles between renders is a board
+ * nobody can point at twice.
+ */
+const FILLER_PARTIES: { complainant: string; respondent: string }[] = [
+  { complainant: "Vijayan Pillai", respondent: "Kollam Coir Traders" },
+  { complainant: "Leela Mohan", respondent: "Ashtamudi Marine Exports" },
+  { complainant: "Sabu Chacko", respondent: "Thevally Steel Syndicate" },
+  { complainant: "Girija Damodaran", respondent: "Punalur Paper Agencies" },
+  { complainant: "Anil Kurup", respondent: "Kottarakkara Cashew Works" },
+  { complainant: "Remya Suresh", respondent: "Chinnakada Gold Palace" },
+  { complainant: "Basheer Kunju", respondent: "Karunagappally Tile Company" },
+  { complainant: "Sheela Thomas", respondent: "Paravur Lake Resorts Pvt Ltd" },
+  { complainant: "Manoj Prasad", respondent: "Kundara Rubber Industries" },
+  { complainant: "Fathima Rasheed", respondent: "Chathannoor Poultry Farm" },
+  { complainant: "Unnikrishnan Nair", respondent: "Sasthamcotta Transport Service" },
+  { complainant: "Devika Ramesh", respondent: "Anchalummoodu Timber Mart" },
+  { complainant: "Joseph Varkey", respondent: "Neendakara Fishing Fleet" },
+  { complainant: "Sreelatha Vijayan", respondent: "Pathanapuram Spice Board Agency" },
+  { complainant: "Riyas Muhammed", respondent: "Kadappakada Auto Works" },
+];
+
+const FILLER_STAGES: { stage: CourtCaseStage; purpose: CourtHearingPurposeId }[] = [
+  { stage: "cognizance", purpose: "cognizance" },
+  { stage: "cognizance", purpose: "delay-condonation" },
+  { stage: "process", purpose: "appearance" },
+  { stage: "appearance", purpose: "admission" },
+  { stage: "plea", purpose: "plea" },
+  { stage: "evidence", purpose: "evidence-of-complainant" },
+  { stage: "evidence", purpose: "for-reports" },
+  { stage: "arguments", purpose: "arguments" },
+  { stage: "judgement", purpose: "judgement" },
+  { stage: "appearance", purpose: "bail" },
+];
+
+/**
+ * The matters on one day that the fixtures left empty.
+ *
+ * Two or three, alternating, so consecutive days do not look stamped from one template;
+ * the party and the stage advance on their own cycles so a day is not three rows of the
+ * same posture either. Case numbers run in their own series (`ST/4xx`, `CMP/9xx`) so they
+ * can never collide with a hand-written fixture.
+ */
+function fillerFor(sitting: number): UpcomingListing[] {
+  const count = 2 + (sitting % 2);
+  return Array.from({ length: count }, (_, index) => {
+    const seed = sitting * 3 + index;
+    const parties = FILLER_PARTIES[seed % FILLER_PARTIES.length];
+    const posture = FILLER_STAGES[seed % FILLER_STAGES.length];
+    const summary = seed % 3 !== 0;
+    const serial = 400 + seed;
+    return {
+      id: `r-fill-${sitting}-${index}`,
+      caseNumber: summary ? `ST/${serial}/2026` : `CMP/${serial + 500}/2026`,
+      title: `${parties.complainant} v. ${parties.respondent}`,
+      stage: posture.stage,
+      purpose: posture.purpose,
+      offset: sitting,
+    };
+  });
+}
 
 /** `YYYY-MM-DD`, `n` days on. Built through a Date so month and year ends are the OS's. */
 export function addDays(day: string, count: number): string {
@@ -193,10 +349,36 @@ export function addDays(day: string, count: number): string {
 }
 
 /**
- * Everything this court could move, today first.
+ * The `n`th day this court sits after `from` — weekends skipped, never counted.
  *
- * Sorted by date and then by the court's own number, so the list reads the way a board
- * does and a matter keeps its place when the range widens.
+ * Here rather than beside `isSittingDay` because it needs `addDays`, and `hearings.ts`
+ * importing this module back would be a cycle. The predicate is the shared fact; walking
+ * it is arithmetic.
+ */
+function nthSittingDay(from: string, count: number): string {
+  let day = from;
+  for (let step = 0; step < count; step += 1) {
+    do {
+      day = addDays(day, 1);
+    } while (!isSittingDay(day));
+  }
+  return day;
+}
+
+/**
+ * The order a board reads in: by the day it sits on, then by the court's own number, so
+ * a matter keeps its place when the range widens — and when a move lands it in a
+ * different day's block.
+ */
+function byListing(a: ReschedulableHearing, b: ReschedulableHearing): number {
+  return (
+    listedOn(a).localeCompare(listedOn(b)) ||
+    a.caseNumber.localeCompare(b.caseNumber)
+  );
+}
+
+/**
+ * Everything this court could move, today first.
  */
 export function reschedulableHearings(today: string): ReschedulableHearing[] {
   const listedToday: ReschedulableHearing[] = CAUSE_LIST.filter(
@@ -210,79 +392,289 @@ export function reschedulableHearings(today: string): ReschedulableHearing[] {
     date: today,
   }));
 
-  const ahead: ReschedulableHearing[] = UPCOMING.map(({ offset, ...listing }) => ({
-    ...listing,
-    date: addDays(today, offset),
-  }));
+  /* Every sitting day in the window, so a range drawn anywhere inside it lands on
+     something: the hand-written listings where there are any, filler where there are
+     none, and nothing at all on a day the court is closed. */
+  const spoken = new Set(UPCOMING.map((listing) => listing.offset));
+  const ahead: ReschedulableHearing[] = [];
+  for (let sitting = 1; sitting <= BOARD_SITTINGS; sitting += 1) {
+    const date = nthSittingDay(today, sitting);
+    const listings = spoken.has(sitting)
+      ? UPCOMING.filter((listing) => listing.offset === sitting)
+      : fillerFor(sitting);
+    for (const listing of listings) {
+      ahead.push({
+        id: listing.id,
+        caseNumber: listing.caseNumber,
+        title: listing.title,
+        stage: listing.stage,
+        purpose: listing.purpose,
+        date,
+      });
+    }
+  }
 
-  return [...listedToday, ...ahead].sort(
-    (a, b) => a.date.localeCompare(b.date) || a.caseNumber.localeCompare(b.caseNumber),
-  );
+  return [...listedToday, ...ahead].sort(byListing);
+}
+
+/**
+ * The board as this session left it.
+ *
+ * The fixture with whatever the bench has already moved written over it, back in board
+ * order — a matter moved to next Tuesday has to fall into next Tuesday's block, not stay
+ * in the one it was pulled out of. Recomputed from the fixture on every read rather than
+ * held as a mutated list, so there is one source for what is listed and the moves are a
+ * layer over it that a reload drops.
+ */
+export function boardAfterMoves(
+  today: string,
+  moved: Readonly<Record<string, string>>,
+): ReschedulableHearing[] {
+  return reschedulableHearings(today)
+    .map((row) => {
+      const to = moved[row.id];
+      /* A move onto the day the matter is already on is not a move, and a row carrying
+         a new date equal to its old one would put a second date on the board saying
+         nothing. The overlay's calendar cannot offer that day, so this is a floor under
+         the data rather than a case the screen reaches. */
+      return to && to !== row.date ? { ...row, newDate: to } : row;
+    })
+    .sort(byListing);
+}
+
+/** One day the bench moved matters to, and how many went there. */
+export type RescheduledDay = { day: string; count: number };
+
+/**
+ * The days this session moved matters to, ascending, each with its tally.
+ *
+ * A session is not one act. A court that is not sitting on the 15th moves that day's
+ * board to the 17th, then looks at the fortnight after and moves eight more to 9 October
+ * — two decisions, two days, one afternoon. The record has to hold both.
+ *
+ * **This returns the days, not the rows under them.** It used to return the rows too
+ * (`groupByNewListing`), because the record was a stack of tables with a date heading
+ * over each. The record is now one table with a *New hearing date* column, and the days
+ * are what its filter offers (owner, 2026-09-16) — so what a caller needs is the list of
+ * dates and, for each, how much is waiting there. The tally is the number worth having:
+ * it is how a bench decides which date to look at, which is the moment the filter is
+ * open.
+ *
+ * Rows keep the order the board gave them — `boardAfterMoves` has already sorted by the
+ * day a matter now sits on and then by the court's own number — so the flat table reads
+ * date by date without anything here sorting it again.
+ */
+export function rescheduledDays(
+  rows: ReschedulableHearing[],
+): RescheduledDay[] {
+  const tally = new Map<string, number>();
+  for (const row of rows) {
+    if (row.newDate === undefined) continue;
+    tally.set(row.newDate, (tally.get(row.newDate) ?? 0) + 1);
+  }
+  return [...tally]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, count]) => ({ day, count }));
 }
 
 export type RescheduleFilters = {
-  /** First and last listing date to pull in, inclusive. */
-  from: string;
-  to: string;
+  /**
+   * First and last listing date to pull in, inclusive — or `null` for no bound.
+   *
+   * The screen used to open on today and only today, and to say so by writing today into
+   * both ends. That default is what made the range control read as already answered: the
+   * calendar opened with a day lit, and the next click was taken as the *other* end of a
+   * span starting there rather than as a first choice (owner, 2026-09-13). So an unasked
+   * range is now genuinely unasked — the board shows everything this court has listed,
+   * and the first click on the calendar is a first date.
+   */
+  from: string | null;
+  to: string | null;
   /** Free text over the cause title and the case number — what the bench can recall. */
   query: string;
 };
-
-/**
- * The range the screen opens on: today, and only today.
- *
- * The reference opens on a single day, and that is the case the screen exists for — the
- * court is not sitting today, so today's board has to move. Widening it is one control.
- */
-export function defaultRescheduleFilters(today: string): RescheduleFilters {
-  return { from: today, to: today, query: "" };
-}
 
 export function filterReschedulable(
   rows: ReschedulableHearing[],
   filters: RescheduleFilters,
 ): ReschedulableHearing[] {
   const query = filters.query.trim().toLowerCase();
+
+  /* ISO days sort as strings, so each bound is a plain comparison — no Date per row.
+     A `null` end is not a bound at all rather than a bound at today. */
+  const inSpan = (day: string) =>
+    (filters.from === null || day >= filters.from) &&
+    (filters.to === null || day <= filters.to);
+
   return rows.filter((row) => {
-    /* ISO days sort as strings, so the range is a plain comparison — no Date per row. */
-    if (row.date < filters.from || row.date > filters.to) return false;
+    /* Judged on the day the matter stands listed on — which for a matter this session
+       moved is the day it moved to.
+       
+       This used to let either end of the move keep a row in range, so that the bench
+       could see what it had just done. That job now belongs to the Scheduled tab, which
+       this filter does not touch: a range is a lens for finding matters to move, and
+       nothing about narrowing it should hide work already finished. Leaving the rule
+       here made the record answer to the lens — reschedule three matters, then move the
+       range on to the next fortnight, and the Scheduled tab read zero (owner,
+       2026-09-15). */
+    if (!inSpan(listedOn(row))) return false;
     if (!query) return true;
     return `${row.title} ${row.caseNumber}`.toLowerCase().includes(query);
   });
 }
 
-/** What the bench has typed into the New hearing date column, by listing id. */
-export type NewHearingDates = Readonly<Record<string, string | undefined>>;
-
-/**
- * Why a selected matter cannot move yet.
- *
- * `null` means it can. Three ways it cannot, and the screen says which: no date chosen,
- * a date already past, or the date it is already on — none of which is a reschedule, and
- * all three of which are easy to reach with 20 rows selected and one careless pick.
- */
-export type NewDateProblem = "missing" | "past" | "unchanged";
-
-export function newDateProblem(
-  row: ReschedulableHearing,
-  newDate: string | undefined,
-  today: string,
-): NewDateProblem | null {
-  if (!newDate) return "missing";
-  if (newDate < today) return "past";
-  if (newDate === row.date) return "unchanged";
-  return null;
+/** The last day any of these matters currently stands listed on. */
+function lastListedDay(rows: ReschedulableHearing[]): string | null {
+  let last: string | null = null;
+  for (const row of rows) {
+    const day = listedOn(row);
+    if (last === null || day > last) last = day;
+  }
+  return last;
 }
 
-/** The distinct dates a set of moves would land on, earliest first. */
-export function targetDates(
+/**
+ * The first day a bulk move can land on.
+ *
+ * A bulk move is one act in one direction — the court is not sitting across a span, so
+ * the span goes forward — and a new date *inside* the days being moved would send the
+ * matters listed before it forward and the ones listed after it backward, which is two
+ * acts wearing one button. It would also silently do nothing to whatever was already
+ * listed on the day picked.
+ *
+ * So the floor is whichever of these is latest, and the day after it is the first the
+ * overlay's calendar will offer:
+ *
+ * - **The span the bench asked the board for.** This is the one that matters, and it is
+ *   the reason this takes `spanEnd` rather than reading the rows alone: a court that has
+ *   said "13 September to 12 October" has declared those days dealt with, and offering a
+ *   new date inside them invites exactly the mistaken pick the span was drawn to avoid —
+ *   even where nothing happens to be listed in the tail of it (owner, 2026-09-13).
+ * - **The last day any selected matter is listed**, which covers the board with no span
+ *   asked for at all.
+ * - **Today**, because a listing cannot be made in the past.
+ */
+export function earliestNewListing(
   rows: ReschedulableHearing[],
-  dates: NewHearingDates,
-): string[] {
-  const seen = new Set<string>();
-  for (const row of rows) {
-    const next = dates[row.id];
-    if (next) seen.add(next);
-  }
-  return [...seen].sort();
+  spanEnd: string | null,
+  today: string,
+): string {
+  let floor = today;
+  const last = lastListedDay(rows);
+  if (last !== null && last > floor) floor = last;
+  if (spanEnd !== null && spanEnd > floor) floor = spanEnd;
+  return addDays(floor, 1);
+}
+
+/**
+ * The order a bulk move is passed by.
+ *
+ * A court does not move twenty matters by editing twenty rows: it passes one order, and
+ * the order is what the case files carry afterwards. The screen used to commit the move
+ * the moment a date was picked, which made the act a database edit wearing a calendar —
+ * nothing was drawn up, so there was nothing to sign and nothing for the files to hold.
+ * The bench now signs this before anything moves (Anshumanth, 2026-09-15).
+ *
+ * One order for the whole run rather than one per case. That is the act as the bench
+ * performs it — a single direction naming the matters it covers — and it is what makes
+ * the signature a single signature rather than twenty.
+ *
+ * **What it does not say.** It gives no reason. This screen never asks for one — leave,
+ * transfer, a holiday declared late are all the same picked date to it — and an order
+ * that recited a ground the court never entered would be the app writing the bench's
+ * words for it. It also directs nothing at the parties: no notification is drawn up on
+ * this branch, so the paper does not pretend to order one.
+ */
+export type RescheduleOrder = {
+  /** "Before the JMFC Court 1, Kollam". */
+  court: string;
+  title: string;
+  /** The operative words. */
+  paragraphs: string[];
+  /** What the order covers, one line each. */
+  matters: { caseNumber: string; matter: string; from: string; to: string }[];
+  dated: string;
+  /** Who signs, and whether they have. */
+  signature: string;
+};
+
+export function buildRescheduleOrder(
+  rows: ReschedulableHearing[],
+  /** The day the matters are being listed on. */
+  day: string,
+  /** The day the order is passed. */
+  today: string,
+  /**
+   * Present once the signature has gone on, absent before it.
+   *
+   * The signature block is the one part of the paper that is not the same before and
+   * after the act, and it must be read at the moment it is written: a copy taken on the
+   * signing step and handed back on the settled step would print "Pending the signature
+   * of the magistrate" across an order the bench has just signed — the same trap
+   * `sign-process` documents on its own bundle.
+   */
+  signedOn?: string,
+): RescheduleOrder {
+  return {
+    court: `Before the ${CURRENT_STAFF.court}`,
+    title: "Order rescheduling listed hearings",
+    paragraphs: [
+      `The matters listed below stand adjourned from the dates shown against them.`,
+      `They are listed for hearing before this court on ${formatOrderDate(day)}.`,
+    ],
+    matters: rows.map((row) => ({
+      caseNumber: row.caseNumber,
+      matter: row.title,
+      from: formatOrderDate(listedOn(row)),
+      to: formatOrderDate(day),
+    })),
+    dated: formatOrderDate(today),
+    signature: signedOn
+      ? `Signed by ${PRESIDING_MAGISTRATE.name}, ${PRESIDING_MAGISTRATE.designation}, ${CURRENT_STAFF.court}, on ${formatOrderDate(signedOn)}.`
+      : "Pending the signature of the magistrate.",
+  };
+}
+
+/** The order as a plain-text facsimile — the shape every other court paper here takes. */
+export function rescheduleOrderText(order: RescheduleOrder): string {
+  return [
+    order.court,
+    "",
+    order.title,
+    "",
+    ...order.paragraphs.map((paragraph, index) => `${index + 1}. ${paragraph}`),
+    "",
+    `Matters (${order.matters.length})`,
+    ...order.matters.map(
+      (matter) =>
+        `${matter.caseNumber} · ${matter.matter} · ${matter.from} → ${matter.to}`,
+    ),
+    "",
+    `Dated this the ${order.dated}.`,
+    "",
+    order.signature,
+  ].join("\n");
+}
+
+export function rescheduleOrderFilename(order: RescheduleOrder): string {
+  return `reschedule-order-${order.matters.length}-matters.txt`;
+}
+
+/**
+ * Put the order in the bench's hands.
+ *
+ * Offered on the signing step, where the paper is off screen and the bench is one click
+ * from committing, and again once it is signed — the two moments the reference offers a
+ * court paper. Same blob-and-anchor the process and application documents use; nothing
+ * is filed and no record is minted.
+ */
+export function downloadRescheduleOrder(order: RescheduleOrder): void {
+  const url = URL.createObjectURL(
+    new Blob([rescheduleOrderText(order)], { type: "text/plain" }),
+  );
+  const anchor = window.document.createElement("a");
+  anchor.href = url;
+  anchor.download = rescheduleOrderFilename(order);
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

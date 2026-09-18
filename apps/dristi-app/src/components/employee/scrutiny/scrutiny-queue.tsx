@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { FileSearchIcon, InboxIcon, SearchIcon } from "lucide-react";
+import { FileSearchIcon, InboxIcon } from "lucide-react";
 
+import { CourtFilters } from "@/components/employee/court-filters";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import {
@@ -26,20 +27,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /**
@@ -89,7 +76,7 @@ export function ScrutinyQueue() {
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
         {/* The rail's label, word for word — the court screens' own convention. */}
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Scrutinise submitted cases
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
@@ -125,7 +112,7 @@ export function ScrutinyQueue() {
               <TabsTrigger
                 key={queueTab.id}
                 value={queueTab.id}
-                className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
+                className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
               >
                 {queueTab.label}
                 {/* How much is standing here. One presentation across all three —
@@ -162,6 +149,7 @@ export function ScrutinyQueue() {
                     setOwner(next);
                     setPage(1);
                   }}
+                  onClear={clearFilters}
                 />
 
                 {/* Mounted whatever the queue is doing, including empty — this screen
@@ -233,55 +221,38 @@ function QueueFilters({
   owner,
   onTextChange,
   onOwnerChange,
+  onClear,
 }: {
   text: string;
   owner: QueueOwner;
   onTextChange: (value: string) => void;
   onOwnerChange: (value: QueueOwner) => void;
+  onClear: () => void;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-      {/* `Field` rather than a bare `Label htmlFor` beside an `Input id`. The DS `Input`
-          destructures `id` out of its props and only puts it back through
-          `useFieldControlProps`, which returns nothing when there is no `Field`
-          context — so an `id` handed to an `Input` outside a `Field` is dropped and the
-          label points at an element that does not exist. Upstream DS bug; see
-          `RegisterCasesFilters`. */}
-      <Field className="min-w-0 sm:w-80">
-        <FieldLabel className="text-body">Search filings</FieldLabel>
-        <InputGroup>
-          <InputGroupAddon>
-            <SearchIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            type="search"
-            autoComplete="off"
-            value={text}
-            onChange={(event) => onTextChange(event.target.value)}
-            placeholder="filing no., party or advocate"
-          />
-        </InputGroup>
-      </Field>
-
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="scrutiny-claimed-by" className="w-fit text-body">
-          Claimed by
-        </Label>
-        <Select
-          value={owner}
-          onValueChange={(value) => onOwnerChange(value as QueueOwner)}
-        >
-          <SelectTrigger id="scrutiny-claimed-by" className="w-full sm:w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="anyone">Anyone</SelectItem>
-            <SelectItem value="me">Me</SelectItem>
-            <SelectItem value="unclaimed">Unclaimed</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+    <CourtFilters
+      search={{
+        label: "Search filings",
+        value: text,
+        onChange: onTextChange,
+        placeholder: "filing no., party or advocate",
+      }}
+      fields={[
+        {
+          id: "scrutiny-claimed-by",
+          label: "Claimed by",
+          value: owner,
+          all: "anyone",
+          allLabel: "Anyone",
+          options: [
+            { value: "me", label: "Me" },
+            { value: "unclaimed", label: "Unclaimed" },
+          ],
+          onApply: (value) => onOwnerChange(value as QueueOwner),
+        },
+      ]}
+      onClearAll={onClear}
+    />
   );
 }
 

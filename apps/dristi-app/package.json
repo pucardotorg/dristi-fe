@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint && npm run check:tokens && npm run check:typography && npm run check:ui-sync && npm run check:spacing && npm run check:table-rows",
-    "test": "node --import tsx --test src/lib/tasks/*.test.ts src/lib/filing/*.test.ts src/lib/advocate/*.test.ts src/lib/nav/*.test.ts src/lib/registration/*.test.ts src/lib/employee/*.test.ts src/lib/employee/scrutiny/*.test.ts",
+    "test": "node --import tsx --test src/lib/rich-text/*.test.ts src/lib/tasks/*.test.ts src/lib/filing/*.test.ts src/lib/advocate/*.test.ts src/lib/nav/*.test.ts src/lib/registration/*.test.ts src/lib/employee/*.test.ts src/lib/employee/scrutiny/*.test.ts",
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:ds-fresh": "node scripts/check-ds-fresh.mjs",
     "check:typography": "node scripts/check-typography.mjs",

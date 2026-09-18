@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { FileCheckIcon } from "lucide-react";
+import { CircleHelpIcon } from "lucide-react";
 
-import { CHECKS } from "@/lib/employee/scrutiny/sections";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -12,6 +11,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 
 /**
  * The officer's standing checks. Visible in the case bar, never hover-gated, with
@@ -19,6 +24,7 @@ import {
  * replace, so it cannot be hidden behind a menu.
  */
 export function ChecksPopover() {
+  const { checks } = useScrutinyCase();
   const [checked, setChecked] = React.useState<Set<number>>(() => new Set());
 
   function toggle(i: number) {
@@ -32,17 +38,23 @@ export function ChecksPopover() {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline">
-          <FileCheckIcon />
-          {checked.size
-            ? `What to check · ${checked.size}/${CHECKS.length}`
-            : "What to check"}
-        </Button>
-      </PopoverTrigger>
+      {/* An icon button, not a labelled one: the checklist is a reference the officer
+          reaches for, not a primary action, so it sits as a quiet "?" beside the history
+          button and opens the same popover. The progress lives inside; the tooltip names
+          it, since a label-less button must (owner, 2026-09-15). */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="icon" aria-label="What to check">
+              <CircleHelpIcon />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>What to check</TooltipContent>
+      </Tooltip>
       <PopoverContent align="end" className="w-72">
         <FieldGroup data-slot="checkbox-group" className="gap-2.5">
-          {CHECKS.map((check, i) => (
+          {checks.map((check, i) => (
             <Field key={check} orientation="horizontal">
               <Checkbox
                 id={`check-${i}`}

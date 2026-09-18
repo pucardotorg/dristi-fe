@@ -47,6 +47,7 @@ export function QueueSearchField({
   onChange,
   placeholder,
   className,
+  labelClassName,
   ref,
 }: {
   /** Visible and permanent — ACCESSIBILITY §12. A placeholder is a hint, not a label. */
@@ -56,13 +57,31 @@ export function QueueSearchField({
   placeholder?: string;
   /** The width this box takes in its filter row. */
   className?: string;
+  /**
+   * The label's voice, where the default is wrong for the surface.
+   *
+   * Every other caller is a page-level filter row on a full-width queue, where the
+   * filter-bar voice (`text-body-compact`, 14px) is right. The order composer's
+   * catalogue sits in a ~410px panel column whose labels are the caption voice, and
+   * even 14px there is louder than the group heading above it. Optional, so no
+   * existing screen moves; the class merge resolves the size conflict last-wins.
+   */
+  labelClassName?: string;
   ref?: React.Ref<HTMLInputElement>;
 }) {
   const typed = value !== "";
 
   return (
     <Field className={cn("min-w-0", className)}>
-      <FieldLabel className="text-body">{label}</FieldLabel>
+      {/* 14px, not the 16px this label used to carry. A filter's label is chrome above the
+          control, not a heading, so it sits at the staff scale (`text-body-compact`) and
+          takes its emphasis from the DS label's own `font-medium` — layered against the
+          input's regular-weight text rather than shouting a size larger than the data it
+          filters (owner, 2026-09-14). `labelClassName` is the one surface where even that
+          is too loud; see the prop. */}
+      <FieldLabel className={cn("text-body-compact", labelClassName)}>
+        {label}
+      </FieldLabel>
       <InputGroup>
         <InputGroupAddon>
           <SearchIcon aria-hidden />
