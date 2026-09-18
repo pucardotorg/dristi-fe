@@ -9,6 +9,7 @@ import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 import { advHome, fillCopy } from "@/lib/advocate/content";
 import type { TimelineHearing } from "@/lib/advocate/home";
 import { pick, type Locale } from "@/lib/onboarding/content";
+import { passedOverLabel } from "@/lib/advocate/passed-over";
 import { cn } from "@/lib/utils";
 import "./mobile-hearing.css";
 import { LocateHearingIcon } from "./locate-hearing-icon";
@@ -34,7 +35,7 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="min-w-0" data-pointer-motion={pointerMotion}>
       <CollapsibleTrigger
-        aria-label={`${hearing.kase.parties}, ${pick(advHome.colItem, locale)} ${hearing.item}, ${hearing.kase.cnr || hearing.kase.stNumber}, ${hearing.kase.stage}, ${court.name} ${court.number ?? ""}${count ? `, ${pending}` : ""}${hearing.passedOver ? `, ${pick(advHome.statusPassedOver, locale)}` : ""}`}
+        aria-label={`${hearing.kase.parties}, ${pick(advHome.colItem, locale)} ${hearing.item}, ${hearing.kase.cnr || hearing.kase.stNumber}, ${hearing.kase.stage}, ${court.name} ${court.number ?? ""}${count ? `, ${pending}` : ""}${hearing.passedOver ? `, ${passedOverLabel(hearing.passedOverOn, locale)}` : ""}`}
         onPointerDown={() => setPointerMotion(true)}
         onKeyDown={() => setPointerMotion(false)}
         className={cn("group/hearing relative z-10 flex w-full min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-left transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", ongoing ? "border-brand-accent/40" : "border-hairline", selected && "ring-2 ring-ring")}
@@ -62,7 +63,7 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
           </span>
         </span>
         {time ? <span className="text-caption text-muted-foreground">{time}</span> : null}
-        {hearing.passedOver ? <span className="text-caption font-medium text-warning-ink">{pick(advHome.statusPassedOver, locale)}</span> : null}
+        {hearing.passedOver ? <span className="text-caption font-medium text-warning-ink">{passedOverLabel(hearing.passedOverOn, locale)}</span> : null}
       </CollapsibleTrigger>
       <CollapsibleContent className="hearing-reveal mx-3 overflow-hidden">
         <div className={cn("hearing-actions flex items-center gap-2 rounded-b-xl p-3", ongoing ? "bg-brand-accent/20 text-brand-muted-foreground" : "bg-secondary text-foreground")}>

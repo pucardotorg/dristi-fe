@@ -69,6 +69,7 @@ import type { World } from "@/lib/tasks/selectors";
 import { advHome, fillCopy } from "@/lib/advocate/content";
 import type { Locale } from "@/lib/onboarding/content";
 import { pick } from "@/lib/onboarding/content";
+import { passedOverLabel } from "@/lib/advocate/passed-over";
 import { cn } from "@/lib/utils";
 import { RefreshIcon, useRefreshPhase } from "@/components/advocate/refresh-button";
 
@@ -85,25 +86,32 @@ const STICKY_HEAD = "sticky top-0 z-20";
 function StatusChip({
   status,
   passedOver = false,
+  passedOverOn = null,
   locale,
 }: {
   status: HearingStatus;
   passedOver?: boolean;
+  /** The earlier day it was passed over, when carried to this one. */
+  passedOverOn?: string | null;
   locale: Locale;
 }) {
   // Each chip carries a defined stroke so it reads as a bounded tag on the row,
   // not a floating fill — the status solid for the ongoing tint (DS 6a), a neutral
   // edge for completed and listed, an amber edge for a passed-over matter.
-  if (status === "concluded") {
-    if (passedOver) {
-      return <Badge variant="outline" className="border-warning text-warning-ink">{pick(advHome.statusPassedOver, locale)}</Badge>;
-    }
-    return <Badge variant="secondary" className="border-border">{pick(advHome.statusCompleted, locale)}</Badge>;
-  }
   if (status === "now") {
     return <Badge variant="success" className="border-success">{pick(advHome.statusOngoing, locale)}</Badge>;
   }
-  return <Badge variant="outline" className="border-border">{pick(advHome.statusListed, locale)}</Badge>;
+  // Passed over today: called, not heard, still owed its hearing. The chip stays
+  // two words; the status column has no room for a date.
+  if (passedOver && !passedOverOn) {
+    return <Badge variant="outline" className="border-warning text-warning-ink">{pick(advHome.statusPassedOver, locale)}</Badge>;
+  }
+  if (status === "concluded") {
+    return <Badge variant="secondary" className="border-border">{pick(advHome.statusCompleted, locale)}</Badge>;
+  }
+  // A matter carried over from an earlier day is simply listed today; the day it
+  // was passed over rides on the chip's tooltip.
+  return <Badge variant="outline" className="border-border" title={passedOverOn ? passedOverLabel(passedOverOn, locale) : undefined}>{pick(advHome.statusListed, locale)}</Badge>;
 }
 
 /** The status-group heading copy, keyed by the four-way cause-list status. */
@@ -774,7 +782,7 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
             an icon button (cause-list.css), never stacked under it. */}
         <div className="flex items-center gap-2">
           <span className={cn("inline-flex", row.status === "now" && "cause-status")}>
-            <StatusChip status={row.status} passedOver={row.passedOver} locale={locale} />
+            <StatusChip status={row.status} passedOver={row.passedOver} passedOverOn={row.passedOverOn} locale={locale} />
           </span>
           {row.status === "now" ? (
             <span className="cause-join absolute inset-y-0 right-4 flex items-center">
@@ -858,7 +866,7 @@ function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale;
           {ongoing ? <span className="flex size-4 shrink-0 items-center justify-center md:col-start-4 md:row-start-1 md:justify-self-end md:w-9 md:self-start">
             <span aria-hidden="true" className="now-dot size-2 rounded-full bg-primary" />
             <span className="sr-only">{pick(advHome.statusOngoing, locale)}</span>
-          </span> : <span className="shrink-0 md:col-start-4 md:row-start-1 md:justify-self-end md:self-start"><StatusChip status={row.status} passedOver={row.passedOver} locale={locale} /></span>}
+          </span> : <span className="shrink-0 md:col-start-4 md:row-start-1 md:justify-self-end md:self-start"><StatusChip status={row.status} passedOver={row.passedOver} passedOverOn={row.passedOverOn} locale={locale} /></span>}
         </div>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-body-compact md:contents">
           <div className="contents md:col-start-3 md:row-start-1 md:flex md:min-w-0 md:flex-col md:gap-0.5">

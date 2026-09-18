@@ -391,6 +391,7 @@ export const advHome = {
      passed-over concluded matters carry this tag (completed ones need none, since
      concluded means completed); the cause list makes it a fourth status. */
   statusPassedOver: t("Passed over", "മാറ്റിവെച്ചു"),
+  statusPassedOverOn: t("Passed over on {date}", "{date}-ന് മാറ്റിവെച്ചു"),
   approxNote: t(
     "Times are approximate unless the court has fixed a slot.",
     "കോടതി സമയം നിശ്ചയിച്ചിട്ടില്ലെങ്കിൽ സമയം ഏകദേശമാണ്.",

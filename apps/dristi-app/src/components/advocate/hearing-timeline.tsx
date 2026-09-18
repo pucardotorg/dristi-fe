@@ -61,6 +61,7 @@ import { ItemChip } from "@/components/advocate/home-bits";
 import { HomeRefreshButton } from "@/components/advocate/refresh-button";
 import type { AvatarSurface } from "@/components/tasks/person-avatar";
 import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
+import { passedOverLabel } from "@/lib/advocate/passed-over";
 
 /**
  * Clicking a hearing's pending flag opens the tasks rail and traces its tasks.
@@ -600,11 +601,11 @@ function HearingRow({
             >
               {hearing.kase.parties}
             </button>
-            {/* Concluded means completed, so only a passed-over matter is tagged —
-                reached in the list but not taken up. */}
-            {hearing.status === "concluded" && hearing.passedOver ? (
+            {/* A matter that was called and passed over, today or on an earlier day
+                (then with that day), wears the tag wherever it now sits. */}
+            {hearing.passedOver ? (
               <span className="inline-flex shrink-0 items-center rounded-full border border-warning px-2 py-0.5 text-caption font-medium text-warning-ink">
-                {pick(advHome.statusPassedOver, locale)}
+                {passedOverLabel(hearing.passedOverOn, locale)}
               </span>
             ) : null}
           </div>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { groupCauseList, searchCauseList } from "./cause-list-groups";
+import { causeStatusKey, groupCauseList, searchCauseList } from "./cause-list-groups";
 import type { CauseListRow } from "./home";
 
 const row = (
@@ -12,7 +12,7 @@ const row = (
 ): CauseListRow => ({
   id, item, court, courtNumber: "1", courtLabel, hearingType,
   parties: `${id} v. Company`, caseNumber: `CNR-${id}`, advocates: "Anjali Nair",
-  status: "upcoming", approxTime: true, passedOver: false, mine: id === "a",
+  status: "upcoming", approxTime: true, passedOver: false, passedOverOn: null, mine: id === "a",
 });
 // a & c are the same court by name (two JMFC courtrooms); b is a different court.
 const rows = [
@@ -41,11 +41,11 @@ test("court grouping is by court name, not court number, and preserves scope", (
   );
 });
 
-test("status grouping splits concluded into passed-over and completed, most-active first", () => {
+test("status grouping keeps passed-over apart from completed, most-active first", () => {
   const mk = (id: string, status: CauseListRow["status"], passedOver = false): CauseListRow => ({
     id, item: 1, court: "X", courtNumber: "1", courtLabel: "X", hearingType: "Evidence",
     parties: `${id} v. Co`, caseNumber: `CNR-${id}`, advocates: "A",
-    status, approxTime: false, passedOver, mine: false,
+    status, approxTime: false, passedOver, passedOverOn: null, mine: false,
   });
   const mixed = [
     mk("done", "concluded"),
@@ -65,4 +65,13 @@ test("hearing type groups are stable and support search before grouping", () => 
   assert.deepEqual(searchCauseList(rows, "arguments").map((matter) => matter.id), ["c"]);
   assert.equal(searchCauseList(rows, "no matching hearing").length, 0);
   assert.equal(searchCauseList(rows, "   ").length, rows.length);
+});
+
+test("a matter passed over today groups as passed-over while still upcoming; one carried from an earlier day is just listed", () => {
+  const mk = (id: string, passedOver: boolean, passedOverOn: string | null): CauseListRow => ({
+    id, item: 1, court: "C", courtNumber: "1", courtLabel: "C", hearingType: "Plea", parties: id,
+    caseNumber: id, advocates: "", status: "upcoming", approxTime: false, passedOver, passedOverOn, mine: false,
+  });
+  assert.equal(causeStatusKey(mk("today", true, null)), "passed-over");
+  assert.equal(causeStatusKey(mk("carried", true, "2026-09-17T12:00:00.000Z")), "upcoming");
 });

@@ -131,6 +131,27 @@ describe("passedOver", () => {
     assert.equal(items.find((h) => h.kase.id === "done")?.passedOver, false);
     assert.equal(causeListOn(w, day, NOW_MS).find((r) => r.id === "po")?.passedOver, true);
   });
+
+  it("keeps a matter passed over today among the upcoming, not the concluded", () => {
+    const w = world([
+      { ...listed("po", 0, 6), passedOver: true },
+      listed("done", 0, 6),
+    ]);
+    const day = dayKeyOf(at(0, 12));
+    const items = hearingsOn(w, kase.court, day, NOW_MS);
+    assert.equal(items.find((h) => h.kase.id === "po")?.status, "upcoming");
+    assert.equal(items.find((h) => h.kase.id === "done")?.status, "concluded");
+  });
+
+  it("tags a matter carried over from an earlier day with that day, and lists it normally", () => {
+    const carried = "2026-01-01T12:00:00.000Z";
+    const w = world([{ ...listed("co", 0, 22), passedOverOn: carried }]);
+    const day = dayKeyOf(at(0, 12));
+    const [h] = hearingsOn(w, kase.court, day, NOW_MS);
+    assert.equal(h.status, "upcoming");
+    assert.equal(h.passedOver, true);
+    assert.equal(h.passedOverOn, carried);
+  });
 });
 
 describe("boardOf", () => {

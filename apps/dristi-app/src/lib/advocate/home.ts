@@ -110,8 +110,10 @@ export type HomeHearing = {
    * one (`Case.timeFixed`) is exact too.
    */
   approxTime: boolean;
-  /** A concluded hearing that was passed over, not completed (from the case). */
+  /** Called and passed over, today or on an earlier day. Still owed its hearing. */
   passedOver: boolean;
+  /** The earlier day it was passed over, when it was carried to this one; else null. */
+  passedOverOn: string | null;
   /** Actionable blocking tasks on the case, most urgent first. */
   blockers: Task[];
   /** No open blocking task stands between the case and the hearing. */
@@ -155,14 +157,23 @@ function hearingsFrom(
     .map((kase, index) => {
       const at = kase.nextHearingAt!;
       const blockers = blockersOf(world, kase, now);
-      const status = statusOf(at, now);
+      // A matter passed over today has been called but not heard: its listed
+      // time is behind it, yet it is still to be called, so it stays upcoming (in
+      // item order, which is time order) rather than falling into concluded. On a
+      // day already gone there is nothing left to call, so it rests as concluded.
+      const clock = statusOf(at, now);
+      const status: HearingStatus =
+        kase.passedOver === true && clock === "concluded" && dayKey === dayKeyOf(new Date(now).toISOString())
+          ? "upcoming"
+          : clock;
       return {
         kase,
         item: index + 1,
         at,
         status,
         approxTime: status === "upcoming" && !kase.timeFixed,
-        passedOver: kase.passedOver === true,
+        passedOver: kase.passedOver === true || Boolean(kase.passedOverOn),
+        passedOverOn: kase.passedOverOn ?? null,
         blockers,
         ready: blockers.length === 0,
       };
@@ -756,6 +767,8 @@ export type CauseListRow = {
   approxTime: boolean;
   /** A concluded hearing that was passed over rather than completed. */
   passedOver: boolean;
+  /** The earlier day it was passed over, when carried to this one; else null. */
+  passedOverOn: string | null;
   /** A matter this advocate is on — marked in the list so hers stand out. */
   mine: boolean;
 };
@@ -797,6 +810,7 @@ export function causeListOn(
         status: h.status,
         approxTime: h.approxTime,
         passedOver: h.passedOver,
+        passedOverOn: h.passedOverOn,
         // The real flag now that the docket carries other advocates' matters: a
         // matter reads as the viewer's when she is on it.
         mine: canView(world.user, h.kase),

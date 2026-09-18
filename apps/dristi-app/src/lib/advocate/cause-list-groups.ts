@@ -2,14 +2,16 @@ import type { CauseListRow } from "./home";
 
 export type CauseListGroupBy = "item" | "court" | "hearingType" | "status";
 
-/** The cause list splits a concluded hearing into two statuses — passed over
- *  (reached but not taken up) and completed. With ongoing and listed, those are
- *  the four the status column and its sort read. */
+/** The cause list reads four statuses: ongoing, listed, passed over (called but
+ *  not taken up, so still owed its hearing today) and completed. A matter carried
+ *  over from an earlier day is simply listed; only one passed over on this day
+ *  forms the passed-over group. */
 export type CauseStatusKey = "now" | "upcoming" | "passed-over" | "completed";
 export function causeStatusKey(row: CauseListRow): CauseStatusKey {
   if (row.status === "now") return "now";
+  if (row.passedOver && !row.passedOverOn) return "passed-over";
   if (row.status === "upcoming") return "upcoming";
-  return row.passedOver ? "passed-over" : "completed";
+  return "completed";
 }
 
 /** Status groups read most-active first: ongoing, listed, then passed-over ahead

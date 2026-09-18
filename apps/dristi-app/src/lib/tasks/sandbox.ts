@@ -16,7 +16,7 @@ import type { Case, Defect, Person, Task } from "./types";
 /** Bump when the seed's shape changes; a browser holding an older seed is re-seeded.
  *  (The seed stamp also folds in the people/case counts, so adding or removing
  *  fixture matters reseeds on its own even without a bump — see store.tsx.) */
-export const SEED_VERSION = 24;
+export const SEED_VERSION = 25;
 
 /**
  * A defect on a filing that was made outside this app, so there is no draft to open and
@@ -218,6 +218,14 @@ function todaySchedule(): Record<string, string> {
 const TODAY = todaySchedule();
 
 /** The listed time of a matter on today's board. */
+/** The ISO date `n` days before the seed day: when a carried-over matter was passed over. */
+function daysAgoKey(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  d.setHours(12, 0, 0, 0);
+  return d.toISOString();
+}
+
 function listedToday(id: string): string {
   return TODAY[id];
 }
@@ -386,8 +394,8 @@ export const CASES: Case[] = [
   { id: "c-hd13", stNumber: "ST 205/2026", cnr: "KLKL01-000205-2026", parties: "Leelamma Joy v. Sunrise Plywoods", court: ON, stage: "Cross-examination", nextHearingAt: listedToday("c-hd13"), timeFixed: true, signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
   { id: "c-hd14", stNumber: "ST 471/2025", cnr: "KLKL01-000471-2025", parties: "Abdul Latheef v. Thejas Marine", court: ON, stage: "Plea", nextHearingAt: listedToday("c-hd14"), signatories: ["p-an", "p-rm", "p-dv"], advocates: ["p-an", "p-rm", "p-dv", "p-sp"] },
   { id: "c-hd15", stNumber: "ST 830/2025", cnr: "KLKL01-000830-2025", parties: "Sarala Devi v. Kochu Varkey", court: ON, stage: "Arguments", nextHearingAt: listedToday("c-hd15"), signatories: ["p-dv"], advocates: ["p-dv", "p-an", "p-ri"] },
-  { id: "c-hd16", stNumber: "ST 96/2026", cnr: "KLKL01-000096-2026", parties: "Jaseela Beegum v. Anand Motors", court: ON, stage: "Evidence of the complainant", nextHearingAt: listedToday("c-hd16"), signatories: ["p-an"], advocates: ["p-an", "p-ri", "p-sp"] },
-  { id: "c-hd17", stNumber: "ST 1190/2026", cnr: "KLKL01-001190-2026", parties: "Rajeev Menon v. Padmini Traders", court: ON, stage: "Appearance", nextHearingAt: listedToday("c-hd17"), signatories: ["p-an", "p-sp"], advocates: ["p-an", "p-sp"] },
+  { id: "c-hd16", stNumber: "ST 96/2026", cnr: "KLKL01-000096-2026", parties: "Jaseela Beegum v. Anand Motors", court: ON, stage: "Evidence of the complainant", nextHearingAt: listedToday("c-hd16"), passedOverOn: daysAgoKey(1), signatories: ["p-an"], advocates: ["p-an", "p-ri", "p-sp"] },
+  { id: "c-hd17", stNumber: "ST 1190/2026", cnr: "KLKL01-001190-2026", parties: "Rajeev Menon v. Padmini Traders", court: ON, stage: "Appearance", nextHearingAt: listedToday("c-hd17"), passedOverOn: daysAgoKey(3), signatories: ["p-an", "p-sp"], advocates: ["p-an", "p-sp"] },
   // Substantial postings in the fortnight ahead — evidence, cross and arguments
   // an advocate has to be ready for well before the day arrives.
   { id: "c-pa1", stNumber: "ST 559/2025", cnr: "KLKL01-000559-2025", parties: "Girija Kumari v. Elite Hardwares", court: ON, stage: "Cross-examination", nextHearingAt: hearing(3), signatories: ["p-an", "p-dv"], advocates: ["p-an", "p-dv", "p-sp"] },
