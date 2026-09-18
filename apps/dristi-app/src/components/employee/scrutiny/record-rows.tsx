@@ -11,11 +11,13 @@ import { Identifier } from "@/components/chrome/identifier";
  * The grammar a raised item is read in — one label column, one value column, rows only
  * where they apply.
  *
- * It lives here rather than inside the field row because two surfaces render the same
- * item: the record in the workbench, and the summary in the send-back dialog. Those are
- * one data type, so they get one rendering (ui-craft §2) — an officer who has learnt to
- * scan "FSO's value / Filed value / Annotation" down the left edge reads the dialog
- * without learning anything new, however many items it holds.
+ * **The workbench's record.** It was the send-back dialog's too, on the argument that
+ * one data type gets one rendering (ui-craft §2). That held while the dialog listed two
+ * or three items and broke at twenty: a label column is the fastest way to *find* a
+ * value in one record and the slowest way to *scan* many, because the names end up
+ * outweighing the facts (owner, 2026-09-18). The two surfaces still share the
+ * vocabulary — the same facts under the same names — and the dialog composes them for
+ * scanning instead; see `SummaryItem` in `review-dialog.tsx`.
  *
  * The two columns collapse to one below `22rem` of container width, so a record stays
  * legible when the fields pane is dragged to its floor. `@container` is declared by the

@@ -3,10 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import {
+  ArrowRightIcon,
   CheckIcon,
-  CornerUpLeftIcon,
   MicIcon,
+  RotateCcwIcon,
   TriangleAlertIcon,
+  UploadIcon,
 } from "lucide-react";
 
 import { docName } from "@/lib/employee/scrutiny/field";
@@ -27,11 +29,10 @@ import {
   StagedOverlay,
   useStagedFlow,
 } from "@/components/chrome/staged-overlay";
+import { MarkThumb } from "@/components/employee/scrutiny/mark-thumb";
 import {
   FieldValue,
   RecordLink,
-  RecordList,
-  RecordRow,
 } from "@/components/employee/scrutiny/record-rows";
 import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 
@@ -210,10 +211,15 @@ export function ReviewDialog({
              where it had handed the file on, and this is the ordinary route — most files
              take it at least once — not a failure and not a win. So the mark wears the
              product's neutral state fill (`secondary`, what every pending pill on these
-             screens wears; the case history gives a return no colour at all) with a glyph
-             that says *returned*. Colour keeps carrying one meaning. */
+             screens wears; the case history gives a return no colour at all). Colour
+             keeps carrying one meaning.
+
+             The glyph is the loop, not a corner arrow: the owner read that one as dated
+             (2026-09-18), and it was the weaker reading anyway — an elbow pointing left
+             is "back" in the browser sense, while this file has gone round for another
+             round, which is the word the case history already uses. */
           tone: "bg-secondary text-secondary-foreground",
-          Icon: CornerUpLeftIcon,
+          Icon: RotateCcwIcon,
         }
       : {
           title: "Case registered",
@@ -449,95 +455,121 @@ function SummaryItem({
   const { docById, docRow } = useScrutinyCase();
   const { field, flag } = item;
   const evidenceDoc = flag.evidence ? docById[flag.evidence.doc] : undefined;
-  const reuploadApplies = !field.docrow && !!field.doc && !!docRow[field.doc];
+  const reupload =
+    !field.docrow && !!field.doc && !!docRow[field.doc] ? item.linked : null;
 
   /*
-   * The same label/value grammar the workbench record uses, so an item reads the same
-   * on both surfaces and a send-back of twenty scans down one left edge instead of
-   * twenty differently-shaped paragraphs. `@container` is declared here because this
-   * box is what constrains the rows inside a dialog.
+   * **One item, read in one pass: where, what changed, what was said, what is attached.**
+   *
+   * This was five labelled rows — Original value, FSO's value, FSO's comment,
+   * Annotation, Re-upload requested — each with its name in an 8rem gutter. On a
+   * send-back of twenty items that is a hundred rows of left-column text weighing more
+   * than the facts beside it, and the owner read it as exactly that (2026-09-18).
+   *
+   * The labels are gone because the *form* now says what each line is, which is cheaper
+   * than a word and faster to scan:
+   *
+   * - the **correction** is one movement, `old → new`, not two rows that the eye has to
+   *   pair up. The superseded value is struck and muted; the new one carries the weight.
+   * - the **comment** is quoted by a rule down its start, the way a note is quoted
+   *   anywhere else. Nothing needs to call it a comment.
+   * - **what is attached** is a row of marks, and a mark only appears when it is true.
+   *   "Re-upload requested — No" used to print on every correction that did not ask for
+   *   one, which is a row spent saying nothing.
+   *
+   * The annotation shows the **crop of the marked region** rather than the words
+   * "Annotation": `MarkThumb` is the same tile the workbench uses, so the officer
+   * recognises the mark they drew instead of reading a document number back.
+   *
+   * ## Why this is not the workbench's `RecordList`
+   *
+   * It was, and the two are still one *vocabulary* — the same facts under the same
+   * names. What differs is the task. The workbench examines one item in a narrow pane,
+   * where a label column is the fastest way to find a value. This window is read the
+   * other way round: twenty items at once, looking for the one that is wrong. A layout
+   * tuned for the first is what made the second a wall.
    */
   return (
-    <li className="@container flex flex-col gap-2">
+    <li className="@container flex flex-col gap-1.5 text-body-compact">
       {/*
-       * **`Complainant: Mobile number`** — the party, then the field, on one line at one
-       * size.
+       * **`Complainant: Full name`** — the party, then the field, at one size.
        *
        * Naming the group on every item was noise; hiding it left five labels that exist
-       * under two parties reading identically; and a chevroned path was a third face in
-       * a list that already had too many (owner, 2026-09-17 and 2026-09-18). A colon is
-       * the cheapest thing that carries containment: it costs two characters, it reads
-       * as a prefix rather than as a second heading, and it is the form the owner wrote.
-       *
-       * The trailing " Details" comes off because the groups are named for the form, not
-       * for a sentence: "Complainant Details: Mobile number" says Details twice over.
-       * The groups that are not "… Details" keep their whole name.
+       * under two parties reading identically; a chevroned path was a third face in a
+       * list that already had too many (owner, 2026-09-17 and 2026-09-18). A colon
+       * carries containment for two characters and reads as a prefix rather than a
+       * second heading. The trailing " Details" comes off: "Complainant Details: Full
+       * name" says Details twice.
        */}
-      <h4 className="text-body-compact">
+      <h4>
         <span className="text-muted-foreground">
           {field.group.replace(/ Details$/, "")}:{" "}
         </span>
         <span className="font-semibold">{field.label}</span>
       </h4>
 
-      <RecordList>
-        {flag.correction ? (
-          <>
-            <RecordRow label="Original value">
-              <span className="text-muted-foreground line-through">
-                <FieldValue field={field} value={field.value} copyable={false} />
+      {/* The correction, as the one movement it is. `aria-hidden` on the glyph and the
+          words in `sr-only`, because an arrow is not a word. */}
+      {flag.correction ? (
+        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="text-muted-foreground line-through">
+            <FieldValue field={field} value={field.value} copyable={false} />
+          </span>
+          <ArrowRightIcon
+            aria-hidden="true"
+            className="size-3.5 shrink-0 self-center text-muted-foreground"
+          />
+          <span className="sr-only">corrected to</span>
+          <span className="font-medium">
+            <FieldValue field={field} value={flag.correction} />
+          </span>
+        </p>
+      ) : null}
+
+      {/* A document issue has no before and after — the reason *is* the finding, so it
+          takes the weight the corrected value carries above. */}
+      {field.docrow && flag.reason ? (
+        <p className="font-medium">{flag.reason}</p>
+      ) : null}
+
+      {flag.comment ? (
+        <p className="flex flex-wrap items-center gap-x-2 border-s-2 border-border ps-2.5 text-muted-foreground">
+          <span className="break-words">{flag.comment}</span>
+          {flag.voice ? (
+            <span className="inline-flex items-center gap-1">
+              <MicIcon className="size-3.5" aria-hidden="true" /> voice
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+
+      {/* What is attached to the item, and only what is. */}
+      {evidenceDoc || reupload || (field.docrow && item.linked) ? (
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-0.5 text-muted-foreground">
+          {evidenceDoc ? (
+            <span className="inline-flex items-center gap-2">
+              <MarkThumb evidence={flag.evidence!} />
+              <span className="min-w-0">
+                <span className="tabular-nums">Doc {evidenceDoc.no}</span> ·{" "}
+                {docName(flag.evidence!.doc, docById)}
               </span>
-            </RecordRow>
-            <RecordRow label="FSO’s value">
-              <span className="font-medium">
-                <FieldValue field={field} value={flag.correction} />
-              </span>
-            </RecordRow>
-          </>
-        ) : null}
+            </span>
+          ) : null}
 
-        {field.docrow && flag.reason ? (
-          <RecordRow label="Reason">{flag.reason}</RecordRow>
-        ) : null}
-
-        {flag.comment ? (
-          <RecordRow label="FSO’s comment">
-            <span className="break-words">{flag.comment}</span>
-            {flag.voice ? (
-              <span className="ms-2 inline-flex items-center gap-1 text-body-compact text-muted-foreground">
-                <MicIcon className="size-3" aria-hidden="true" /> voice
-              </span>
-            ) : null}
-          </RecordRow>
-        ) : null}
-
-        {evidenceDoc ? (
-          <RecordRow label="Annotation">
-            <span className="tabular-nums">Doc {evidenceDoc.no}</span> ·{" "}
-            {docName(flag.evidence!.doc, docById)}
-          </RecordRow>
-        ) : null}
-
-        {reuploadApplies ? (
-          <RecordRow label="Re-upload requested">
-            {item.linked ? (
-              <RecordLink onClick={() => onGoToItem(item.linked!.id)}>
-                Yes — {docName(item.linked.docrow ?? "", docById)}
-              </RecordLink>
-            ) : (
-              <span className="text-muted-foreground">No</span>
-            )}
-          </RecordRow>
-        ) : null}
-
-        {field.docrow && item.linked ? (
-          <RecordRow label="Raised with">
-            <RecordLink onClick={() => onGoToItem(item.linked!.id)}>
-              {item.linked.label}
+          {reupload ? (
+            <RecordLink onClick={() => onGoToItem(reupload.id)}>
+              <UploadIcon className="size-3.5 shrink-0" aria-hidden="true" />
+              Re-upload {docName(reupload.docrow ?? "", docById)}
             </RecordLink>
-          </RecordRow>
-        ) : null}
-      </RecordList>
+          ) : null}
+
+          {field.docrow && item.linked ? (
+            <RecordLink onClick={() => onGoToItem(item.linked!.id)}>
+              Raised with {item.linked.label}
+            </RecordLink>
+          ) : null}
+        </p>
+      ) : null}
 
       {/*
        * The last backstop. A mark on an uploaded document with no item on that
@@ -546,9 +578,9 @@ function SummaryItem({
        * discovered on resubmission. Icon + words + colour, never colour alone.
        */}
       {item.stranded ? (
-        <p className="flex flex-wrap items-center gap-2 text-body-compact text-warning-ink">
-          <span className="inline-flex items-center gap-1">
-            <TriangleAlertIcon className="size-3" aria-hidden="true" />
+        <p className="flex flex-wrap items-center gap-2 text-warning-ink">
+          <span className="inline-flex items-center gap-1.5">
+            <TriangleAlertIcon className="size-3.5" aria-hidden="true" />
             Marked on {docName(item.stranded, docById)} — re-upload is not unlocked.
           </span>
           <Button
