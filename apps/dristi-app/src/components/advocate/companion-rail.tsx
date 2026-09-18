@@ -47,6 +47,7 @@ import { dueCueOf } from "@/lib/tasks/format";
 import { summaryOf, type World } from "@/lib/tasks/selectors";
 import type { Task, TaskKind } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+import "./mobile-hearing.css";
 import { RowAction } from "@/components/advocate/home-bits";
 
 /**
@@ -354,6 +355,13 @@ function BucketTrigger({
  * cost the title its width. An on-time card therefore has no right-hand tag, and
  * the title runs nearly full width.
  */
+/**
+ * True inside the bottom sheet (phone and tablet). There is no hover there, so a
+ * task card opens a tray on tap, the same disclosure the hearing cards use, with
+ * the task's action as the button and Archive beside it.
+ */
+const SheetModeContext = React.createContext(false);
+
 function TaskCard({
   world,
   task,
@@ -374,6 +382,49 @@ function TaskCard({
   const Icon = KIND_ICON[task.kind];
   const due = dueCueOf(task, new Date(world.now));
   const dense = RAIL_VARIANT === "B";
+  const sheet = React.useContext(SheetModeContext);
+  const [open, setOpen] = React.useState(false);
+
+  if (sheet) {
+    return (
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className={cn(CARD_A, "relative z-10")} data-task-trace={traceNonce != null ? "1" : undefined}>
+          {traceNonce != null ? <TaskTraceRing nonce={traceNonce} /> : null}
+          <span aria-hidden="true" className={CARD_ICON_A}>
+            <Icon className="size-3.5" />
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col items-stretch gap-0.5">
+            <CollapsibleTrigger title={task.title} className={cn(CARD_TITLE, "group/task")}>
+              {task.title}
+            </CollapsibleTrigger>
+            <span className="w-full text-caption break-words text-muted-foreground">
+              {railCaseLineOf(world, task)}
+            </span>
+            {due.overdue ? (
+              <span className="mt-1 text-caption font-medium tabular-nums text-destructive-ink">
+                {due.primary} · {due.date}
+              </span>
+            ) : null}
+          </div>
+          <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center self-center rounded-full border border-border bg-accent-strong text-muted-foreground">
+            <ChevronDown className={cn("size-3.5 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")} />
+          </span>
+        </div>
+        <CollapsibleContent className="hearing-reveal mx-3 overflow-hidden">
+          <div className="hearing-actions flex items-center gap-2 rounded-b-xl bg-secondary p-3">
+            <Button className="min-w-0 flex-1" onClick={() => onAct(task)}>
+              <span className="truncate">{verb}</span>
+            </Button>
+            {onArchive ? (
+              <Button variant="outline" className="shrink-0 border-transparent bg-card" onClick={() => onArchive(task)}>
+                <Archive aria-hidden="true" />Archive
+              </Button>
+            ) : null}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  }
 
   return (
     <div
@@ -669,6 +720,21 @@ function StripButton({
   );
 }
 
+/** Narrower than xl, or touch-first: the tasks panel is a bottom sheet there. */
+const SHEET_QUERY = "(max-width: 1279px), (pointer: coarse)";
+
+function useMediaQuery(query: string): boolean {
+  return React.useSyncExternalStore(
+    (callback) => {
+      const media = window.matchMedia(query);
+      media.addEventListener("change", callback);
+      return () => media.removeEventListener("change", callback);
+    },
+    () => window.matchMedia(query).matches,
+    () => false
+  );
+}
+
 export function CompanionRail({
   world,
   locale,
@@ -698,14 +764,19 @@ export function CompanionRail({
 }) {
   const tasksCount = summaryOf(world).action;
   const isMobile = useIsMobile();
-  // Opening the desktop rail is a saved workspace preference. A phone drawer
-  // opens only after an explicit task trigger or a hearing's pending flag.
+  // The panel stands beside the board only where there is room for both: a wide
+  // screen driven by a mouse. On a phone, and on a tablet in either orientation
+  // (narrower than xl, or touch-first), it is a bottom sheet instead, so it never
+  // covers or crushes the board.
+  const asSheet = useMediaQuery(SHEET_QUERY) || isMobile;
+  // Opening the desktop rail is a saved workspace preference. A sheet opens only
+  // after an explicit task trigger or a hearing's pending flag.
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const highlightNonce = highlight?.nonce ?? null;
   const [seenHighlight, setSeenHighlight] = React.useState(highlightNonce);
   if (seenHighlight !== highlightNonce) {
     setSeenHighlight(highlightNonce);
-    if (highlightNonce !== null && isMobile) setMobileOpen(true);
+    if (highlightNonce !== null && asSheet) setMobileOpen(true);
   }
   const panelRef = React.useRef<HTMLDivElement>(null);
   const dragFrom = React.useRef<{ x: number; width: number; unit: number } | null>(null);
@@ -763,8 +834,14 @@ export function CompanionRail({
     }
   }
 
-  const toggle = (next: RailSection) =>
+  const toggle = (next: RailSection) => {
+    // On a tablet the strip stays, but its button raises the sheet.
+    if (asSheet) {
+      setMobileOpen((open) => !open);
+      return;
+    }
     onSectionChange(section === next ? null : next);
+  };
   const close = () => onSectionChange(null);
 
   return (
@@ -772,16 +849,18 @@ export function CompanionRail({
     <aside
       aria-label={pick(advHome.railTitle, locale)}
       style={{ top: topOffset, height: `calc(100svh - ${topOffset})` }}
-      className="sticky hidden shrink-0 self-start max-xl:z-30 border-l border-hairline bg-surface-sunken md:flex dark:bg-background"
+      // The strip, and the panel pushing the board aside, belong to wide mouse-driven
+      // screens only; a phone or tablet gets the floating button and the sheet.
+      className={cn("sticky hidden shrink-0 self-start border-l border-hairline bg-surface-sunken dark:bg-background", !asSheet && "md:flex")}
     >
-      {section && !isMobile ? (
+      {section && !asSheet ? (
         <div
           // Keyed by section so opening the strip — or switching panels — plays a
           // short slide-and-fade rather than snapping in, the same easing the case
           // peek uses. Motion is suppressed for reduced-motion readers.
           key={section}
           ref={panelRef}
-          className="relative flex h-full max-xl:absolute max-xl:right-14 max-xl:top-0 max-xl:border-l max-xl:border-hairline max-xl:bg-surface-sunken max-xl:shadow-overlay dark:max-xl:bg-background duration-200 ease-out animate-in fade-in-0 slide-in-from-right-4 motion-reduce:animate-none"
+          className="relative flex h-full duration-200 ease-out animate-in fade-in-0 slide-in-from-right-4 motion-reduce:animate-none"
           style={{ width: `calc(var(--spacing) * ${width})` }}
         >
           {/* The resize handle: an invisible grab strip on the panel's edge with
@@ -848,7 +927,7 @@ export function CompanionRail({
         aria-label={fillCopy(advHome.railOpen, locale, { n: String(tasksCount) })}
         onClick={() => setMobileOpen(true)}
         style={{ bottom: "calc(env(safe-area-inset-bottom) + var(--spacing) * 4)" }}
-        className="fixed right-4 z-40 flex size-12 items-center justify-center rounded-full border border-hairline bg-card text-muted-foreground shadow-modal transition-colors hover:bg-accent md:hidden"
+        className={cn("fixed right-4 z-40 flex size-12 items-center justify-center rounded-full border border-hairline bg-card text-muted-foreground shadow-modal transition-colors hover:bg-accent", !asSheet && "md:hidden", mobileOpen && "hidden")}
       >
         <ListChecks aria-hidden="true" className="size-5" />
         {tasksCount ? (
@@ -859,12 +938,13 @@ export function CompanionRail({
       </button>
 
       <Drawer
-        open={isMobile && mobileOpen}
+        open={asSheet && mobileOpen}
         onOpenChange={setMobileOpen}
       >
         <DrawerContent style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           <DrawerTitle className="sr-only">{pick(advHome.railTitle, locale)}</DrawerTitle>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <SheetModeContext.Provider value={true}>
             <TasksPanel
               world={world}
               locale={locale}
@@ -875,6 +955,7 @@ export function CompanionRail({
               onViewAll={onViewAllTasks}
               highlight={highlight}
             />
+            </SheetModeContext.Provider>
           </div>
         </DrawerContent>
       </Drawer>

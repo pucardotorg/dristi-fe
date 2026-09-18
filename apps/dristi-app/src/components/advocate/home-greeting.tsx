@@ -94,23 +94,27 @@ export function HomeGreeting({
   }).format(selected?.at ?? new Date(`${selectedDay}T12:00:00`));
   const weekdayFmt = new Intl.DateTimeFormat(intl, { weekday: "short" });
 
+  // The greeting never gives up width to the strip: it keeps its natural size, and
+  // if the two cannot share a line (the Today button appearing on a narrower board)
+  // the strip drops below it whole, as on a phone, rather than squeezing the
+  // greeting into three lines.
   return (
-    <div className="flex flex-col items-start justify-between gap-6 md:gap-4 @xl:flex-row @xl:items-center @3xl:gap-6">
-      <div className="flex min-w-0 flex-col gap-1">
+    <div className="flex flex-col items-start justify-between gap-6 lg:gap-4 @xl:flex-row @xl:flex-wrap @xl:items-center @4xl:gap-6">
+      <div className="flex max-w-full min-w-0 flex-col gap-1 @xl:shrink-0">
         {/* Steps down when the board gives up width to the peek or the rail —
             a 32px greeting on a 400px board wraps to three lines. */}
-        <h1 className="text-title font-semibold tracking-tight text-balance md:text-title @xl:text-title-s @3xl:text-title">
+        <h1 className="text-title font-semibold tracking-tight text-balance lg:text-title @xl:text-title-s @4xl:text-title">
           {fillCopy(greetingCopy(nowDate.getHours()), locale, { name: firstName })}
         </h1>
         {/* Just the date. The due count moved to the timeline's summary strip;
             the week strip's per-day dot still carries its own text equivalent
             through the tooltip and the sr-only line below. */}
-        <p className="text-body text-muted-foreground md:text-body-compact @3xl:text-body">
+        <p className="text-body text-muted-foreground lg:text-body-compact @4xl:text-body">
           {dateLine}
         </p>
       </div>
 
-      <div className="-mx-4 grid self-stretch grid-cols-[auto_auto_1fr_auto] items-center gap-x-0 gap-y-1 min-[360px]:grid-cols-9 md:mx-0 md:flex md:w-auto md:max-w-full md:self-auto md:gap-1.5">
+      <div className="-mx-4 grid self-stretch grid-cols-[auto_auto_1fr_auto] items-center gap-x-0 gap-y-1 min-[360px]:grid-cols-9 lg:mx-0 lg:flex lg:w-auto lg:max-w-full lg:self-auto lg:gap-1 @4xl:lg:gap-1.5">
         {/* The jump-to-date control sits with the week strip it drives, a step
             larger than the paging chevrons to match the header's scale. */}
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -120,9 +124,9 @@ export function HomeGreeting({
               size="icon"
               aria-label={pick(advHome.pickDate, locale)}
               // Drawn at 32px on a phone; the ::after keeps the 40px touch target.
-              className="relative col-start-4 row-start-2 mr-4 size-8 justify-self-end after:absolute after:-inset-1 md:size-10 md:after:hidden border border-border text-muted-foreground min-[360px]:col-start-9 md:mr-0 md:shrink-0 md:border-0"
+              className="relative col-start-4 row-start-2 mr-4 size-8 justify-self-end after:absolute after:-inset-1 lg:size-8 lg:after:hidden @4xl:lg:size-10 border border-border text-muted-foreground min-[360px]:col-start-9 lg:mr-0 lg:shrink-0 lg:border-0"
             >
-              <CalendarDays aria-hidden="true" className="size-4.5 md:size-6" />
+              <CalendarDays aria-hidden="true" className="size-4.5 lg:size-5 @4xl:lg:size-6" />
             </Button>
           </PopoverTrigger>
           <PopoverContent align="center" collisionPadding={16} className="w-auto p-0">
@@ -138,10 +142,16 @@ export function HomeGreeting({
           </PopoverContent>
         </Popover>
 
-        <div className="col-start-3 row-start-2 flex min-w-0 items-center gap-2 px-4 min-[360px]:col-span-8 min-[360px]:col-start-1 md:hidden">
+        {/* The rule and Today run the full width and stop a fixed 8px short of the
+            calendar button, so the pair sits together whatever the column width (a
+            tablet's ninth column is far wider than a phone's). The band passes
+            clicks through to the calendar beneath its right padding. */}
+        <div className="pointer-events-none col-start-3 row-start-2 flex min-w-0 items-center gap-2 px-4 min-[360px]:col-span-9 min-[360px]:col-start-1 min-[360px]:pr-12 lg:hidden">
           <span aria-hidden="true" className="h-px min-w-0 flex-1 bg-hairline" />
+          {/* Drawn to the calendar button's height and stroke so the row keeps its
+              height when this appears; the ::after keeps the 40px touch target. */}
           {awayFromToday ? (
-            <Button variant="outline" size="sm" className="min-h-10 shrink-0" onClick={() => onPickDate(nowDate)}>
+            <Button variant="outline" size="sm" className="pointer-events-auto relative h-8 shrink-0 border-border after:absolute after:-inset-1 min-[360px]:mr-2" onClick={() => onPickDate(nowDate)}>
               {pick(advHome.today, locale)}
             </Button>
           ) : null}
@@ -152,7 +162,7 @@ export function HomeGreeting({
             variant="outline"
             size="xs"
             onClick={() => onPickDate(nowDate)}
-            className="hidden md:mr-0.5 md:inline-flex"
+            className="hidden lg:mr-0.5 lg:inline-flex"
           >
             {pick(advHome.today, locale)}
           </Button>
@@ -163,15 +173,17 @@ export function HomeGreeting({
           size="icon-sm"
           aria-label={pick(advHome.prevWeek, locale)}
           onClick={(event) => shiftWeek(-1, event.detail > 0)}
-          className="col-start-1 row-start-2 size-10 text-muted-foreground min-[360px]:row-start-1 md:size-9"
+          // Centred in its column, as the next-week arrow is, so both sit the same
+          // distance from the day beside them.
+          className="col-start-1 row-start-2 size-10 text-muted-foreground min-[360px]:row-start-1 min-[360px]:justify-self-center lg:size-8 @4xl:lg:size-9"
         >
           <ChevronLeft aria-hidden="true" className="size-5" />
         </Button>
-        <ul ref={stripRef} className="col-span-4 col-start-1 row-start-1 flex min-w-0 gap-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[360px]:col-span-7 min-[360px]:col-start-2 md:overflow-visible md:w-auto md:items-center md:gap-0.5">
+        <ul ref={stripRef} className="col-span-4 col-start-1 row-start-1 flex min-w-0 gap-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[360px]:col-span-7 min-[360px]:col-start-2 lg:overflow-visible lg:w-auto lg:items-center lg:gap-0.5">
           {week.map((cell) => {
             const isSelected = cell.key === selectedDay;
             return (
-              <li key={cell.key} className="min-w-0 flex-1 md:grow-0 md:shrink md:basis-auto">
+              <li key={cell.key} className="min-w-0 flex-1 lg:grow-0 lg:shrink lg:basis-auto">
                 {/* The dots mean by colour. The tooltip hands a sighted reader
                     the same sentence the `sr-only` line has always carried. */}
                 <Tooltip>
@@ -181,7 +193,7 @@ export function HomeGreeting({
                       aria-pressed={isSelected}
                       onClick={() => onSelectDay(cell.key)}
                       className={cn(
-                        "flex min-h-12 w-full min-w-10 flex-col items-center gap-0 rounded-lg py-1 md:min-h-14 md:gap-1 md:py-2 transition-colors active:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:w-8 md:min-w-0 @3xl:w-11",
+                        "flex min-h-12 w-full min-w-10 flex-col items-center gap-0 rounded-lg py-1 lg:min-h-14 lg:gap-1 lg:py-2 transition-colors active:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-8 lg:min-w-0 @4xl:w-11",
                         // Brand tint means "today", not "selected" — a chosen day
                         // elsewhere in the week gets a neutral cue instead.
                         cell.today
@@ -196,7 +208,7 @@ export function HomeGreeting({
                       </span>
                       <span
                         className={cn(
-                          "text-body-compact tabular-nums md:text-body",
+                          "text-body-compact tabular-nums lg:text-body",
                           (cell.today || isSelected) && "font-semibold"
                         )}
                       >
@@ -231,7 +243,7 @@ export function HomeGreeting({
           size="icon-sm"
           aria-label={pick(advHome.nextWeek, locale)}
           onClick={(event) => shiftWeek(1, event.detail > 0)}
-          className="col-start-2 row-start-2 size-10 text-muted-foreground min-[360px]:col-start-9 min-[360px]:row-start-1 md:size-9"
+          className="col-start-2 row-start-2 size-10 text-muted-foreground min-[360px]:col-start-9 min-[360px]:row-start-1 min-[360px]:justify-self-center lg:size-8 @4xl:lg:size-9"
         >
           <ChevronRight aria-hidden="true" className="size-5" />
         </Button>

@@ -394,7 +394,7 @@ function HomeBody({
           narrowing the viewport, so what the timeline puts on one line has to
           answer to its own width. */}
       <main className="@container flex min-w-0 flex-1 flex-col">
-        <div className="px-4 pt-6 pb-0 md:px-8 md:pb-6">
+        <div className="px-4 pt-6 pb-0 lg:px-8 lg:pb-6">
           <HomeGreeting
             locale={locale}
             firstName={profileFirstName}
@@ -409,12 +409,12 @@ function HomeBody({
 
         {/* A hairline closes the header off from the board's controls and stats,
             inset to the content margins rather than running edge to edge. */}
-        <div className="hidden px-4 md:block md:px-8" aria-hidden="true">
+        <div className="hidden px-4 lg:block lg:px-8" aria-hidden="true">
           <div className="border-b border-hairline" />
         </div>
 
         {hasDay ? (
-          <div className="px-4 pt-0 md:px-8 md:pt-4">
+          <div className="px-4 pt-0 lg:px-8 lg:pt-4">
             <HearingTimeline
               daySlots={daySlots}
               showTimes={ADVOCATE_HOME_CONFIG.showHearingTimes}
@@ -434,7 +434,7 @@ function HomeBody({
             />
           </div>
         ) : (
-          <div className="px-4 pt-4 pb-8 md:px-8">
+          <div className="px-4 pt-4 pb-8 lg:px-8">
             <Empty className="bg-surface-sunken">
               <EmptyHeader>
                 <EmptyMedia variant="icon">

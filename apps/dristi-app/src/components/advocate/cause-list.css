@@ -121,7 +121,8 @@
   }
 }
 
-/* Touch tablets retain the table, with the live status and Join both visible. */
+/* Touch tablets retain the table, with the live status and Join both visible,
+ * side by side. */
 @media (hover: none), (pointer: coarse) {
   .cause-touch-control {
     min-height: calc(var(--spacing) * 10);
@@ -134,14 +135,13 @@
   }
   .cause-row .cause-join {
     position: static;
-    margin-top: calc(var(--spacing) * 2);
     opacity: 1;
     transform: none;
     pointer-events: auto;
   }
-  .cause-join button {
-    height: auto;
-    white-space: normal;
+  /* Icon only, so the tag and the Join share one line in the status column. */
+  .cause-join-label {
+    display: none;
   }
 }
 

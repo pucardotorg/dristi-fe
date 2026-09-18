@@ -97,7 +97,7 @@ export function HomeRefreshButton({
         size="sm"
         onClick={trigger}
         aria-label={pick(advHome.refreshHearings, locale)}
-        className="size-10 border-border px-2.5 md:h-9 md:w-auto"
+        className="size-10 border-border px-2.5 lg:h-9 lg:w-auto"
       >
         <RefreshIcon phase={phase} />
       </Button>

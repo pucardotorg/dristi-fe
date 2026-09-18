@@ -77,6 +77,9 @@ import { RefreshIcon, useRefreshPhase } from "@/components/advocate/refresh-butt
  *  to come "Listed" — one DS status tone each. */
 /** Pins a cause-list column header to the top of the scroll area, above the group
  *  dividers (which pin one header-height below it). Opaque via TABLE_HEAD's fill. */
+/** Below lg the table cannot fit without sideways scrolling. */
+const CARDS_QUERY = "(max-width: 1023px)";
+
 const STICKY_HEAD = "sticky top-0 z-20";
 
 function StatusChip({
@@ -258,6 +261,18 @@ function CauseListBody({
 }) {
   const intl = locale === "ml" ? "ml-IN" : "en-IN";
   const isMobile = useIsMobile();
+  // The docket reads as cards wherever the table would have to scroll sideways:
+  // a phone, and a tablet held upright. The header keeps its desktop arrangement
+  // on the tablet, which has the width for it.
+  const asCards = React.useSyncExternalStore(
+    (callback) => {
+      const media = window.matchMedia(CARDS_QUERY);
+      media.addEventListener("change", callback);
+      return () => media.removeEventListener("change", callback);
+    },
+    () => window.matchMedia(CARDS_QUERY).matches,
+    () => false
+  );
   const [date, setDate] = React.useState(day);
   const [query, setQuery] = React.useState("");
   const [selectedCourts, setSelectedCourts] = React.useState<string[]>([]);
@@ -340,7 +355,7 @@ function CauseListBody({
       window.clearTimeout(safetyTimer);
       window.clearTimeout(hideTimer);
     };
-  }, [highlight, isMobile]);
+  }, [highlight, isMobile, asCards]);
 
   // Every court on the day's docket, for the filter — the whole published list,
   // not only the viewer's courts, so a court with only other advocates' matters is
@@ -518,7 +533,7 @@ function CauseListBody({
     />
   );
   const searchField = (
-    <div className="relative min-w-0 flex-1 md:min-w-56 md:max-w-96">
+    <div className={cn("relative min-w-0 flex-1 md:min-w-56", !asCards && "md:max-w-96")}>
       <label htmlFor="cause-list-search" className="sr-only">{copy("Search", "തിരയുക")}</label>
       <Search
         aria-hidden="true"
@@ -555,6 +570,22 @@ function CauseListBody({
     </DropdownMenu>
   );
 
+  // A refresh button to the left of the stamp, running the three-beat gesture; the
+  // stamp updates when it lands. Tablet and desktop only.
+  const refreshStamp = (
+    <button
+      type="button"
+      onClick={trigger}
+      className="cause-touch-control ml-auto hidden shrink-0 items-center gap-1.5 rounded-md px-1.5 md:flex py-0.5 text-caption text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      <RefreshIcon phase={phase} className="size-3.5" />
+      {/* Underlined so the stamp reads as the button it is. */}
+      <span className="underline underline-offset-2">
+        {fillCopy(advHome.causeListRefreshed, locale, { time: refreshedLabel })}
+      </span>
+    </button>
+  );
+
   return (
     <>
       {/* Every control in the header takes the lighter tan stroke the
@@ -574,15 +605,17 @@ function CauseListBody({
               · {dateLabel}
             </DialogDescription>
           </div>
-          {/* On desktop the date and download live in the title row; on a phone
-              they move down beside the search (the controls row below). */}
-          {!isMobile ? dateDownload : null}
+          {/* On desktop the date and download live in the title row; on a phone or
+              an upright tablet they move down beside the search (the rows below). */}
+          {!asCards ? dateDownload : null}
         </div>
 
-        {isMobile ? (
-          // Phone: date and download share the search's line (search yields width),
-          // and the filter and sort take the next — two tidy rows, not three bands.
-          <div className="flex flex-col gap-2">
+        {asCards ? (
+          // Phone and upright tablet: date and download share the search's line
+          // (search yields width), and the filter and sort take the next: two tidy
+          // rows, not three bands. The tablet has room to keep the scope line above
+          // and the refresh stamp at the end of the second row.
+          <div className="flex flex-col gap-2 md:gap-3">
             <div className="flex items-center gap-2">
               {searchField}
               {dateDownload}
@@ -590,6 +623,7 @@ function CauseListBody({
             <div className="flex items-center gap-2">
               {courtFilter}
               {sortControl}
+              {refreshStamp}
             </div>
           </div>
         ) : (
@@ -599,19 +633,7 @@ function CauseListBody({
               {searchField}
               {sortControl}
             </div>
-            {/* A refresh button to the left of the stamp, running the three-beat
-                gesture; the stamp updates when it lands. */}
-            <button
-              type="button"
-              onClick={trigger}
-              className="cause-touch-control hidden items-center gap-1.5 rounded-md px-1.5 md:flex py-0.5 text-caption text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-            >
-              <RefreshIcon phase={phase} className="size-3.5" />
-              {/* Underlined so the stamp reads as the button it is. */}
-              <span className="underline underline-offset-2">
-                {fillCopy(advHome.causeListRefreshed, locale, { time: refreshedLabel })}
-              </span>
-            </button>
+            {refreshStamp}
           </div>
         )}
       </div>
@@ -632,7 +654,7 @@ function CauseListBody({
               <Button variant="outline" onClick={reset}>{copy("Clear search and filters", "തിരയലും ഫിൽട്ടറുകളും നീക്കുക")}</Button>
             )}
           </div>
-        ) : isMobile ? (
+        ) : asCards ? (
           // A phone reads the docket as a stack of cards, not a wide table it has
           // to scroll sideways; the group dividers and the per-matter join stay.
           <div className="flex flex-col gap-6">
@@ -643,10 +665,10 @@ function CauseListBody({
                     place — a running divider. The opaque band bleeds to the scroll
                     padding so nothing shows beside it, with a little room above the
                     pill so it clears the header. */}
-                <div className="sticky top-0 z-10 -mx-4 bg-background px-4 pt-3 pb-1">
+                <div className="sticky top-0 z-10 -mx-4 bg-background px-4 pt-3 pb-1 md:-mx-6 md:px-6">
                   {renderDivider(group)}
                 </div>
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 md:gap-3">
                   {group.rows.map((row) => (
                     <CauseCard key={row.id} row={row} locale={locale} onJoin={onJoin} />
                   ))}
@@ -662,7 +684,7 @@ function CauseListBody({
                 through them. */}
             <TableHeader>
               <TableRow className={TABLE_HEAD_ROW}>
-                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-16 text-right")}>{pick(advHome.colItem, locale)}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-16")}>{pick(advHome.colItem, locale)}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-1/5")}>{pick(advHome.colCase, locale)}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-32")}>{pick(advHome.colCourt, locale)}</TableHead>
                 <TableHead className={cn(TABLE_HEAD, STICKY_HEAD, "w-24 whitespace-nowrap")}>{copy("Court no.", "കോടതി നമ്പർ")}</TableHead>
@@ -725,7 +747,7 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
     // goes on the cells via `[&>td]:` (overriding the shared `bg-card`), never the <tr>.
     // table-plate-allow
     <TableRow data-cause-row={row.id} className={cn(tableRowClass({ hover: true }), "cause-row", row.mine && "[&>td]:bg-surface-sunken hover:[&>td]:bg-accent")}>
-      <td className={cn(cell, "text-right tabular-nums text-muted-foreground")}>{row.item}</td>
+      <td className={cn(cell, "tabular-nums text-muted-foreground")}>{row.item}</td>
       <td className={cn(cell, "font-medium text-foreground")}>
         <span className="flex min-w-0 flex-col gap-1">
           <span className="truncate" title={row.parties}>{row.parties}</span>
@@ -747,23 +769,26 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
           slides in from the right — absolute, so it reserves no column width at rest
           (the "Court no." header stays on one line). */}
       <td className={cn(cell, "relative")}>
-        <div className="flex items-center">
+        {/* With a mouse the Join is an overlay that replaces the tag on hover. On a
+            touch screen there is no hover, so it sits in the same line as the tag as
+            an icon button (cause-list.css), never stacked under it. */}
+        <div className="flex items-center gap-2">
           <span className={cn("inline-flex", row.status === "now" && "cause-status")}>
             <StatusChip status={row.status} passedOver={row.passedOver} locale={locale} />
           </span>
+          {row.status === "now" ? (
+            <span className="cause-join absolute inset-y-0 right-4 flex items-center">
+              <Button
+                size="sm"
+                className="cause-touch-control"
+                onClick={() => onJoin(row)}
+                aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}
+              >
+                <Video aria-hidden="true" /><span className="cause-join-label">{joinLabel}</span>
+              </Button>
+            </span>
+          ) : null}
         </div>
-        {row.status === "now" ? (
-          <span className="cause-join absolute inset-y-0 right-4 flex items-center">
-            <Button
-              size="sm"
-              className="cause-touch-control"
-              onClick={() => onJoin(row)}
-              aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}
-            >
-              <Video aria-hidden="true" />{joinLabel}
-            </Button>
-          </span>
-        ) : null}
       </td>
     </TableRow>
   );
@@ -810,7 +835,12 @@ function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale;
   return (
     <Collapsible open={open} onOpenChange={setOpen} data-pointer-motion={pointerMotion}>
       <article data-cause-row={row.id} className={cn(
-        "relative flex flex-col gap-3 rounded-xl p-4 shadow-raised",
+        // Phone: a stacked card. Upright tablet: two rows. The first holds the item
+        // box, the name and number, the court, and the status at the far right; the
+        // second starts under the item box and carries hearing type and advocates
+        // on one line each, so nothing wraps and the name has room to run. The court
+        // and status columns are fixed widths so they line up from card to card.
+        "relative flex flex-col gap-3 rounded-xl p-4 shadow-raised md:grid md:grid-cols-[auto_minmax(0,1fr)_13rem_6rem] md:items-start md:gap-x-4 md:gap-y-3",
         // Teal belongs to a live matter only; everything else is beige. Hers takes
         // the heavier stroke of whichever colour applies, the rest a hairline. A
         // live matter of hers breathes in time with the dot.
@@ -818,27 +848,33 @@ function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale;
         ongoing ? (row.mine ? "border-brand-accent" : "border-brand-accent/40") : (row.mine ? "border-border" : "border-hairline"),
         row.mine && ongoing && "cause-mine-live"
       )}>
-        <div className="flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3 md:contents">
           <ItemChip item={row.item} size="lg" surface={row.mine ? "sunken" : "card"} />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <h3 className="text-body-compact font-semibold wrap-anywhere text-primary">{row.parties}</h3>
+            <h3 className={cn("text-body-compact font-semibold wrap-anywhere", ongoing ? "text-primary" : "text-foreground")}>{row.parties}</h3>
             <p className="text-body-compact tabular-nums wrap-anywhere text-muted-foreground">{row.caseNumber}</p>
           </div>
           {/* A live matter says so with the pulsing dot alone, no tag to spend a row on. */}
-          {ongoing ? <span className="flex size-4 shrink-0 items-center justify-center">
+          {ongoing ? <span className="flex size-4 shrink-0 items-center justify-center md:col-start-4 md:row-start-1 md:justify-self-end md:w-9 md:self-start">
             <span aria-hidden="true" className="now-dot size-2 rounded-full bg-primary" />
             <span className="sr-only">{pick(advHome.statusOngoing, locale)}</span>
-          </span> : <span className="shrink-0"><StatusChip status={row.status} passedOver={row.passedOver} locale={locale} /></span>}
+          </span> : <span className="shrink-0 md:col-start-4 md:row-start-1 md:justify-self-end md:self-start"><StatusChip status={row.status} passedOver={row.passedOver} locale={locale} /></span>}
         </div>
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-body-compact">
-          <dt className="text-muted-foreground">{pick(advHome.colCourt, locale)}</dt>
-          <dd className="wrap-anywhere">{row.courtLabel} · {row.courtNumber ?? "N/A"}</dd>
-          <dt className="text-muted-foreground">{pick(advHome.colHearingType, locale)}</dt>
-          <dd className="wrap-anywhere">{row.hearingType}</dd>
-          <dt className="text-muted-foreground">{pick(advHome.colAdvocates, locale)}</dt>
-          <dd className={cn("wrap-anywhere", ongoing && !row.mine && "pr-6")}>{row.advocates}</dd>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-body-compact md:contents">
+          <div className="contents md:col-start-3 md:row-start-1 md:flex md:min-w-0 md:flex-col md:gap-0.5">
+            <dt className="text-muted-foreground md:text-caption">{pick(advHome.colCourt, locale)}</dt>
+            <dd className="wrap-anywhere">{row.courtLabel} ·{"\u00a0"}{row.courtNumber ?? "N/A"}</dd>
+          </div>
+          <div className="contents md:col-span-2 md:col-start-1 md:row-start-2 md:flex md:min-w-0 md:items-baseline md:gap-2">
+            <dt className="text-muted-foreground md:shrink-0 md:text-caption">{pick(advHome.colHearingType, locale)}</dt>
+            <dd className="wrap-anywhere md:truncate" title={row.hearingType}>{row.hearingType}</dd>
+          </div>
+          <div className={cn("contents md:col-span-2 md:col-start-3 md:row-start-2 md:flex md:min-w-0 md:items-baseline md:gap-2", ongoing && !row.mine && "md:pr-12")}>
+            <dt className="text-muted-foreground md:shrink-0 md:text-caption">{pick(advHome.colAdvocates, locale)}</dt>
+            <dd className={cn("wrap-anywhere md:truncate", ongoing && !row.mine && "pr-6 md:pr-0")} title={row.advocates}>{row.advocates}</dd>
+          </div>
         </dl>
-        {row.mine || ongoing ? <div className={cn("flex items-center gap-2", !row.mine && "contents")}>
+        {row.mine || ongoing ? <div className={cn("flex items-center gap-2 md:col-span-full", !row.mine && "contents md:flex")}>
           {row.mine ? <span className="inline-flex w-fit items-center gap-1.5 text-caption text-muted-foreground">
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-input" />{pick(advHome.causeListMine, locale)}
           </span> : null}

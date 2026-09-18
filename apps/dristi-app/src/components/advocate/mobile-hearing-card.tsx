@@ -42,12 +42,12 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
         <span className="flex w-full min-w-0 items-center gap-3">
           <ItemChip item={hearing.item} size="lg" />
           <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="truncate text-body-compact font-semibold text-primary">{hearing.kase.parties}</span>
+            <span className={cn("truncate text-body-compact font-semibold", ongoing ? "text-primary" : "text-foreground")}>{hearing.kase.parties}</span>
             <span className="text-body-compact wrap-anywhere tabular-nums text-muted-foreground">{hearing.kase.cnr || hearing.kase.stNumber}</span>
           </span>
           {count > 0 ? (
-            <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center self-start rounded-full border border-warning bg-warning-muted text-warning-muted-foreground">
-              <TriangleAlert className="size-3" />
+            <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center self-start rounded-full border border-warning bg-warning-muted text-warning-muted-foreground md:size-6">
+              <TriangleAlert className="size-3 md:size-3.5" />
             </span>
           ) : null}
         </span>
@@ -73,7 +73,7 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
           ) : null}
           <Button variant="outline" className={cn(actionClass, "flex-1")} onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); onOpenCase(hearing.kase.id); }}>{pick(advHome.viewCase, locale)}</Button>
           {count > 0 && onOpenTasks ? (
-            <Button variant="outline" className={cn(actionClass, "shrink-0")} onClick={() => onOpenTasks(hearing.kase.id, hearing.blockers.map(task => task.id))}>
+            <Button variant="outline" className={cn(actionClass, "shrink-0 md:flex-1")} onClick={() => onOpenTasks(hearing.kase.id, hearing.blockers.map(task => task.id))}>
               <TriangleAlert aria-hidden="true" />{pending}
             </Button>
           ) : null}
