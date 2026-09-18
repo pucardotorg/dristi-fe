@@ -9,8 +9,8 @@ import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignBailBondDialog } from "@/components/employee/sign-bail-bond-dialog";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignBailBondsTable } from "@/components/employee/sign-bail-bonds-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -39,6 +39,7 @@ import {
   type SignBailBond,
   type SignBailBondFilters,
 } from "@/lib/employee/sign-bail-bonds";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -195,7 +196,7 @@ export function SignBailBondsScreen() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 pb-0 md:p-8 md:pb-0">
         <header className="flex flex-col gap-2">
-          <h1 className="text-title text-balance font-semibold sm:text-title-l">
+          <h1 className="text-title text-balance font-semibold">
             Sign bail bonds
           </h1>
           {/* The count is the whole point of the queue, so the supporting line carries it
@@ -473,9 +474,9 @@ function SignBailBondsItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((bond) => (
-        <li
+        <QueueItemRow
           key={bond.id}
-          {...rowActivation("flex gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+          className="flex gap-3"
         >
           {/* The DS box expands its own hit area to 40×40; the name it carries is the bond
               and its case, not the column, because a row read aloud has no column
@@ -502,11 +503,13 @@ function SignBailBondsItemList({
             <p className="min-w-0 text-body-compact">
               Litigant: {bond.litigant}
             </p>
-            <p className="text-caption text-muted-foreground tabular-nums">
-              {bond.caseNumber}
-            </p>
+            <Identifier
+              value={bond.caseNumber}
+              label="case number"
+              className="self-start text-caption text-muted-foreground"
+            />
           </div>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

@@ -1,6 +1,5 @@
 "use client";
 
-import { HISTORY, HISTORY_SUMMARY } from "@/lib/employee/scrutiny/history";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -10,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Timeline, TimelineItem } from "@/components/ui/timeline";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 
 /**
  * Case history — the advocate ↔ registry round trips.
@@ -31,6 +31,7 @@ export function HistorySheet({
   onOpenChange: (open: boolean) => void;
   onGoToItem: (fieldId: string) => void;
 }) {
+  const { history, historySummary } = useScrutinyCase();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {/*
@@ -40,7 +41,7 @@ export function HistorySheet({
       <SheetContent side="right" className="data-[side=right]:sm:max-w-100">
         <SheetHeader>
           <SheetTitle>Case history</SheetTitle>
-          <SheetDescription>{HISTORY_SUMMARY}</SheetDescription>
+          <SheetDescription>{historySummary}</SheetDescription>
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
@@ -50,7 +51,7 @@ export function HistorySheet({
             renders underneath them.
           */}
           <Timeline>
-            {HISTORY.map((event, i) => (
+            {history.map((event, i) => (
               <TimelineItem
                 key={`${event.title}-${i}`}
                 status={event.status}

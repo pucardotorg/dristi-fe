@@ -31,6 +31,7 @@ import {
   type ProcessStage,
 } from "@/lib/employee/sign-process";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** Seven columns on every stage — the checkbox and the reference's six. */
 const COLUMNS = 7;
@@ -171,9 +172,9 @@ export function SignProcessTable({
                 </button>
               </TableCell>
               <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {process.caseNumber}
+                <Identifier value={process.caseNumber} label="case number" />
               </TableCell>
               {/* Which instrument this is — the fact that tells three rows of one case
                   apart. Plain text: the opener already carries the row's weight. */}

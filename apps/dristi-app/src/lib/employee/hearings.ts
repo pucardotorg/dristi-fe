@@ -16,6 +16,13 @@
  * sides with several, and enough rows to page at 10 and 20. No row is read from a case,
  * a court or a queue.
  *
+ * **The board opens before the court has sat**, every listing still to be called
+ * (owner, 2026-09-16). The day starts where the bench starts: nothing heard, nothing
+ * drawn up, and every mark on this screen made by the person at it. A board that opened
+ * part-heard had the first thing it is for — Start hearing, on a matter that has not
+ * been called — already done on half the rows, and an order can only follow a sitting,
+ * so a completed listing here would arrive carrying one nobody wrote.
+ *
  * **Starting, ending, and passing over are screen actions, not a court record.** The
  * listing stands as scheduled until the bench presses Start hearing; only then does
  * the chip read ongoing, and that matter's case overview opens over the list — the
@@ -549,7 +556,7 @@ export const CAUSE_LIST: CourtHearing[] = [
     ],
     stage: "arguments",
     purpose: "arguments",
-    status: "completed",
+    status: "scheduled",
   },
   {
     id: "h-255",
@@ -702,12 +709,53 @@ export function isoDay(date: Date): string {
 }
 
 /**
+ * `YYYY-MM-DD`, moved by whole days.
+ *
+ * It sits beside `isoDay` and `parseIsoDay` because more than one court-side module
+ * walks a chain of dates: the register queue runs a §138 chain forward from a
+ * submission, the case overview runs the same chain backward from a filing date. A
+ * date helper each of them keeps privately is two implementations of one piece of
+ * arithmetic, waiting to disagree about a month boundary.
+ */
+export function shiftDay(day: string, delta: number): string {
+  const date = parseIsoDay(day);
+  date.setDate(date.getDate() + delta);
+  return isoDay(date);
+}
+
+/**
  * `YYYY-MM-DD` back to a Date at local midnight.
  *
  * Built from parts rather than `new Date(iso)`, which reads a bare date string as UTC and
  * so lands on the previous day for every court west of Greenwich. Kollam is not one of
  * them, but the bug is silent and the fix is one line.
  */
+/**
+ * **Whether this court sits on a day at all.** Monday to Friday, and nothing else.
+ *
+ * The rule was already in the product and already tested — `nextSittingDay` in
+ * `order-demo.ts` rolls a next listing forward off `[0, 6]` so an order never names a day
+ * the court is closed. It lives here now because a second screen needs it: the bulk
+ * reschedule board carries no weekend listings and its calendar refuses to offer one, and
+ * two copies of "which days are sitting days" is the kind of rule that drifts apart by a
+ * day and is then wrong in one place only. `nextSittingDay` still applies it inline; it
+ * should take this predicate the next time that file is open.
+ *
+ * **Saturday is closed, on the product's own evidence rather than on an assumption.** The
+ * owner's instruction was about Sunday (2026-09-16) and this goes one day further, which
+ * is a deviation worth naming: `nextSittingDay` has excluded Saturday since before this
+ * screen existed, so listing matters on a Saturday here would have put the board at odds
+ * with every order the same court issues. One line in this function is the whole cost of
+ * reversing that if the owner means Saturdays to sit.
+ *
+ * **Holidays are not modelled.** Onam, a declared bandh, a day the Chief Justice closes —
+ * a prototype that invented those would be asserting a calendar nobody has given it.
+ */
+export function isSittingDay(day: string): boolean {
+  const weekday = parseIsoDay(day).getDay();
+  return weekday !== 0 && weekday !== 6;
+}
+
 export function parseIsoDay(day: string): Date {
   const [year, month, date] = day.split("-").map(Number);
   return new Date(year, month - 1, date);
@@ -716,10 +764,21 @@ export function parseIsoDay(day: string): Date {
 /**
  * A day, written out.
  *
- * Two registers, because a date does two jobs on these screens. Prose names the day the
- * court is sitting on and can afford the weekday; a column of dates read against each
- * other cannot, and gets the short form. Both pin `en-IN` rather than reading the
- * runtime's locale, so the server and the browser render the same string.
+ * **Three registers, because a date does three jobs here.** Screen prose names the day
+ * the court is sitting on and can afford the weekday; a column of dates read against
+ * each other cannot, and gets the short form; and a date inside the operative words of
+ * an order takes neither — the court's own orders write "12 August 2025" and the
+ * weekday is not part of the direction (`public/case-file/09-orders.pdf`: *"Accused to
+ * appear on 12 August 2025"*, *"Call on 15 September 2025 for Evidence of
+ * Complainant"*).
+ *
+ * The split is the court's, not a preference: `Summons_Kollam_v14.pdf` makes it on one
+ * page, writing "18 September 2026" in the sentence that requires the appearance and
+ * "Friday, 10:30 AM" in the facts block above it. So a named fact may carry the weekday
+ * and a sentence of order text may not.
+ *
+ * All three pin `en-IN` rather than reading the runtime's locale, so the server and the
+ * browser render the same string.
  */
 const LONG_DAY = new Intl.DateTimeFormat("en-IN", {
   weekday: "long",
@@ -734,6 +793,12 @@ const LISTING_DAY = new Intl.DateTimeFormat("en-IN", {
   year: "numeric",
 });
 
+const ORDER_DAY = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
 /** "Monday, 31 August 2026" — a day named in a sentence. */
 export function formatCourtDay(day: string): string {
   return LONG_DAY.format(parseIsoDay(day));
@@ -742,6 +807,11 @@ export function formatCourtDay(day: string): string {
 /** "31 Aug 2026" — a day in a column, beside other days. */
 export function formatListingDate(day: string): string {
   return LISTING_DAY.format(parseIsoDay(day));
+}
+
+/** "31 August 2026" — a day inside the operative words of an order. */
+export function formatOrderDate(day: string): string {
+  return ORDER_DAY.format(parseIsoDay(day));
 }
 
 /**

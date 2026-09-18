@@ -55,8 +55,13 @@ export type Case = {
  */
 export type TaskKind = "sign" | "pay" | "file" | "returned" | "review" | "hearing" | "draft";
 
-/** The six overview cards — the same set as the kinds; see `cardKindOf`. */
-export type CardKind = TaskKind;
+/**
+ * The six kind pills. Every pill names an act, and `draft` is a state rather than an
+ * act, so it is not one of them — `cardKindOf` files a started filing under the act it
+ * will become. Excluding it here is what stops a seventh label, filter value or count
+ * from being written for a pill that cannot exist (2026-09-15).
+ */
+export type PillKind = Exclude<TaskKind, "draft">;
 
 /** What set the deadline; decides how the due cue is worded and how it moves. */
 export type DueKind = "statutory" | "court-set" | "before-hearing" | "none";

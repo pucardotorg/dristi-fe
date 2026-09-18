@@ -23,6 +23,7 @@ import {
 import { type ApplicationDraft } from "@/lib/cases/application-draft";
 import { submissionTypeLabel } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * What Generate application produces — the court-form document, shown before
@@ -85,7 +86,9 @@ export function GeneratedApplicationDialog({
             <ReviewRow term="Application type">
               {submissionTypeLabel(draft.type)}
             </ReviewRow>
-            <ReviewRow term="Case">{record.caseNumber}</ReviewRow>
+            <ReviewRow term="Case">
+              <Identifier value={record.caseNumber} label="case number" />
+            </ReviewRow>
             <ReviewRow term="Generated on">{generatedOn}</ReviewRow>
             <ReviewRow term="Filed for">{document.filedFor}</ReviewRow>
           </DescriptionList>

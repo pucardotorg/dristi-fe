@@ -28,6 +28,7 @@ import {
   type AccessCase,
   type AccessPerson,
 } from "@/lib/access/content";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The share-access modal — the single surface behind every entry point.
@@ -191,15 +192,26 @@ export function ShareDialog({
           {single ? (
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="truncate text-body-compact font-medium">{single.title}</p>
-              <p className="text-caption text-muted-foreground">{single.caseNumber}</p>
+              <Identifier
+                value={single.caseNumber}
+                label="case number"
+                className="self-start text-caption text-muted-foreground"
+              />
             </div>
           ) : (
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="text-body-compact font-medium">
                 {fillCopy(shareCopy.scopeManyTitle, locale, { count: String(cases.length) })}
               </p>
+              {/* Split rather than joined, so each number keeps the identifier face
+                  and can be taken on its own. */}
               <p className="truncate text-caption text-muted-foreground">
-                {cases.map((c) => c.caseNumber).join(" · ")}
+                {cases.map((c, i) => (
+                  <React.Fragment key={c.id}>
+                    {i > 0 ? <span aria-hidden> · </span> : null}
+                    <Identifier value={c.caseNumber} label="case number" />
+                  </React.Fragment>
+                ))}
               </p>
             </div>
           )}

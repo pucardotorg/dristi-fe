@@ -2,18 +2,11 @@
 
 import * as React from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { StagedOverlay } from "@/components/chrome/staged-overlay";
 import { DocumentPreview } from "@/components/cases/document-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogDescription } from "@/components/ui/dialog";
 import { causeTitle } from "@/lib/employee/hearings";
 import {
   buildWitnessDepositionDocument,
@@ -23,25 +16,25 @@ import {
   type WitnessDeposition,
   type WitnessDepositionDocument,
 } from "@/lib/employee/sign-witness-deposition";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One deposition, read and then signed — the single-sheet path off the evidence queue.
  *
  * The document *is* the task, so the dialog is the document: a `height="fill"`
- * `DocumentPreview` in a tall overlay, the same layout `SignOrderDialog`,
- * `SignFormDialog` and `ReschedulingRequestDialog` already use to read a court paper
- * before acting on it. The reference draws this screen's overlay as the sheet and
- * nothing else, and it is right to: evidence is long, and the bench signing it is
- * certifying that this is what the witness said.
+ * `DocumentPreview` filling the stage of a tall `StagedOverlay`, the same layout
+ * `SignOrderDialog`, `SignFormDialog` and `ReschedulingRequestDialog` already use to
+ * read a court paper before acting on it. The reference draws this screen's overlay as
+ * the sheet and nothing else, and it is right to: evidence is long, and the bench
+ * signing it is certifying that this is what the witness said.
  *
  * One step rather than the two the forms queue needs. A form is signed by a *party*, so
  * that dialog has to ask how — e-sign, or upload the paper they signed. A deposition is
  * signed by the bench that is already logged in, so the act is one button under the
  * document it acts on, as it is for orders.
  *
- * Download is not repeated in the footer. `DocumentPreview` owns a sticky header with
- * Download and Full view in it, and the same control twice in one dialog is one too
- * many.
+ * Download is not repeated in the footer. The document's own frame carries Download and
+ * Full view in its strip, and the same control twice in one dialog is one too many.
  *
  * **Signing signs nothing.** It drops the sheet from the demo queue and closes — see
  * `lib/employee/sign-witness-deposition.ts`. Nothing is written, published, sent or
@@ -95,60 +88,77 @@ function SignWitnessDepositionBody({
   const title = depositionTitle(deposition);
 
   return (
-    <ChromeDialogContent
-      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh]"
+    <StagedOverlay
+      /* The document is the task, so the overlay takes a definite height and the page
+         takes all of it. No floor: `md:h-[85dvh]` already holds the frame still. */
+      className="sm:max-w-4xl md:h-[85dvh]"
+      /* The reference's own title: the paper, and which witness's it is. */
+      title={title}
+      /* The sheet's state — waiting for this bench's signature — in the DS's sentence
+         case rather than the reference's shouted status. `warning` is the variant the
+         sibling overlays already spend on a pending paper, so the court side reports a
+         pending state one way. */
+      titleAside={<Badge variant="warning">Pending signature</Badge>}
+      description={
+        <DialogDescription className="text-body-compact text-muted-foreground">
+          {causeTitle(deposition)} <span aria-hidden>· </span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier value={deposition.caseNumber} label="case number" copyable={false} />{" "}
+          · Recorded{" "}
+          {formatDepositionDate(deposition.depositionOn)}
+        </DialogDescription>
+      }
+      /* One stage: reading the deposition is the whole act, and the signature leaves the
+         overlay. The frame is still what it opens on — the rise, the chrome that holds
+         still, the tinted stage and the footer in its own register — because that is how
+         the queue beside it opens. */
+      sceneKey="deposition"
+      motion="forward"
+      footer={
+        <>
+          {/* What the act means, and what this build does not do — said at the moment of
+              the act rather than left for the bench to discover. */}
+          <p className="text-caption text-muted-foreground sm:mr-auto sm:text-left">
+            Signing publishes this deposition and cannot be reversed. Not part of
+            this build — nothing is signed, published or sent.
+          </p>
+          {/* `sm:self-center` because the frame owns the footer's own classes and this
+              row pairs a caption that wraps to two lines with a 40px control: without it
+              the button hangs from the top of the tallest child. */}
+          <Button
+            type="button"
+            className="sm:self-center"
+            onClick={() => onSign(deposition)}
+          >
+            Sign and publish
+          </Button>
+        </>
+      }
       onCloseAutoFocus={(event) => {
         event.preventDefault();
         onReturnFocus();
       }}
     >
-      {/* `pr-16` keeps the title clear of the close button the DS places top-right. */}
-      <DialogHeader className="shrink-0 gap-2 p-6 pr-16">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* The reference's own title: the paper, and which witness's it is. */}
-          <DialogTitle className="text-title-s font-semibold">
-            {title}
-          </DialogTitle>
-          {/* The sheet's state — waiting for this bench's signature — in the DS's
-              sentence case rather than the reference's shouted status. `warning` is the
-              variant the sibling overlays already spend on a pending paper, so the
-              court side reports a pending state one way. */}
-          <Badge variant="warning">Pending signature</Badge>
-        </div>
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          {causeTitle(deposition)} · {deposition.caseNumber} · Recorded{" "}
-          {formatDepositionDate(deposition.depositionOn)}
-        </DialogDescription>
-      </DialogHeader>
-      <Separator />
-      <div className="flex min-h-0 flex-1 flex-col p-6">
-        <DocumentPreview
-          className="min-h-96 md:min-h-0"
-          height="fill"
-          title={title}
-          source={{
-            kind: "composed",
-            content: <DepositionFacsimile document={document} />,
-          }}
-          download={{
-            onDownload: () => downloadWitnessDepositionDocument(deposition),
-            label: `Download the ${title.toLowerCase()}`,
-          }}
-        />
-      </div>
-
-      <DialogFooter className="mx-0 mb-0 shrink-0 sm:items-center">
-        {/* What the act means, and what this build does not do — said at the moment of
-            the act rather than left for the bench to discover. */}
-        <p className="text-caption text-muted-foreground sm:mr-auto sm:text-left">
-          Signing publishes this deposition and cannot be reversed. Not part of
-          this build — nothing is signed, published or sent.
-        </p>
-        <Button type="button" onClick={() => onSign(deposition)}>
-          Sign and publish
-        </Button>
-      </DialogFooter>
-    </ChromeDialogContent>
+      {/* The framed well: a white sheet with a hairline and its two actions in a strip
+          above the rule. On the tinted stage a sunken well is the stage's own tone and
+          has no edge, and the dialog's title already names the paper — so the strip
+          carries the name quietly and the page takes everything under it. */}
+      <DocumentPreview
+        variant="quiet"
+        surface="card"
+        className="min-h-96 shadow-raised md:min-h-0"
+        height="fill"
+        title={title}
+        source={{
+          kind: "composed",
+          content: <DepositionFacsimile document={document} />,
+        }}
+        download={{
+          onDownload: () => downloadWitnessDepositionDocument(deposition),
+          label: `Download the ${title.toLowerCase()}`,
+        }}
+      />
+    </StagedOverlay>
   );
 }
 

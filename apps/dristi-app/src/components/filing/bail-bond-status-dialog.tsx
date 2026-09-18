@@ -25,6 +25,7 @@ import { BondDocument, BondSignerList, type BondSigner } from "@/components/fili
 import { pick, type Locale } from "@/lib/onboarding/content";
 import type { AccessCase } from "@/lib/access/content";
 import { bondCopy, fillCopy, BOND_ID } from "@/lib/filing/content";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The advocate's view of a bond that is out for signatures: who has signed,
@@ -59,12 +60,19 @@ export function BailBondStatusDialog({
         <DialogHeader className="shrink-0 border-b border-hairline px-6 py-5 pr-14 text-left">
           <DialogTitle className="text-title-s font-semibold text-balance">
             {pick(bondCopy.bondDocTitle, locale)}{" "}
-            <span className="font-mono text-body-compact font-normal text-muted-foreground">
-              {BOND_ID}
-            </span>
+            {/* The title is the dialog's accessible name — the face, not a control. */}
+            <Identifier
+              value={BOND_ID}
+              label="bond number"
+              className="text-body-compact font-normal text-muted-foreground"
+              copyable={false}
+            />
           </DialogTitle>
           <DialogDescription className="text-pretty">
-            {accessCase.caseNumber} · {accessCase.title}
+            {/* No copy control inside the dialog's accessible description. */}
+            <Identifier value={accessCase.caseNumber} label="case number" copyable={false} />
+            <span aria-hidden> · </span>
+            {accessCase.title}
           </DialogDescription>
         </DialogHeader>
 

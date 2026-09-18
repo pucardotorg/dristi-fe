@@ -1,0 +1,1121 @@
+/**
+ * Complaints on the register waiting for the magistrate to take cognizance — the queue,
+ * and the sheet of facts behind each row.
+ *
+ * The sibling of `register-cases.ts`, one step later in a complaint's life. That module
+ * is complaints not yet on the register, and the question its screen asks is *is this
+ * file right* — the magistrate reading behind the scrutiny officer, with a send-back at
+ * the end of it. This one is complaints already registered, and the question is a
+ * different one: *should this case go ahead*. Same court, same vocabulary, same
+ * furniture; a different act, hours later (owner, 2026-09-14).
+ *
+ * Registering is **not** taking cognizance. Registering puts a complaint on the register
+ * and gives it a number; cognizance is the judicial act that follows, and it is what
+ * turns a `CMP/…` into an `ST/…` (`schedule.ts`, `other-applications.ts`). The register
+ * screen used to say otherwise in as many words; it no longer does.
+ *
+ * **There is no backend.** `COGNIZANCE_QUEUE` is demo data, and every date on a file is
+ * *derived from its row* rather than transcribed — the same bargain `case-review.ts`
+ * strikes, for the same three reasons: every row has to open a file, the §138 chain has
+ * to hold together backwards from one anchor, and thirty files sharing one cheque date
+ * is the first thing a clerk would spot. Nothing here is read from a case or a court.
+ *
+ * **One knob per fact that matters.** A row carries `filedAfterCauseDays`, and the delay
+ * the queue's column shows and the delay the file's block shows are both read off it —
+ * so the list and the screen it opens cannot disagree about whether a complaint was
+ * late. Same for the notice window and the branch: the check and the fact it is read
+ * from come from one value, never from two that have to be kept in step.
+ *
+ * **One fact on this screen has no field behind it yet.** *Date of receipt of information
+ * about return* — the day the payee learnt the cheque had bounced — is what the thirty
+ * days in §138(b) run from, and `DemandNotice` / `ChequeDetails` in `lib/filing/types.ts`
+ * do not carry it. Our own memo reader already hunts for it (`lib/filing/ocr/parse-memo.ts`
+ * looks for *intimation date*, *date of receipt*, *informed on*) and drops it on the floor
+ * for want of somewhere to put it. Until that field lands, this module derives the date
+ * with the rest of the chain and the notice check is computed from the derived value.
+ * The owner parked the filing-form change on 2026-09-14; this comment is the marker for
+ * when it is picked up.
+ *
+ * Terms are the PRD's own field names, in sentence case because the DS Laws do not keep
+ * Title Case. The three checks are the PRD's three, and their sentences are quoted from
+ * it rather than rewritten.
+ */
+
+import { CURRENT_STAFF } from "./content";
+import {
+  formatListingDate,
+  isoDay,
+  parseIsoDay,
+  type CourtCounsel,
+} from "./hearings";
+
+/* ────────────────────────────────── the row ─────────────────────────────────── */
+
+export type CognizanceCase = {
+  id: string;
+  /** `CMP/…`. Cognizance is what renumbers it; every row here is before that. */
+  caseNumber: string;
+  /** What the e-filing was called before the register gave it a number. */
+  filingNumber: string;
+  parties: { complainant: string; accused: string };
+  /** Counsel on record. A complaint may still have none. */
+  counsel: CourtCounsel[];
+  /**
+   * How long the complaint has been on the register waiting for this act, in whole
+   * days. The anchor the whole date chain is derived backwards from, and stored as a
+   * count rather than a date so the demo does not drift as the fixture sits.
+   */
+  daysSinceRegistered: number;
+  /**
+   * Days from the cause of action to the day the complaint was filed.
+   *
+   * §142(b) allows a month. Past that the complaint is late and a condonation
+   * application comes with it, so this one number decides the queue's Delay column, the
+   * file's delay block, the limitation check and which action the footer offers.
+   */
+  filedAfterCauseDays: number;
+  /** Grounds pleaded in the condonation application. Only a late complaint has one. */
+  grounds: string | null;
+  /**
+   * Days the payee took to send the demand notice after learning of the return.
+   * §138(b) allows thirty; past that the complaint is bad on its face.
+   */
+  noticeAfterDays: number;
+  /** Whether the demand notice reached the drawer. */
+  noticeDelivered: boolean;
+  /** Why it did not, when it did not. */
+  nonDeliveryReason: string | null;
+  /** What the bank wrote on the return memo. */
+  returnReason: string;
+  /**
+   * Whether the cheque went into the complainant's own account.
+   *
+   * Decides which branch the file prints, and therefore which branch the jurisdiction
+   * check reads — §142(2)(a) puts a §138 complaint where the payee's branch lies.
+   */
+  depositedByComplainant: boolean;
+  /** The branch that matters, and the place it stands in. */
+  branch: { bank: string; branch: string; place: string };
+  /** Days between the date on the cheque and its presentation. Within the three months. */
+  presentedAfterDays: number;
+};
+
+/**
+ * The place this court sits, read off the one constant that already names it rather
+ * than written down a second time — a second copy is a second thing to get wrong.
+ */
+export const COURT_PLACE = CURRENT_STAFF.court.split(",").pop()!.trim();
+
+/** The month §142(b) allows for filing, in days. */
+export const LIMITATION_DAYS = 30;
+
+/** The days §138(b) allows for the demand notice, from receipt of information. */
+export const NOTICE_WINDOW_DAYS = 30;
+
+/** The days §138(c) gives the drawer to pay, from service of the notice. */
+export const NOTICE_PERIOD_DAYS = 15;
+
+/**
+ * How long registration takes after filing, and how long service takes after dispatch.
+ *
+ * Both are demo constants and both are named rather than inlined, because a reader
+ * checking the arithmetic on a file should be able to find the two numbers that are not
+ * a row's own.
+ */
+const FILING_TO_REGISTER_DAYS = 3;
+const DISPATCH_TO_SERVICE_DAYS = 3;
+
+/** Days between the bank writing the memo and the payee being told. */
+const RETURN_TO_INFORMATION_DAYS = 1;
+
+/** Days a cheque sat in clearing before it came back. */
+const PRESENTED_TO_RETURN_DAYS = 2;
+
+/* ───────────────────────────────── the queue ────────────────────────────────── */
+
+/**
+ * The complaints on this court's register that have not been taken cognizance of.
+ *
+ * Ordered longest wait first. Names are Kollam parties and the same bar as the rest of
+ * the court side — one court, one set of advocates practising in it — and none of these
+ * matters appears in another queue.
+ *
+ * The list is shaped to exercise what the screens have to survive: complaints in time
+ * and complaints late, a branch outside this court's place, a notice sent past the
+ * thirty days, a notice that never arrived, a corporate accused long enough to wrap a
+ * cause title, a side with several counsel, a complaint with no vakalat at all, and
+ * enough rows to page at 10, 20 and 30.
+ */
+export const COGNIZANCE_QUEUE: CognizanceCase[] = [
+  {
+    /* The worst-case complaint, first in the queue on purpose: it trips every check a
+       magistrate makes before cognizance at once — filed late (with a condonation
+       application), the demand notice sent past the thirty days, and the payee's branch in
+       another district — so the file carries all three findings and the fullest set of
+       rows. It is the density the layout has to hold, not a typical matter (owner,
+       2026-09-16). */
+    id: "c-2041",
+    caseNumber: "CMP/2041/2025",
+    filingNumber: "KL-001629-2025",
+    parties: { complainant: "Sainaba Beevi", accused: "Thangasseri Marine Exports" },
+    counsel: [{ name: "Adv. Suresh Menon", side: "complainant" }],
+    daysSinceRegistered: 46,
+    filedAfterCauseDays: 50,
+    grounds:
+      "The complainant was admitted to hospital for a month from 20 February and could not instruct counsel in that time.",
+    /* Past the thirty days §138(b) allows — the notice-window check fires against the
+       dispatch date. */
+    noticeAfterDays: 42,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    /* The payee's branch is in Ernakulam, not this court's Kollam — §142(2)(a) puts the
+       complaint where that branch lies, so the jurisdiction check fires. */
+    branch: { bank: "South Indian Bank", branch: "Ernakulam South", place: "Ernakulam" },
+    presentedAfterDays: 21,
+  },
+  {
+    id: "c-2038",
+    caseNumber: "CMP/2038/2025",
+    filingNumber: "KL-001604-2025",
+    parties: { complainant: "Benny Mathew", accused: "Kadappakada Motors" },
+    counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
+    daysSinceRegistered: 43,
+    filedAfterCauseDays: 18,
+    grounds: null,
+    noticeAfterDays: 9,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Kollam" },
+    presentedAfterDays: 14,
+  },
+  {
+    id: "c-2030",
+    caseNumber: "CMP/2030/2025",
+    filingNumber: "KL-001588-2025",
+    parties: {
+      complainant: "Vijayamma",
+      accused: "Paravur Rice Mills and General Trading Pvt Ltd",
+    },
+    counsel: [
+      { name: "Adv. Saurabh Verma", side: "complainant" },
+      { name: "Adv. Nisha Thomas", side: "complainant" },
+    ],
+    daysSinceRegistered: 41,
+    filedAfterCauseDays: 26,
+    grounds: null,
+    /* Past the thirty days §138(b) allows — the check the file carries against the
+       dispatch date. */
+    noticeAfterDays: 38,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Exceeds arrangement",
+    depositedByComplainant: true,
+    branch: { bank: "State Bank of India", branch: "Asramam", place: "Kollam" },
+    presentedAfterDays: 33,
+  },
+  {
+    id: "c-2022",
+    caseNumber: "CMP/2022/2025",
+    filingNumber: "KL-001571-2025",
+    parties: { complainant: "Rahim Kunju", accused: "Mundakkal Auto Parts" },
+    counsel: [{ name: "Adv. Feroz Hameed", side: "complainant" }],
+    daysSinceRegistered: 38,
+    filedAfterCauseDays: 11,
+    grounds: null,
+    noticeAfterDays: 20,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Kollam" },
+    presentedAfterDays: 8,
+  },
+  {
+    id: "c-2015",
+    caseNumber: "CMP/2015/2025",
+    filingNumber: "KL-001552-2025",
+    parties: { complainant: "Girija Devi", accused: "Bandra Fine Chemicals" },
+    counsel: [{ name: "Adv. Latha Krishnan", side: "complainant" }],
+    daysSinceRegistered: 35,
+    filedAfterCauseDays: 22,
+    grounds: null,
+    noticeAfterDays: 14,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    /* Deposited in the drawer's branch, and that branch is not in this court's place —
+       the jurisdiction check the file carries against the branch. */
+    depositedByComplainant: false,
+    branch: { bank: "IDFC First Bank", branch: "Bandra West", place: "Mumbai" },
+    presentedAfterDays: 19,
+  },
+  {
+    id: "c-2009",
+    caseNumber: "CMP/2009/2025",
+    filingNumber: "KL-001530-2025",
+    parties: { complainant: "Noushad", accused: "Perinad Agro Mills" },
+    counsel: [],
+    daysSinceRegistered: 33,
+    filedAfterCauseDays: 44,
+    grounds:
+      "The complainant was away from the State on work and learnt of the return only after he came back.",
+    noticeAfterDays: 7,
+    noticeDelivered: false,
+    nonDeliveryReason: "Addressee moved from the address on record",
+    returnReason: "Account closed",
+    depositedByComplainant: true,
+    branch: { bank: "Union Bank of India", branch: "Punalur", place: "Kollam" },
+    presentedAfterDays: 27,
+  },
+  {
+    id: "c-1998",
+    caseNumber: "CMP/1998/2025",
+    filingNumber: "KL-001512-2025",
+    parties: { complainant: "Sulekha", accused: "Chathannoor Tiles" },
+    counsel: [{ name: "Adv. Rekha Pillai", side: "complainant" }],
+    daysSinceRegistered: 30,
+    filedAfterCauseDays: 9,
+    grounds: null,
+    noticeAfterDays: 16,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Kollam" },
+    presentedAfterDays: 12,
+  },
+  {
+    id: "c-1987",
+    caseNumber: "CMP/1987/2025",
+    filingNumber: "KL-001498-2025",
+    parties: { complainant: "Thankamani", accused: "Eravipuram Cement Store" },
+    counsel: [{ name: "Adv. Suresh Menon", side: "complainant" }],
+    daysSinceRegistered: 28,
+    filedAfterCauseDays: 37,
+    grounds:
+      "The papers were with the complainant's previous counsel, who returned the file only in the last week of March.",
+    noticeAfterDays: 11,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "Federal Bank", branch: "Chinnakada", place: "Kollam" },
+    presentedAfterDays: 16,
+  },
+  {
+    id: "c-1975",
+    caseNumber: "CMP/1975/2025",
+    filingNumber: "KL-001476-2025",
+    parties: { complainant: "Pradeep Kumar", accused: "Kilikolloor Hardware" },
+    counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
+    daysSinceRegistered: 26,
+    filedAfterCauseDays: 5,
+    grounds: null,
+    noticeAfterDays: 24,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Exceeds arrangement",
+    depositedByComplainant: true,
+    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Kollam" },
+    presentedAfterDays: 41,
+  },
+  {
+    id: "c-1966",
+    caseNumber: "CMP/1966/2025",
+    filingNumber: "KL-001455-2025",
+    parties: { complainant: "Zainaba", accused: "Sasthamkotta Rice Traders" },
+    counsel: [
+      { name: "Adv. Latha Krishnan", side: "complainant" },
+      { name: "Adv. Feroz Hameed", side: "complainant" },
+    ],
+    daysSinceRegistered: 24,
+    filedAfterCauseDays: 29,
+    grounds: null,
+    noticeAfterDays: 18,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "State Bank of India", branch: "Asramam", place: "Kollam" },
+    presentedAfterDays: 23,
+  },
+  {
+    id: "c-1954",
+    caseNumber: "CMP/1954/2025",
+    filingNumber: "KL-001431-2025",
+    parties: { complainant: "Jayaprakash", accused: "Ernakulam Packaging Works" },
+    counsel: [{ name: "Adv. Saurabh Verma", side: "complainant" }],
+    daysSinceRegistered: 22,
+    filedAfterCauseDays: 41,
+    grounds:
+      "The complainant's mother died on 3 March and the family was in mourning for the month that followed.",
+    noticeAfterDays: 13,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: false,
+    branch: { bank: "Bank of Baroda", branch: "Kaloor", place: "Ernakulam" },
+    presentedAfterDays: 17,
+  },
+  {
+    id: "c-1943",
+    caseNumber: "CMP/1943/2025",
+    filingNumber: "KL-001417-2025",
+    parties: { complainant: "Omana", accused: "Mayyanad Fisheries" },
+    counsel: [{ name: "Adv. Rekha Pillai", side: "complainant" }],
+    daysSinceRegistered: 20,
+    filedAfterCauseDays: 15,
+    grounds: null,
+    noticeAfterDays: 6,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "South Indian Bank", branch: "Mundakkal", place: "Kollam" },
+    presentedAfterDays: 9,
+  },
+  {
+    id: "c-1931",
+    caseNumber: "CMP/1931/2025",
+    filingNumber: "KL-001402-2025",
+    parties: { complainant: "Abdul Salam", accused: "Anchal Timber Depot" },
+    counsel: [],
+    daysSinceRegistered: 18,
+    filedAfterCauseDays: 33,
+    grounds:
+      "The complainant was under treatment after a road accident on 12 February and could not travel to the court.",
+    noticeAfterDays: 21,
+    noticeDelivered: false,
+    nonDeliveryReason: "Refused to accept",
+    returnReason: "Payment stopped by drawer",
+    depositedByComplainant: true,
+    branch: { bank: "Federal Bank", branch: "Punalur", place: "Kollam" },
+    presentedAfterDays: 30,
+  },
+  {
+    id: "c-1920",
+    caseNumber: "CMP/1920/2025",
+    filingNumber: "KL-001388-2025",
+    parties: { complainant: "Remani", accused: "Kavanad Super Bazaar" },
+    counsel: [{ name: "Adv. Suresh Menon", side: "complainant" }],
+    daysSinceRegistered: 16,
+    filedAfterCauseDays: 24,
+    grounds: null,
+    noticeAfterDays: 10,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "Canara Bank", branch: "Chinnakada", place: "Kollam" },
+    presentedAfterDays: 11,
+  },
+  {
+    id: "c-1912",
+    caseNumber: "CMP/1912/2025",
+    filingNumber: "KL-001370-2025",
+    parties: { complainant: "Hari Kumar", accused: "Kureepuzha Builders" },
+    counsel: [{ name: "Adv. Nisha Thomas", side: "complainant" }],
+    daysSinceRegistered: 14,
+    filedAfterCauseDays: 7,
+    grounds: null,
+    /* Well past the thirty days — the second file in the queue that carries the
+       notice check, so the screen can be judged on more than one. */
+    noticeAfterDays: 45,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Exceeds arrangement",
+    depositedByComplainant: true,
+    branch: { bank: "Union Bank of India", branch: "Kottiyam", place: "Kollam" },
+    presentedAfterDays: 25,
+  },
+  {
+    id: "c-1904",
+    caseNumber: "CMP/1904/2025",
+    filingNumber: "KL-001354-2025",
+    parties: { complainant: "Beena", accused: "Polayathode Cold Storage" },
+    counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
+    daysSinceRegistered: 12,
+    filedAfterCauseDays: 20,
+    grounds: null,
+    noticeAfterDays: 8,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Kollam" },
+    presentedAfterDays: 6,
+  },
+  {
+    id: "c-1893",
+    caseNumber: "CMP/1893/2025",
+    filingNumber: "KL-001339-2025",
+    parties: { complainant: "Sudheer", accused: "Oachira Handlooms" },
+    counsel: [{ name: "Adv. Latha Krishnan", side: "complainant" }],
+    daysSinceRegistered: 10,
+    filedAfterCauseDays: 48,
+    grounds:
+      "The complainant was abroad on a work visa and returned only on 8 April, when he instructed counsel.",
+    noticeAfterDays: 15,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "Federal Bank", branch: "Asramam", place: "Kollam" },
+    presentedAfterDays: 13,
+  },
+  {
+    id: "c-1885",
+    caseNumber: "CMP/1885/2025",
+    filingNumber: "KL-001322-2025",
+    parties: { complainant: "Lekha", accused: "Kottarakkara Spices" },
+    counsel: [{ name: "Adv. Feroz Hameed", side: "complainant" }],
+    daysSinceRegistered: 9,
+    filedAfterCauseDays: 13,
+    grounds: null,
+    noticeAfterDays: 25,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "State Bank of India", branch: "Chathannoor", place: "Kollam" },
+    presentedAfterDays: 20,
+  },
+  {
+    id: "c-1877",
+    caseNumber: "CMP/1877/2025",
+    filingNumber: "KL-001308-2025",
+    parties: { complainant: "Muhammed Ali", accused: "Parippally Feeds" },
+    counsel: [],
+    daysSinceRegistered: 7,
+    filedAfterCauseDays: 28,
+    grounds: null,
+    noticeAfterDays: 19,
+    noticeDelivered: false,
+    nonDeliveryReason: "Door locked on three attempts",
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "Canara Bank", branch: "Mundakkal", place: "Kollam" },
+    presentedAfterDays: 15,
+  },
+  {
+    id: "c-1866",
+    caseNumber: "CMP/1866/2025",
+    filingNumber: "KL-001291-2025",
+    parties: { complainant: "Prasanna", accused: "Adichanalloor Traders" },
+    counsel: [{ name: "Adv. Rekha Pillai", side: "complainant" }],
+    daysSinceRegistered: 6,
+    filedAfterCauseDays: 39,
+    grounds:
+      "The complainant's counsel was on leave through March and the papers could not be settled before he returned.",
+    noticeAfterDays: 12,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Exceeds arrangement",
+    depositedByComplainant: true,
+    branch: { bank: "Union Bank of India", branch: "Chinnakada", place: "Kollam" },
+    presentedAfterDays: 18,
+  },
+  {
+    id: "c-1858",
+    caseNumber: "CMP/1858/2025",
+    filingNumber: "KL-001277-2025",
+    parties: { complainant: "Radhakrishnan", accused: "Thevally Boat Yard" },
+    counsel: [{ name: "Adv. Saurabh Verma", side: "complainant" }],
+    daysSinceRegistered: 5,
+    filedAfterCauseDays: 3,
+    grounds: null,
+    noticeAfterDays: 27,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "South Indian Bank", branch: "Kottiyam", place: "Kollam" },
+    presentedAfterDays: 7,
+  },
+  {
+    id: "c-1847",
+    caseNumber: "CMP/1847/2025",
+    filingNumber: "KL-001260-2025",
+    parties: { complainant: "Salma", accused: "Thiruvananthapuram Steel Traders" },
+    counsel: [
+      { name: "Adv. Suresh Menon", side: "complainant" },
+      { name: "Adv. Rekha Pillai", side: "complainant" },
+    ],
+    daysSinceRegistered: 4,
+    filedAfterCauseDays: 17,
+    grounds: null,
+    noticeAfterDays: 22,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: false,
+    branch: { bank: "Indian Bank", branch: "Vazhuthacaud", place: "Thiruvananthapuram" },
+    presentedAfterDays: 10,
+  },
+  {
+    id: "c-1836",
+    caseNumber: "CMP/1836/2025",
+    filingNumber: "KL-001244-2025",
+    parties: { complainant: "Anilkumar", accused: "Kundara Clay Works" },
+    counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
+    daysSinceRegistered: 3,
+    filedAfterCauseDays: 35,
+    grounds:
+      "The complainant was in judicial custody in another matter until 14 March and could not file in time.",
+    noticeAfterDays: 9,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Kollam" },
+    presentedAfterDays: 24,
+  },
+  {
+    id: "c-1825",
+    caseNumber: "CMP/1825/2025",
+    filingNumber: "KL-001228-2025",
+    parties: { complainant: "Vasanthi", accused: "Mevaram Furniture" },
+    counsel: [{ name: "Adv. Latha Krishnan", side: "complainant" }],
+    daysSinceRegistered: 1,
+    filedAfterCauseDays: 8,
+    grounds: null,
+    noticeAfterDays: 11,
+    noticeDelivered: true,
+    nonDeliveryReason: null,
+    returnReason: "Funds insufficient",
+    depositedByComplainant: true,
+    branch: { bank: "Canara Bank", branch: "Asramam", place: "Kollam" },
+    presentedAfterDays: 5,
+  },
+];
+
+/**
+ * How many complaints are waiting for cognizance — the number the rail carries.
+ * Derived from the list so the rail and the screen cannot disagree.
+ */
+export const COGNIZANCE_QUEUE_COUNT = COGNIZANCE_QUEUE.length;
+
+/** One waiting complaint, or nothing. Asked by the screen and by the trail. */
+export function cognizanceCaseById(id: string): CognizanceCase | undefined {
+  return COGNIZANCE_QUEUE.find((entry) => entry.id === id);
+}
+
+/** The row after this one, for the file's own "Next case". Nothing at the end. */
+export function nextCognizanceCase(id: string): CognizanceCase | undefined {
+  const at = COGNIZANCE_QUEUE.findIndex((entry) => entry.id === id);
+  if (at < 0) return undefined;
+  return COGNIZANCE_QUEUE[at + 1];
+}
+
+/* ───────────────────────────────── the delay ────────────────────────────────── */
+
+/**
+ * Days past the month §142(b) allows, or `null` when the complaint was filed in time.
+ *
+ * Derived, never stored: the column, the file's delay block, the limitation check and
+ * the footer's own action all read this one function, so they cannot fall out of step.
+ */
+export function delayDays(matter: CognizanceCase): number | null {
+  const over = matter.filedAfterCauseDays - LIMITATION_DAYS;
+  return over > 0 ? over : null;
+}
+
+/** Whether this complaint came late. The queue's column, in one word. */
+export function hasDelay(matter: CognizanceCase): boolean {
+  return delayDays(matter) !== null;
+}
+
+/* ───────────────────────────────── the chain ────────────────────────────────── */
+
+/**
+ * The §138 chain behind one complaint, worked backwards from the day it was registered.
+ *
+ * Backwards, because the row's one anchor is a wait, and a chain derived forwards from a
+ * fixed date would drift as the fixture sits. Every date below is a consequence of the
+ * row and the statutory windows — nothing is transcribed, and nothing can contradict the
+ * check that reads it.
+ */
+export type CognizanceChain = {
+  chequeDatedOn: string;
+  presentedOn: string;
+  returnedOn: string;
+  /** The day the payee was told. What the thirty days in §138(b) run from. */
+  informedOn: string;
+  noticeDispatchedOn: string;
+  /** The day it reached the drawer, or `null` when it never did. */
+  noticeDeliveredOn: string | null;
+  /** The day it came back undelivered, or `null` when it was delivered. */
+  noticeReturnedOn: string | null;
+  /** Delivery or return — the day the fifteen days start running from either way. */
+  deemedServedOn: string;
+  /** The fifteen days are up; the offence is complete and the cause of action accrues. */
+  causeOfActionOn: string;
+  filedOn: string;
+  registeredOn: string;
+};
+
+function minus(day: string, days: number): string {
+  const date = parseIsoDay(day);
+  date.setDate(date.getDate() - days);
+  return isoDay(date);
+}
+
+export function chainFor(matter: CognizanceCase, today: string): CognizanceChain {
+  const registeredOn = minus(today, matter.daysSinceRegistered);
+  const filedOn = minus(registeredOn, FILING_TO_REGISTER_DAYS);
+  const causeOfActionOn = minus(filedOn, matter.filedAfterCauseDays);
+  const deemedServedOn = minus(causeOfActionOn, NOTICE_PERIOD_DAYS);
+  const noticeDispatchedOn = minus(deemedServedOn, DISPATCH_TO_SERVICE_DAYS);
+  const informedOn = minus(noticeDispatchedOn, matter.noticeAfterDays);
+  const returnedOn = minus(informedOn, RETURN_TO_INFORMATION_DAYS);
+  const presentedOn = minus(returnedOn, PRESENTED_TO_RETURN_DAYS);
+  const chequeDatedOn = minus(presentedOn, matter.presentedAfterDays);
+
+  return {
+    chequeDatedOn,
+    presentedOn,
+    returnedOn,
+    informedOn,
+    noticeDispatchedOn,
+    noticeDeliveredOn: matter.noticeDelivered ? deemedServedOn : null,
+    noticeReturnedOn: matter.noticeDelivered ? null : deemedServedOn,
+    deemedServedOn,
+    causeOfActionOn,
+    filedOn,
+    registeredOn,
+  };
+}
+
+/* ──────────────────────────────── the findings ──────────────────────────────── */
+
+export type CognizanceFindingId = "limitation" | "notice-window" | "jurisdiction";
+
+/**
+ * How much a finding matters.
+ *
+ * Two, and the difference is the whole point. `critical` is a defect in the complaint
+ * itself — something that can end it. `note` is a fact the magistrate has to decide
+ * about, and deciding it is ordinary work: a complaint filed late with a condonation
+ * application on record is exactly what §142(b)'s proviso contemplates, and painting it
+ * the same colour as a bad notice would tell the bench that the normal path is an error
+ * (owner, 2026-09-14).
+ */
+export type CognizanceFindingWeight = "critical" | "note";
+
+export type CognizanceFinding = {
+  id: CognizanceFindingId;
+  weight: CognizanceFindingWeight;
+  /** The sentence the PRD gives this check, quoted rather than rewritten. */
+  statement: string;
+  /** What follows from it, where the PRD's sentence leaves the consequence unsaid. */
+  consequence: string;
+  /** The term on the file this was read from, so the arithmetic can be checked. */
+  term: string;
+};
+
+/** The term each check reads. Named once, so the finding and the fact cannot drift. */
+export const FILED_ON_TERM = "Date of complaint filing";
+export const NOTICE_DISPATCHED_TERM = "Date of dispatch of demand notice";
+
+/** The branch term changes with whose account the cheque went into. */
+export function branchTerm(matter: CognizanceCase): string {
+  return matter.depositedByComplainant
+    ? "Bank branch (complainant)"
+    : "Bank branch (accused)";
+}
+
+/**
+ * What the checks say about one complaint, worst first.
+ *
+ * Critical before note, because the order is the reading order: a bench that has to
+ * decide three things should meet the one that can end the case before the one that is
+ * ordinary work.
+ */
+export function findingsFor(matter: CognizanceCase): CognizanceFinding[] {
+  const findings: CognizanceFinding[] = [];
+
+  if (matter.noticeAfterDays > NOTICE_WINDOW_DAYS) {
+    findings.push({
+      id: "notice-window",
+      weight: "critical",
+      statement:
+        "Demand notice not issued within 30 days of the receipt of information from the bank regarding the return of the cheque as unpaid.",
+      consequence: `The notice went out ${matter.noticeAfterDays} days after the complainant was informed.`,
+      term: NOTICE_DISPATCHED_TERM,
+    });
+  }
+
+  if (matter.branch.place !== COURT_PLACE) {
+    findings.push({
+      id: "jurisdiction",
+      weight: "critical",
+      statement: "The complaint is likely outside the jurisdiction of this court.",
+      consequence: `The branch that matters stands at ${matter.branch.place}, not ${COURT_PLACE}.`,
+      term: branchTerm(matter),
+    });
+  }
+
+  const late = delayDays(matter);
+  if (late !== null) {
+    findings.push({
+      id: "limitation",
+      weight: "note",
+      statement: "The complaint is outside the limitation period.",
+      consequence: `Filed ${late} ${late === 1 ? "day" : "days"} beyond the month, with an application to condone the delay awaiting your decision.`,
+      term: FILED_ON_TERM,
+    });
+  }
+
+  return findings;
+}
+
+/** The finding that belongs against one term, when a check read it. */
+export function findingForTerm(
+  findings: CognizanceFinding[],
+  term: string,
+): CognizanceFinding | undefined {
+  return findings.find((finding) => finding.term === term);
+}
+
+/* ───────────────────────────── the case summary ─────────────────────────────── */
+
+/**
+ * The court's registration number (CNR) for a registered complaint.
+ *
+ * Derived from the filing number so it stays stable for the demo — a real CNR is assigned
+ * at registration and is not computable from anything, but this is fixture data and must
+ * not drift as the fixture sits. The shape follows the CIS convention: state and
+ * district-establishment, the six-figure filing serial, then the year.
+ */
+export function cnrFor(matter: CognizanceCase): string {
+  const digits = matter.filingNumber.replace(/\D/g, "");
+  const serial = digits.slice(0, 6).padStart(6, "0");
+  const year = matter.filingNumber.slice(-4);
+  return `KLKM01${serial}${year}`;
+}
+
+/**
+ * One row of the case summary — a labelled field of the reference's left column.
+ *
+ * `source` is the document the value is read off (a `COGNIZANCE_DOCUMENTS` key); the screen
+ * turns it into the region the scroller marks when the row is clicked. `note` is a quiet
+ * second line (a branch's place). The findings are not carried here — they are matched to a
+ * row by term on the screen and shown inline beneath it (`findingsFor`).
+ */
+export type CognizanceField = {
+  id: string;
+  term: string;
+  value: string;
+  note?: string;
+  source?: string;
+};
+
+/**
+ * One chunk of the case summary — a head and its fields, all single column.
+ *
+ * The summary is grouped, not one flat run of rows (owner, 2026-09-14: chunk it, and keep
+ * every chunk the same shape). The chunks are the §138 chain's own stages, the vocabulary
+ * `case-review.ts` already uses — the complaint, the cheque, its dishonour, the demand
+ * notice, the jurisdiction — so a reader lands on the part they want instead of scanning
+ * eleven undifferentiated rows.
+ */
+export type CognizanceChunk = {
+  id: string;
+  label: string;
+  fields: CognizanceField[];
+};
+
+/**
+ * The case summary, in chunks, in the reference's order (owner, 2026-09-14).
+ *
+ * A late complaint opens with the Complaint chunk — the filing date and the two delay rows;
+ * a timely one omits it and opens on the cheque, the way the reference's With-Delay and
+ * Without-Delay frames differ. Then the cheque, its dishonour, the demand notice, and — last
+ * — the branch that founds jurisdiction. Dates are shown directly, with no statutory-window
+ * annotations: the reference lists the dates, and the three checks that matter surface as
+ * the findings inline (`findingsFor`), not as a note on every ordinary row.
+ */
+export function summaryChunksFor(
+  matter: CognizanceCase,
+  chain: CognizanceChain,
+): CognizanceChunk[] {
+  const chunks: CognizanceChunk[] = [];
+  const late = delayDays(matter);
+
+  if (late !== null) {
+    const complaint: CognizanceField[] = [
+      { id: "filed", term: FILED_ON_TERM, value: formatListingDate(chain.filedOn) },
+      {
+        id: "delay-duration",
+        term: "Duration of delay",
+        value: `${late} ${late === 1 ? "day" : "days"}`,
+      },
+    ];
+    if (matter.grounds) {
+      complaint.push({
+        id: "delay-grounds",
+        term: "Reason for praying condonation of delay",
+        value: matter.grounds,
+      });
+    }
+    chunks.push({ id: "complaint", label: "Complaint", fields: complaint });
+  }
+
+  chunks.push({
+    id: "cheque",
+    label: "Cheque",
+    fields: [
+      {
+        id: "cheque-dated",
+        term: "Date on cheque",
+        value: formatListingDate(chain.chequeDatedOn),
+        source: "cheque",
+      },
+      {
+        id: "presented",
+        term: "Date of presentation or deposit of cheque",
+        value: formatListingDate(chain.presentedOn),
+        source: "return-memo",
+      },
+    ],
+  });
+
+  chunks.push({
+    id: "dishonour",
+    label: "Dishonour",
+    fields: [
+      {
+        id: "return-memo-date",
+        term: "Date on return memo",
+        value: formatListingDate(chain.returnedOn),
+        source: "return-memo",
+      },
+      {
+        id: "informed",
+        term: "Date of receipt of information about return",
+        value: formatListingDate(chain.informedOn),
+        source: "return-memo",
+      },
+      {
+        id: "return-reason",
+        term: "Return reason",
+        value: matter.returnReason,
+        source: "return-memo",
+      },
+    ],
+  });
+
+  const notice: CognizanceField[] = [
+    {
+      id: "dispatched",
+      term: NOTICE_DISPATCHED_TERM,
+      value: formatListingDate(chain.noticeDispatchedOn),
+      source: "demand-notice",
+    },
+  ];
+  if (matter.noticeDelivered && chain.noticeDeliveredOn) {
+    notice.push({
+      id: "delivered",
+      term: "Date of delivery of demand notice",
+      value: formatListingDate(chain.noticeDeliveredOn),
+      source: "demand-notice",
+    });
+  } else if (chain.noticeReturnedOn) {
+    notice.push({
+      id: "returned-notice",
+      term: "Date of return of demand notice",
+      value: formatListingDate(chain.noticeReturnedOn),
+      source: "demand-notice",
+    });
+    if (matter.nonDeliveryReason) {
+      notice.push({
+        id: "non-delivery",
+        term: "Reason for non-delivery of demand notice",
+        value: matter.nonDeliveryReason,
+        source: "demand-notice",
+      });
+    }
+  }
+  chunks.push({ id: "notice", label: "Demand notice", fields: notice });
+
+  chunks.push({
+    id: "jurisdiction",
+    label: "Jurisdiction",
+    fields: [
+      {
+        id: "branch",
+        term: branchTerm(matter),
+        value: `${matter.branch.bank}, ${matter.branch.branch}`,
+        note: matter.branch.place,
+        source: "cheque",
+      },
+    ],
+  });
+
+  return chunks;
+}
+
+/* ──────────────────────────────── the documents ─────────────────────────────── */
+
+/**
+ * The documents the PRD makes reachable from this screen, and the facsimile each wears.
+ *
+ * Three, and only three: a complaint's whole bundle is the case file's business
+ * (`register-case-file.tsx`). These are the three a cognizance decision turns on. They
+ * carry a running number like the case file's bundle, so the docked panel reads the same.
+ */
+export const COGNIZANCE_DOCUMENTS: {
+  key: string;
+  no: number;
+  title: string;
+  kind: "cheque" | "memo" | "letter";
+}[] = [
+  { key: "cheque", no: 1, title: "Cheque", kind: "cheque" },
+  { key: "return-memo", no: 2, title: "Return memo", kind: "memo" },
+  { key: "demand-notice", no: 3, title: "Demand notice", kind: "letter" },
+];
+
+/* ───────────────────────────────── the filters ──────────────────────────────── */
+
+/**
+ * Delay is a filter here and not a destination.
+ *
+ * The reference split it into two rail rows with their own counts, opening two screens
+ * that differed by three rows. It makes no difference to *how* cognizance is taken — the
+ * condonation application was filed either way — so it is the kind of thing you narrow a
+ * list by, not the kind of thing you navigate to (owner, 2026-09-14).
+ */
+export type CognizanceDelayFilter = "any" | "with" | "without";
+
+export const COGNIZANCE_DELAY_FILTERS: {
+  id: CognizanceDelayFilter;
+  label: string;
+}[] = [
+  { id: "any", label: "All complaints" },
+  { id: "with", label: "With delay" },
+  { id: "without", label: "Without delay" },
+];
+
+export type CognizanceFilters = {
+  /** Free text over the cause title, both numbers and counsel. */
+  query: string;
+  delay: CognizanceDelayFilter;
+};
+
+export const EMPTY_COGNIZANCE_FILTERS: CognizanceFilters = {
+  query: "",
+  delay: "any",
+};
+
+export function filterCognizanceCases(
+  rows: CognizanceCase[],
+  filters: CognizanceFilters,
+): CognizanceCase[] {
+  const query = filters.query.trim().toLowerCase();
+  return rows.filter((entry) => {
+    if (filters.delay === "with" && !hasDelay(entry)) return false;
+    if (filters.delay === "without" && hasDelay(entry)) return false;
+    if (!query) return true;
+    const haystack = [
+      entry.parties.complainant,
+      entry.parties.accused,
+      entry.caseNumber,
+      entry.filingNumber,
+      ...entry.counsel.map((counsel) => counsel.name),
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+/** How many of the queue are late. The filter's own count, derived like the rest. */
+export const COGNIZANCE_DELAY_COUNT = COGNIZANCE_QUEUE.filter(hasDelay).length;
+
+/* ─────────────────────────────────── the act ────────────────────────────────── */
+
+/**
+ * What the footer offers on one complaint.
+ *
+ * Two acts, never three. `dismiss` is always there; the other is the PRD's: normally
+ * *Take cognizance*, and on a late complaint in Kerala *Issue notice* instead — the
+ * accused is heard on the delay before the court decides it (BNSS §223 proviso, and the
+ * notice this court already writes in `sign-process.ts`). The PRD says the primary
+ * action *changes*, so it replaces rather than joins.
+ *
+ * This build performs none of them. Each opens a confirmation that names the order it
+ * would draft and settles in place — the same bargain every other act on the court side
+ * strikes. Drafting into the order composer is the next step and is not wired: that
+ * composer is bound to a hearing today (`/employee/hearings/<id>/order`) and a complaint
+ * at cognizance has no hearing, so pointing at it would be a link that could not resolve.
+ */
+export type CognizanceAct = "cognizance" | "notice" | "dismiss";
+
+export function primaryActFor(matter: CognizanceCase): CognizanceAct {
+  return hasDelay(matter) ? "notice" : "cognizance";
+}
+
+/** What the complaint's state is called before any of the three acts is taken. */
+export const COGNIZANCE_PENDING_LABEL = "Awaiting cognizance";
+
+/**
+ * What each act is called, what it draws up, and the pair its outcome wears.
+ *
+ * Three different outcomes, so three different pairs — the chip carries the words as
+ * well as the colour, so the state is never colour alone. Cognizance is a conclusion and
+ * takes the success pair; a notice is a step on the way to one and takes the
+ * informational pair; a dismissal ends the complaint and takes the destructive one.
+ *
+ * `items` are the register's own order-item names (`order-items.ts`), so the bench meets
+ * the same words again in the composer. One of them has no catalogue entry yet: an order
+ * accepting or rejecting a condonation application exists as an order type on the case
+ * side (`lib/cases/orders.ts`) but is missing from `ORDER_ITEM_GROUPS`, so a delay
+ * decided here would have nothing to draft from. It is not listed below for that reason.
+ *
+ * `settled` is the **state** and `outcome` is **what follows from it** — two different
+ * facts, so two lines rather than one said twice. A chip and a heading carrying the same
+ * three words is the defect the register's own overlay comment warns about, and the
+ * settled header had exactly it until this pair was split.
+ */
+export const COGNIZANCE_ACTS: Record<
+  CognizanceAct,
+  {
+    label: string;
+    asking: string;
+    /** The state, on the chip. */
+    settled: string;
+    /** What follows from it, as the heading. Never the chip's words again. */
+    outcome: string;
+    badge: "success" | "info" | "destructive";
+    items: string[];
+  }
+> = {
+  cognizance: {
+    label: "Take cognizance",
+    asking: "Take cognizance of this complaint?",
+    settled: "Cognizance taken",
+    outcome: "The case will proceed to summons",
+    badge: "success",
+    items: ["Order for taking cognizance", "Summons"],
+  },
+  notice: {
+    label: "Issue notice",
+    asking: "Issue notice to the accused?",
+    settled: "Notice issued",
+    outcome: "The accused will be heard on the delay",
+    badge: "info",
+    items: ["Notice"],
+  },
+  dismiss: {
+    label: "Dismiss case",
+    asking: "Dismiss this complaint?",
+    settled: "Dismissed",
+    outcome: "This complaint ends here",
+    badge: "destructive",
+    items: ["Order to dismiss case"],
+  },
+};

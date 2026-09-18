@@ -13,6 +13,7 @@ import {
   RowAction,
   SELECTED_BAR,
 } from "@/components/advocate/home-bits";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Only the exception. A row with work owed says so; a row with nothing owed says
@@ -107,8 +108,12 @@ export function HearingList({
                     </span>
                   </button>
                 </td>
-                <td className="px-4 py-3 font-mono text-caption text-muted-foreground">
-                  {hearing.kase.cnr || "—"}
+                <td className="px-4 py-3 text-caption text-muted-foreground">
+                  {hearing.kase.cnr ? (
+                    <Identifier value={hearing.kase.cnr} label="CNR" />
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 {/* Everyone on the matter, the viewer included, each disc styled
                     by vakalatnama standing — the stack carries who may act. */}

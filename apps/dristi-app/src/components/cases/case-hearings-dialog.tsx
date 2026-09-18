@@ -12,6 +12,7 @@ import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { hearingRecords } from "@/lib/cases/hearing-record";
 import { orderHref } from "@/lib/cases/sections";
 import type { CaseRecord } from "@/lib/cases/types";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The hearings pop-up (§5.4), opened from Overview's "View All Hearings". One
@@ -79,8 +80,8 @@ export function CaseHearingsDialog({
           <DialogTitle className="text-title-s font-semibold">
             Hearings
           </DialogTitle>
-          <p className="font-mono text-caption font-medium text-muted-foreground">
-            {record.caseNumber}
+          <p className="text-caption font-medium text-muted-foreground">
+            <Identifier value={record.caseNumber} label="case number" />
           </p>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">

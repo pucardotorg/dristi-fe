@@ -363,6 +363,12 @@ export type CaseFact = {
   /** A number, an amount or a date — set in a column of its own kind. */
   numeric?: boolean;
   /**
+   * A unique identifier — a cheque number, an IFSC, a bar registration, a receipt
+   * number. Transcribed character by character into another system, rather than read as
+   * a quantity the way the amount and the dates beside it are.
+   */
+  id?: boolean;
+  /**
    * This value is the exception, and the exception has a consequence for the decision
    * the reader is about to take.
    *
@@ -1996,7 +2002,7 @@ function caseSpecificSection(
               term: FACT_TERMS.chequeNumber,
               value: String(chequeNumber),
               source: "dishonoured-cheque",
-              numeric: true,
+              id: true,
             },
             /* `source` on every row the brief's §5a-iii table gives a document for, and
                on no other. The payee's bank sits on the deposit proof (it is the bank
@@ -2031,7 +2037,7 @@ function caseSpecificSection(
               term: FACT_TERMS.payeeIfsc,
               value: payee.ifsc,
               source: "deposit-proof",
-              numeric: true,
+              id: true,
             },
             {
               term: FACT_TERMS.payerBank,
@@ -2047,7 +2053,7 @@ function caseSpecificSection(
               term: FACT_TERMS.payerIfsc,
               value: payer.ifsc,
               source: "dishonoured-cheque",
-              numeric: true,
+              id: true,
             },
             {
               term: FACT_TERMS.depositedOn,
@@ -2334,7 +2340,7 @@ function additionalSection(
                  and keyed per record, so the third advocate's row points at the third
                  advocate's card rather than at the first one's. */
               source: advocateSlotKey(index + 1, "bar-id-card"),
-              numeric: true,
+              id: true,
             },
           ],
           documents: [
@@ -2373,7 +2379,7 @@ function paymentSection(seed: number, marks: CaseFileMarks): CaseSection {
             term: FACT_TERMS.receiptNumber,
             value: `KL-CF-${String(seed).padStart(6, "0")}`,
             source: "payment-receipt",
-            numeric: true,
+            id: true,
           },
         ],
         documents: [

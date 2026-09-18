@@ -6,37 +6,36 @@ import { toast } from "sonner";
 
 import {
   applyFilters,
-  cardCounts,
   caseOf,
   courtsOf,
   DEFAULT_FILTERS,
   type Filters,
   isNarrowed,
+  kindCounts,
   summaryOf,
   VIEW_LABELS,
   viewCounts,
   type World,
 } from "@/lib/tasks/selectors";
 import { headerDate, rupees } from "@/lib/tasks/format";
-import { ACTIONABLE, canArchive } from "@/lib/tasks/permissions";
+import { ACTIONABLE, canArchive, cardKindOf, verbFor } from "@/lib/tasks/permissions";
 import { useTasks } from "@/lib/tasks/store";
 import { archive, markDone, unarchive } from "@/lib/tasks/transitions";
-import type { CardKind, Task, TaskId, TaskView, Verb } from "@/lib/tasks/types";
+import type { PillKind, Task, TaskId, TaskView, Verb } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
-import { useIsDesktop, useMinWidth } from "@/hooks/use-min-width";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Breadcrumbs, useChrome } from "@/components/shell/chrome";
+import { Breadcrumbs } from "@/components/shell/chrome";
 import { useHereHref } from "@/components/shell/origin";
 import { withOrigin } from "@/lib/nav/origin";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { TaskActModal } from "@/components/tasks/act/act-modal";
 import { TaskRespondDialog } from "@/components/tasks/act/respond-dialog";
+import { BatchActDialog } from "@/components/tasks/batch-act-dialog";
 import { FilterRow } from "@/components/tasks/filter-row";
 import { useFilters } from "@/components/tasks/filters";
-import { OverviewCards } from "@/components/tasks/overview-cards";
-import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
+import { KindPills } from "@/components/tasks/kind-pills";
 import { TasksTable, TasksTableSkeleton } from "@/components/tasks/tasks-table";
 import { type ActMode, type Flow, actModeOf, actPathOf, draftFlowOf, FLOW_DIALOG, flowPathOf, useTaskActions } from "@/components/tasks/use-task-actions";
 
@@ -46,9 +45,13 @@ const VIEWS: TaskView[] = ["needs-action", "waiting", "completed", "archived"];
  * A tab: label + count as muted tabular text — the same presentation as every count.
  * 40px tall (the DS touch floor), text seated low so the underline still sits ON the
  * band's rule (`-mb-px` + `after:bottom-0`) — one line, not two.
+ *
+ * `items-baseline`, not `items-end`: the count is a step smaller than the label, so
+ * aligning their boxes' bottoms dropped the number below the label's baseline and it
+ * read as misaligned (owner, 2026-09-16). Text next to text aligns on the baseline.
  */
 const TAB_CLASS =
-  "-mb-px flex-none items-end gap-1.5 rounded-none px-0 pb-2.5 text-body-compact group-data-horizontal/tabs:h-10 group-data-horizontal/tabs:after:bottom-0 group-data-[variant=line]/tabs-list:data-active:after:bg-brand-accent";
+  "-mb-px flex-none items-baseline gap-1.5 rounded-none px-0 pb-2.5 text-body-compact group-data-horizontal/tabs:h-10 group-data-horizontal/tabs:after:bottom-0 group-data-[variant=line]/tabs-list:data-active:after:bg-brand-accent";
 
 /** A clock that ticks once a minute so due cues stay honest on a long-open tab. */
 function useNow(): Date {
@@ -62,13 +65,13 @@ function useNow(): Date {
 
 
 /**
- * Pending tasks — the command centre. A dated header, four ability-based tabs, then the
- * tab's own breakdown: six kind cards (the overview and the filter), a labelled filter
- * row, and ONE lifted table; the detail pushes in from the right on `lg`+ (a sheet
+ * Pending tasks — the command centre. A dated header, four ability-based tabs, then one
+ * controls line (the kind pills, the search and Filters) and ONE lifted table, its rows
+ * banded by when they bite; the detail pushes in from the right on `lg`+ (a sheet
  * below). Pay and file act in a modal over the table; sign, fix & re-file and drafts
- * continue in their own pages behind a dialog. Search lives in the top bar. Everything
- * the cards, tabs and filters hold lives in the URL — the kind stays put across tab
- * switches, so a batch being cleared survives a change of view.
+ * continue in their own pages behind a dialog. Everything the tabs, pills and filters
+ * hold lives in the URL — the kind survives a tab switch, and a selection of one kind
+ * carries its own bulk verb into the batch dialog.
  */
 export function TasksScreen() {
   const store = useTasks();
@@ -77,11 +80,8 @@ export function TasksScreen() {
   const router = useRouter();
   // This list, with the open task and the filters on it — where a flow should return to.
   const here = useHereHref();
-  const { filters, setFilters, taskId, setTaskId } = useFilters();
+  const { filters, setFilters, taskId } = useFilters();
   const now = useNow();
-  const { navOpen, foldNav, unfoldNav } = useChrome();
-  const pushes = useIsDesktop();
-  const roomy = useMinWidth(1536);
 
   const world = React.useMemo<World>(
     () => ({ people, cases, tasks, user, now }),
@@ -89,13 +89,10 @@ export function TasksScreen() {
   );
 
   const rows = React.useMemo(() => applyFilters(world, filters), [world, filters]);
-  const counts = React.useMemo(() => cardCounts(world, filters.view), [world, filters.view]);
+  const counts = React.useMemo(() => kindCounts(world, filters), [world, filters]);
   const tabCounts = React.useMemo(() => viewCounts(world, filters.query), [world, filters.query]);
   const summary = React.useMemo(() => summaryOf(world), [world]);
   const courts = React.useMemo(() => courtsOf(world), [world]);
-
-  const openTask = React.useMemo(() => tasks.find((t) => t.id === taskId) ?? null, [tasks, taskId]);
-  const openCase = openTask ? (caseOf(world, openTask) ?? null) : null;
 
   const [selected, setSelected] = React.useState<Set<TaskId>>(() => new Set());
   /** Tasks awaiting the mark-as-done confirmation — one from a row, several from the bar. */
@@ -123,37 +120,13 @@ export function TasksScreen() {
         return;
       }
       // The row may have left this tab — a task completed on its act page comes back
-      // under Completed. Its panel is open (`?task=`), so focus lands on its title.
-      document.querySelector<HTMLElement>("[data-task-detail-title]")?.focus();
+      // under Completed — in which case there is nothing here to focus and the status
+      // line the act raised is what reports where it went.
     });
   }, []);
 
-  const closeDetail = React.useCallback(() => {
-    const id = taskId;
-    setTaskId(null);
-    if (id) focusRow(id);
-  }, [taskId, setTaskId, focusRow]);
-
-  // Opening a row moves focus to the panel's heading once it has rendered (Escape
-  // brings it back to the row). Arriving with `?task=` already in the URL — an old act
-  // route's redirect, a shared link — focuses the row instead, once.
-  const pendingPanelFocus = React.useRef<TaskId | null>(null);
-  const openDetail = React.useCallback(
-    (id: TaskId) => {
-      pendingPanelFocus.current = id;
-      setTaskId(id);
-    },
-    [setTaskId]
-  );
-  React.useEffect(() => {
-    if (!openTask || pendingPanelFocus.current !== openTask.id) return;
-    pendingPanelFocus.current = null;
-    const raf = window.requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>("[data-task-detail-title]")?.focus();
-    });
-    return () => window.cancelAnimationFrame(raf);
-  }, [openTask]);
-
+  /* A flow that finishes sends the person back here with `?task=` on the URL. Nothing
+     opens from it any more — the row it names is simply the one that takes focus. */
   const [arrivedWith] = React.useState<TaskId | null>(() => taskId);
   const arrivalDone = React.useRef(false);
   React.useEffect(() => {
@@ -162,28 +135,6 @@ export function TasksScreen() {
     requestHighlight(arrivedWith);
     focusRow(arrivedWith);
   }, [state, arrivedWith, requestHighlight, focusRow]);
-
-  // The push panel needs width: below 2xl, fold the main nav to its icon rail while the
-  // panel is open, and restore it on close only if this screen folded it.
-  const foldedNav = React.useRef(false);
-  const navOpenRef = React.useRef(navOpen);
-  React.useEffect(() => {
-    navOpenRef.current = navOpen;
-  }, [navOpen]);
-  const panelPushing = pushes && !!openTask;
-  React.useEffect(() => {
-    if (panelPushing && !roomy) {
-      if (navOpenRef.current && !foldedNav.current) {
-        foldedNav.current = true;
-        foldNav();
-      }
-      return;
-    }
-    if (foldedNav.current) {
-      foldedNav.current = false;
-      unfoldNav();
-    }
-  }, [panelPushing, roomy, foldNav, unfoldNav]);
 
   const openAct = React.useCallback(
     (task: Task, mode: ActMode | null) => {
@@ -223,10 +174,20 @@ export function TasksScreen() {
           void act(task.id, unarchive, "Restored from the archive");
           return;
         default:
-          openDetail(task.id);
+          // "View" — a task waiting on someone else, closed, or held by a vakalatnama
+          // holder who is not you. It opens its own flow to look at rather than to act
+          // in: paying and filing read back in the modal, signing and scrutiny returns
+          // on their pages. A courtroom task has no such surface, and its row already
+          // carries the whole record, so the click does nothing rather than open an
+          // empty shell.
+          {
+            const path = actPathOf(task);
+            if (path) router.push(withOrigin(path, here));
+            else openAct(task, actModeOf(task));
+          }
       }
     },
-    [act, openAct, openDetail]
+    [act, openAct, router, here]
   );
 
   const setView = React.useCallback(
@@ -237,14 +198,24 @@ export function TasksScreen() {
     [setFilters]
   );
 
-  const toggleKind = React.useCallback(
-    (kind: CardKind) => setFilters((prev: Filters) => ({ ...prev, kind: prev.kind === kind ? null : kind })),
+  const selectKind = React.useCallback(
+    (kind: PillKind | null) => setFilters((prev: Filters) => ({ ...prev, kind })),
     [setFilters]
   );
 
   const clearFilters = React.useCallback(
     () => setFilters({ ...DEFAULT_FILTERS, view: filters.view }),
     [filters.view, setFilters]
+  );
+
+  /** The listed rows a checkbox can reach — what the header's select-all answers for. */
+  const selectableRows = React.useMemo(
+    () =>
+      rows.filter((r) => {
+        const k = caseOf(world, r);
+        return !!k && canArchive(user, r, k);
+      }),
+    [rows, world, user]
   );
 
   // Only rows in the current table count as selected; ids that scrolled out of the
@@ -264,6 +235,39 @@ export function TasksScreen() {
     [selectedTasks]
   );
 
+  /**
+   * The bulk verb the selection itself supports — no pill required.
+   *
+   * It used to appear only while the "To sign" or "To pay" pill was pressed, which made
+   * a filter the price of admission to the feature (owner, 2026-09-15): tick three fees
+   * in the ordinary list and nothing offered to pay them. The selection knows its own
+   * kind, so it answers for itself. Every task in the set must be one you can actually
+   * complete — `verbFor` is the same test the row's own button passes, so the bar can
+   * never offer an act the model will refuse.
+   */
+  const batchKind = React.useMemo<"sign" | "pay" | null>(() => {
+    // One ticked fee still shows its amount (owner, 2026-09-16): the bar reports what
+    // the selection costs whatever its size, and "Pay ₹40" for one is the same promise
+    // as "Pay ₹48" for two. The row's own button remains the other way in.
+    if (!selectedTasks.length) return null;
+    const kinds = new Set(selectedTasks.map((t) => cardKindOf(t)));
+    if (kinds.size !== 1) return null;
+    const [kind] = [...kinds];
+    if (kind !== "sign" && kind !== "pay") return null;
+    const want: Verb = kind === "sign" ? "Sign" : "Pay";
+    const all = selectedTasks.every((t) => {
+      const kase = caseOf(world, t);
+      if (!kase || !ACTIONABLE.has(t.status) || verbFor(user, t, kase) !== want) return false;
+      // Never put a figure on a fee whose amount has not arrived — the single pay flow
+      // refuses that state outright, and a batch total must not quietly read it as ₹0.
+      return kind !== "pay" || t.amountPaise !== undefined;
+    });
+    return all ? kind : null;
+  }, [selectedTasks, world, user]);
+
+  /** Set when the batch dialog is open, so the set it is acting on cannot change under it. */
+  const [batching, setBatching] = React.useState<{ kind: "sign" | "pay"; tasks: Task[] } | null>(null);
+
   const markAllDone = async (batch: Task[]) => {
     let ok = 0;
     for (const t of batch) if (await act(t.id, markDone)) ok += 1;
@@ -282,8 +286,10 @@ export function TasksScreen() {
   const emptyKind = narrowed ? "filtered" : "none";
 
   return (
-    <main className="flex min-w-0 flex-1">
-      <Breadcrumbs crumbs={openTask ? [{ label: openTask.title }] : []} />
+    /* The warm canvas the product defaults to, with the table and the selection bar
+       lifted off it as panels (ui-craft §1.0; owner, 2026-09-16). */
+    <main className="flex min-w-0 flex-1 bg-muted dark:bg-background">
+      <Breadcrumbs crumbs={[]} />
 
       <div className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         {/* Today anchors every relative date below it — "2 days overdue" from when. */}
@@ -315,24 +321,36 @@ export function TasksScreen() {
           </TabsList>
         </Tabs>
 
-        {/* The tab is the population; the cards are its breakdown — they sit inside the
-            tab, above the filters that narrow it further. `cardCounts` counts per view. */}
-        <OverviewCards
-          counts={state === "ready" ? counts : null}
-          view={filters.view}
-          active={filters.kind}
-          loading={state !== "ready"}
-          onToggle={toggleKind}
-        />
+        {/* One controls line: the tab is the population, the pills narrow it by the act
+            still needed, and the search and Filters sit at its end (owner, 2026-09-16).
+            Each pill's count is what pressing it yields, so the control never disagrees
+            with the list under it.
 
-        <FilterRow
-          filters={filters}
-          courts={courts}
-          people={people}
-          narrowed={narrowed}
-          onChange={setFilters}
-          onClear={clearFilters}
-        />
+            Both halves carry a minimum width and the row wraps, so the search and
+            Filters drop to a second line when the pills can no longer be squeezed —
+            content decides, not a breakpoint. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {/* The pills' floor is what decides "too small": below it the search and
+             Filters leave rather than squeezing the pills to two visible kinds. */}
+          <div className="min-w-96 flex-1">
+            <KindPills
+              counts={state === "ready" ? counts : null}
+              active={filters.kind}
+              loading={state !== "ready"}
+              onSelect={selectKind}
+            />
+          </div>
+          <div className="min-w-72 flex-none">
+            <FilterRow
+              filters={filters}
+              courts={courts}
+              people={people}
+              narrowed={narrowed}
+              onChange={setFilters}
+              onClear={clearFilters}
+            />
+          </div>
+        </div>
 
         {!online ? (
           <Banner variant="warning">
@@ -354,29 +372,36 @@ export function TasksScreen() {
           </Banner>
         ) : null}
 
+        {/* Always mounted, so the first tick is announced: the bar's own summary is a
+            live region, but a region inserted together with its content is read
+            unreliably, and the first tick is exactly the moment that matters. This says
+            only what the bar does not — that acting is now possible. */}
+        <p aria-live="polite" className="sr-only">
+          {selectedTasks.length && batchKind
+            ? `${batchKind === "sign" ? "Sign" : "Pay"} is available for the selection.`
+            : ""}
+        </p>
+
+        {/* One selection bar, above the list: what you ticked, and everything that can be
+            done with it. It sat at the foot of the window until the owner pointed out
+            that nobody looks there after selecting rows (2026-09-16) — a toolbar belongs
+            over the thing it acts on. Sticky under the chrome bar, so a set built forty
+            rows down keeps its verbs in view. */}
         {selectedTasks.length ? (
-          <div
-            role="region"
-            aria-label="Selection"
-            className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-sunken px-4 py-2 text-body-compact"
-          >
-            <span className="tabular-nums">
-              {selectedTasks.length} selected
-            </span>
-            <Button
-              variant="outline"
-              disabled={!online || !!busy || !doableSelected.length}
-              onClick={() => setConfirmDone(doableSelected)}
-            >
-              Mark as done
-            </Button>
-            <Button variant="outline" disabled={!online || !!busy} onClick={() => void archiveAll()}>
-              Archive
-            </Button>
-            <Button variant="ghost" onClick={() => setSelected(new Set())}>
-              Clear
-            </Button>
-          </div>
+          <SelectionBar
+            count={selectedTasks.length}
+            batch={batchKind ? { kind: batchKind, tasks: selectedTasks } : null}
+            hasPayOrSign={selectedTasks.some((t) => {
+              const k = cardKindOf(t);
+              return k === "pay" || k === "sign";
+            })}
+            disabled={!online || !!busy}
+            canMarkDone={!!doableSelected.length}
+            onBatch={(b) => setBatching(b)}
+            onMarkDone={() => setConfirmDone(doableSelected)}
+            onArchive={() => void archiveAll()}
+            onClear={() => setSelected(new Set())}
+          />
         ) : null}
 
         {state === "loading" ? (
@@ -390,23 +415,15 @@ export function TasksScreen() {
             now={now}
             view={filters.view}
             query={filters.query}
-            openId={taskId}
             selected={visibleSelected}
+            allSelected={!!selectableRows.length && selectedTasks.length === selectableRows.length}
+            someSelected={!!selectedTasks.length && selectedTasks.length < selectableRows.length}
             offline={!online}
             emptyKind={emptyKind}
             onClearFilters={clearFilters}
-            /*
-             * One click, not two (owner, 2026-08-24). Opening a task also makes it the
-             * selected one, so the bulk bar's Mark as done / Archive are reachable without
-             * first hunting for the checkbox. It *replaces* the selection rather than
-             * adding to it: a row click means "this is the one I am on", which is the
-             * single-task flow. Building a set of several is what the checkbox is for.
-             */
-            onOpen={(t) => {
-              openDetail(t.id);
-              const kase = cases.find((c) => c.id === t.caseId);
-              setSelected(kase && canArchive(user, t, kase) ? new Set([t.id]) : new Set());
-            }}
+            onToggleAll={(select) =>
+              setSelected(select ? new Set(selectableRows.map((t) => t.id)) : new Set())
+            }
             onVerb={handleVerb}
             onToggleSelect={(t) =>
               setSelected((prev) => {
@@ -419,52 +436,7 @@ export function TasksScreen() {
           />
         )}
 
-        {/* Sticky batch action — sign or pay the selected tasks in one go. Shows only
-            when the "To sign" or "To pay" card is pressed; disabled until at least one
-            task is checked. The label counts what is selected: "Sign 3 documents" or
-            "Pay ₹540". */}
-        {(filters.kind === "sign" || filters.kind === "pay") && state === "ready" ? (
-          <BatchKindBar
-            kind={filters.kind}
-            tasks={selectedTasks}
-            disabled={!online || !!busy}
-            onAct={(batch) => {
-              if (filters.kind === "sign") {
-                // Signing leaves this screen — confirm via the flow dialog for the first.
-                if (batch.length) setFlowNotice({ task: batch[0], flow: "sign" });
-              } else {
-                // Pay the first selected — the modal handles one at a time.
-                if (batch.length) openAct(batch[0], actModeOf(batch[0]));
-              }
-            }}
-          />
-        ) : null}
       </div>
-
-      <TaskDetailPanel
-        open={!!openTask && !!openCase}
-        onOpenChange={(open) => {
-          if (!open) closeDetail();
-        }}
-        task={openTask}
-        kase={openCase}
-        user={user}
-        people={people}
-        now={now}
-        offline={!online}
-        busy={!!busy}
-        onVerb={(verb) => openTask && handleVerb(openTask, verb)}
-        onOpenFlow={() => {
-          if (!openTask) return;
-          // Waiting and closed items open their flow to look, not to act: pay and file
-          // live in the modal; sign and returned tasks live on their own pages.
-          const path = actPathOf(openTask);
-          if (path) router.push(withOrigin(path, here));
-          else openAct(openTask, actModeOf(openTask));
-        }}
-        onMarkDone={() => openTask && setConfirmDone([openTask])}
-        onArchive={() => openTask && void act(openTask.id, archive, "Archived — find it under the Archived tab")}
-      />
 
       <TaskActModal
         task={actingTask}
@@ -477,6 +449,27 @@ export function TasksScreen() {
         onFinished={(id) => {
           requestHighlight(id);
           focusRow(id);
+        }}
+      />
+
+      {/* Signing or paying the whole set: one OTP, one transaction, then a line per
+          task — the handover's batch note, built. */}
+      <BatchActDialog
+        kind={batching?.kind ?? null}
+        tasks={batching?.tasks ?? []}
+        user={user}
+        open={!!batching}
+        onOpenChange={(open) => {
+          if (!open) setBatching(null);
+        }}
+        onFinished={(closed) => {
+          setSelected((prev) => {
+            const next = new Set(prev);
+            for (const id of closed) next.delete(id);
+            return next;
+          });
+          const last = closed[closed.length - 1];
+          if (last) requestHighlight(last);
         }}
       />
 
@@ -535,51 +528,91 @@ export function TasksScreen() {
 }
 
 /**
- * Sticky bottom bar for batch sign / pay. Shows a single primary button whose label
- * reflects what is selected: "Sign 3 documents" (count) or "Pay ₹540" (sum). Greyed
- * out when nothing is selected or the user is offline.
+ * The selection bar: what is ticked, said in a sentence, and everything that can be
+ * done with it.
+ *
+ * Its first shape put the count and all four controls in a left-aligned row, which left
+ * the right two thirds of the bar empty and gave the primary act no more standing than
+ * Clear beside it — the owner's "un-UX-ly" (2026-09-16). This is the shape the court's
+ * own sign queues use: the summary muted and left, in a live region so the selection is
+ * heard as well as seen; the acts grouped hard right, least consequential first and the
+ * primary last, carrying the count or the money it will charge.
+ *
+ * Clear belongs with the count, not with the acts — it undoes the selection rather than
+ * doing anything to the tasks — so the right-hand group is acts only.
  */
-function BatchKindBar({
-  kind,
-  tasks,
+function SelectionBar({
+  count,
+  batch,
+  hasPayOrSign,
   disabled,
-  onAct,
+  canMarkDone,
+  onBatch,
+  onMarkDone,
+  onArchive,
+  onClear,
 }: {
-  kind: "sign" | "pay";
-  tasks: Task[];
+  count: number;
+  batch: { kind: "sign" | "pay"; tasks: Task[] } | null;
+  hasPayOrSign: boolean;
   disabled: boolean;
-  onAct: (tasks: Task[]) => void;
+  canMarkDone: boolean;
+  onBatch: (batch: { kind: "sign" | "pay"; tasks: Task[] }) => void;
+  onMarkDone: () => void;
+  onArchive: () => void;
+  onClear: () => void;
 }) {
-  const none = tasks.length === 0;
-  const label = React.useMemo(() => {
-    if (kind === "sign") {
-      return none
-        ? "Sign"
-        : `Sign ${tasks.length} document${tasks.length === 1 ? "" : "s"}`;
-    }
-    // Pay: sum the amounts of the selected tasks.
-    const totalPaise = tasks.reduce((sum, t) => sum + (t.amountPaise ?? 0), 0);
-    return none ? "Pay" : `Pay ${rupees(totalPaise)}`;
-  }, [kind, tasks, none]);
+  const label = batch
+    ? batch.kind === "sign"
+      ? `Sign ${batch.tasks.length} document${batch.tasks.length === 1 ? "" : "s"}`
+      : `Pay ${rupees(batch.tasks.reduce((sum, t) => sum + (t.amountPaise ?? 0), 0))}`
+    : null;
+  /* One line of prose does both jobs: how many are ticked, and — when the set is mixed —
+     why there is no Pay or Sign among the acts to the right. */
+  const summary =
+    `${count} task${count === 1 ? "" : "s"} selected.` +
+    (!batch && hasPayOrSign && count > 1
+      ? " Paying or signing needs one kind at a time."
+      : "");
 
   return (
-    <div className="sticky bottom-0 z-10 -mx-4 mt-auto border-t border-hairline bg-surface/80 px-4 py-3 backdrop-blur-sm md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
-      <div className="flex justify-end">
-        <Button
-          disabled={disabled || none}
-          onClick={() => onAct(tasks)}
-          className="min-w-36 tabular-nums"
-        >
+    <div
+      role="region"
+      aria-label="Selected tasks"
+      /* `top-14` clears the chrome bar exactly, with none of the page air the
+         `--chrome-sticky-top` offset adds — a toolbar sits against the chrome. Opaque,
+         because rows sliding under a translucent bar would decide the contrast of a
+         money label; and unlifted, so the table below stays the one raised object and
+         this reads as its toolbar rather than a second panel. */
+      className="sticky top-14 z-20 flex flex-wrap items-center justify-end gap-3 rounded-lg border border-hairline bg-card px-4 py-3"
+    >
+      <p className="mr-auto flex flex-wrap items-center gap-x-3 text-body-compact text-muted-foreground" aria-live="polite">
+        <span className="tabular-nums">{summary}</span>
+        <Button variant="link" className="h-auto p-0 font-normal underline" onClick={onClear}>
+          Clear
+        </Button>
+      </p>
+
+      <Button variant="outline" disabled={disabled} onClick={onArchive}>
+        Archive
+      </Button>
+      <Button variant="outline" disabled={disabled || !canMarkDone} onClick={onMarkDone}>
+        Mark as done
+      </Button>
+      {batch && label ? (
+        <Button disabled={disabled} onClick={() => onBatch(batch)} className="tabular-nums">
           {label}
         </Button>
-      </div>
+      ) : null}
     </div>
   );
 }
 
 export function TasksScreenFallback() {
   return (
-    <main className="flex min-w-0 flex-1">
+    /* The warm canvas the product defaults to, with the table and the selection bar
+       lifted off it as panels (ui-craft §1.0; owner, 2026-09-16). */
+    <main className="flex min-w-0 flex-1 bg-muted dark:bg-background">
       <div className={cn("flex min-w-0 flex-1 flex-col gap-6 px-4 py-6 md:px-6 lg:px-8")}>
         <header className="flex flex-col gap-1">
           <h1 className="text-title-s font-semibold text-foreground">{headerDate(new Date())}</h1>

@@ -14,13 +14,13 @@ import {
   type CaseRecord,
   type CounselSide,
 } from "@/lib/cases/types";
-import { cn } from "@/lib/utils";
 
 import { CaseAdvocates } from "./case-advocates";
 import { CaseHeaderActions } from "./case-header-actions";
 import { CaseFlags, CaseStage } from "./case-identity";
 import { CaseBackButton, CaseStageBadges } from "./case-header-parts";
 import { CaseNumberHistory } from "./case-number-history";
+import { Identifier } from "@/components/chrome/identifier";
 
 const COUNSEL_LABEL: Record<CounselSide, string> = {
   complainant: "Complainant advocates",
@@ -82,9 +82,8 @@ export function CaseHeader({
             <CaseBackButton />
             {hasParties ? (
               <>
-              <p className="font-mono text-body-compact font-medium text-muted-foreground">
-                <span className="sr-only">Case number </span>
-                {record.caseNumber}
+              <p className="text-body-compact font-medium text-muted-foreground">
+                <Identifier value={record.caseNumber} label="case number" />
               </p>
               <CaseNumberHistory history={numberHistory} />
               </>
@@ -117,8 +116,8 @@ export function CaseHeader({
 
       <dl className="flex min-w-0 flex-wrap gap-x-8 gap-y-3">
         {hasParties ? null : (
-          <HeaderFact label="Case number" mono>
-            {record.caseNumber}
+          <HeaderFact label="Case number">
+            <Identifier value={record.caseNumber} label="case number" />
             <CaseNumberHistory history={numberHistory} />
           </HeaderFact>
         )}
@@ -165,11 +164,9 @@ export function CaseHeader({
 /** Caption label over a compact value, the app's dense key-value pair. */
 function HeaderFact({
   label,
-  mono = false,
   children,
 }: {
   label: string;
-  mono?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -179,12 +176,7 @@ function HeaderFact({
       </dt>
       {/* min-h-6 keeps every value on one baseline; the counsel +N chip
           reaches its 40px target through its own `after:` inset. */}
-      <dd
-        className={cn(
-          "flex min-h-6 items-center gap-1 text-body-compact font-medium text-foreground",
-          mono && "font-mono"
-        )}
-      >
+      <dd className="flex min-h-6 items-center gap-1 text-body-compact font-medium text-foreground">
         {children}
       </dd>
     </div>

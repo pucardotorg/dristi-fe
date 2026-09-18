@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { CASE_PEEK_ID, useCasePeek } from "./use-case-peek";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * How loudly the registered number reads. `muted` keeps table weight but drops
@@ -51,12 +52,14 @@ export function CasePeekTrigger({
       aria-controls={expanded ? CASE_PEEK_ID : undefined}
       onClick={() => open(record, { hideLongPendingFlag })}
       className={cn(
-        "w-fit cursor-pointer rounded-sm p-0 text-left font-mono outline-none after:absolute after:inset-0 focus-visible:ring-3 focus-visible:ring-focus-ring",
+        "w-fit cursor-pointer rounded-sm p-0 text-left outline-none after:absolute after:inset-0 focus-visible:ring-3 focus-visible:ring-focus-ring",
         IDENTITY_TONE[tone]
       )}
     >
       <span className="sr-only">Preview </span>
-      {record.caseNumber}
+      {/* The number is already this row's preview control, so it takes the face
+          without a second control inside it. */}
+      <Identifier value={record.caseNumber} label="case number" copyable={false} />
       <span className="sr-only">{`, ${label}`}</span>
     </button>
   );

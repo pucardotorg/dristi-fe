@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import Link from "next/link";
 import { InfoIcon } from "lucide-react";
 
+import { Identifier } from "@/components/chrome/identifier";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import {
@@ -138,7 +139,11 @@ function FieldRow({ field }: { field: ComplaintField }) {
           field.empty ? "text-muted-foreground" : "font-medium"
         )}
       >
-        {field.value}
+        {field.id ? (
+          <Identifier value={field.value} label={field.term} />
+        ) : (
+          field.value
+        )}
       </DescriptionDetails>
     </DescriptionRow>
   );

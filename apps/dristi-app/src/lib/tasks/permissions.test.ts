@@ -11,10 +11,46 @@ import {
   canView,
   canViewTask,
   cardKindOf,
+  isBinding,
   verbFor,
   viewOf,
+  whoCanActOn,
 } from "./permissions";
 import type { TaskStatus, TaskView } from "./types";
+
+describe("whoCanActOn — what the Who can act column shows", () => {
+  const names = (t: Parameters<typeof whoCanActOn>[0]) =>
+    whoCanActOn(t, kase, PEOPLE).map((p) => p.name);
+
+  it("a signing task: the vakalatnama holders, not everyone on the case", () => {
+    assert.deepEqual(names(makeTask({ kind: "sign", dueAt: at(1) })), ["Anjali Nair", "R. Manoj"]);
+  });
+
+  it("a courtroom task: everyone on the case, because anyone can mark it done", () => {
+    assert.deepEqual(names(makeTask({ kind: "hearing", dueAt: at(2), hearingAt: at(2) })), [
+      "Anjali Nair",
+      "R. Manoj",
+      "S. Prakash",
+    ]);
+  });
+
+  it("nobody, once it is closed or with the court", () => {
+    assert.deepEqual(names(makeTask({ kind: "pay", status: "done", completion: { at: at(-1), how: "event" } })), []);
+    assert.deepEqual(names(makeTask({ kind: "file", status: "awaiting-court", dueAt: at(-1) })), []);
+  });
+});
+
+describe("isBinding — whether the deadline still binds", () => {
+  it("open work binds; closed, archived and waiting-on-others work does not", () => {
+    assert.equal(isBinding(makeTask({ status: "open" })), true);
+    assert.equal(isBinding(makeTask({ status: "draft" })), true);
+    assert.equal(isBinding(makeTask({ status: "done" })), false);
+    assert.equal(isBinding(makeTask({ status: "expired" })), false);
+    assert.equal(isBinding(makeTask({ status: "archived" })), false);
+    assert.equal(isBinding(makeTask({ status: "awaiting-court" })), false);
+    assert.equal(isBinding(makeTask({ status: "payment-confirming" })), false);
+  });
+});
 
 describe("canView / canComplete", () => {
   it("signatories and juniors on the case can view; only signatories complete", () => {

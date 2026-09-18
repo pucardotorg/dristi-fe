@@ -40,6 +40,7 @@ import {
   type WaitTone,
 } from "@/lib/employee/approve-registrations";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 const waitClass: Record<WaitTone, string> = {
   plain: "",
@@ -162,7 +163,7 @@ export function ApproveRegistrationsScreen() {
             "Approve copy application"; the group names each queue by what it exists to
             grant. `APPROVE_REGISTRATIONS_TITLE` is shared with the rail and the tab, so the
             three can never disagree. */}
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           {APPROVE_REGISTRATIONS_TITLE}
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
@@ -391,10 +392,11 @@ function RegistrationItemList({
               type="button"
               onClick={() => onOpen(request)}
               {...rowOpener}
-              className={cn(rowOpenerClass, "tabular-nums")}
+              className={rowOpenerClass}
             >
               <span className="sr-only">Review </span>
-              {request.applicationNumber}
+              {/* The number is the row's opener — the face without a second control. */}
+              <Identifier value={request.applicationNumber} label="application number" copyable={false} />
             </button>
             <p
               className="min-w-0 text-body-compact"
@@ -403,7 +405,7 @@ function RegistrationItemList({
               {request.fullName}
             </p>
             <p className="text-caption text-muted-foreground">
-              <span className="tabular-nums">{request.registrationNumber}</span>
+              <Identifier value={request.registrationNumber} label="registration number" />
               {" · "}
               <span
                 className={cn(

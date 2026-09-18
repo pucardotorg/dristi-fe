@@ -10,8 +10,8 @@ import { ApproveCopyApplicationTable } from "@/components/employee/approve-copy-
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowActivation,
   rowOpener,
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
@@ -44,7 +44,7 @@ import {
   type CopyApplicationFilters,
 } from "@/lib/employee/approve-copy-application";
 import { PAGE_SIZE, type HearingsPageSize } from "@/lib/employee/hearings";
-import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -200,7 +200,7 @@ export function ApproveCopyApplicationScreen() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 pb-0 md:p-8 md:pb-0">
         <header className="flex flex-col gap-2">
-          <h1 className="text-title text-balance font-semibold sm:text-title-l">
+          <h1 className="text-title text-balance font-semibold">
             Approve copy application
           </h1>
           {/* The count is the whole point of the queue, so the supporting line carries it
@@ -491,9 +491,9 @@ function CopyApplicationItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((application) => (
-        <li
+        <QueueItemRow
           key={application.id}
-          {...rowActivation("flex items-start gap-3 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong")}
+          className="flex items-start gap-3"
         >
           {/* The DS box expands its own hit area to 40×40; the name it carries is the
               application and who asked for it, not the column, because a row read aloud
@@ -509,10 +509,11 @@ function CopyApplicationItemList({
               type="button"
               onClick={() => onOpen(application)}
               {...rowOpener}
-                className={cn(rowOpenerClass, "tabular-nums")}
+                className={rowOpenerClass}
             >
               <span className="sr-only">Review </span>
-              {application.applicationNumber}
+              {/* The number is the row's opener — the face without a second control. */}
+              <Identifier value={application.applicationNumber} label="application number" copyable={false} />
             </button>
             <p className="min-w-0 text-body-compact">
               {application.applicant.name}
@@ -521,14 +522,14 @@ function CopyApplicationItemList({
               {application.record.description}
             </p>
             <p className="text-caption text-muted-foreground">
-              <span className="tabular-nums">{application.caseNumber}</span>
+              <Identifier value={application.caseNumber} label="case number" />
               {" · Raised "}
               <span className="tabular-nums">
                 {formatCopyApplicationDate(application.raisedOn)}
               </span>
             </p>
           </div>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

@@ -1,185 +1,94 @@
 /**
- * The items a day-order can carry, and the words each one opens on.
+ * The orders a day-order can carry — now the court's catalogue, not this app's.
  *
- * The reference screen calls this region **Order items**: the typist chooses what the
- * court passed today — summons, a warrant, cost — and the order text writes itself. That
- * is the difference between the two seats this area serves. The bench dictates; the
- * typist sets down an order the court has already made, from the court's own standing
- * forms, and then corrects it. A blank editor is the wrong instrument for the second job.
+ * This file used to hold seventeen English sentences written here, with a comment saying
+ * so: *"The standing words are this app's, not a court's. No template library was given
+ * to us."* One was given to us on 2026-09-13. The words now come from
+ * `order-templates.ts`, which transcribes the court's own twenty-seven templates, and
+ * this module is the thin layer between that catalogue and the draft the composer holds.
  *
- * **The catalogue is the register's, restated** (`content.ts`, D12): `/employee` does not
- * import `lib/cases/orders`, so the labels here are copied from `ORDER_TYPES` word for
- * word instead. The two halves of the app must not disagree about what a "Miscellaneous
- * process" is. Ids match the register's ids for the same reason — a later slice that does
- * issue an order has one name to map, not two.
+ * **What an order opens on is its BOTD line with the auto-fill pass run over it.**
+ * *(Corrected 2026-09-14. This comment used to say none of the twenty-seven references a
+ * general variable and there was therefore nothing to fill — read off the six* name *rows
+ * of the spec's general-variables table, which has thirteen. `[Application Number]`,
+ * `[Hearing Purpose]` and the hearing dates are general or context variables and they are
+ * all over the catalogue.)*
  *
- * One label is deliberately not the reference's. The reference lists **Section 202 CrPC**;
- * the register calls the same item **Postponement of issue of process**. The Code of
- * Criminal Procedure was replaced by the BNSS on 1 July 2024
- * (`docs/product/sources.md`), so a control naming a repealed section would be wrong for
- * every case filed since — and the register's name says what the order does without
- * citing anything.
- *
- * **The standing words are this app's, not a court's.** No template library was given to
- * us; these read the way `order-demo.ts` reads and carry the same bargain — they are a
- * starting draft the typist edits, nothing here is issued, and the real forms are a
- * question for product (§12 of the brief). Where an order genuinely needs a figure the
- * court fixes on the day, the sentence carries a blank rather than inventing an amount.
+ * What is still **not** filled, and this part of the old comment stands: which party is
+ * summoned and what a cost is set at are choices, and the spec is explicit that the
+ * system cannot make them — *"The system cannot fill a variable when it requires a choice
+ * among multiple options."* The old build wrote "Issue summons to Anand Traders" and read
+ * as finished while nobody had chosen anything, so `[Party Type]`, `[Party Name]`,
+ * `[Amount]` and the discretionary dates keep their brackets and wait for D31's fields.
  */
 
 import type { RichTextValue } from "@/components/cases/rich-text-field";
 
-export type OrderItemTypeId =
-  | "abate-case"
-  | "bail"
-  | "cost"
-  | "judgement"
-  | "order-for-taking-cognizance"
-  | "order-to-dismiss-case"
-  | "refer-case-to-adr"
-  | "attachment"
-  | "miscellaneous-process"
-  | "notice"
-  | "postponement-of-issue-of-process"
-  | "proclamation"
-  | "summons"
-  | "warrant"
-  | "witness-batta"
-  | "mandatory-submissions-responses"
-  | "others";
-
-/** The sides an item's words can name. Structural, so `hearings.ts` is not imported. */
-export type OrderItemParties = {
-  parties: { complainant: string; accused: string };
-};
+import {
+  fillGeneralVariables,
+  orderTemplate,
+  type OrderTemplateFacts,
+  type OrderTemplateId,
+} from "./order-templates";
 
 /**
- * The catalogue, in the register's browsing groups.
+ * A chosen order, or the one escape from the catalogue.
  *
- * The reference offers all seventeen as one unsorted list, which is a list you read
- * rather than a list you pick from. Grouping them is the register's own answer
- * (`ORDER_CLASSES`) and it survives the type-ahead: a typist who knows the word types it,
- * and one who does not reads seven judicial orders instead of seventeen of everything.
- * `Others` sits last on its own, because it is the bucket for what the catalogue has no
- * name for and must not appear to belong to a group that describes its contents.
+ * `others` is **not** in the court's catalogue and is marked here rather than smuggled
+ * into it. It is what a sitting passed that the twenty-seven have no name for, and the
+ * composer needs it because a day the catalogue cannot describe still has to be
+ * recorded. How often a typist reaches for it is a reading on the catalogue, not on the
+ * typist — if it is often, the catalogue is short and that is worth telling product.
  */
-export const ORDER_ITEM_GROUPS: {
-  id: string;
-  label: string;
-  items: { id: OrderItemTypeId; label: string }[];
-}[] = [
-  {
-    id: "judicial",
-    label: "Judicial order or judgment",
-    items: [
-      { id: "abate-case", label: "Abate case" },
-      { id: "bail", label: "Bail" },
-      { id: "cost", label: "Cost" },
-      { id: "judgement", label: "Judgement" },
-      {
-        id: "order-for-taking-cognizance",
-        label: "Order for taking cognizance",
-      },
-      { id: "order-to-dismiss-case", label: "Order to dismiss case" },
-      { id: "refer-case-to-adr", label: "Refer case to ADR" },
-    ],
-  },
-  {
-    id: "process",
-    label: "Court process",
-    items: [
-      { id: "attachment", label: "Attachment" },
-      { id: "miscellaneous-process", label: "Miscellaneous process" },
-      { id: "notice", label: "Notice" },
-      {
-        id: "postponement-of-issue-of-process",
-        label: "Postponement of issue of process",
-      },
-      { id: "proclamation", label: "Proclamation" },
-      { id: "summons", label: "Summons" },
-      { id: "warrant", label: "Warrant" },
-      { id: "witness-batta", label: "Witness batta" },
-    ],
-  },
-  {
-    id: "workflow",
-    label: "Workflow decision",
-    items: [
-      {
-        id: "mandatory-submissions-responses",
-        label: "Mandatory submissions responses",
-      },
-    ],
-  },
-  {
-    id: "other",
-    label: "Other",
-    items: [{ id: "others", label: "Others" }],
-  },
-];
-
-export const ORDER_ITEM_TYPES: { id: OrderItemTypeId; label: string }[] =
-  ORDER_ITEM_GROUPS.flatMap((group) => group.items);
-
-export function orderItemLabel(id: OrderItemTypeId): string {
-  return ORDER_ITEM_TYPES.find((item) => item.id === id)?.label ?? id;
-}
+export type OrderItemTypeId = OrderTemplateId | "others";
 
 export function isOrderItemTypeId(value: string): value is OrderItemTypeId {
-  return ORDER_ITEM_TYPES.some((item) => item.id === value);
+  if (value === "others") return true;
+  try {
+    orderTemplate(value as OrderTemplateId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function orderItemLabel(id: OrderItemTypeId): string {
+  if (id === "others") return "Others";
+  try {
+    return orderTemplate(id).label;
+  } catch {
+    return id;
+  }
 }
 
 /**
- * What each item says before the typist touches it.
+ * The words an order opens on: its BOTD line, with the auto-fill pass run over it.
  *
- * Named parties, not role words: the order that comes out of this screen says "Issue
- * summons to Anand Traders", because that is what an order says and because the roll two
- * columns away already knows the name. The reference prints the placeholder it never
- * filled in — "Issue summons to Accused Details (Accused)" — which is the tell that its
- * text was never wired to the listing.
+ * **`facts` is what makes this the spec's step 3 rather than a paste of the template.**
+ * The spec's resolution order is explicit — the judge selects a type, the system loads
+ * the template, *then* "general variables and context variables are filled in", and only
+ * what is left becomes a field the judge answers. Without facts this returns the raw
+ * template, which is what an order opened on until 2026-09-14 and what
+ * `orderItemStandingText(id)` still means for callers that have no case in hand (the
+ * catalogue tests, and anything asking "what does this template say").
  *
- * `others` opens empty on purpose. It is the item the catalogue could not name, so there
- * are no standing words for it and pretending otherwise would put a sentence in an order
- * that nobody chose.
+ * What cannot be resolved stays standing as its own bracketed token — see
+ * `fillGeneralVariables`. That is the whole reason auto-fill is safe to do at all: it
+ * never has to decide between a value and a blank, because an unresolved slot keeps its
+ * name and stays visible in the place the value goes.
  */
-const STANDING_WORDS: Record<
-  OrderItemTypeId,
-  (parties: { complainant: string; accused: string }) => string
-> = {
-  "abate-case": ({ accused }) =>
-    `The complaint cannot proceed further against ${accused}. The case stands abated and the file is closed.`,
-  bail: ({ accused }) =>
-    `The application for bail was taken up and both sides were heard. ${accused} is released on bail on executing a bond with one surety to the satisfaction of this court.`,
-  cost: () =>
-    `The adjournment sought is allowed on terms. Cost of ₹____ is imposed and shall be paid on or before the next posting date.`,
-  judgement: () =>
-    `Judgement was pronounced in open court and the operative portion was read out. The judgement, signed and dated, is placed on the file.`,
-  "order-for-taking-cognizance": ({ complainant }) =>
-    `The complaint, the sworn statement of ${complainant} and the documents produced were perused. There is sufficient ground to proceed, and cognizance is taken of the offence under Section 138 of the Negotiable Instruments Act, 1881.`,
-  "order-to-dismiss-case": ({ complainant, accused }) =>
-    `${complainant} has remained absent and is not represented. The complaint is dismissed for default and ${accused} is discharged.`,
-  "refer-case-to-adr": () =>
-    `Both sides submit that the matter can be settled. The case is referred for alternative dispute resolution, and the parties shall appear before the centre as directed.`,
-  attachment: ({ accused }) =>
-    `${accused} has not appeared, and the warrant issued has been returned unexecuted. The property of ${accused} shall be attached, and the office shall place the return before this court.`,
-  "miscellaneous-process": () =>
-    `Process shall issue as ordered. The office shall draw it up and place the return before this court on the next posting date.`,
-  notice: ({ complainant, accused }) =>
-    `Notice shall issue to ${accused}. ${complainant} is directed to take steps and to pay the process fee within the time allowed.`,
-  "postponement-of-issue-of-process": () =>
-    `Before process is issued it is necessary to inquire further into the truth of the complaint. The issue of process is postponed, and the inquiry shall be held on the next posting date.`,
-  proclamation: ({ accused }) =>
-    `${accused} has absconded and cannot be secured by warrant. A proclamation shall issue requiring ${accused} to appear before this court within thirty days.`,
-  summons: ({ complainant, accused }) =>
-    `Issue summons to ${accused}, the accused. ${complainant} is directed to make the appropriate payments and to take steps to issue summons.`,
-  warrant: ({ accused }) =>
-    `${accused} has failed to appear though the summons was served. A warrant shall issue for the arrest of ${accused}, returnable on the next posting date.`,
-  "witness-batta": () =>
-    `The witness examined today shall be paid batta of ₹____, and the office shall draw up the voucher.`,
-  "mandatory-submissions-responses": () =>
-    `The submissions called for by this court have been filed and are taken on record. A copy shall be furnished to the other side.`,
-  others: () => "",
-};
+export function orderItemStandingText(
+  id: OrderItemTypeId,
+  facts?: OrderTemplateFacts,
+): string {
+  if (id === "others") return "";
+  try {
+    const botd = orderTemplate(id).botd;
+    return facts ? fillGeneralVariables(botd, facts) : botd;
+  } catch {
+    return "";
+  }
+}
 
 /**
  * The plain sentence as the editor's own markup.
@@ -187,17 +96,432 @@ const STANDING_WORDS: Record<
  * The same escape the citizen side makes for the same reason (`lib/cases/
  * application-draft.ts`); the two do not share a function because `/employee` does not
  * import from there (`content.ts`).
+ *
+ * `item` marks the paragraph as the words one pulled-in order contributed — see
+ * `ORDER_ITEM_ATTRIBUTE`. Only a *template's* passage carries it: the disposal sentences
+ * an answered application writes are facts of the sitting rather than items of the
+ * catalogue, and nothing offers to take them back out.
  */
-export function richTextFromPlain(value: string): RichTextValue {
+export function richTextFromPlain(
+  value: string,
+  item?: string,
+): RichTextValue {
   if (!value) return { html: "", text: "" };
-  const escaped = value
+  const mark = item ? ` ${ORDER_ITEM_ATTRIBUTE}="${item}"` : "";
+  return { html: `<p${mark}>${escapeText(value)}</p>`, text: value };
+}
+
+/** The same escape, reachable on its own: a sentence is matched inside existing markup
+ *  in the escaped form the editor holds it in, not in the plain form it was written
+ *  in. */
+function escapeText(value: string): string {
+  return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return { html: `<p>${escaped}</p>`, text: value };
 }
 
-/** One item in the order being composed: what it is, and the words it carries. */
+/**
+ * Join what a template contributes onto what the order already says.
+ *
+ * A blank line between passages, not a space: the templates are whole directions and
+ * running two of them into one paragraph would make the court say something neither of
+ * them says. An empty side returns the other unchanged, so inserting `others` — which
+ * has no standing words — leaves the box exactly as the typist left it.
+ *
+ * `text` is joined on the plain side and `html` on the markup side, because the two
+ * halves answer different questions (`RichTextValue`): the markup is what the editor
+ * shows, the text is what "has anything been written" is measured on.
+ */
+export function appendRichText(
+  current: RichTextValue,
+  addition: RichTextValue,
+): RichTextValue {
+  if (!addition.text && !addition.html) return current;
+  if (!current.text && !current.html) return addition;
+  /* **Above the line that closes the order, when one is there.** The posting is written
+     into the passage as the sitting settles it (`upsertRichTextFact`), and on the
+     ordinary flow it is settled *before* the first template is pulled in — the sheet is
+     answered top to bottom. A plain concatenation would then put every direction the
+     court passed after "Posted to 6 October 2026 for evidence.", which is an order
+     closing before it says anything. What is added goes above that line; everything
+     else appends as it did. */
+  const closing = factBlock(CLOSING_FACT).exec(current.html);
+  if (closing) {
+    const html = `${current.html.slice(0, closing.index)}${addition.html}${current.html.slice(closing.index)}`;
+    return { html, text: plainTextOfRichText(html) };
+  }
+  return {
+    html: `${current.html}${addition.html}`,
+    text: `${current.text}\n\n${addition.text}`,
+  };
+}
+
+/**
+ * Write a generated sentence into the passage, replacing the version of it already
+ * there.
+ *
+ * A disposal is generated from a decision the bench made — "The application of the
+ * accused for bail (CMP/312/2026) is allowed." — and a decision can be made twice: the
+ * typist opens the answered row, looks at the application again, and dismisses what they
+ * had allowed. Appending blindly would leave the order carrying both sentences, which is
+ * a court record contradicting itself; skipping the second would leave it carrying the
+ * wrong one. So the earlier wordings are passed in and the new sentence takes their
+ * place, wherever they sit in the passage.
+ *
+ * `supersedes` carries every wording the same fact could have had, the new one included
+ * — a second press of the same answer must not duplicate the sentence it already wrote.
+ *
+ * Only the sentence is swapped, not the paragraph around it, so a disposal the typist
+ * has moved into a list or joined onto their own words keeps that shape. The limit of
+ * that is stated rather than papered over: a sentence whose *words* have been edited no
+ * longer matches, and a later change of decision appends a fresh one instead of
+ * correcting the typist's own text. Rewriting a sentence somebody has taken over is the
+ * worse failure of the two.
+ */
+export function upsertRichTextSentence(
+  current: RichTextValue,
+  sentence: string,
+  supersedes: readonly string[],
+): RichTextValue {
+  for (const earlier of supersedes) {
+    if (!earlier || !current.text.includes(earlier)) continue;
+    return {
+      html: current.html.split(escapeText(earlier)).join(escapeText(sentence)),
+      text: current.text.split(earlier).join(sentence),
+    };
+  }
+  return appendRichText(current, richTextFromPlain(sentence));
+}
+
+/**
+ * **The mark that ties a passage in the order to the row that pulled it in.**
+ *
+ * The composer had no Remove for a pulled-in order until 2026-09-16, and the reason was
+ * sound: the words become part of one passage the moment they land, so a Remove would
+ * have had to *guess* which sentences were once a template's, and would either take out
+ * text the typist had since written or leave text it claimed to have removed.
+ *
+ * The mark answers the objection instead of overriding it. The paragraph a template
+ * writes carries the item's id, so the passage can be found exactly — and, just as
+ * importantly, the reverse question can be asked exactly too: a row belongs in *Pulled
+ * into this order* while a marked paragraph for it survives in the body, and not after.
+ * A typist who selects the direction in the editor and deletes it has removed the row by
+ * removing what the row was a record of (owner, 2026-09-16).
+ *
+ * It rides in the markup because that is the only thing the editor round-trips: the
+ * field emits `innerHTML` verbatim (`components/cases/rich-text-field.tsx`), so an
+ * attribute on a block survives typing inside it, splitting it, and formatting it, and
+ * disappears exactly when the block does. Editing the *words* inside the paragraph
+ * therefore keeps the row, which is the honest reading — the direction is still in the
+ * order, in the court's or the typist's words.
+ *
+ * The one case it cannot answer: a browser command that replaces the block rather than
+ * editing it — turning the paragraph into a list item, on some engines — drops the
+ * attribute with it, and the row goes while the words stay. A row that has lost its
+ * passage is the safer failure of the two, since the words are on the page beside it
+ * where they can be read and deleted by hand.
+ */
+export const ORDER_ITEM_ATTRIBUTE = "data-order-item";
+
+/** Does the order's markup still carry the passage this item wrote? */
+export function richTextCarriesItem(html: string, id: string): boolean {
+  return html.includes(`${ORDER_ITEM_ATTRIBUTE}="${id}"`);
+}
+
+/**
+ * The order's markup with this item's passage taken out of it.
+ *
+ * Every block carrying the mark, not the first: pressing Enter inside a paragraph splits
+ * it and the browser copies the attribute onto both halves, so one item can hold two
+ * blocks by the time it is removed. The tag is whatever the block has become — a
+ * paragraph the typist turned into a list item is still that item's passage.
+ *
+ * String surgery rather than a parse, so this stays pure and testable: the only thing
+ * that has to be exact is the boundary of a marked block, and a block's own closing tag
+ * is that boundary. Anything the typist nested *inside* it goes with it, which is the
+ * point — the passage is being removed, not just the sentence it opened on.
+ */
+export function stripRichTextItem(html: string, id: string): string {
+  const mark = `${ORDER_ITEM_ATTRIBUTE}="${escapeForPattern(id)}"`;
+  const block = new RegExp(
+    `<([a-z][a-z0-9]*)\\b[^>]*\\b${mark}[^>]*>[\\s\\S]*?</\\1>`,
+    "gi",
+  );
+  return html.replace(block, "");
+}
+
+/** An id is a slug and a counter today; escaped anyway, so it cannot become syntax. */
+function escapeForPattern(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The plain side of some markup, with the blocks joined the way `appendRichText` joins
+ * them.
+ *
+ * `RichTextValue` carries both halves and they have to stay in step: `text` is what
+ * "has anything been written" and the count of unfilled `[…]` slots are measured on, so
+ * markup that has had a passage taken out of it needs its plain side rebuilt rather than
+ * left describing the version before. The editor itself produces this half with
+ * `innerText`; this is the same thing computed without a DOM, which keeps the removal
+ * pure and testable — and the next keystroke replaces it with the browser's own reading
+ * either way.
+ */
+export function plainTextOfRichText(html: string): string {
+  return html
+    .split(/<\/(?:p|li|div|h[1-6]|blockquote)>/i)
+    .map((block) =>
+      unescapeText(
+        /* A break inside a block is a line inside it — which is what the recitals are
+           made of (`OrderRecitalLine`), and what the editor's own `innerText` reads a
+           `<br>` as. Before the tags are stripped, or it would vanish and run two
+           labelled lines into one. */
+        block.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, ""),
+      ).trim(),
+    )
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** The inverse of `escapeText`, for reading the plain sentence back out of markup. */
+function unescapeText(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * The order without the passage one pulled-in item wrote — both halves of it.
+ *
+ * Unchanged when the passage is already gone, so a removal the typist has performed for
+ * themselves in the editor is not a second edit to the document.
+ */
+export function richTextWithoutItem(
+  body: RichTextValue,
+  id: string,
+): RichTextValue {
+  if (!richTextCarriesItem(body.html, id)) return body;
+  const html = stripRichTextItem(body.html, id);
+  return { html, text: plainTextOfRichText(html) };
+}
+
+/**
+ * The items the order still carries, in the order they were pulled in.
+ *
+ * This is what the screen shows, counts and gates on, rather than the raw record of
+ * every add: the list is a statement about what the document says now, and a row whose
+ * passage the typist has deleted is a claim the page beside it contradicts. The record
+ * itself keeps the removed entries, so an id is never handed out twice in one draft.
+ */
+export function orderItemsInBody<Item extends { id: string }>(
+  items: readonly Item[],
+  html: string,
+): Item[] {
+  return items.filter((item) => richTextCarriesItem(html, item.id));
+}
+
+/**
+ * **The mark on a line the order carries because the sitting is known, not because
+ * anybody wrote it.**
+ *
+ * Two of them: the roll, as attendance opens an order, and the posting, as the next date
+ * closes it (owner, 2026-09-16 — marking attendance and setting the next hearing "should
+ * also show up in the text box"). Both were printed beside the writing and nowhere in
+ * it, which made them the two facts of the sitting a typist could read on the screen and
+ * not correct in the order — the same objection that moved the application disposals
+ * into the passage a day earlier.
+ *
+ * It is a *different* attribute from `ORDER_ITEM_ATTRIBUTE` on purpose. That mark means
+ * "a row in the catalogue put these words here", and it is what *Pulled into this order*
+ * lists and offers to take back out. A recital is not a pulled-in order and must not
+ * appear in that list: nothing in the catalogue produced it, and removing it would mean
+ * unmarking the roll rather than deleting a direction.
+ */
+const ORDER_FACT_ATTRIBUTE = "data-order-fact";
+
+/** Which known fact of the sitting a marked line carries. */
+export type OrderFactId = "attendance" | "next";
+
+/**
+ * One line of a recital: what it is, and what the sitting says it is.
+ *
+ * **The structure is the point** (owner, 2026-09-16: the roll and the posting should be
+ * "in a proper structured order, rather than just dumping it in the text box"). The first
+ * build recited the roll as four running sentences — *Sunil Varghese, the complainant, is
+ * present. Adv. Suresh Menon, advocate for the complainant, is present. …* — which is
+ * true, and unreadable: the fact a reader wants out of an appearance line is *who was
+ * absent*, and it was buried in the middle of a paragraph by whichever order the offices
+ * happen to sit in.
+ *
+ * So the recital is labelled lines, the way an order sheet has always called a roll:
+ * **Present:** and **Absent:** with their offices behind them, and the posting as its
+ * date and its purpose. A label rather than a sentence also means the line stays legible
+ * when a state translates it, and it is what makes *nobody absent* visible — the Absent
+ * line is simply not there.
+ *
+ * The label is carried apart from the value, rather than as ready-made markup, so that
+ * this stays a plain testable value and the escaping happens in exactly one place
+ * (`recitalHtml`). A party named "A & B <Traders>" must not be able to write markup into
+ * a court order.
+ */
+export type OrderRecitalLine = { label: string; value: string };
+
+/** The recital as the order renders it: a bold label, its value, one line each. */
+function recitalHtml(lines: readonly OrderRecitalLine[]): string {
+  return lines
+    .map(
+      (line) =>
+        `<strong>${escapeText(line.label)}:</strong> ${escapeText(line.value)}`,
+    )
+    .join("<br>");
+}
+
+/**
+ * The recital's plain form — the same lines without the markup.
+ *
+ * `plainTextOfRichText` computes this out of the passage for the draft's own plain half;
+ * this is for a caller that holds the lines and not the document, which is how the
+ * fixture and its tests state what the order should read.
+ */
+export function recitalText(lines: readonly OrderRecitalLine[]): string {
+  return lines.map((line) => `${line.label}: ${line.value}`).join("\n");
+}
+
+/** The one that closes the order, and so the one a new passage is added above. */
+const CLOSING_FACT: OrderFactId = "next";
+
+/**
+ * An empty line, as the editor itself writes one.
+ *
+ * `<p><br></p>` is what pressing Enter on an empty line produces in a contentEditable
+ * region, so this is the same object the typist would have made by hand rather than a
+ * shape only this code knows about. It carries nothing on the plain side —
+ * `plainTextOfRichText` drops a block with no words in it — so an empty line is never
+ * mistaken for an order having been written.
+ */
+const BLANK_BLOCK = "<p><br></p>";
+
+/** Does the passage open on an empty line? */
+function startsBlank(html: string): boolean {
+  return /^\s*<p>(?:<br\s*\/?>|&nbsp;|\s)*<\/p>/i.test(html);
+}
+
+/** The passage without the empty line it opens on. */
+function trimStartBlank(html: string): string {
+  return html.replace(/^\s*<p>(?:<br\s*\/?>|&nbsp;|\s)*<\/p>/i, "");
+}
+
+/**
+ * The passage with a stale mark taken off a block, its words left where they are.
+ *
+ * **The typist's sentence is never deleted to keep a recital tidy.** Pressing Enter
+ * inside the recital splits it and the browser copies the mark onto both halves, so a
+ * typist who put the caret at the end of the roll and wrote the order from there is
+ * writing *inside a marked block* — and re-marking one office would then replace their
+ * words along with the recital. The recital is rebuilt from the first marked block and
+ * every other one simply stops being the roll's: the words stay on the page, in the
+ * order, where they can be read and moved.
+ *
+ * The leftover is honest rather than invisible — half a recital may survive as ordinary
+ * text for the typist to delete. That is the safer failure of the two, and the same
+ * reading `ORDER_ITEM_ATTRIBUTE` takes about a row that has lost its passage.
+ */
+function unmarkFacts(html: string, fact: OrderFactId): string {
+  return html.replace(
+    new RegExp(`\\s*${ORDER_FACT_ATTRIBUTE}="${escapeForPattern(fact)}"`, "gi"),
+    "",
+  );
+}
+
+/**
+ * One marked block, with its tag and its attributes kept apart from its contents.
+ *
+ * The tag and the attribute list are captured because an upsert reuses them: a recital
+ * the typist has turned into a list item or emphasised stays that, and only the words
+ * inside it are re-written. Same string surgery and the same reasoning as
+ * `stripRichTextItem` — a block's own closing tag is the one boundary that has to be
+ * exact.
+ */
+function factBlock(fact: OrderFactId): RegExp {
+  return new RegExp(
+    `<([a-z][a-z0-9]*)\\b([^>]*\\b${ORDER_FACT_ATTRIBUTE}="${escapeForPattern(fact)}"[^>]*)>[\\s\\S]*?</\\1>`,
+    "i",
+  );
+}
+
+/**
+ * Write what the sitting now says into the order, over the version of it already there.
+ *
+ * The roll is re-recited as it is called — one office at a time, so the line grows under
+ * the typist's hand — and the posting is re-recited when it changes. The mark is what
+ * makes that safe where `upsertRichTextSentence` had to match on words: the line can be
+ * found exactly, so re-marking an appearance corrects the recital instead of leaving the
+ * order carrying two versions of who was present.
+ *
+ * **The limit, stated rather than papered over:** words the typist has written *inside*
+ * the recital are replaced when the roll changes, because the roll is where that line
+ * comes from. The trade is the opposite of the one a disposal makes, and deliberately:
+ * a disposal is identified only by its own wording, so rewriting it would risk taking
+ * over a sentence somebody else now owns, while a recital is identified by its mark and
+ * a stale roll in a court order is the worse failure. The typist's own prose belongs in
+ * the paragraphs around it, which are never touched.
+ *
+ * No lines takes the recital out — an unmarked roll recites nothing rather than standing
+ * in the order as a line about nobody. Every marked block goes and one comes back where
+ * the first of them stood: pressing Enter inside the recital splits it and the browser
+ * copies the mark onto both halves, so a lone replacement would leave the second half
+ * behind as a stale copy of the roll.
+ *
+ * The plain half is rebuilt from the markup rather than tracked alongside it, for the
+ * reason `plainTextOfRichText` exists: the two halves of a `RichTextValue` answer
+ * different questions and have to stay in step.
+ */
+export function upsertRichTextFact(
+  body: RichTextValue,
+  fact: OrderFactId,
+  lines: readonly OrderRecitalLine[],
+): RichTextValue {
+  const inner = recitalHtml(lines);
+  const found = factBlock(fact).exec(body.html);
+  if (found) {
+    const line = inner ? `<${found[1]}${found[2]}>${inner}</${found[1]}>` : "";
+    const head = body.html.slice(0, found.index);
+    /* The block being replaced goes; anything else still wearing the mark only loses it
+       (`unmarkFacts`). And when the recital itself is going and it stood at the head of
+       the passage, the empty line it was given to write under goes with it rather than
+       leaving the order opening on a blank. */
+    let rest = unmarkFacts(
+      body.html.slice(found.index).replace(factBlock(fact), ""),
+      fact,
+    );
+    if (!inner && !head) rest = trimStartBlank(rest);
+    const html = `${head}${line}${rest}`;
+    return { html, text: plainTextOfRichText(html) };
+  }
+  if (!inner) return body;
+  const line = `<p ${ORDER_FACT_ATTRIBUTE}="${fact}">${inner}</p>`;
+  /* The roll opens the order and the posting closes it, which is the order a court reads
+     them in and the only placement either line has. Where the typist has since *moved*
+     one, the branch above keeps it there: this decides where a line first lands, not
+     where it must stay.
+
+     **The roll arrives with an empty line under it** (owner, 2026-09-16: after marking
+     attendance "I should always start at least two lines below"). It is not there for the
+     gap — the box spaces its blocks itself — but for the caret: without it the nearest
+     place to write is the end of the recital, which is inside a marked block, and what
+     gets written there is the roll's to overwrite. One empty line makes the natural place
+     to click a paragraph of the typist's own. Only on the first calling, and only when
+     the passage does not already open on one, so it can never stack up. */
+  const html =
+    fact === CLOSING_FACT
+      ? `${body.html}${line}`
+      : `${line}${startsBlank(body.html) ? "" : BLANK_BLOCK}${body.html}`;
+  return { html, text: plainTextOfRichText(html) };
+}
+
+/** One order in the draft: what it is, and the words it carries. */
 export type OrderItemDraft = {
   id: string;
   type: OrderItemTypeId;
@@ -216,15 +540,25 @@ export function nextOrderItemId(): string {
   return `order-item-${sequence}`;
 }
 
-/** An item of this type, opened on its standing words with this listing's parties in it. */
+/**
+ * An order of this type, opened on the court's words for it with what the screen knows
+ * already filled in.
+ *
+ * `facts` is optional so the catalogue can still be asked what a template *says*
+ * independently of any case. Every caller that is composing a real order passes them —
+ * an order that opens on `[Application Number]` when the application is on the screen
+ * beside it is the screen making the typist retype what it already holds.
+ */
 export function createOrderItem(
-  matter: OrderItemParties,
   type: OrderItemTypeId,
   id: string = nextOrderItemId(),
+  facts?: OrderTemplateFacts,
 ): OrderItemDraft {
   return {
     id,
     type,
-    text: richTextFromPlain(STANDING_WORDS[type](matter.parties)),
+    /* Marked with its own id: the passage has to be findable in the body afterwards,
+       both to take it out and to know whether it is still there. */
+    text: richTextFromPlain(orderItemStandingText(type, facts), id),
   };
 }

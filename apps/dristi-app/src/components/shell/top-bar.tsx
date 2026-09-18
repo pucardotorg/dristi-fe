@@ -17,9 +17,10 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { taskHref } from "@/lib/tasks/routes";
 import { areaOf } from "@/lib/nav/origin";
+import { cn } from "@/lib/utils";
 import { caseOf, tasksInView } from "@/lib/tasks/selectors";
 import { compareUrgency, daysUntil, isOverdue } from "@/lib/tasks/urgency";
-import { useChrome } from "@/components/shell/chrome";
+import { useChrome, type Crumb } from "@/components/shell/chrome";
 import { useLocale } from "@/components/shell/locale";
 import { useProfile } from "@/components/shell/profile";
 import {
@@ -36,6 +37,13 @@ import { LOCALES, pick, ui, type Locale } from "@/lib/onboarding/content";
  * The one breadcrumb in the app. Route-aware: Tasks › the task › the action. The task
  * crumb is a link back to the list with that task open; the action is text.
  */
+/**
+ * A crumb that names a record by its number wears the identifier face, the same as the
+ * number does on the screen below. No copy affordance here: a crumb is already a link,
+ * and a control cannot hold another one.
+ */
+const idFace = (crumb: Crumb) => (crumb.mono ? "font-mono tabular-nums" : undefined);
+
 function ChromeBreadcrumb() {
   const { crumbs, crumbRoot } = useChrome();
   const pathname = usePathname();
@@ -54,10 +62,12 @@ function ChromeBreadcrumb() {
         <BreadcrumbItem className="shrink-0">
           {crumbs.length && root.href ? (
             <BreadcrumbLink asChild>
-              <Link href={root.href}>{root.label}</Link>
+              <Link href={root.href} className={idFace(root)}>
+                {root.label}
+              </Link>
             </BreadcrumbLink>
           ) : (
-            <BreadcrumbPage>{root.label}</BreadcrumbPage>
+            <BreadcrumbPage className={idFace(root)}>{root.label}</BreadcrumbPage>
           )}
         </BreadcrumbItem>
 
@@ -74,15 +84,21 @@ function ChromeBreadcrumb() {
                 className={isLast ? "min-w-0" : "hidden min-w-0 md:inline-flex"}
               >
                 {isLast ? (
-                  <BreadcrumbPage className="truncate font-medium">
+                  <BreadcrumbPage
+                    className={cn("truncate font-medium", idFace(crumb))}
+                  >
                     {crumb.label}
                   </BreadcrumbPage>
                 ) : crumb.href ? (
                   <BreadcrumbLink asChild className="truncate">
-                    <Link href={crumb.href}>{crumb.label}</Link>
+                    <Link href={crumb.href} className={idFace(crumb)}>
+                      {crumb.label}
+                    </Link>
                   </BreadcrumbLink>
                 ) : (
-                  <span className="truncate">{crumb.label}</span>
+                  <span className={cn("truncate", idFace(crumb))}>
+                    {crumb.label}
+                  </span>
                 )}
               </BreadcrumbItem>
             </React.Fragment>

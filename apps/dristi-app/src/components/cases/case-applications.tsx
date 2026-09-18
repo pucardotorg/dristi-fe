@@ -68,6 +68,7 @@ import {
 } from "@/lib/cases/applications";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Applications (§9). One kind of thing, many types. What the viewer still has
@@ -583,9 +584,13 @@ function ApplicationsTable({
               {item.typeLabel}
             </TableCell>
             <TableCell
-              className={cn(TABLE_CELL, "font-mono text-caption text-muted-foreground")}
+              className={cn(TABLE_CELL, "text-caption text-muted-foreground")}
             >
-              {item.applicationId ?? <Dash label="Not allotted" />}
+              {item.applicationId ? (
+                <Identifier value={item.applicationId} label="application id" />
+              ) : (
+                <Dash label="Not allotted" />
+              )}
             </TableCell>
             <TableCell className={TABLE_CELL}>
               <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
