@@ -222,9 +222,9 @@ const LIST_B =
 const CARD_ICON_A =
   "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-muted-foreground";
 
-/** The row title: one line, truncating, and the whole card's hit area. */
+/** The title owns the whole card hit area; touch layouts show its full text. */
 const CARD_TITLE =
-  "truncate text-left text-body-compact font-medium after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-ring/50";
+  "text-left text-body-compact font-medium whitespace-normal break-words md:truncate md:pointer-coarse:overflow-visible md:pointer-coarse:whitespace-normal after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-3 focus-visible:after:ring-ring/50";
 
 /**
  * When something matters, in the place every repeated row on this screen puts
@@ -299,7 +299,7 @@ function PanelHeader({
           size="icon-sm"
           onClick={onClose}
           aria-label={pick(advHome.railClose, locale)}
-          className="-mr-1 hover:bg-accent-strong"
+          className="-mr-1 size-10 md:size-8 md:pointer-coarse:size-10 hover:bg-accent-strong"
         >
           <X aria-hidden="true" />
         </Button>
@@ -323,7 +323,7 @@ function BucketTrigger({
   lead?: boolean;
 }) {
   return (
-    <CollapsibleTrigger className="group/bucket flex h-9 w-full shrink-0 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <CollapsibleTrigger className="group/bucket flex min-h-10 w-full shrink-0 md:min-h-9 md:pointer-coarse:min-h-10 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <span
         className={cn(
           "text-caption font-semibold",
@@ -400,9 +400,14 @@ function TaskCard({
         >
           {task.title}
         </button>
-        <span className="w-full truncate text-caption text-muted-foreground">
+        <span className="w-full text-caption break-words text-muted-foreground md:truncate md:pointer-coarse:overflow-visible md:pointer-coarse:whitespace-normal">
           {railCaseLineOf(world, task)}
         </span>
+        {due.overdue ? (
+          <span className="mt-1 text-caption font-medium tabular-nums text-destructive-ink md:hidden md:pointer-coarse:block">
+            {due.primary} · {due.date}
+          </span>
+        ) : null}
       </div>
 
       {/* Overdue is the only time signal on a task card, and it is ink, not a
@@ -410,21 +415,23 @@ function TaskCard({
           destructive budget before the count is read. The archive control sits
           to the right of the action, both revealed together on hover. */}
       <div className="flex shrink-0 items-center gap-1">
-        <RowAction
-          label={verb}
-          onClick={() => onAct(task)}
-          rest={
-            due.overdue ? (
-              dense ? (
-                <span className="text-caption font-medium whitespace-nowrap tabular-nums text-destructive-ink">
-                  {due.primary}
-                </span>
-              ) : (
-                <WhenBlock lead={due.primary} sub={due.date} tone="overdue" />
-              )
-            ) : undefined
-          }
-        />
+        <div className="hidden md:block md:pointer-coarse:hidden">
+          <RowAction
+            label={verb}
+            onClick={() => onAct(task)}
+            rest={
+              due.overdue ? (
+                dense ? (
+                  <span className="text-caption font-medium whitespace-nowrap tabular-nums text-destructive-ink">
+                    {due.primary}
+                  </span>
+                ) : (
+                  <WhenBlock lead={due.primary} sub={due.date} tone="overdue" />
+                )
+              ) : undefined
+            }
+          />
+        </div>
         {onArchive ? (
           <button
             type="button"
@@ -434,7 +441,7 @@ function TaskCard({
               event.stopPropagation();
               onArchive(task);
             }}
-            className="relative z-10 hidden size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors group-hover/row:flex group-focus-within/row:flex hover:bg-accent-strong hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground md:hidden md:size-7 md:pointer-coarse:flex md:pointer-coarse:size-10 transition-colors group-hover/row:flex group-focus-within/row:flex hover:bg-accent-strong hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             <Archive aria-hidden="true" className="size-4" />
           </button>
@@ -586,7 +593,7 @@ function TasksPanel({
       )}
 
       <div className="border-t border-hairline px-4 py-3">
-        <Button variant="link" size="sm" className="px-0" onClick={onViewAll}>
+        <Button variant="link" size="sm" className="min-h-10 px-0 md:min-h-9 md:pointer-coarse:min-h-10" onClick={onViewAll}>
           {fillCopy(advHome.railViewAll, locale, { n: String(count) })}
           <ChevronRight aria-hidden="true" />
         </Button>
@@ -691,6 +698,15 @@ export function CompanionRail({
 }) {
   const tasksCount = summaryOf(world).action;
   const isMobile = useIsMobile();
+  // Opening the desktop rail is a saved workspace preference. A phone drawer
+  // opens only after an explicit task trigger or a hearing's pending flag.
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const highlightNonce = highlight?.nonce ?? null;
+  const [seenHighlight, setSeenHighlight] = React.useState(highlightNonce);
+  if (seenHighlight !== highlightNonce) {
+    setSeenHighlight(highlightNonce);
+    if (highlightNonce !== null && isMobile) setMobileOpen(true);
+  }
   const panelRef = React.useRef<HTMLDivElement>(null);
   const dragFrom = React.useRef<{ x: number; width: number; unit: number } | null>(null);
 
@@ -756,7 +772,7 @@ export function CompanionRail({
     <aside
       aria-label={pick(advHome.railTitle, locale)}
       style={{ top: topOffset, height: `calc(100svh - ${topOffset})` }}
-      className="sticky hidden shrink-0 self-start border-l border-hairline bg-surface-sunken md:flex dark:bg-background"
+      className="sticky hidden shrink-0 self-start max-xl:z-30 border-l border-hairline bg-surface-sunken md:flex dark:bg-background"
     >
       {section && !isMobile ? (
         <div
@@ -765,7 +781,7 @@ export function CompanionRail({
           // peek uses. Motion is suppressed for reduced-motion readers.
           key={section}
           ref={panelRef}
-          className="relative flex h-full duration-200 ease-out animate-in fade-in-0 slide-in-from-right-4 motion-reduce:animate-none"
+          className="relative flex h-full max-xl:absolute max-xl:right-14 max-xl:top-0 max-xl:border-l max-xl:border-hairline max-xl:bg-surface-sunken max-xl:shadow-overlay dark:max-xl:bg-background duration-200 ease-out animate-in fade-in-0 slide-in-from-right-4 motion-reduce:animate-none"
           style={{ width: `calc(var(--spacing) * ${width})` }}
         >
           {/* The resize handle: an invisible grab strip on the panel's edge with
@@ -830,8 +846,9 @@ export function CompanionRail({
       <button
         type="button"
         aria-label={fillCopy(advHome.railOpen, locale, { n: String(tasksCount) })}
-        onClick={() => onSectionChange("tasks")}
-        className="fixed right-4 bottom-4 z-40 flex size-12 items-center justify-center rounded-full border border-hairline bg-card text-muted-foreground shadow-modal transition-colors hover:bg-accent md:hidden"
+        onClick={() => setMobileOpen(true)}
+        style={{ bottom: "calc(env(safe-area-inset-bottom) + var(--spacing) * 4)" }}
+        className="fixed right-4 z-40 flex size-12 items-center justify-center rounded-full border border-hairline bg-card text-muted-foreground shadow-modal transition-colors hover:bg-accent md:hidden"
       >
         <ListChecks aria-hidden="true" className="size-5" />
         {tasksCount ? (
@@ -842,12 +859,10 @@ export function CompanionRail({
       </button>
 
       <Drawer
-        open={isMobile && section === "tasks"}
-        onOpenChange={(open) => {
-          if (!open) onSectionChange(null);
-        }}
+        open={isMobile && mobileOpen}
+        onOpenChange={setMobileOpen}
       >
-        <DrawerContent>
+        <DrawerContent style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           <DrawerTitle className="sr-only">{pick(advHome.railTitle, locale)}</DrawerTitle>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <TasksPanel
@@ -856,7 +871,7 @@ export function CompanionRail({
               verbOf={verbOf}
               onAct={onAct}
               onArchive={onArchive}
-              onClose={() => onSectionChange(null)}
+              onClose={() => setMobileOpen(false)}
               onViewAll={onViewAllTasks}
               highlight={highlight}
             />

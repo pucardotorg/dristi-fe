@@ -7,6 +7,7 @@ import type { CauseListRow, TimelineHearing } from "@/lib/advocate/home";
 import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 import { CloudAlert, RotateCw } from "lucide-react";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -166,6 +167,7 @@ function HomeBody({
   profileFirstName: string;
   now: number;
 }) {
+  const isMobile = useIsMobile();
   const store = useTasks();
   const { state, people, cases, tasks, user, reload } = store;
   const router = useRouter();
@@ -210,10 +212,10 @@ function HomeBody({
   } | null>(null);
   const openTasksForCase = React.useCallback(
     (caseId: string, taskIds: string[]) => {
-      setRailSection("tasks");
+      if (!isMobile) setRailSection("tasks");
       setTaskHighlight({ caseId, taskIds, nonce: Date.now() });
     },
-    [setRailSection]
+    [isMobile, setRailSection]
   );
 
   // The court filter. No selection means every court; a chosen set narrows the
@@ -387,12 +389,12 @@ function HomeBody({
   const hasDay = courtOptions.length > 0;
 
   return (
-    <CasePeekSurface className="flex min-h-0 min-w-0 flex-1">
+    <CasePeekSurface mobileDrawer className="flex min-h-0 min-w-0 flex-1">
       {/* A container, not just a column: the rail narrows the board without
           narrowing the viewport, so what the timeline puts on one line has to
           answer to its own width. */}
       <main className="@container flex min-w-0 flex-1 flex-col">
-        <div className="px-4 pt-6 pb-6 md:px-8">
+        <div className="px-4 pt-6 pb-0 md:px-8 md:pb-6">
           <HomeGreeting
             locale={locale}
             firstName={profileFirstName}
@@ -407,12 +409,12 @@ function HomeBody({
 
         {/* A hairline closes the header off from the board's controls and stats,
             inset to the content margins rather than running edge to edge. */}
-        <div className="px-4 md:px-8" aria-hidden="true">
+        <div className="hidden px-4 md:block md:px-8" aria-hidden="true">
           <div className="border-b border-hairline" />
         </div>
 
         {hasDay ? (
-          <div className="px-4 pt-4 md:px-8">
+          <div className="px-4 pt-0 md:px-8 md:pt-4">
             <HearingTimeline
               daySlots={daySlots}
               showTimes={ADVOCATE_HOME_CONFIG.showHearingTimes}

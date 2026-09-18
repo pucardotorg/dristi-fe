@@ -352,9 +352,9 @@ export const advHome = {
   statOverlap: t("{n} overlap", "{n} ഓവർലാപ്പ്"),
   statConflictSub: t("{n} hearings overlap", "{n} ഹിയറിംഗുകൾ ഓവർലാപ്പ്"),
   statClearCard: t("clear slots", "ഒഴിവുള്ള സ്ലോട്ടുകൾ"),
-  blockingOne: t("{n} blocking task", "{n} തടസ്സ ജോലി"),
-  blockingMany: t("{n} blocking tasks", "{n} തടസ്സ ജോലികൾ"),
-  pendingOpen: t("Show blocking tasks for this matter", "ഈ കേസിന്റെ തടസ്സ ജോലികൾ കാണിക്കുക"),
+  blockingOne: t("{n} pending task", "{n} തീർപ്പാക്കാനുള്ള ജോലി"),
+  blockingMany: t("{n} pending tasks", "{n} തീർപ്പാക്കാനുള്ള ജോലികൾ"),
+  pendingOpen: t("Show pending tasks for this matter", "ഈ കേസിന്റെ തീർപ്പാക്കാനുള്ള ജോലികൾ കാണിക്കുക"),
   /** The quiet per-hearing icon that opens the cause list and traces this matter's row. */
   viewOnCauseList: t("View this hearing on the cause list", "ഈ വിചാരണ കോസ് ലിസ്റ്റിൽ കാണുക"),
   refreshHearings: t("Refresh hearings", "ഹിയറിംഗുകൾ പുതുക്കുക"),
@@ -412,8 +412,8 @@ export const advHome = {
   /* Blocking-task stat — matters that owe work before their hearing today. The
      slot stat reuses slotOne/slotMany for its count; the exact time range shows in
      the slot tab, not the stat. */
-  statBlockingOne: t("blocking task", "തടസ്സ ജോലി"),
-  statBlockingMany: t("blocking tasks", "തടസ്സ ജോലികൾ"),
+  statBlockingOne: t("pending task", "തീർപ്പാക്കാനുള്ള ജോലി"),
+  statBlockingMany: t("pending tasks", "തീർപ്പാക്കാനുള്ള ജോലികൾ"),
   /* Slot tabs — the sitting's live tab throbs; this names the state for readers
      who cannot see the dot. */
   slotLive: t("in session", "സെഷനിൽ"),

@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import "./cause-list.css";
+import "./mobile-hearing.css";
+import { ItemChip } from "./home-bits";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowDownWideNarrow,
@@ -11,6 +14,7 @@ import {
   ListFilter,
   Search,
   Video,
+  X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +23,7 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
+  DialogClose,
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -130,7 +135,7 @@ function CourtMultiFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="min-w-44 gap-1.5 text-caption">
+        <Button variant="outline" size="sm" className="cause-touch-control min-w-0 flex-1 gap-1.5 text-caption md:min-w-44 md:flex-none">
           <ListFilter aria-hidden="true" className="text-muted-foreground" />
           {selected.length === 0 ? (
             <span className="flex-1 text-left">{pick(advHome.causeListAllCourts, locale)}</span>
@@ -154,7 +159,7 @@ function CourtMultiFilter({
           checked={selected.length === 0}
           onSelect={(e) => e.preventDefault()}
           onCheckedChange={() => onChange([])}
-          className="text-caption"
+          className="cause-touch-control text-caption"
         >
           {pick(advHome.causeListAllCourts, locale)}
         </DropdownMenuCheckboxItem>
@@ -165,7 +170,7 @@ function CourtMultiFilter({
             checked={selected.includes(option.court)}
             onSelect={(e) => e.preventDefault()}
             onCheckedChange={() => toggle(option.court)}
-            className="text-caption"
+            className="cause-touch-control text-caption"
           >
             {option.label}
           </DropdownMenuCheckboxItem>
@@ -209,7 +214,12 @@ export function CauseListDialog({
           view through the scrim — a workspace over the page, not a new page. The
           body mounts fresh each open, so its date and search start from the
           board's day without an effect resetting them; sort-by is held above. */}
-      <DialogContent className="flex h-[calc(100svh-4rem)] w-full max-w-[calc(100%-4rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[calc(100%-4rem)]">
+      <DialogContent showCloseButton={false} className="cause-list-dialog flex h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none p-0 sm:max-w-full md:h-[calc(100svh-4rem)] md:max-w-[calc(100%-4rem)] md:rounded-xl">
+        <DialogClose asChild>
+          <Button variant="ghost" size="icon" className="cause-list-close absolute top-2 right-2 z-10" aria-label={locale === "ml" ? "അടയ്ക്കുക" : "Close"}>
+            <X aria-hidden="true" />
+          </Button>
+        </DialogClose>
         <CauseListBody
           world={world}
           now={now}
@@ -330,7 +340,7 @@ function CauseListBody({
       window.clearTimeout(safetyTimer);
       window.clearTimeout(hideTimer);
     };
-  }, [highlight]);
+  }, [highlight, isMobile]);
 
   // Every court on the day's docket, for the filter — the whole published list,
   // not only the viewer's courts, so a court with only other advocates' matters is
@@ -396,10 +406,21 @@ function CauseListBody({
   const focusJumpTarget = (event: Event) => {
     if (jumpTarget.current === null) return;
     event.preventDefault();
-    const target = groupRefs.current.get(jumpTarget.current);
-    target?.scrollIntoView({ block: "start", behavior: "instant" });
-    target?.focus({ preventScroll: true });
+    const key = jumpTarget.current;
     jumpTarget.current = null;
+    const target = groupRefs.current.get(key);
+    target?.focus({ preventScroll: true });
+    const container = scrollRef.current;
+    const firstId = groups.find((group) => group.key === key)?.rows[0]?.id;
+    const firstRow = firstId ? container?.querySelector<HTMLElement>(`[data-cause-row="${firstId}"]`) : null;
+    if (!container || !target || !firstRow) return;
+    // The pill is sticky, so its own position says nothing once it is pinned. Aim
+    // at the group's first matter instead, landing it just under the pinned band
+    // (the pill's sticky box, plus on desktop the column header above it).
+    const band = target.closest<HTMLElement>(".sticky");
+    const bandBottom = band ? (parseFloat(getComputedStyle(band).top) || 0) + band.offsetHeight : 0;
+    const to = container.scrollTop + firstRow.getBoundingClientRect().top - container.getBoundingClientRect().top - bandBottom;
+    glideTo(container, Math.max(0, to));
   };
 
   const dateLabel = new Intl.DateTimeFormat(intl, {
@@ -412,6 +433,11 @@ function CauseListBody({
     day: "numeric",
     month: "short",
     year: "numeric",
+  }).format(new Date(`${date}T12:00:00`));
+  // Phone drops the year so the date button stays short beside the search field.
+  const dateShortNoYear = new Intl.DateTimeFormat(intl, {
+    day: "numeric",
+    month: "short",
   }).format(new Date(`${date}T12:00:00`));
   const refreshedLabel = new Intl.DateTimeFormat(intl, {
     dateStyle: "short",
@@ -429,7 +455,7 @@ function CauseListBody({
           <Button
             ref={(node) => { if (node) groupRefs.current.set(group.key, node); else groupRefs.current.delete(group.key); }}
             variant="ghost" size="sm"
-            className="max-w-full rounded-full border border-hairline bg-card shadow-raised"
+            className="cause-touch-control max-w-full rounded-full border border-hairline bg-card shadow-raised"
             aria-label={copy(`Jump to another ${groupLabels[groupBy].toLowerCase()} group`, "മറ്റൊരു ഗ്രൂപ്പിലേക്ക് പോകുക")}
           >
             <span className="truncate" title={group.label}>{group.label}</span>
@@ -437,10 +463,10 @@ function CauseListBody({
             <ChevronDown aria-hidden="true" className="shrink-0" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="max-h-72 w-56 text-caption" onCloseAutoFocus={focusJumpTarget}>
+        <DropdownMenuContent collisionPadding={16} className="max-h-72 w-56 text-caption" onCloseAutoFocus={focusJumpTarget}>
           <DropdownMenuLabel className="text-caption text-muted-foreground">{copy("Jump to…", "ഇതിലേക്ക് പോകുക…")}</DropdownMenuLabel>
           {groups.map((target) => (
-            <DropdownMenuItem key={target.key} className="text-caption" onSelect={() => jump(target.key)}>
+            <DropdownMenuItem key={target.key} className="cause-touch-control text-caption" onSelect={() => jump(target.key)}>
               <span className="min-w-0 flex-1 truncate">{target.label}</span>
               <span className="tabular-nums text-muted-foreground">{target.rows.length}</span>
             </DropdownMenuItem>
@@ -451,108 +477,146 @@ function CauseListBody({
     </div>
   );
 
+  // The header controls, defined once and arranged differently by width: on a
+  // phone the date and download join the search on one line and the filter and
+  // sort share the next, so the header is not three stacked bands; on desktop the
+  // date and download keep the title row and the filter/search/sort stay one line.
+  const dateDownload = (
+    <div className="flex shrink-0 items-center gap-2">
+      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="cause-touch-control">
+            <CalendarDays aria-hidden="true" />
+            <span className="md:hidden">{dateShortNoYear}</span>
+            <span className="hidden md:inline">{dateShort}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" collisionPadding={16} className="w-auto p-0">
+          <Calendar
+            mode="single"
+            selected={new Date(`${date}T12:00:00`)}
+            onSelect={(next) => {
+              if (!next) return;
+              setPickerOpen(false);
+              setDate(dayKeyOf(next));
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+      <Button variant="outline" size="sm" className="cause-touch-control" aria-label={pick(advHome.causeListDownload, locale)} onClick={() => setRefreshedAt(Date.now())}>
+        <Download aria-hidden="true" />
+        <span className="hidden md:inline">{pick(advHome.causeListDownload, locale)}</span>
+      </Button>
+    </div>
+  );
+  const courtFilter = (
+    <CourtMultiFilter
+      courts={courtOptions}
+      selected={selectedCourts}
+      onChange={setSelectedCourts}
+      locale={locale}
+    />
+  );
+  const searchField = (
+    <div className="relative min-w-0 flex-1 md:min-w-56 md:max-w-96">
+      <label htmlFor="cause-list-search" className="sr-only">{copy("Search", "തിരയുക")}</label>
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+      />
+      <Input
+        id="cause-list-search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={pick(advHome.causeListSearch, locale)}
+        className="pl-8"
+        aria-label={pick(advHome.causeListSearch, locale)}
+      />
+    </div>
+  );
+  const sortControl = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="cause-touch-control min-w-0 max-w-full">
+          <ArrowDownWideNarrow aria-hidden="true" />
+          <span className="truncate">{copy("Sort by", "ക്രമീകരണം")}: {groupLabels[groupBy]}</span>
+          <ChevronDown aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" collisionPadding={16} className="w-56">
+        <DropdownMenuRadioGroup value={groupBy} onValueChange={(value) => onGroupByChange(value as CauseListGroupBy)}>
+          {(["item", "court", "hearingType", "status"] as const).map((value) => (
+            <DropdownMenuRadioItem key={value} value={value} className="cause-touch-control">
+              {groupLabels[value]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <>
-      <div className="flex flex-col gap-4 border-b border-hairline px-6 pt-6 pb-4">
+      {/* Every control in the header takes the lighter tan stroke the
+          home toolbar uses (cause-list.css); the default input stroke read as a
+          wireframe there. */}
+      <div className="cause-list-header flex shrink-0 flex-col gap-3 border-b border-hairline px-4 pt-6 pb-4 md:gap-4 md:px-6 md:pt-6 md:pb-4">
         {/* Right padding clears the dialog's own close button in the corner. */}
-        <div className="flex flex-wrap items-start justify-between gap-4 pr-12">
+        <div className="flex flex-wrap items-start justify-between gap-2 pr-12 md:gap-4">
           <div className="flex min-w-0 flex-col gap-1">
             <DialogTitle className="text-title-s font-semibold">
               {pick(advHome.causeListTitle, locale)}
             </DialogTitle>
-            <DialogDescription className="text-body-compact text-muted-foreground">
+            <DialogDescription className="sr-only text-body-compact text-muted-foreground md:not-sr-only">
               {courtsLabel
                 ? fillCopy(advHome.causeListScopeCourt, locale, { court: courtsLabel })
                 : pick(advHome.causeListScope, locale)}{" "}
               · {dateLabel}
             </DialogDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <CalendarDays aria-hidden="true" />
-                  {dateShort}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={new Date(`${date}T12:00:00`)}
-                  onSelect={(next) => {
-                    if (!next) return;
-                    setPickerOpen(false);
-                    setDate(dayKeyOf(next));
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-            <Button variant="outline" size="sm" onClick={() => setRefreshedAt(Date.now())}>
-              <Download aria-hidden="true" />
-              {pick(advHome.causeListDownload, locale)}
-            </Button>
-          </div>
+          {/* On desktop the date and download live in the title row; on a phone
+              they move down beside the search (the controls row below). */}
+          {!isMobile ? dateDownload : null}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-1 flex-wrap items-center gap-2">
-            <CourtMultiFilter
-              courts={courtOptions}
-              selected={selectedCourts}
-              onChange={setSelectedCourts}
-              locale={locale}
-            />
-            <label htmlFor="cause-list-search" className="sr-only">{copy("Search", "തിരയുക")}</label>
-            <div className="relative order-first w-full min-w-0 sm:order-none sm:w-auto sm:min-w-56 sm:flex-1 sm:max-w-96">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                id="cause-list-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={pick(advHome.causeListSearch, locale)}
-                className="pl-8"
-                aria-label={pick(advHome.causeListSearch, locale)}
-              />
+        {isMobile ? (
+          // Phone: date and download share the search's line (search yields width),
+          // and the filter and sort take the next — two tidy rows, not three bands.
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              {searchField}
+              {dateDownload}
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <ArrowDownWideNarrow aria-hidden="true" />
-                  {copy("Sort by", "ക്രമീകരണം")}: {groupLabels[groupBy]}
-                  <ChevronDown aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56">
-                <DropdownMenuRadioGroup value={groupBy} onValueChange={(value) => onGroupByChange(value as CauseListGroupBy)}>
-                  {(["item", "court", "hearingType", "status"] as const).map((value) => (
-                    <DropdownMenuRadioItem key={value} value={value}>
-                      {groupLabels[value]}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              {courtFilter}
+              {sortControl}
+            </div>
           </div>
-          {/* A refresh button to the left of the stamp, running the three-beat
-              gesture; the stamp updates when it lands. */}
-          <button
-            type="button"
-            onClick={trigger}
-            className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-caption text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-          >
-            <RefreshIcon phase={phase} className="size-3.5" />
-            {/* Underlined so the stamp reads as the button it is. */}
-            <span className="underline underline-offset-2">
-              {fillCopy(advHome.causeListRefreshed, locale, { time: refreshedLabel })}
-            </span>
-          </button>
-        </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2 md:gap-3">
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              {courtFilter}
+              {searchField}
+              {sortControl}
+            </div>
+            {/* A refresh button to the left of the stamp, running the three-beat
+                gesture; the stamp updates when it lands. */}
+            <button
+              type="button"
+              onClick={trigger}
+              className="cause-touch-control hidden items-center gap-1.5 rounded-md px-1.5 md:flex py-0.5 text-caption text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <RefreshIcon phase={phase} className="size-3.5" />
+              {/* Underlined so the stamp reads as the button it is. */}
+              <span className="underline underline-offset-2">
+                {fillCopy(advHome.causeListRefreshed, locale, { time: refreshedLabel })}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto px-6 pb-4 [&>[data-slot=table-container]]:overflow-visible">
+      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto overscroll-contain px-4 pb-4 md:px-6 [&>[data-slot=table-container]]:overflow-visible">
         {filtered.length === 0 ? (
           <div role="status" className="flex flex-col items-center gap-4 py-12 text-center">
             <Search aria-hidden="true" className="size-8 text-muted-foreground" />
@@ -573,14 +637,21 @@ function CauseListBody({
           // to scroll sideways; the group dividers and the per-matter join stay.
           <div className="flex flex-col gap-6">
             {groups.map((group) => (
-              <div key={group.key} className="flex flex-col gap-2">
-                {renderDivider(group)}
-                <div className="flex flex-col gap-2">
+              <React.Fragment key={group.key}>
+                {/* The group pill sticks to the top of the scroll area while its
+                    matters pass under it, and the next group's pill takes its
+                    place — a running divider. The opaque band bleeds to the scroll
+                    padding so nothing shows beside it, with a little room above the
+                    pill so it clears the header. */}
+                <div className="sticky top-0 z-10 -mx-4 bg-background px-4 pt-3 pb-1">
+                  {renderDivider(group)}
+                </div>
+                <div className="flex flex-col gap-4">
                   {group.rows.map((row) => (
                     <CauseCard key={row.id} row={row} locale={locale} onJoin={onJoin} />
                   ))}
                 </div>
-              </div>
+              </React.Fragment>
             ))}
           </div>
         ) : (
@@ -629,9 +700,12 @@ function CauseListBody({
         </div>
       </div>
 
-      <div aria-live="polite" className="flex items-center gap-2 border-t border-hairline px-6 py-3 text-caption text-muted-foreground">
+      <div aria-live="polite" className="cause-list-footer flex shrink-0 items-center gap-2 border-t border-hairline px-4 py-2 text-caption md:px-6 md:py-3 text-muted-foreground">
         <span aria-hidden="true" className="size-2 rounded-full bg-input" />
-        {fillCopy(advHome.causeListMineCount, locale, { n: String(mineCount) })}
+        <span className="flex-1">{fillCopy(advHome.causeListMineCount, locale, { n: String(mineCount) })}</span>
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={trigger} aria-label={`${copy("Refresh", "പുതുക്കുക")}. ${fillCopy(advHome.causeListRefreshed, locale, { time: refreshedLabel })}`}>
+          <RefreshIcon phase={phase} className="size-4" />
+        </Button>
       </div>
     </>
   );
@@ -682,6 +756,7 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
           <span className="cause-join absolute inset-y-0 right-4 flex items-center">
             <Button
               size="sm"
+              className="cause-touch-control"
               onClick={() => onJoin(row)}
               aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}
             >
@@ -694,41 +769,93 @@ function CauseRow({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; 
   );
 }
 
-/** One matter as a card — the phone form of a cause-list row. Own matters carry
- *  the same soft beige fill, and the join is shown outright since a phone cannot
- *  hover to reveal it. */
+/**
+ * A quick glide to a scroll position: a fixed 420ms however far it travels, so a
+ * jump across the whole docket is as brisk as one to the next group (native smooth
+ * scrolling takes longer the further it goes). Strong ease-out, so it leaves at
+ * once and settles. Any touch or wheel hands control straight back; reduced motion
+ * jumps.
+ */
+function glideTo(container: HTMLElement, to: number) {
+  // A hidden tab gets no animation frames, so it lands at once rather than never.
+  if (document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    container.scrollTop = to;
+    return;
+  }
+  const from = container.scrollTop;
+  const start = performance.now();
+  let cancelled = false;
+  const cancel = () => { cancelled = true; };
+  container.addEventListener("wheel", cancel, { once: true, passive: true });
+  container.addEventListener("touchstart", cancel, { once: true, passive: true });
+  const step = (now: number) => {
+    if (cancelled) return;
+    const t = Math.min(1, (now - start) / 420);
+    container.scrollTop = from + (to - from) * (1 - Math.pow(1 - t, 4));
+    if (t < 1) requestAnimationFrame(step);
+    else {
+      container.removeEventListener("wheel", cancel);
+      container.removeEventListener("touchstart", cancel);
+    }
+  };
+  requestAnimationFrame(step);
+}
+
+/** Mobile cause-list cards share the home identity block and disclose live actions. */
 function CauseCard({ row, locale, onJoin }: { row: CauseListRow; locale: Locale; onJoin: (row: CauseListRow) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [pointerMotion, setPointerMotion] = React.useState(true);
+  const ongoing = row.status === "now";
   const joinLabel = locale === "ml" ? "ഹിയറിംഗിൽ ചേരുക" : "Join hearing";
   return (
-    <div data-cause-row={row.id} className={cn("flex flex-col gap-2 rounded-lg border border-hairline p-3", row.mine ? "bg-surface-sunken" : "bg-card")}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 font-medium text-foreground">{row.parties}</p>
-        <StatusChip status={row.status} passedOver={row.passedOver} locale={locale} />
-      </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
-        <span className="tabular-nums">{pick(advHome.colItem, locale)} {row.item}</span>
-        <span>{row.courtLabel} · {row.courtNumber ?? "N/A"}</span>
-        <span>{row.hearingType}</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
-        <span className="tabular-nums">{row.caseNumber}</span>
-        <span className="min-w-0 truncate">{row.advocates}</span>
-      </div>
-      {row.mine ? (
-        <span className="inline-flex w-fit items-center gap-1.5 text-caption text-muted-foreground">
-          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-input" />
-          {pick(advHome.causeListMine, locale)}
-        </span>
-      ) : null}
-      {row.status === "now" ? (
-        <Button
-          className="mt-1 w-full"
-          onClick={() => onJoin(row)}
-          aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}
-        >
-          <Video aria-hidden="true" />{joinLabel}
-        </Button>
-      ) : null}
-    </div>
+    <Collapsible open={open} onOpenChange={setOpen} data-pointer-motion={pointerMotion}>
+      <article data-cause-row={row.id} className={cn(
+        "relative flex flex-col gap-3 rounded-xl p-4 shadow-raised",
+        // Teal belongs to a live matter only; everything else is beige. Hers takes
+        // the heavier stroke of whichever colour applies, the rest a hairline. A
+        // live matter of hers breathes in time with the dot.
+        row.mine ? "border-[1.5px] bg-surface-sunken" : "border bg-card",
+        ongoing ? (row.mine ? "border-brand-accent" : "border-brand-accent/40") : (row.mine ? "border-border" : "border-hairline"),
+        row.mine && ongoing && "cause-mine-live"
+      )}>
+        <div className="flex min-w-0 items-start gap-3">
+          <ItemChip item={row.item} size="lg" surface={row.mine ? "sunken" : "card"} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h3 className="text-body-compact font-semibold wrap-anywhere text-primary">{row.parties}</h3>
+            <p className="text-body-compact tabular-nums wrap-anywhere text-muted-foreground">{row.caseNumber}</p>
+          </div>
+          {/* A live matter says so with the pulsing dot alone, no tag to spend a row on. */}
+          {ongoing ? <span className="flex size-4 shrink-0 items-center justify-center">
+            <span aria-hidden="true" className="now-dot size-2 rounded-full bg-primary" />
+            <span className="sr-only">{pick(advHome.statusOngoing, locale)}</span>
+          </span> : <span className="shrink-0"><StatusChip status={row.status} passedOver={row.passedOver} locale={locale} /></span>}
+        </div>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-body-compact">
+          <dt className="text-muted-foreground">{pick(advHome.colCourt, locale)}</dt>
+          <dd className="wrap-anywhere">{row.courtLabel} · {row.courtNumber ?? "N/A"}</dd>
+          <dt className="text-muted-foreground">{pick(advHome.colHearingType, locale)}</dt>
+          <dd className="wrap-anywhere">{row.hearingType}</dd>
+          <dt className="text-muted-foreground">{pick(advHome.colAdvocates, locale)}</dt>
+          <dd className={cn("wrap-anywhere", ongoing && !row.mine && "pr-6")}>{row.advocates}</dd>
+        </dl>
+        {row.mine || ongoing ? <div className={cn("flex items-center gap-2", !row.mine && "contents")}>
+          {row.mine ? <span className="inline-flex w-fit items-center gap-1.5 text-caption text-muted-foreground">
+            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-input" />{pick(advHome.causeListMine, locale)}
+          </span> : null}
+          {ongoing ? <CollapsibleTrigger
+            onPointerDown={() => setPointerMotion(true)} onKeyDown={() => setPointerMotion(false)}
+            aria-label={`${joinLabel}: ${row.parties}`}
+            className={cn("group ml-auto size-9 shrink-0 rounded-full text-muted-foreground after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring", row.mine ? "-my-2" : "-mt-12 -mb-2")}
+          ><ChevronDown aria-hidden="true" className="mx-auto size-4 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none" /></CollapsibleTrigger> : null}
+        </div> : null}
+      </article>
+      {ongoing ? <CollapsibleContent className="hearing-reveal mx-3 overflow-hidden">
+        <div className="hearing-actions rounded-b-xl border border-t-0 border-hairline bg-card p-3 shadow-raised">
+          <Button className="w-full" onClick={() => onJoin(row)} aria-label={`${joinLabel}: ${row.parties}, ${row.courtLabel}, ${row.courtNumber ?? "N/A"}`}>
+            <Video aria-hidden="true" />{joinLabel}
+          </Button>
+        </div>
+      </CollapsibleContent> : null}
+    </Collapsible>
   );
 }

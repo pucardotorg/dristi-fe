@@ -101,3 +101,61 @@
     opacity: 0;
   }
 }
+
+/* Full-screen phone composition retains Radix focus containment and safe areas. */
+@media (width < 48rem) {
+  .cause-list-dialog {
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+  .cause-list-close {
+    /* Level with the title, which sits under the header's 24px top padding. */
+    top: calc(env(safe-area-inset-top) + var(--spacing) * 4);
+    right: calc(env(safe-area-inset-right) + var(--spacing) * 2);
+  }
+  .cause-touch-control {
+    min-height: calc(var(--spacing) * 10);
+    min-width: calc(var(--spacing) * 10);
+  }
+}
+
+/* Touch tablets retain the table, with the live status and Join both visible. */
+@media (hover: none), (pointer: coarse) {
+  .cause-touch-control {
+    min-height: calc(var(--spacing) * 10);
+    min-width: calc(var(--spacing) * 10);
+  }
+  .cause-row .cause-status,
+  .cause-row:hover .cause-status,
+  .cause-row:focus-within .cause-status {
+    opacity: 1;
+  }
+  .cause-row .cause-join {
+    position: static;
+    margin-top: calc(var(--spacing) * 2);
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .cause-join button {
+    height: auto;
+    white-space: normal;
+  }
+}
+
+/* Her own matter, while it is being called: the teal stroke breathes on the live
+ * dot's 2.5s beat. Colour only, so nothing reflows; still under reduced motion. */
+@keyframes cause-mine-pulse {
+  0%, 100% { border-color: var(--brand-accent); }
+  50% { border-color: color-mix(in srgb, var(--brand-accent) 35%, transparent); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cause-mine-live { animation: cause-mine-pulse 2.5s ease-in-out infinite; }
+}
+
+/* The header's search, date, download, filter and sort take the lighter tan stroke
+ * the home toolbar uses, at every width. The default input stroke read as a
+ * wireframe. */
+.cause-list-header :is(button, input) { border-color: var(--border); }

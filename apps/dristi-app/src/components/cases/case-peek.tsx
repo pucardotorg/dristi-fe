@@ -1,10 +1,13 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ExternalLinkIcon, XIcon } from "lucide-react";
+
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,14 +67,17 @@ import { CASE_PEEK_ID, useCasePeek } from "./use-case-peek";
 export function CasePeekSurface({
   children,
   className,
+  mobileDrawer = false,
 }: {
   children: ReactNode;
   className?: string;
+  /** Opt this surface into a modal bottom drawer on phones. */
+  mobileDrawer?: boolean;
 }) {
   return (
     <div className={className}>
       {children}
-      <CasePeek />
+      <CasePeek mobileDrawer={mobileDrawer} />
     </div>
   );
 }
@@ -142,7 +148,9 @@ export function CasePeekPushRegion({
 /** A subscription with nothing to report — the mount state never changes back. */
 const emptySubscribe = () => () => {};
 
-export function CasePeek() {
+export function CasePeek({ mobileDrawer = false }: { mobileDrawer?: boolean } = {}) {
+  const isMobile = useIsMobile();
+  const returnFocus = useRef<HTMLElement | null>(null);
   const { record, now, hideLongPendingFlag, docked, closing, close } = useCasePeek();
   // Portal guard: the server (and the hydration render) has no document.body to
   // portal into, so both report unmounted; the client re-renders once after
@@ -154,6 +162,37 @@ export function CasePeek() {
   );
 
   if (!record || !mounted) return null;
+
+  if (mobileDrawer && isMobile) {
+    return (
+      <Drawer open={!closing} onOpenChange={(open) => { if (!open) close(); }} autoFocus>
+        <DrawerContent
+          id={CASE_PEEK_ID}
+          aria-labelledby="case-peek-title"
+          aria-describedby={undefined}
+          className="h-[80dvh] overflow-hidden data-[vaul-drawer-direction=bottom]:max-h-[80dvh] [&_[data-slot=button]]:min-h-10"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          onOpenAutoFocus={() => {
+            returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          }}
+          onCloseAutoFocus={(event) => {
+            // There is no DrawerTrigger: the hearing card opens the shared provider.
+            // Keep its 300ms exit, then return to the actual invoking control.
+            event.preventDefault();
+            if (returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
+          }}
+        >
+          <CasePeekBody
+            record={record}
+            now={now}
+            hideLongPendingFlag={hideLongPendingFlag}
+            onClose={close}
+            mobileDrawer
+          />
+        </DrawerContent>
+      </Drawer>
+    );
+  }
 
   return createPortal(
     // The panel slides both ways. Enter is a keyframe that plays on mount; exit is the
@@ -200,12 +239,15 @@ function CasePeekBody({
   now,
   hideLongPendingFlag,
   onClose,
+  mobileDrawer = false,
 }: {
   record: CaseRecord;
   now: number;
   hideLongPendingFlag: boolean;
   onClose: () => void;
+  mobileDrawer?: boolean;
 }) {
+  const Title = mobileDrawer ? DrawerTitle : "h2";
   const title = partiesLabel(record);
   const extras = peekExtras(record.id);
   const stage = record.disposal
@@ -217,15 +259,15 @@ function CasePeekBody({
       {/* No eyebrow — the panel is plainly a case, and "Case peek" only named the
           mechanism (owner, Sept 11). Close is the bare cross, top-right on the title's
           line. The tab row below carries the only divider; the header runs into it. */}
-      <header className="flex flex-col gap-4 p-6 pb-4">
+      <header className={cn("flex shrink-0 flex-col gap-4 p-6 pb-4", mobileDrawer && "p-4")}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1.5">
-            <h2
+            <Title
               id="case-peek-title"
               className="text-title-s font-semibold text-balance"
             >
               {title}
-            </h2>
+            </Title>
             <p className="text-body-compact text-muted-foreground">
               <span className="font-sans">{record.caseNumber}</span>
               {extras.altCaseNumber ? (
@@ -240,7 +282,7 @@ function CasePeekBody({
           </div>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size={mobileDrawer ? "icon" : "icon-sm"}
             className="-mr-1 -mt-1 shrink-0 text-muted-foreground"
             onClick={onClose}
             aria-label="Close"

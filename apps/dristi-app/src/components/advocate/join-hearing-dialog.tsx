@@ -47,10 +47,10 @@ export function JoinHearingDialog({
           `w-full`; the DS keeps the mobile margin cap. Don't auto-focus the first
           Join button — its focus ring read as a stray box; focus rests on the dialog. */}
       <DialogContent
-        className="w-fit max-w-[calc(100%-2rem)] sm:max-w-2xl"
+        className="w-full max-w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:w-fit sm:max-w-2xl sm:p-6 [&>[data-slot=dialog-close]]:size-10"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DialogHeader>
+        <DialogHeader className="pr-8">
           <DialogTitle>{pick(advHome.joinDialogTitle, locale)}</DialogTitle>
           <DialogDescription>{pick(advHome.joinDialogBody, locale)}</DialogDescription>
         </DialogHeader>
@@ -66,18 +66,18 @@ export function JoinHearingDialog({
                 return (
                   <li
                     key={hearing.kase.id}
-                    className="flex items-center gap-8 rounded-lg border border-hairline bg-card p-3"
+                    className="flex flex-col items-stretch gap-3 rounded-lg border border-hairline bg-card p-3 sm:flex-row sm:items-center sm:gap-8"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-foreground">{hearing.kase.parties}</p>
-                      <p className="truncate text-caption text-muted-foreground">
+                      <p className="text-body font-semibold text-foreground sm:truncate">{hearing.kase.parties}</p>
+                      <p className="text-body-compact text-muted-foreground sm:truncate sm:text-caption">
                         {name}
                         {number ? ` · ${number}` : ""} · {hearing.kase.stage}
                       </p>
                     </div>
                     <Button
                       size="sm"
-                      className="shrink-0"
+                      className="min-h-10 shrink-0 sm:min-h-9"
                       onClick={() => onJoin(hearing)}
                       aria-label={`${pick(advHome.joinAction, locale)}: ${hearing.kase.parties}`}
                     >
@@ -93,7 +93,7 @@ export function JoinHearingDialog({
             <button
               type="button"
               onClick={onViewCauseList}
-              className="flex w-full items-center gap-2 rounded-lg border border-hairline bg-muted px-3 py-2 text-left text-caption text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+              className="flex min-h-10 w-full items-center gap-2 rounded-lg border border-hairline bg-muted px-3 py-2 text-left text-caption text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
               <Info aria-hidden="true" className="size-4 shrink-0" />
               <span className="min-w-0 flex-1">{pick(advHome.joinDialogOther, locale)}</span>

@@ -61,7 +61,7 @@ export function RefreshIcon({
   return (
     <RotateCw
       aria-hidden="true"
-      className={cn(phase === "spinning" && "animate-spin", className)}
+      className={cn(phase === "spinning" && "motion-safe:animate-spin", className)}
     />
   );
 }
@@ -97,7 +97,7 @@ export function HomeRefreshButton({
         size="sm"
         onClick={trigger}
         aria-label={pick(advHome.refreshHearings, locale)}
-        className="px-2.5"
+        className="size-10 border-border px-2.5 md:h-9 md:w-auto"
       >
         <RefreshIcon phase={phase} />
       </Button>

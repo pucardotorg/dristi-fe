@@ -12,6 +12,9 @@ import {
   Video,
 } from "lucide-react";
 
+import { useIsMobile } from "@/hooks/use-mobile";
+import { LocateHearingIcon } from "./locate-hearing-icon";
+import { MobileHearingCard } from "@/components/advocate/mobile-hearing-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -142,18 +145,18 @@ function CourtBadge({ court, label, number, className }: {
   );
 }
 
-function SlotCount({ slot, locale, className }: { slot: TimeSlot; locale: Locale; className?: string }) {
+function SlotCount({ slot, locale, className, padded = false }: { slot: TimeSlot; locale: Locale; className?: string; padded?: boolean }) {
   // Stays one unit ("N hearings across M courts") rather than shrinking to wrap
   // mid-phrase; on a narrow slot header it drops to its own line intact. The
   // nouns are pluralised for the counts so it reads right at one ("1 hearing
   // across 1 court").
   const n = slot.hearings.length;
   const c = slot.courts.length;
-  return <span className={cn("whitespace-nowrap text-body-compact text-muted-foreground", className)}>
+  return <span className={cn("text-body-compact text-muted-foreground md:whitespace-nowrap", className)}>
     {fillCopy(advHome.slotAcrossCourts, locale, {
-      n: String(n),
+      n: padded ? String(n).padStart(2, "0") : String(n),
       hw: pick(n === 1 ? advHome.statHearingOne : advHome.statHearingMany, locale),
-      c: String(c),
+      c: padded ? String(c).padStart(2, "0") : String(c),
       cw: pick(c === 1 ? advHome.statCourtOne : advHome.statCourtMany, locale),
     })}
   </span>;
@@ -183,8 +186,11 @@ function SummaryStrip({
   conflictSlots: number;
   locale: Locale;
 }) {
+  // Phone: the two middle columns run narrower, which draws the short-labelled
+  // middle pair (courts, slot) together while every other centre-to-centre
+  // distance stays what it was.
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @5xl:gap-x-6">
+    <div data-oneline={locale === "en"} className="group/stats grid w-full min-w-0 grid-cols-[1.1fr_0.9fr_0.9fr_1.1fr] gap-1 pr-6 pl-2 md:flex md:w-auto md:px-0 md:flex-wrap md:items-center md:gap-x-3 md:gap-y-1.5 @5xl:gap-x-6">
       <Stat
         value={total}
         label={pick(total === 1 ? advHome.statHearingOne : advHome.statHearingMany, locale)}
@@ -217,7 +223,7 @@ function SummaryStrip({
 }
 
 function Sep() {
-  return <span aria-hidden="true" className="h-4 w-px bg-hairline" />;
+  return <span aria-hidden="true" className="hidden h-4 w-px bg-hairline md:block" />;
 }
 
 function Stat({
@@ -230,16 +236,19 @@ function Stat({
   warning?: boolean;
 }) {
   return (
-    <span className="flex items-baseline gap-1.5">
+    <span className="flex min-w-0 flex-col items-center gap-1 text-center md:flex-row md:text-left md:items-baseline md:gap-1.5">
       <span
         className={cn(
           "text-body font-semibold tabular-nums @5xl:text-title-s",
           warning && "text-warning-ink"
         )}
       >
-        {value}
+        <span className="md:hidden">{String(value).padStart(2, "0")}</span><span className="hidden md:inline">{value}</span>
       </span>
-      <span className="text-caption text-muted-foreground @5xl:text-body">{label}</span>
+      {/* English labels hold one line: a wrapped label changes the block's width,
+          which would throw off the optical centring the asymmetric padding sets
+          up. Malayalam labels run longer and must wrap to stay in their column. */}
+      <span className="text-caption wrap-anywhere text-muted-foreground group-data-[oneline=true]/stats:whitespace-nowrap @5xl:text-body">{label}</span>
     </span>
   );
 }
@@ -268,7 +277,8 @@ function Toolbar({
     // On a phone the actions wrap onto a second line rather than overflowing the
     // screen; from @xl (the board wide enough to hold them) they stay one line and
     // hold their size beside the stats, as the rail-open desktop header needs.
-    <div className="flex flex-wrap items-center gap-2 @xl:flex-nowrap @xl:shrink-0">
+    <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:flex-wrap md:items-center @xl:flex-nowrap @xl:shrink-0">
+      <div className="grid w-full grid-cols-2 gap-2 md:contents">
       <CourtFilter
         courts={courts}
         selected={selected}
@@ -287,24 +297,26 @@ function Toolbar({
             size="sm"
             onClick={onViewCauseList}
             aria-label={pick(advHome.viewCauseList, locale)}
-            className="gap-1.5 px-3 @xl:gap-0 @xl:px-2.5 @4xl:gap-1.5 @4xl:px-3"
+            className="border-border h-auto min-h-10 min-w-0 gap-1.5 px-3 py-2 text-body-compact whitespace-normal md:h-9 md:py-0 md:whitespace-nowrap md:min-h-9 md:text-caption @xl:gap-0 @xl:px-2.5 @4xl:gap-1.5 @4xl:px-3"
           >
             <ScrollText aria-hidden="true" />
-            <span className="@xl:hidden @4xl:inline">{pick(advHome.viewCauseList, locale)}</span>
+            <span className="min-w-0 wrap-anywhere @xl:hidden @4xl:inline">{pick(advHome.viewCauseList, locale)}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">{pick(advHome.viewCauseList, locale)}</TooltipContent>
       </Tooltip>
+      </div>
+      <div className="flex w-full items-center gap-2 md:contents">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             size="sm"
             onClick={onJoinCourt}
             aria-label={pick(advHome.joinCourtroom, locale)}
-            className="gap-1.5 px-3 @xl:gap-0 @xl:px-2.5 @4xl:gap-1.5 @4xl:px-3"
+            className="flex-1 md:flex-none h-auto min-h-10 min-w-0 gap-1.5 px-3 py-2 text-body-compact whitespace-normal md:h-9 md:py-0 md:whitespace-nowrap md:min-h-9 md:text-caption @xl:gap-0 @xl:px-2.5 @4xl:gap-1.5 @4xl:px-3"
           >
             <Video aria-hidden="true" />
-            <span className="@xl:hidden @4xl:inline">{pick(advHome.joinCourtroom, locale)}</span>
+            <span className="min-w-0 wrap-anywhere @xl:hidden @4xl:inline">{pick(advHome.joinCourtroom, locale)}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">{pick(advHome.joinCourtroom, locale)}</TooltipContent>
@@ -312,6 +324,7 @@ function Toolbar({
       {/* The day's-list refresh — always an icon, to the right of Join, with the
           three-beat gesture and the last-refreshed reveal. */}
       <HomeRefreshButton onRefresh={onRefresh} locale={locale} />
+      </div>
     </div>
   );
 }
@@ -343,12 +356,12 @@ function CourtFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
+        <Button variant="outline" size="sm" className="h-auto min-h-10 min-w-0 gap-1.5 border-border py-2 text-body-compact whitespace-normal md:h-9 md:py-0 md:whitespace-nowrap md:min-h-9 md:text-caption">
           <ListFilter aria-hidden="true" className="text-muted-foreground" />
           {selected.length === 0 ? (
             pick(advHome.courtFilterAll, locale)
           ) : (
-            <span className="flex items-center gap-1.5">
+            <span className="flex min-w-0 items-center gap-1.5">
               <span className="truncate">{labelOf(selected[0])}</span>
               {selected.length > 1 ? (
                 <span className="text-muted-foreground">
@@ -362,12 +375,12 @@ function CourtFilter({
           <ChevronDown aria-hidden="true" className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-80 min-w-52 overflow-y-auto">
+      <DropdownMenuContent align="start" className="max-h-80 max-w-[calc(100vw-2rem)] min-w-52 overflow-y-auto">
         <DropdownMenuCheckboxItem
           checked={selected.length === 0}
           onSelect={(e) => e.preventDefault()}
           onCheckedChange={() => onChange([])}
-          className="text-caption"
+          className="min-h-10 text-body-compact md:min-h-0 md:text-caption"
         >
           {pick(advHome.courtFilterAll, locale)}
         </DropdownMenuCheckboxItem>
@@ -378,7 +391,7 @@ function CourtFilter({
             checked={selected.includes(option.court)}
             onSelect={(e) => e.preventDefault()}
             onCheckedChange={() => toggle(option.court)}
-            className="text-caption"
+            className="min-h-10 text-body-compact md:min-h-0 md:text-caption"
           >
             <span className="flex-1 truncate">{option.label}</span>
             <span className="ml-auto tabular-nums text-muted-foreground">
@@ -438,7 +451,7 @@ function TimelineRow({
 }) {
   return (
     <div className="relative flex gap-3">
-      <div className="flex w-3 shrink-0 justify-center">
+      <div className="hidden w-3 shrink-0 justify-center md:flex">
         {dot ? <Dot tone={tone} /> : null}
       </div>
       <div className="min-w-0 flex-1">{children}</div>
@@ -486,12 +499,12 @@ function PendingChip({
   return (
     <button
       type="button"
-      aria-label={pick(advHome.pendingOpen, locale)}
+      aria-label={`${label}: ${pick(advHome.pendingOpen, locale)}`}
       onClick={(event) => {
         event.stopPropagation();
         onOpenTasks(caseId, taskIds);
       }}
-      className="relative z-10 inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-warning bg-warning-muted px-1.5 text-caption font-medium text-warning-muted-foreground transition-colors hover:bg-warning-muted-hover focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="relative z-10 inline-flex min-h-10 shrink-0 items-center md:min-h-6 gap-1 rounded-md border border-warning bg-warning-muted px-2 text-caption md:px-1.5 font-medium text-warning-muted-foreground transition-colors hover:bg-warning-muted-hover focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <TriangleAlert aria-hidden="true" className="size-3.5" />
       {label}
@@ -519,9 +532,10 @@ function ViewInCauseListButton({ caseId, locale }: { caseId: string; locale: Loc
             event.stopPropagation();
             onView(caseId);
           }}
-          className="relative z-10 inline-flex size-7 shrink-0 items-center justify-center self-center rounded-md border border-hairline bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="relative z-10 col-start-2 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 justify-self-start self-center px-3 text-caption md:size-7 md:min-h-0 md:px-0 rounded-md border border-hairline bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         >
-          <ScrollText aria-hidden="true" className="size-3.5" />
+          <LocateHearingIcon aria-hidden="true" className="size-4" />
+          <span className="md:hidden">{pick(advHome.causeListTitle, locale)}</span>
         </button>
       </TooltipTrigger>
       <TooltipContent side="top">{pick(advHome.viewOnCauseList, locale)}</TooltipContent>
@@ -554,10 +568,14 @@ function HearingRow({
   className?: string;
 }) {
   const showTimes = useShowTimes();
+  const isMobile = useIsMobile();
+  const onOpenTasks = React.useContext(OpenTasksContext);
+  const onViewInCauseList = React.useContext(ViewInCauseListContext);
+  if (isMobile) return <MobileHearingCard hearing={hearing} locale={locale} selected={selected} onOpenCase={onOpenCase} onOpenTasks={onOpenTasks} onViewInCauseList={onViewInCauseList} time={showTime && showTimes ? <HearingTime at={hearing.at} approx={hearing.approxTime} locale={locale} /> : null} />;
   return (
     <div
       className={cn(
-        "group/row relative flex items-start gap-3 px-4 py-3 transition-colors",
+        "group/row relative grid grid-cols-[auto_1fr] items-start gap-x-3 gap-y-2 px-3 py-4 transition-colors active:bg-accent md:flex md:gap-3 md:px-4 md:py-3",
         selected && "ring-2 ring-inset ring-brand-accent",
         className
       )}
@@ -569,8 +587,10 @@ function HearingRow({
           right-hand column centred against the two-line matter. The threshold is the
           board's own width (a container query), not the viewport, because the rail
           and side nav narrow the board without narrowing the screen. */}
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-3">
-        <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-3">
+        {/* No top pad and no gap: the name (24px) and the detail line (20px) then
+            total the item box's 44px exactly, so the two share a top and a bottom. */}
+        <div className="flex min-w-0 flex-col">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <button
               type="button"
@@ -587,10 +607,10 @@ function HearingRow({
               </span>
             ) : null}
           </div>
-          <span className="truncate text-body-compact text-muted-foreground">
+          <span className="text-body-compact text-muted-foreground md:truncate">
             {hearing.kase.stage}
-            {" · "}
-            <span className="tabular-nums">{hearing.kase.cnr || hearing.kase.stNumber}</span>
+            <span className="hidden md:inline"> · </span>
+            <span className="block break-words text-caption tabular-nums md:inline md:text-body-compact">{hearing.kase.cnr || hearing.kase.stNumber}</span>
           </span>
         </div>
         <div className="flex shrink-0 flex-col items-start gap-1.5 @xl:items-end">
@@ -634,7 +654,7 @@ function HearingBody({
   locale: Locale;
 }) {
   return (
-    <div className="divide-y divide-hairline overflow-hidden rounded-lg bg-card">
+    <div className="flex flex-col gap-2 md:block md:gap-0 md:divide-y md:divide-hairline md:overflow-hidden md:rounded-lg md:bg-card">
       {hearings.map((hearing) => (
         <HearingRow
           key={hearing.kase.id}
@@ -691,11 +711,28 @@ function NowSlot({
   locale: Locale;
 }) {
   const showTimes = useShowTimes();
+  const isMobile = useIsMobile();
+  const [pointerMotion, setPointerMotion] = React.useState(true);
+  if (isMobile) return (
+    <Collapsible defaultOpen data-pointer-motion={pointerMotion} className="relative overflow-hidden rounded-xl bg-brand-muted">
+      <span aria-hidden="true" className="absolute inset-y-3 left-0 w-0.5 rounded-full bg-brand-accent" />
+      <CollapsibleTrigger onPointerDown={() => setPointerMotion(true)} onKeyDown={() => setPointerMotion(false)} className="group/ongoing flex min-h-12 w-full items-center gap-3 px-4 py-3 text-left text-brand-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+        <span aria-hidden="true" className="now-dot size-2.5 shrink-0 rounded-full bg-primary" />
+        <span className="sr-only">{pick(advHome.ongoingTag, locale)}: </span>
+        {showTimes ? <span className="text-body-compact font-semibold tabular-nums">{timeOf(slot.at)}</span> : null}
+        <SlotCount padded slot={slot} locale={locale} className="flex-1 text-body-compact font-semibold text-brand-muted-foreground" />
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition-transform duration-200 group-data-[state=closed]/ongoing:-rotate-90 motion-reduce:transition-none" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="hearing-reveal overflow-hidden">
+        <div className="px-2 pb-2"><HearingBody hearings={slot.hearings} selectedCaseId={selectedCaseId} onOpenCase={onOpenCase} locale={locale} /></div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
   return (
     <div className="flex overflow-hidden rounded-xl bg-brand-muted shadow-raised">
       <span aria-hidden="true" className="w-0.5 shrink-0 bg-brand-accent" />
-      <div className="min-w-0 flex-1 p-1.5">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
+      <div className="min-w-0 flex-1 p-0 md:p-1.5">
+        <div className="flex flex-col items-start gap-2 px-3 py-3 md:flex-row md:flex-wrap md:items-center md:gap-x-3 md:gap-y-1 md:py-2.5">
           {showTimes ? (
             <>
               <span className="shrink-0 text-body font-semibold tabular-nums text-brand-muted-foreground">
@@ -712,7 +749,7 @@ function NowSlot({
               className="text-body font-semibold text-brand-muted-foreground"
             />
           )}
-          <StatusTag tone="now" label={pick(advHome.ongoingTag, locale)} className="ml-auto" />
+          <StatusTag tone="now" label={pick(advHome.ongoingTag, locale)} className="md:ml-auto" />
         </div>
         <HearingBody
           hearings={slot.hearings}
@@ -742,6 +779,7 @@ function ConflictSlot({
   locale: Locale;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [pointerMotion, setPointerMotion] = React.useState(true);
   return (
     // The amber strip is an overlay, not a flex sibling, so the header trigger
     // spans the full card width and its hover reaches the card's boundary rather
@@ -752,7 +790,7 @@ function ConflictSlot({
         className="pointer-events-none absolute inset-y-0 left-0 z-10 w-0.5 bg-warning"
       />
       <div className="min-w-0 flex-1">
-        <Collapsible open={open} onOpenChange={setOpen}>
+        <Collapsible data-pointer-motion={pointerMotion} onPointerDownCapture={() => setPointerMotion(true)} onKeyDownCapture={() => setPointerMotion(false)} open={open} onOpenChange={setOpen}>
           <CollapsibleTrigger
             aria-label={fillCopy(advHome.slotExpand, locale, { time: slot.key })}
             className="group/collapsible flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-left transition-colors hover:bg-accent-strong"
@@ -771,7 +809,7 @@ function ConflictSlot({
               className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-180"
             />
           </CollapsibleTrigger>
-          <CollapsibleContent>
+          <CollapsibleContent className="hearing-reveal overflow-hidden">
             <div className="p-1.5 pt-0">
               <HearingBody
                 hearings={slot.hearings}
@@ -801,7 +839,7 @@ function ClearSlotRow({
 }) {
   const hearing = slot.hearings[0];
   return (
-    <div className="overflow-hidden rounded-xl border border-hairline bg-card">
+    <div className="md:overflow-hidden md:rounded-xl md:border md:border-hairline md:bg-card">
       <HearingRow
         hearing={hearing}
         onOpenCase={onOpenCase}
@@ -830,6 +868,7 @@ function ConcludedSlot({
   locale: Locale;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [pointerMotion, setPointerMotion] = React.useState(true);
 
   // Each concluded slot is its own white card — a single matter reads like a
   // clear upcoming slot, a cluster opens to its cases — so a day's pile carries
@@ -837,7 +876,7 @@ function ConcludedSlot({
   if (slot.hearings.length === 1) {
     const hearing = slot.hearings[0];
     return (
-      <div className="overflow-hidden rounded-lg border border-hairline bg-card">
+      <div className="md:overflow-hidden md:rounded-lg md:border md:border-hairline md:bg-card">
         <HearingRow
           hearing={hearing}
           onOpenCase={onOpenCase}
@@ -854,7 +893,7 @@ function ConcludedSlot({
   return (
     <div className="relative overflow-hidden rounded-lg border border-hairline bg-card">
       <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-0.5 bg-input" />
-      <Collapsible open={open} onOpenChange={setOpen}>
+      <Collapsible data-pointer-motion={pointerMotion} onPointerDownCapture={() => setPointerMotion(true)} onKeyDownCapture={() => setPointerMotion(false)} open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger className="group/collapsible flex min-h-10 w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-muted">
           <span className="w-16 shrink-0 text-caption font-semibold tabular-nums text-foreground">{timeOf(slot.at)}</span>
           <span aria-hidden="true">·</span>
@@ -864,7 +903,7 @@ function ConcludedSlot({
             className="ml-auto size-4 shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180"
           />
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent className="hearing-reveal overflow-hidden">
           <div className="border-t border-hairline">
             <HearingBody
               hearings={slot.hearings}
@@ -898,6 +937,7 @@ function ConcludedBlock({
   // slot, so it stays collapsed until asked for.
   const isPast = dayPhase === "past";
   const [open, setOpen] = React.useState(isPast);
+  const [pointerMotion, setPointerMotion] = React.useState(true);
   const showTimes = useShowTimes();
   const hearings = slots.flatMap((s) => s.hearings);
   const courts = new Set(hearings.map((h) => h.court)).size;
@@ -918,7 +958,7 @@ function ConcludedBlock({
 
   return (
     <TimelineRow tone="neutral">
-      <Collapsible open={open} onOpenChange={setOpen} className="relative">
+      <Collapsible data-pointer-motion={pointerMotion} onPointerDownCapture={() => setPointerMotion(true)} onKeyDownCapture={() => setPointerMotion(false)} open={open} onOpenChange={setOpen} className="relative">
         {open ? null : (
           <span
             aria-hidden="true"
@@ -927,13 +967,13 @@ function ConcludedBlock({
         )}
         <CollapsibleTrigger className="group/collapsible relative flex min-h-10 w-full items-center gap-2.5 rounded-xl bg-surface-sunken px-4 py-2.5 text-left text-muted-foreground transition-colors hover:bg-accent-strong">
           <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-body-compact">{summaryLine}</span>
+          <span className="min-w-0 flex-1 text-body-compact md:truncate">{summaryLine}</span>
           <ChevronDown
             aria-hidden="true"
             className="size-4 shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180"
           />
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent className="hearing-reveal overflow-hidden">
           <div className="mt-1 flex flex-col gap-2 rounded-lg bg-surface-sunken p-2">
             {slots.map((slot) => (
               <ConcludedSlot
@@ -957,7 +997,7 @@ function UpcomingSeparator({ label, count }: { label: string; count: number }) {
   return (
     <TimelineRow dot={false}>
       <div className="flex items-center gap-2.5 pt-2 pb-1">
-        <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">
+        <span className="text-caption font-semibold text-muted-foreground md:tracking-wide md:uppercase">
           {label}
         </span>
         <Badge variant="secondary" className="tabular-nums">{count}</Badge>
@@ -988,10 +1028,10 @@ function Board({
 }) {
   const { concluded, now, upcoming } = board;
   return (
-    <div className="relative flex flex-col gap-3">
+    <div className="relative flex flex-col gap-2 md:gap-3">
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-4 bottom-4 left-1.5 w-px -translate-x-1/2 bg-hairline"
+        className="pointer-events-none absolute top-4 bottom-4 left-1.5 hidden md:block w-px -translate-x-1/2 bg-hairline"
       />
 
       {concluded.length ? (
@@ -1145,13 +1185,13 @@ export function HearingTimeline({
     <OpenTasksContext.Provider value={onOpenTasks}>
       <ShowTimesContext.Provider value={showTimes}>
       <ViewInCauseListContext.Provider value={onViewInCauseList}>
-        <div className="flex flex-col gap-3 pt-2 pb-8">
+        <div className="flex flex-col gap-4 pb-16 md:gap-3 md:pt-2 md:pb-8">
           <RailStyles />
           {/* From @xl up the row never wraps: the toolbar keeps the top line
               (shrink-0) and the stats take the rest, so the actions never fall
               under the stats. On a phone it still stacks. The extra bottom margin
               holds the refresh button's hover/refreshed caption clear of the board. */}
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 @xl:flex-nowrap">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-4 md:gap-y-3 @xl:flex-nowrap">
             <SummaryStrip
               total={total}
               courts={courtCount}
