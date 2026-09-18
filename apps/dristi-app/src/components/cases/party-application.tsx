@@ -57,6 +57,7 @@ import {
 import { SELF } from "@/lib/access/content";
 import { formatCaseDate } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { DOCUMENT_GROUND } from "@/components/cases/document-ground";
 import { Identifier } from "@/components/chrome/identifier";
 
 /** The case, as the paper names it — passed down from whoever holds it. */
@@ -171,14 +172,17 @@ function FullViewButton({
           <DialogTitle className="text-title-s font-semibold break-words">
             {title}
           </DialogTitle>
-          <DialogDescription className="text-body-compact">
-            Full view — close to go back.
+          <DialogDescription className="sr-only">
+            Full view. Close to go back.
           </DialogDescription>
         </DialogHeader>
         <div
           tabIndex={0}
           aria-label={`Preview of ${title}`}
-          className="min-h-0 flex-1 overflow-auto rounded-xl bg-surface-sunken p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className={cn(
+            "min-h-0 flex-1 overflow-auto rounded-xl p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+            DOCUMENT_GROUND
+          )}
         >
           <div className="mx-auto w-full max-w-4xl">{children}</div>
         </div>
@@ -271,12 +275,21 @@ function downloadPartyApplication(
 type SignStep = "choose" | "upload" | "aadhaar" | "done";
 type AadhaarPhase = "authenticating" | "failure";
 
+/**
+ * Every footer in the signing flow (choose a method, upload, signed, failed)
+ * sits on the warm well rather than the dialog's white, so the step's actions
+ * read as a band of their own under the content (owner, Sept 18). The DS
+ * footer's `bg-muted` is one hair off white and did not read as a fill at all.
+ */
+const FLOW_FOOTER = "bg-surface-sunken";
+
 export function PartySignatureDialog({
   open,
   onClose,
   onComplete,
   confirmation,
   submitLabel = "Submit application",
+  chooseTitle = "How is this application signed?",
 }: {
   open: boolean;
   /** Dismiss the sign dialog only — the review stays open behind it. */
@@ -286,6 +299,8 @@ export function PartySignatureDialog({
   /** The success screen's copy — the flow's own "sent" message. */
   confirmation: { title: string; description: string };
   submitLabel?: string;
+  /** The first step's heading; callers signing several at once reword it. */
+  chooseTitle?: string;
 }) {
   const [step, setStep] = useState<SignStep>("choose");
   const [aadhaar, setAadhaar] = useState<AadhaarPhase>("authenticating");
@@ -347,14 +362,14 @@ export function PartySignatureDialog({
                   <HourglassIcon className="size-7" aria-hidden />
                 </span>
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  <DialogTitle className="text-title-s font-semibold text-balance">
+                  <DialogTitle className="text-body font-semibold text-balance">
                     {confirmation.title}
                   </DialogTitle>
                   <DialogDescription>{confirmation.description}</DialogDescription>
                 </div>
               </div>
             </DialogHeader>
-            <footer className="flex shrink-0 justify-end border-t border-hairline px-6 py-4">
+            <footer className={cn(FLOW_FOOTER, "flex shrink-0 justify-end border-t border-hairline px-6 py-4")}>
               <Button type="button" onClick={onComplete}>
                 Done
               </Button>
@@ -364,7 +379,7 @@ export function PartySignatureDialog({
           <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
             <Spinner className="size-8 text-primary" />
             <div className="flex flex-col gap-1.5">
-              <DialogTitle className="text-title-s font-semibold">
+              <DialogTitle className="text-body font-semibold">
                 Signing with Aadhaar
               </DialogTitle>
               <DialogDescription>
@@ -394,7 +409,7 @@ export function PartySignatureDialog({
                 <XCircleIcon className="size-7" />
               </span>
               <div className="flex flex-col gap-1.5">
-                <DialogTitle className="text-title-s font-semibold text-balance">
+                <DialogTitle className="text-body font-semibold text-balance">
                   Signature not completed
                 </DialogTitle>
                 <DialogDescription className="text-balance">
@@ -404,7 +419,7 @@ export function PartySignatureDialog({
                 </DialogDescription>
               </div>
             </div>
-            <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <footer className={cn(FLOW_FOOTER, "flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center sm:justify-between")}>
               <Button
                 type="button"
                 variant="outline"
@@ -423,7 +438,7 @@ export function PartySignatureDialog({
         ) : step === "upload" ? (
           <>
             <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-5 pr-14 text-left">
-              <DialogTitle className="text-title-s font-semibold text-balance">
+              <DialogTitle className="text-body font-semibold text-balance">
                 Upload a signed copy
               </DialogTitle>
               <DialogDescription>
@@ -433,7 +448,7 @@ export function PartySignatureDialog({
             </DialogHeader>
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
               <Field data-invalid={Boolean(error) && !signedFile}>
-                <FieldLabel className="block w-full text-body font-semibold leading-snug">
+                <FieldLabel className="block w-full font-semibold leading-snug">
                   Signed application
                 </FieldLabel>
                 <UploadedDocField
@@ -449,7 +464,7 @@ export function PartySignatureDialog({
               </Field>
               <FieldError>{error}</FieldError>
             </div>
-            <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <footer className={cn(FLOW_FOOTER, "flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center sm:justify-between")}>
               <Button
                 type="button"
                 variant="outline"
@@ -468,8 +483,8 @@ export function PartySignatureDialog({
         ) : (
           <>
             <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-5 pr-14 text-left">
-              <DialogTitle className="text-title-s font-semibold text-balance">
-                How is this application signed?
+              <DialogTitle className="text-body font-semibold text-balance">
+                {chooseTitle}
               </DialogTitle>
               <DialogDescription>
                 An unsigned application cannot be submitted to the court.
@@ -497,7 +512,7 @@ export function PartySignatureDialog({
                 }}
               />
             </div>
-            <footer className="flex shrink-0 items-center border-t border-hairline px-6 py-4">
+            <footer className={cn(FLOW_FOOTER, "flex shrink-0 items-center border-t border-hairline px-6 py-4")}>
               <Button type="button" variant="outline" onClick={onClose}>
                 Back
               </Button>
@@ -527,7 +542,7 @@ function SignMethodCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <span
         aria-hidden
@@ -541,7 +556,9 @@ function SignMethodCard({
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-body font-semibold text-foreground">{title}</span>
+        <span className="text-body-compact font-semibold text-foreground">
+          {title}
+        </span>
         <span className="text-body-compact text-muted-foreground">
           {description}
         </span>

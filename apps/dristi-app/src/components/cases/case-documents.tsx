@@ -5,7 +5,6 @@ import {
   CircleAlertIcon,
   FileSearchIcon,
   FileTextIcon,
-  SearchIcon,
 } from "lucide-react";
 
 import { DocumentRecordDialog } from "@/components/cases/document-record-dialog";
@@ -15,16 +14,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-} from "@/components/ui/combobox";
+  RegisterFilter,
+  RegisterSearch,
+} from "@/components/cases/register-controls";
+import {
+  TABLE_CELL,
+  TABLE_HEAD,
+  TABLE_HEAD_ROW,
+  tableBodyClass,
+  tableRowClass,
+} from "@/components/chrome/table-plate";
+import { PANEL_CLASS } from "@/components/shell/panel";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@/components/ui/segmented-control";
 import {
   Empty,
   EmptyDescription,
@@ -32,14 +36,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Item,
   ItemContent,
   ItemGroup,
   ItemTitle,
 } from "@/components/ui/item";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Pagination,
@@ -68,7 +70,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -90,7 +91,6 @@ import {
   documentsFile,
   evidenceStatusLabel,
   isDocumentKind,
-  isDocumentTypeId,
   isDocumentsPageSize,
   personIdentity,
   selectDocuments,
@@ -105,6 +105,7 @@ import {
 } from "@/lib/cases/documents";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { displayName } from "@/lib/cases/names";
 import { Identifier } from "@/components/chrome/identifier";
 
 type SubmitterOption = {
@@ -119,10 +120,8 @@ type TypeGroup = {
   items: { value: DocumentTypeId; label: string }[];
 };
 
-const headClass =
-  "h-10 border-b border-border px-4 py-3 text-caption font-medium text-muted-foreground";
-const cellClass =
-  "border-b border-border px-4 py-3 align-middle text-left text-body-compact";
+const headClass = TABLE_HEAD;
+const cellClass = TABLE_CELL;
 const filterBarClass =
   "flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end";
 const filterFieldClass = "min-w-0 w-full md:w-72";
@@ -174,10 +173,10 @@ function DocumentsError() {
     <DocumentsPanel>
       <Alert variant="destructive">
         <CircleAlertIcon aria-hidden />
-        <AlertTitle className="text-body">
+        <AlertTitle>
           Documents could not be loaded
         </AlertTitle>
-        <AlertDescription className="text-body">
+        <AlertDescription>
           Refresh the page to try again.
         </AlertDescription>
       </Alert>
@@ -187,8 +186,8 @@ function DocumentsError() {
 
 function DocumentsReady({ file }: { file: DocumentsFile }) {
   const [kind, setKind] = useState<DocumentKind>("documents");
-  const [typeId, setTypeId] = useState<DocumentTypeId | null>(null);
-  const [submittedById, setSubmittedById] = useState<string | null>(null);
+  const [typeIds, setTypeIds] = useState<string[]>([]);
+  const [submitterIds, setSubmitterIds] = useState<string[]>([]);
   const [filingQuery, setFilingQuery] = useState("");
   const [pageSize, setPageSize] = useState<DocumentsPageSize>(
     DOCUMENTS_PAGE_SIZE
@@ -220,17 +219,24 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
     .filter((group) => group.items.length > 0);
 
   const selection = selectDocuments({
-    documents: file.documents,
+    /* The filters take any number of values, so they narrow the list here
+       and the selector only handles kind, search and paging. */
+    documents: file.documents.filter(
+      (document) =>
+        (typeIds.length === 0 || typeIds.includes(document.type)) &&
+        (submitterIds.length === 0 ||
+          submitterIds.includes(document.submittedById))
+    ),
     kind,
-    typeId,
-    submittedById,
+    typeId: null,
+    submittedById: null,
     filingQuery,
     pageSize,
     page,
   });
 
   const filtered =
-    typeId !== null || submittedById !== null || filingQuery.trim() !== "";
+    typeIds.length > 0 || submitterIds.length > 0 || filingQuery.trim() !== "";
   const showTypeFilter = kind === "documents";
 
   function resetPage() {
@@ -238,8 +244,8 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
   }
 
   function clearFilters() {
-    setTypeId(null);
-    setSubmittedById(null);
+    setTypeIds([]);
+    setSubmitterIds([]);
     setFilingQuery("");
     resetPage();
   }
@@ -261,8 +267,8 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
       bailBondsCount={selection.bailBondsCount}
       onKindChange={(next) => {
         setKind(next);
-        setTypeId(null);
-        setSubmittedById(null);
+        setTypeIds([]);
+        setSubmitterIds([]);
         resetPage();
       }}
     />
@@ -272,23 +278,14 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
      legacy screens keep beside Type, reduced to the one field the filter bar
      does not already cover. */
   const search = (
-    <div className="relative w-full md:w-64">
-      <SearchIcon
-        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-        aria-hidden
-      />
-      <Input
-        type="search"
-        aria-label="Search filing ID"
-        placeholder="Search filing ID"
-        className="pl-9"
-        value={filingQuery}
-        onChange={(event) => {
-          setFilingQuery(event.target.value);
-          resetPage();
-        }}
-      />
-    </div>
+    <RegisterSearch
+      label="Search by filing ID"
+      value={filingQuery}
+      onChange={(next) => {
+        setFilingQuery(next);
+        resetPage();
+      }}
+    />
   );
 
   if (file.documents.length === 0) {
@@ -306,56 +303,38 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
   return (
     <>
       <DocumentsPanel switcher={switcher} search={search}>
-        <div className={filterBarClass}>
+        <div className="flex flex-wrap items-center gap-2">
           {showTypeFilter ? (
-            <Field className={filterFieldClass}>
-              <FieldLabel
-                htmlFor="documents-type"
-                className="text-body font-medium"
-              >
-                Document type
-              </FieldLabel>
-              <TypeFilterCombobox
-                id="documents-type"
-                groups={typeGroups}
-                value={typeId}
-                onChange={(next) => {
-                  setTypeId(next);
-                  resetPage();
-                }}
-              />
-            </Field>
-          ) : null}
-
-          <Field className={filterFieldClass}>
-            <FieldLabel
-              htmlFor="documents-submitted-by"
-              className="text-body font-medium"
-            >
-              Submitted by
-            </FieldLabel>
-            <SubmitterFilterCombobox
-              id="documents-submitted-by"
-              items={submitterOptions}
-              value={submittedById}
+            <RegisterFilter
+              label="Type"
+              values={typeIds}
               onChange={(next) => {
-                setSubmittedById(next);
+                setTypeIds(next);
                 resetPage();
               }}
+              options={typeGroups.flatMap((group) => group.items)}
             />
-          </Field>
-
-          <Button
-            type="button"
-            variant="ghost"
-            className="shrink-0"
-            disabled={!filtered}
-            onClick={clearFilters}
-          >
-            Clear filters
-          </Button>
+          ) : null}
+          <RegisterFilter
+            label="Submitted by"
+            values={submitterIds}
+            onChange={(next) => {
+              setSubmitterIds(next);
+              resetPage();
+            }}
+            options={submitterOptions}
+          />
+          {filtered ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </Button>
+          ) : null}
         </div>
-        <Separator />
 
         {selection.total === 0 ? (
           <DocumentsEmpty
@@ -366,9 +345,12 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
         ) : (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" aria-live="polite">
+              <p
+                aria-live="polite"
+                className="text-caption font-medium tabular-nums text-muted-foreground"
+              >
                 {matchingCountLabel(kind, selection.total, filtered)}
-              </Badge>
+              </p>
             </div>
 
             <div className="overflow-x-auto">
@@ -532,10 +514,10 @@ function DocumentsPanel({
 }) {
   return (
     <section className="min-w-0" aria-busy={busy || undefined}>
-      <Card className="hover:bg-card">
+      <Card className={cn(PANEL_CLASS, "gap-4 hover:bg-card")}>
         <CardHeader>
           <div className="flex flex-col gap-3">
-            <h2 className="text-title-s font-semibold">Documents</h2>
+            <h2 className="text-body font-semibold">Documents</h2>
             {search ? (
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 {switcher}
@@ -546,7 +528,7 @@ function DocumentsPanel({
             )}
           </div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-6">{children}</CardContent>
+        <CardContent className="flex flex-col gap-4">{children}</CardContent>
       </Card>
     </section>
   );
@@ -564,40 +546,40 @@ function KindTabs({
   onKindChange: (kind: DocumentKind) => void;
 }) {
   return (
-    <Tabs
+    <SegmentedControl
+      type="single"
+      size="compact"
       value={kind}
       onValueChange={(next) => {
         if (isDocumentKind(next)) onKindChange(next);
       }}
-      className="gap-0"
+      aria-label="Document group"
     >
-      {/*
-        Default TabsList (surface-sunken + hairline), never line — these are two
-        mutually exclusive populations, not page sections. Height only
-        on TabsList (h-10). Triggers keep DS h-[calc(100%-1px)].
-      */}
-      <TabsList
-        className="h-10 group-data-horizontal/tabs:h-10"
-        aria-label="Document group"
+      {/* The count is part of the label, in plain muted text, rather than a
+          badge inside a control. */}
+      <SegmentedControlItem
+        value="documents"
+        aria-label={`Documents, ${documentsCount}`}
       >
-        <TabsTrigger
-          value="documents"
-          className="flex-none px-3 text-body after:opacity-0 data-[state=active]:text-primary"
-          aria-label={`Documents, ${documentsCount}`}
-        >
+        <span className="flex items-center gap-1.5">
           Documents
-          <Badge variant="secondary">{documentsCount}</Badge>
-        </TabsTrigger>
-        <TabsTrigger
-          value="bail-bonds"
-          className="flex-none px-3 text-body after:opacity-0 data-[state=active]:text-primary"
-          aria-label={`Bail bonds, ${bailBondsCount}`}
-        >
+          <span className="font-normal tabular-nums text-muted-foreground">
+            {documentsCount}
+          </span>
+        </span>
+      </SegmentedControlItem>
+      <SegmentedControlItem
+        value="bail-bonds"
+        aria-label={`Bail bonds, ${bailBondsCount}`}
+      >
+        <span className="flex items-center gap-1.5">
           Bail bonds
-          <Badge variant="secondary">{bailBondsCount}</Badge>
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+          <span className="font-normal tabular-nums text-muted-foreground">
+            {bailBondsCount}
+          </span>
+        </span>
+      </SegmentedControlItem>
+    </SegmentedControl>
   );
 }
 
@@ -623,7 +605,7 @@ function DocumentsPageSizeSelect({
           if (isDocumentsPageSize(size)) onChange(size);
         }}
       >
-        <SelectTrigger id="documents-page-size" className="text-body">
+        <SelectTrigger id="documents-page-size" size="sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -635,121 +617,6 @@ function DocumentsPageSizeSelect({
         </SelectContent>
       </Select>
     </div>
-  );
-}
-
-function TypeFilterCombobox({
-  id,
-  groups,
-  value,
-  onChange,
-}: {
-  id: string;
-  groups: TypeGroup[];
-  value: DocumentTypeId | null;
-  onChange: (value: DocumentTypeId | null) => void;
-}) {
-  const items = groups.flatMap((group) => group.items);
-  const selected = items.find((item) => item.value === value) ?? null;
-
-  return (
-    <Combobox
-      items={groups}
-      value={selected}
-      onValueChange={(next) =>
-        onChange(next && isDocumentTypeId(next.value) ? next.value : null)
-      }
-      isItemEqualToValue={(a, b) => a.value === b.value}
-      itemToStringLabel={(item) => item.label}
-      filter={(item, query) => {
-        const q = query.trim().toLowerCase();
-        if (!q) return true;
-        return item.label.toLowerCase().includes(q);
-      }}
-      autoComplete="off"
-    >
-      <ComboboxInput id={id} placeholder="All types" className="w-full" />
-      <ComboboxContent>
-        <ComboboxEmpty>No type found.</ComboboxEmpty>
-        <ComboboxList>
-          {(group: TypeGroup) => (
-            <ComboboxGroup key={group.value} items={group.items}>
-              <ComboboxLabel className="text-caption font-medium">
-                {group.label}
-              </ComboboxLabel>
-              <ComboboxCollection>
-                {(item: { value: DocumentTypeId; label: string }) => (
-                  <ComboboxItem key={item.value} value={item}>
-                    <span className="text-body whitespace-normal">
-                      {item.label}
-                    </span>
-                  </ComboboxItem>
-                )}
-              </ComboboxCollection>
-            </ComboboxGroup>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
-  );
-}
-
-function SubmitterFilterCombobox({
-  id,
-  items,
-  value,
-  onChange,
-}: {
-  id: string;
-  items: SubmitterOption[];
-  value: string | null;
-  onChange: (value: string | null) => void;
-}) {
-  const selected = items.find((item) => item.value === value) ?? null;
-
-  return (
-    <Combobox
-      items={items}
-      value={selected}
-      onValueChange={(next) => onChange(next?.value ?? null)}
-      isItemEqualToValue={(a, b) => a.value === b.value}
-      itemToStringLabel={(item) => item.label}
-      filter={(item, query) => {
-        const q = query.trim().toLowerCase();
-        if (!q) return true;
-        return `${item.label} ${item.role}`.toLowerCase().includes(q);
-      }}
-      autoComplete="off"
-    >
-      <ComboboxInput
-        id={id}
-        placeholder="All submitters"
-        className="w-full"
-      />
-      <ComboboxContent>
-        <ComboboxEmpty>No submitter found.</ComboboxEmpty>
-        <ComboboxList>
-          {(item: SubmitterOption) => (
-            <ComboboxItem
-              key={item.value}
-              value={item}
-              className="items-start py-2"
-            >
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-body-compact font-medium whitespace-normal">
-                  {item.label}
-                </span>
-                {item.role ? (
-                  <span className="text-caption font-medium text-muted-foreground whitespace-normal">
-                    {item.role}
-                  </span>
-                ) : null}
-              </span>
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
   );
 }
 
@@ -768,7 +635,7 @@ function DocumentsTable({
     <Table>
       <TableCaption className="sr-only">{caption}</TableCaption>
       <TableHeader>
-        <TableRow className="hover:bg-transparent">
+        <TableRow className={TABLE_HEAD_ROW}>
           <TableHead className={cn(headClass, "min-w-56")}>Document</TableHead>
           <TableHead className={cn(headClass, "min-w-40")}>
             Document type
@@ -782,11 +649,11 @@ function DocumentsTable({
           <TableHead className={cn(headClass, "w-32")}>Actions</TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody>
+      <TableBody className={tableBodyClass()}>
         {rows.map((document) => (
           <TableRow
             key={document.id}
-            className="cursor-pointer"
+            className={cn(tableRowClass(), "cursor-pointer")}
             onClick={() => onOpenRecord(document)}
           >
             <TableCell className={cn(cellClass, "min-w-0 whitespace-normal")}>
@@ -845,7 +712,7 @@ function SubmittedByCell({
   peopleById: Map<string, DocumentPerson>;
 }) {
   const side = submittedBySideLabel(document, peopleById);
-  const advocate = submittedByName(document, peopleById);
+  const advocate = displayName(submittedByName(document, peopleById));
 
   return (
     <Tooltip>
@@ -859,7 +726,7 @@ function SubmittedByCell({
           {side}
         </Button>
       </TooltipTrigger>
-      <TooltipContent className="text-body">{advocate}</TooltipContent>
+      <TooltipContent>{advocate}</TooltipContent>
     </Tooltip>
   );
 }
@@ -890,7 +757,7 @@ function DocumentsItemList({
           className="relative h-full items-start gap-3 p-4 has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-focus-ring"
         >
           <ItemContent className="min-w-0 flex-1 gap-2 text-left">
-            <ItemTitle className="line-clamp-none text-body font-medium text-foreground">
+            <ItemTitle className="line-clamp-none">
               <button
                 type="button"
                 onClick={() => onOpenRecord(document)}
@@ -923,7 +790,7 @@ function DocumentsItemList({
             <p className="text-body-compact text-muted-foreground">
               {submittedBySideLabel(document, peopleById)}
               {" · "}
-              {submittedByName(document, peopleById)}
+              {displayName(submittedByName(document, peopleById))}
             </p>
           </ItemContent>
         </Item>
@@ -976,9 +843,9 @@ function DocumentsEmpty({
         <EmptyMedia variant="icon">
           <Icon aria-hidden />
         </EmptyMedia>
-        <EmptyTitle className="text-title-s font-semibold">{title}</EmptyTitle>
+        <EmptyTitle className="text-body font-semibold">{title}</EmptyTitle>
         {description ? (
-          <EmptyDescription className="text-body">{description}</EmptyDescription>
+          <EmptyDescription>{description}</EmptyDescription>
         ) : null}
       </EmptyHeader>
     </Empty>

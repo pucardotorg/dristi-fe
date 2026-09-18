@@ -37,6 +37,7 @@ import {
 } from "@/lib/cases/parties";
 import { isViewer } from "@/lib/cases/viewer";
 import { cn } from "@/lib/utils";
+import { displayName } from "@/lib/cases/names";
 import { Identifier } from "@/components/chrome/identifier";
 
 /**
@@ -171,14 +172,14 @@ export function CaseParticipants({
       <RestingCard className="min-w-0">
         <CardContent className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 flex-col gap-2">
-            <h2 id={HEADING_ID} className="text-title-s font-semibold">
+            <h2 id={HEADING_ID} className="text-body font-semibold">
               Parties
             </h2>
             {/* Both counts as plain muted text. The mockup put the litigant
                 count in a filled chip and the witness count in plain text —
                 one data type, two presentations, which is the inconsistency
                 ui-craft names outright. */}
-            <p className="text-body text-muted-foreground">
+            <p className="text-caption font-medium text-muted-foreground">
               <span className="tabular-nums">
                 {plural(file.counts.litigants, "litigant", "litigants")}
               </span>
@@ -282,7 +283,9 @@ function Eyebrow({ id, children }: { id?: string; children: ReactNode }) {
 }
 
 function SectionNote({ children }: { children: ReactNode }) {
-  return <p className="text-body text-muted-foreground">{children}</p>;
+  return (
+    <p className="text-body-compact text-muted-foreground">{children}</p>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -463,7 +466,7 @@ function MasterRow({
       )}
     >
       <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
-        <span className="block max-w-full text-body font-semibold text-foreground">
+        <span className="block max-w-full text-body-compact font-semibold text-foreground">
           {name}
         </span>
         {badge}
@@ -492,11 +495,11 @@ function DetailHeader({
       <div className="min-w-0">
         <h3
           id={DETAIL_HEADING_ID}
-          className="text-title-s font-semibold text-foreground"
+          className="text-body font-semibold text-foreground"
         >
           {name}
         </h3>
-        <p className="mt-1 text-body text-muted-foreground">{subline}</p>
+        <p className="mt-1 text-body-compact text-muted-foreground">{subline}</p>
       </div>
       {badge}
     </div>
@@ -600,8 +603,8 @@ function FactWell({
 }) {
   const lines = (
     <>
-      <span className="block text-body font-medium text-foreground">
-        {primary}
+      <span className="block text-body-compact font-medium text-foreground">
+        {displayName(primary)}
         {primarySuffix ? (
           <span className="font-normal text-muted-foreground">
             {" "}
@@ -610,7 +613,9 @@ function FactWell({
         ) : null}
       </span>
       {secondary ? (
-        <span className="block text-body text-muted-foreground">{secondary}</span>
+        <span className="block text-caption font-medium text-muted-foreground">
+          {secondary}
+        </span>
       ) : null}
     </>
   );
@@ -943,10 +948,10 @@ function WitnessFact({ term, value }: { term: string; value?: string }) {
       {/* Body, not caption: typography names Body Medium as the role for field
           labels, and caption is 12px — chrome weight for a label the reader is
           here to read. The same term treatment the service pane uses. */}
-      <DescriptionTerm className="text-body text-muted-foreground">
+      <DescriptionTerm>
         {term}
       </DescriptionTerm>
-      <DescriptionDetails className="min-w-0 text-body font-medium text-foreground">
+      <DescriptionDetails className="min-w-0 font-medium">
         {value ?? <span className="text-muted-foreground">None</span>}
       </DescriptionDetails>
     </DescriptionRow>

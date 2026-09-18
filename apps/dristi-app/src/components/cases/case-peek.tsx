@@ -59,6 +59,18 @@ import { CaseFlags } from "./case-identity";
 import { CASE_PEEK_ID, useCasePeek } from "./use-case-peek";
 import { Identifier } from "@/components/chrome/identifier";
 
+const SLIDE =
+  "transition-transform duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none";
+
+/** Follows the first number: back over its glyph box at rest, aside when it is engaged. */
+const AFTER_FIRST = cn(
+  SLIDE,
+  "peer-[:is(button)]/first:-translate-x-3.5",
+  "peer-[:is(button):hover]/first:translate-x-0",
+  "peer-[:is(button):focus-visible]/first:translate-x-0",
+  "peer-[:is(button)[title=Copied]]/first:translate-x-0"
+);
+
 /**
  * Card that owns peek state in the tree, floating variant. The panel portals to the
  * document so it can float over the screen — the app shell clips `fixed` descendants.
@@ -269,15 +281,34 @@ function CasePeekBody({
             >
               {title}
             </Title>
-            <p className="text-body-compact text-muted-foreground">
-              <Identifier value={record.caseNumber} label="case number" />
+            {/* Each `Identifier` holds a 14px box for its copy glyph, which read
+                as a gap before the next dot. The second number rests pulled
+                back over that box and steps aside while the first is hovered,
+                focused or showing its tick: the header's `CaseNumberLine`
+                move. The court has its own line, so nothing that can wrap
+                ever carries the offset. */}
+            <p className="flex flex-wrap items-baseline text-body-compact text-muted-foreground">
+              <Identifier
+                value={record.caseNumber}
+                label="case number"
+                className="peer/first"
+              />
               {extras.altCaseNumber ? (
                 <>
-                  <span aria-hidden> · </span>
-                  <Identifier value={extras.altCaseNumber} label="other case number" />
+                  <span aria-hidden className={cn("whitespace-pre", AFTER_FIRST)}>
+                    {" · "}
+                  </span>
+                  <Identifier
+                    value={extras.altCaseNumber}
+                    label="other case number"
+                    className={AFTER_FIRST}
+                  />
                 </>
               ) : null}
-              <span aria-hidden> · </span>
+            </p>
+            {/* A step of air and a step of weight, so the court reads as its
+                own fact and not as a third number (owner, Sept 18). */}
+            <p className="mt-1.5 text-body-compact font-medium text-foreground">
               {record.court}
             </p>
           </div>
