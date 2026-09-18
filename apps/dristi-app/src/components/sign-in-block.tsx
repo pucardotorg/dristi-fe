@@ -359,13 +359,22 @@ export function SignInBlock({
               type="button"
               variant="ghost"
               className="-ml-2 lg:ml-0"
+              aria-label={pick(registrationUi.backToSignIn, locale)}
               onClick={() => {
                 setRegistrationOpen(false);
                 setResubmission(null);
               }}
             >
               <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-              {pick(registrationUi.backToSignIn, locale)}
+              {/* The full Malayalam line pushed the language toggle off a phone's
+                  edge, so below sm the arrow carries "back" and the label names
+                  only the destination. */}
+              <span className="sm:hidden">
+                {pick(registrationUi.backToSignInShort, locale)}
+              </span>
+              <span className="max-sm:hidden">
+                {pick(registrationUi.backToSignIn, locale)}
+              </span>
             </Button>
           ) : (
             <BrandLockup className="h-8 lg:hidden" />
@@ -375,7 +384,7 @@ export function SignInBlock({
               instead of two, and — the reason it matters here — it shows മലയാളം in its
               own script, findable by someone who cannot read the word "Language". */}
           <SegmentedControl size="compact"
-            className="lg:ml-auto"
+            className="shrink-0 lg:ml-auto"
             type="single"
             value={locale}
             onValueChange={(value) => value && onLocaleChange(value as Locale)}
@@ -410,7 +419,13 @@ export function SignInBlock({
               onFinish={onRegistered}
             />
           ) : (
-          <div className="mx-auto flex w-full max-w-100 flex-col gap-6 lg:-translate-y-2">
+          /* Centred in the column at every width (owner, Sept 18). On phones the
+             centre is OPTICAL: the space splits 2:3 above:below, because a block at
+             the true middle reads as sitting low. Growing spacers rather than
+             `items-center` or a translate: they fall to zero when a step outgrows
+             the column, so the top stays reachable by scroll instead of clipped. */
+          <div className="mx-auto flex w-full max-w-100 flex-col self-stretch before:grow-2 after:grow-3 lg:before:grow lg:after:grow">
+          <div className="flex w-full flex-col gap-6 lg:-translate-y-2">
             {step === "number" ? (
               <div
                 className={cn(
@@ -720,6 +735,7 @@ export function SignInBlock({
                 </form>
               </div>
             )}
+           </div>
           </div>
           )}
         </main>

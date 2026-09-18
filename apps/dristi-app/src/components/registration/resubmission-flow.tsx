@@ -6,10 +6,11 @@
  * A rejected registrant is told by SMS to sign in again; the sign-in screen
  * recognises the number and lands them here — the registration steps minus
  * the role question (that answer stands), everything pre-filled with what
- * they submitted, the officer's ONE general message pinned above the steps,
- * and the fields the officer marked flagged in place. Resubmitting sends
- * the same application (same ID) back for approval, ending on the same
- * awaiting-approval screen the first submission used.
+ * they submitted, and the officer's ONE general message pinned on every
+ * step. The message is the whole feedback: fields carry no marks of their
+ * own (owner, Sept 18), only the stepper tints the steps to correct.
+ * Resubmitting sends the same application (same ID) back for approval,
+ * ending on the same awaiting-approval screen the first submission used.
  *
  * The mobile number is not editable: it was proven by OTP the first time
  * and it is the number they just signed in with — a registration cannot
@@ -17,7 +18,7 @@
  */
 
 import * as React from "react";
-import { ArrowLeftIcon, ClockIcon, FlagIcon } from "lucide-react";
+import { ArrowLeftIcon, ClockIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -64,24 +65,14 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const STEP_KEYS = ["name", "contact", "verification"] as const;
 
-/** Which step each flaggable field lives on — the officer's feedback shows
-    where the correction happens, not everywhere. */
+/** Which step each flaggable field lives on — it decides which stepper
+    circles take the warning tint. */
 const FIELD_STEP: Record<string, StepKey> = {
   name: "name",
   email: "contact",
   regNumber: "verification",
   idFile: "verification",
 };
-
-/** The officer's mark on a field — it points; the message explains. */
-function FlaggedNote({ locale }: { locale: Locale }) {
-  return (
-    <p className="flex items-center gap-1.5 text-caption text-warning-ink">
-      <FlagIcon className="size-3.5 shrink-0" aria-hidden />
-      {pick(rejectionUi.flagged, locale)}
-    </p>
-  );
-}
 
 /** Past roughly three lines at this column's width the message starts to
     bury the form it explains — longer than this clamps behind Read more.
@@ -90,7 +81,7 @@ function FlaggedNote({ locale }: { locale: Locale }) {
 const CLAMP_THRESHOLD = 260;
 
 /**
- * The officer's ONE message, in a quiet well on the steps it concerns. A
+ * The officer's ONE message, in a quiet well on every step. A
  * short message shows whole; a long one clamps to three lines with the rest
  * behind Read more, so the correction work stays above the fold.
  */
@@ -107,8 +98,7 @@ function OfficerMessage({
   const clamps = message.length > CLAMP_THRESHOLD;
   return (
     <div className="flex flex-col items-start gap-1.5 rounded-lg bg-surface-sunken p-4">
-      <p className="flex items-center gap-1.5 text-caption font-semibold text-warning-ink">
-        <FlagIcon className="size-3.5 shrink-0" aria-hidden />
+      <p className="text-caption font-semibold text-warning-ink">
         {pick(rejectionUi.messageMeta, locale).replace("{id}", applicationId)}
       </p>
       <p
@@ -148,24 +138,23 @@ export function ResubmissionFlow({
   const [idFile, setIdFile] = React.useState<File | null>(null);
   const [touched, setTouched] = React.useState(false);
 
-  const flagged = new Set(rejection.flagged);
-  /** The steps the officer's marks land on — they wear the stepper marker
-      and carry the message; clean steps stay clean. */
+  /** The steps the officer's marks land on — they wear the stepper tint. */
   const flaggedSteps = new Set(
     rejection.flagged.map((field) => FIELD_STEP[field])
   );
   const verification = verificationSteps.advocate;
   const stepIndex = Math.max(0, STEP_KEYS.indexOf(step as StepKey));
 
-  /** The officer's ONE message, on the steps it concerns — not a
-      page-wide destructive banner (owner, Sept 3: too alarming). */
-  const officerMessage = flaggedSteps.has(step as StepKey) ? (
+  /** The officer's ONE message, on every step — it is the universal
+      feedback (owner, Sept 18), still a quiet well rather than a destructive
+      banner (owner, Sept 3: too alarming). */
+  const officerMessage = (
     <OfficerMessage
       locale={locale}
       applicationId={rejection.applicationId}
       message={rejection.officerMessage}
     />
-  ) : null;
+  );
 
   if (step === "success") {
     return (
@@ -243,8 +232,9 @@ export function ResubmissionFlow({
             "[&_[data-slot=stepper-item]]:items-center",
             "[&_[data-slot=stepper-item]>div:first-child]:relative [&_[data-slot=stepper-item]>div:first-child]:justify-center",
             "[&_[data-slot=stepper-connector]]:absolute [&_[data-slot=stepper-connector]]:top-4 [&_[data-slot=stepper-connector]]:left-[calc(50%+1rem)] [&_[data-slot=stepper-connector]]:mx-0 [&_[data-slot=stepper-connector]]:h-px [&_[data-slot=stepper-connector]]:w-[calc(100%-2rem)]",
-            "[&_[data-slot=stepper-item]>div:last-child]:w-full [&_[data-slot=stepper-item]>div:last-child]:pr-0 [&_[data-slot=stepper-item]>div:last-child]:text-center",
-            "max-md:[&_[data-slot=stepper-item]>div:last-child]:hidden"
+            /* Three short labels fit a phone, so they stay at every width —
+               the full registration hides its six below md, this does not. */
+            "[&_[data-slot=stepper-item]>div:last-child]:w-full [&_[data-slot=stepper-item]>div:last-child]:pr-0 [&_[data-slot=stepper-item]>div:last-child]:text-center"
           )}
           aria-label={pick(registrationUi.stepOf, locale)
             .replace("{current}", String(stepIndex + 1))
@@ -260,8 +250,8 @@ export function ResubmissionFlow({
                  the labels (owner, Sept 3; the ring tried first looked
                  bolted on). The step you are ON stays the teal current
                  look, and a step you pass completes to the normal tick;
-                 unflagged upcoming steps stay grey. The title flag and
-                 sr-only text stay, so the mark is never colour alone.
+                 unflagged upcoming steps stay grey. The sr-only text
+                 stays, so the mark is never colour alone for a screen reader.
                  The cast: StepperItem declares `title?: ReactNode`, but the
                  li's own `title: string` attribute intersects it down to
                  string — a DS-level type conflict, not a rendering one
@@ -273,12 +263,8 @@ export function ResubmissionFlow({
               }
               title={
                 (flaggedSteps.has(key) ? (
-                  <span className="inline-flex items-center gap-1">
-                    {pick(journeySteps[key].title, locale)}
-                    <FlagIcon
-                      className="size-3.5 shrink-0 text-warning-ink"
-                      aria-hidden
-                    />
+                  <span>
+                    {pick(journeySteps[key].title, locale)}{" "}
                     <span className="sr-only">
                       {pick(rejectionUi.stepFlagged, locale)}
                     </span>
@@ -337,13 +323,9 @@ export function ResubmissionFlow({
                   setTouched(false);
                 }}
               />
-              {flagged.has("name") ? (
-                <FlaggedNote locale={locale} />
-              ) : (
-                <FieldDescription>
-                  {pick(nameStep.fullNameHint, locale)}
-                </FieldDescription>
-              )}
+              <FieldDescription>
+                {pick(nameStep.fullNameHint, locale)}
+              </FieldDescription>
               <FieldError>
                 {touched && !fullName.trim()
                   ? pick(nameStep.error, locale)
@@ -407,7 +389,6 @@ export function ResubmissionFlow({
                   setTouched(false);
                 }}
               />
-              {flagged.has("email") ? <FlaggedNote locale={locale} /> : null}
               <FieldError>
                 {touched && email && !EMAIL.test(email)
                   ? pick(contactStep.emailError, locale)
@@ -467,7 +448,6 @@ export function ResubmissionFlow({
                   setTouched(false);
                 }}
               />
-              {flagged.has("regNumber") ? <FlaggedNote locale={locale} /> : null}
               <FieldError>
                 {touched && !regNumber.trim()
                   ? pick(verification.numberError, locale)
@@ -479,15 +459,6 @@ export function ResubmissionFlow({
                 {pick(verification.uploadLabel, locale)}{" "}
                 <span className="text-destructive">*</span>
               </FieldLabel>
-              {flagged.has("idFile") ? (
-                <p className="flex items-start gap-1.5 text-caption text-warning-ink">
-                  <FlagIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                  {pick(rejectionUi.previousUpload, locale).replace(
-                    "{name}",
-                    rejection.idFileName
-                  )}
-                </p>
-              ) : null}
               <UploadedDocField
                 label={pick(verification.uploadLabel, locale)}
                 required
