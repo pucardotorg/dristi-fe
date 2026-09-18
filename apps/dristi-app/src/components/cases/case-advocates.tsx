@@ -69,6 +69,9 @@ export function CaseAdvocatesPair({
           side={side}
           markSide
           dense={dense}
+          /* "+2 others" as on the case header, not a +2 chip: one pattern for
+             the same fact on both screens (owner, Sept 18). */
+          more="text"
         />
       ))}
     </div>
@@ -203,7 +206,18 @@ export function CaseAdvocates({
                 aria-label={`${names[0]} and ${extra} more ${
                   extra === 1 ? copy.one : copy.many
                 }`}
-                className="relative shrink-0 cursor-pointer rounded-sm text-body-compact text-muted-foreground underline decoration-dotted underline-offset-4 outline-none transition-colors after:absolute after:-inset-x-1.5 after:-inset-y-2 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                className={cn(
+                  "relative shrink-0 cursor-pointer rounded-sm text-muted-foreground underline decoration-dotted underline-offset-4 outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                  /* A step down in the dense table, where it trails a name in
+                     a narrow column; the case header keeps the line's size. */
+                  dense ? "text-caption font-medium" : "text-body-compact",
+                  /* The dense table stacks two of these 4px apart, so the
+                     expanded target would overlap the line below; there the
+                     24px line box is the target, as it was for the chip. */
+                  dense
+                    ? "after:absolute after:-inset-x-1.5 after:inset-y-0"
+                    : "after:absolute after:-inset-x-1.5 after:-inset-y-2"
+                )}
                 onClick={(event) => event.stopPropagation()}
               >
                 +{extra} {extra === 1 ? "other" : "others"}

@@ -100,7 +100,9 @@ export default async function CaseDetailPage(
           between tabs must not move the trail (owner, Sept 9). */}
       <CaseBreadcrumbs caseId={record.id} caseNumber={record.caseNumber} />
       {/* No "Back to cases" row: the trail above already carries that link. */}
-      <div className="flex min-w-0 flex-1 flex-col gap-6 p-6 md:p-8">
+      {/* The Pending tasks page's ground, so the white cards stand off it
+          (owner, Sept 18). Dark keeps its own background. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-6 bg-muted p-6 md:p-8 dark:bg-background">
         <CaseHeader
           record={record}
           hideLongPendingFlag={origin === "long-pending"}

@@ -15,7 +15,6 @@ import { RestingCard } from "@/components/cases/case-overview-card";
 import {
   RECENT_ROW,
   RowViewButton,
-  useRecentRow,
 } from "@/components/cases/register-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,7 +87,7 @@ export function HearingsList({
           <TableHead className={cn(TABLE_HEAD, "w-36")}>Date</TableHead>
           <TableHead className={TABLE_HEAD}>Hearing purpose</TableHead>
           <TableHead className={cn(TABLE_HEAD, "w-32")}>Status</TableHead>
-          <TableHead className={cn(TABLE_HEAD, "w-20 text-right")}>
+          <TableHead className={cn(TABLE_HEAD, "w-24")}>
             Action
           </TableHead>
         </TableRow>
@@ -116,7 +115,7 @@ export function HearingsList({
                 {hearing.status.label}
               </Badge>
             </TableCell>
-            <TableCell className={cn(TABLE_CELL, "text-right")}>
+            <TableCell className={TABLE_CELL}>
               <RowViewButton
                 label={`${hearing.purpose}, ${hearing.date}`}
                 onClick={() => onOpen(hearing)}
@@ -147,21 +146,24 @@ export function HearingDetail({
   /** Where the order opens. Absent when no order was passed. */
   orderHref?: string;
   headingRef?: RefObject<HTMLHeadingElement | null>;
-  onBack: () => void;
+  /** Absent inside the pop-up, where the way back is the dialog's footer. */
+  onBack?: () => void;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 flex-col items-start gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="-ml-3"
-          onClick={onBack}
-        >
-          <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-          All hearings
-        </Button>
+        {onBack ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="-ml-3"
+            onClick={onBack}
+          >
+            <ArrowLeftIcon data-icon="inline-start" aria-hidden />
+            All hearings
+          </Button>
+        ) : null}
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h3
             ref={headingRef}
@@ -256,8 +258,6 @@ export function CaseHearingsSection({
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const openHearing = hearings.find((item) => item.id === openId) ?? null;
-  const { recentId, markRecent, recentRowRef } = useRecentRow();
-
   return (
     <RestingCard>
       <CardContent className="flex flex-col gap-4">
@@ -270,17 +270,12 @@ export function CaseHearingsSection({
                 ? orderHref(caseId, openHearing.order.id)
                 : undefined
             }
-            onBack={() => {
-              markRecent(openHearing.id);
-              setOpenId(null);
-            }}
+            onBack={() => setOpenId(null)}
           />
         ) : (
           <HearingsList
             hearings={hearings}
             onOpen={(hearing) => setOpenId(hearing.id)}
-            recentId={recentId}
-            recentRowRef={recentRowRef}
           />
         )}
       </CardContent>

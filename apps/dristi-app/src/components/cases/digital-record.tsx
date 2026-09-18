@@ -35,6 +35,7 @@ import {
   type ComplaintPane,
 } from "@/lib/cases/complaint";
 import { cn } from "@/lib/utils";
+import { DOCUMENT_GROUND } from "@/components/cases/document-ground";
 
 import { PdfViewer, parsePdfSrc } from "./pdf-viewer";
 
@@ -180,7 +181,12 @@ function DocumentTile({
   const src = complaintDocumentSrc(document);
   const href = complaintDocumentHref(caseId, document);
   const preview = (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface-sunken">
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border border-border",
+        DOCUMENT_GROUND
+      )}
+    >
       <AspectRatio ratio={3 / 4}>
         {src ? (
           <DocumentThumbnail src={src} />

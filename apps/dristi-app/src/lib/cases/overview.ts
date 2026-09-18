@@ -206,10 +206,15 @@ function overviewNextHearing(
       : formatCaseDate(record.nextHearing.on),
     purpose: purpose.length > 0 ? purpose : undefined,
     tile: overviewDateTile(record.nextHearing.on, now),
-    status: {
-      label: hearingStatusLabel(status),
-      variant: hearingStatusVariant(status),
-    },
+    /* A next hearing is scheduled by definition, so that chip said nothing
+       (owner, Sept 18). Any other listing status still shows. */
+    status:
+      status === "scheduled"
+        ? undefined
+        : {
+            label: hearingStatusLabel(status),
+            variant: hearingStatusVariant(status),
+          },
   };
 }
 

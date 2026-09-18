@@ -60,6 +60,8 @@ import {
 } from "@/components/ui/segmented-control";
 import { PANEL_CLASS } from "@/components/shell/panel";
 
+import { DOCUMENT_GROUND } from "./document-ground";
+import { COLLAPSE_MOTION, glideToTop } from "./motion";
 import { PdfViewer, parsePdfSrc } from "./pdf-viewer";
 
 /**
@@ -125,7 +127,7 @@ export function CaseFile({
   };
 
   return (
-    <div className="sticky top-0 z-10 flex h-[calc(100svh-theme(spacing.14)-theme(spacing.6))] w-full flex-col gap-4 bg-background md:h-[calc(100svh-theme(spacing.14)-theme(spacing.8))] md:gap-0">
+    <div className="sticky top-0 z-10 flex h-[calc(100svh-theme(spacing.14)-theme(spacing.6))] w-full flex-col gap-4 bg-muted dark:bg-background md:h-[calc(100svh-theme(spacing.14)-theme(spacing.8))] md:gap-0">
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetTrigger asChild>
           <Button
@@ -161,7 +163,11 @@ export function CaseFile({
         )}
       >
         <div className="hidden min-h-0 w-72 shrink-0 flex-col gap-2 overflow-hidden p-4 md:flex">
-          <h2 className="shrink-0 px-2 text-body font-semibold">Case file</h2>
+          {/* The row height of the document's title bar beside it, so the two
+              headings and the PDF/Digital switch share one centre line. */}
+          <h2 className="flex min-h-10 shrink-0 items-center px-2 text-body font-semibold">
+            Case file
+          </h2>
           <ScrollArea type="always" className="min-h-0 flex-1">
             <nav aria-label="Case file">
               <CaseFileIndex {...indexProps} />
@@ -268,9 +274,9 @@ function CaseFileIndex({
                     if (openIds.has(node.id)) return;
                     const item = event.currentTarget.closest("li");
                     if (!(item instanceof HTMLElement)) return;
-                    requestAnimationFrame(() => {
-                      requestAnimationFrame(() => scrollNodeIntoIndex(item));
-                    });
+                    /* One frame, so the folder has mounted its content and
+                       the glide starts with the opening, not after it. */
+                    requestAnimationFrame(() => scrollNodeIntoIndex(item));
                   }}
                 >
                   <IndexLabel number={node.number} label={node.label} />
@@ -284,7 +290,7 @@ function CaseFileIndex({
                   />
                 </CollapsibleTrigger>
               </div>
-              <CollapsibleContent>
+              <CollapsibleContent className={COLLAPSE_MOTION}>
                 {node.children && node.children.length > 0 ? (
                   <CaseFileIndex
                     nodes={node.children}
@@ -366,9 +372,7 @@ function scrollNodeIntoIndex(node: HTMLElement) {
   const scroller =
     viewport instanceof HTMLElement ? viewport : node.closest("nav");
   if (!(scroller instanceof HTMLElement)) return;
-  const scrollerBox = scroller.getBoundingClientRect();
-  const nodeBox = node.getBoundingClientRect();
-  scroller.scrollTop += nodeBox.top - scrollerBox.top;
+  glideToTop(scroller, node);
 }
 
 function IndexLabel({ number, label }: { number: string; label: string }) {
@@ -440,7 +444,8 @@ function DocumentPane({
     >
       <div
         className={cn(
-          "col-start-1 row-start-1 min-h-0 min-w-0 overflow-hidden rounded-xl bg-surface-sunken",
+          "col-start-1 row-start-1 min-h-0 min-w-0 overflow-hidden rounded-xl",
+          DOCUMENT_GROUND,
           view === "pdf" ? "visible" : "invisible"
         )}
         aria-hidden={view === "pdf" ? undefined : true}

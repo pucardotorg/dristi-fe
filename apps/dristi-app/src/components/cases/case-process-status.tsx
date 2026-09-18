@@ -43,6 +43,7 @@ import {
 import { hearingHref, orderHref } from "@/lib/cases/sections";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { COLLAPSE_MOTION } from "@/components/cases/motion";
 
 /**
  * Notice/Process Status (§7). One panel per person the court issued process
@@ -165,11 +166,11 @@ function Round({
           className="size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded/round:rotate-180"
         />
       </CollapsibleTrigger>
-      <CollapsibleContent>
+      <CollapsibleContent className={COLLAPSE_MOTION}>
         {/* One left edge for everything in the round: the facts sit on the
             same inset as the table's cell text, and share the full width in
             thirds, so a long hearing purpose or order title has room. */}
-        <div className="flex flex-col gap-4 border-t border-hairline px-2 pt-4 pb-2">
+        <div className="flex flex-col gap-8 border-t border-hairline px-2 pt-8 pb-2">
           <dl className="grid grid-cols-1 gap-x-8 gap-y-3 px-4 sm:grid-cols-3">
             <Fact label="Linked hearing">
               {round.hearing ? (

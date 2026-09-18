@@ -2,7 +2,15 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { DownloadIcon, FileTextIcon, XIcon } from "lucide-react";
+import { DownloadIcon, FileTextIcon, FileXIcon, XIcon } from "lucide-react";
+
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 
 import {
   PdfViewer,
@@ -201,10 +209,27 @@ function RecordBody({
             className="min-h-64 flex-1 rounded-none"
           />
         ) : (
+          /* The same designed gap the order record shows when its PDF is
+             missing: the pane says what is absent and whether the reader has
+             anything to do, instead of a stray line of grey text. */
           <div className="flex min-h-64 flex-1 items-center justify-center bg-surface-sunken p-6">
-            <p className="text-body-compact text-muted-foreground">
-              No document to show for this application.
-            </p>
+            <Empty className="flex-none">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FileXIcon aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle className="text-body font-semibold">
+                  {application.documents.length === 0
+                    ? "No documents with this application"
+                    : "These documents are not on file yet"}
+                </EmptyTitle>
+                <EmptyDescription>
+                  {application.documents.length === 0
+                    ? "Nothing is attached to it. The details of the application are alongside."
+                    : "They are listed alongside, and open here once the files are uploaded."}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </div>
         )}
       </div>

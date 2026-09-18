@@ -248,7 +248,7 @@ function NextHearingBlock({
           />
 
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
               {tile.today ? (
                 <Badge variant="warning" className={WELL_CHIP_STROKE.warning}>
                   Today

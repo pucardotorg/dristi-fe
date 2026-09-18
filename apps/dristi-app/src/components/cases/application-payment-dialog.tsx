@@ -85,7 +85,10 @@ function PaymentBody({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 py-4">
+      {/* The body is the well and the fee breakdown is the sheet on it, not
+          the other way round: the amounts are what the dialog is for, so they
+          get the white (owner, Sept 18). */}
+      <div className="flex min-h-0 flex-col gap-4 overflow-y-auto bg-surface-sunken px-6 py-4">
         {paid ? (
           <Banner variant="success">
             Court fee of {total} paid.{" "}
@@ -99,7 +102,7 @@ function PaymentBody({
           </Banner>
         )}
 
-        <dl className="flex flex-col rounded-lg bg-surface-sunken px-4 py-1 text-body-compact">
+        <dl className="flex flex-col rounded-lg border border-hairline bg-card px-4 py-1 text-body-compact">
           {applications.map((item) => (
             <div
               key={item.id}

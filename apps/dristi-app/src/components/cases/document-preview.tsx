@@ -25,6 +25,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { DOCUMENT_GROUND } from "@/components/cases/document-ground";
 
 import { PdfViewer, isPdfSrc, parsePdfSrc } from "./pdf-viewer";
 
@@ -491,29 +492,34 @@ function FullViewDialog({
   return (
     <Dialog>
       {iconOnly ? <IconAction label={label}>{trigger}</IconAction> : trigger}
-      <ChromeDialogContent className="flex h-[92svh] flex-col gap-4 overflow-hidden sm:max-w-[calc(100%-4rem)]">
-        {/*
-          Same rule as the inline header: title left, actions right. Download
-          is repeated rather than duplicated — the row that carries it is
-          behind this overlay and cannot be reached while the viewer is open.
-          pr-12 keeps it clear of the primitive's close button.
-        */}
-        <div className="flex shrink-0 flex-col gap-2 pr-12 sm:flex-row sm:items-center sm:justify-between">
+      {/* The primitive parks its close button 8px from the corner, which left
+          the title row hard against the top edge. Here it moves in to 16px and
+          the row follows it (owner, Sept 18). */}
+      <ChromeDialogContent className="flex h-[92svh] flex-col gap-4 overflow-hidden sm:max-w-[calc(100%-4rem)] [&>[data-slot=dialog-close]]:top-4 [&>[data-slot=dialog-close]]:right-4">
+        {/* One plane: title, then the download icon, then the close button.
+            The row's centre is the close button's (34px down), and `pr-8`
+            leaves the download icon 4px short of it, so the two read as a
+            pair. The description is for screen readers only; on screen the
+            close button already says how to go back. */}
+        <div className="-mt-2.5 -mb-1.5 flex min-h-10 shrink-0 items-center justify-between gap-2 pr-8">
           <DialogHeader className="min-w-0">
             <DialogTitle className="text-title-s font-semibold break-words">
               {title}
             </DialogTitle>
-            <DialogDescription className="text-body-compact">
-              Full view — close to go back.
+            <DialogDescription className="sr-only">
+              Full view. Close to go back.
             </DialogDescription>
           </DialogHeader>
           {download ? (
-            <DownloadAction title={title} download={download} />
+            <DownloadAction title={title} download={download} iconOnly />
           ) : null}
         </div>
+        {/* Near window size the page is mostly white, so it takes the darker
+            document ground wherever it opens from. */}
         <DocumentWell
           title={title}
           source={source}
+          surface="ground"
           className="min-h-0 flex-1"
         />
       </ChromeDialogContent>
@@ -526,7 +532,7 @@ function FullViewDialog({
  * preview is the nested media well the Laws name, and depth here is fill
  * (Elevation: the box-in-box ban).
  */
-type WellSurface = "sunken" | "card" | "bare";
+type WellSurface = "sunken" | "ground" | "card" | "bare";
 
 /**
  * The two fills a well can take, and the sticky strip that has to match whichever one
@@ -535,6 +541,8 @@ type WellSurface = "sunken" | "card" | "bare";
  */
 const wellSurface: Record<WellSurface, { well: string; strip: string }> = {
   sunken: { well: "bg-surface-sunken", strip: "bg-surface-sunken" },
+  /** View Case's darker document ground; see `document-ground.ts`. */
+  ground: { well: DOCUMENT_GROUND, strip: DOCUMENT_GROUND },
   card: { well: "border border-hairline bg-card", strip: "bg-card" },
   /** Inside a frame that already draws the edge and the fill — see the quiet+card path. */
   bare: { well: "rounded-none", strip: "bg-card" },

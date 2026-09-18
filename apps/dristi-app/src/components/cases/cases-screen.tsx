@@ -305,7 +305,9 @@ export function CasesScreen({
       }}
     >
       <CasePeekProvider now={now} docked>
-      <CasePeekPushRegion className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
+      {/* The Pending tasks ground, as on the case page, so the white panel and
+          its edge stand off the page (owner, Sept 18). */}
+      <CasePeekPushRegion className="flex min-w-0 flex-1 flex-col gap-8 bg-muted p-6 md:p-8 dark:bg-background">
         {/* One plane above the panel: the title, then on the right the Bookmarked
             lens and the page's one bg-primary action (Laws: ration teal). Bookmarked is
             an icon toggle — a view the person turns on and off, not a command — its

@@ -10,7 +10,9 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Identifier } from "@/components/chrome/identifier";
 import type { PastCaseNumber } from "@/lib/cases/header";
+import { formatCaseDate } from "@/lib/cases/types";
 
 /**
  * The older numbers this case has carried (DET-02). Renders nothing when the
@@ -42,12 +44,16 @@ export function CaseNumberHistory({ history }: { history: PastCaseNumber[] }) {
         <ul className="flex flex-col gap-3">
           {history.map((entry) => (
             <li key={entry.number} className="flex flex-col gap-0.5">
-              <span className="font-mono text-caption font-medium text-foreground">
-                {entry.number}
-              </span>
-              <span className="text-caption text-muted-foreground">
-                {entry.kind} · {entry.generatedAt}
-              </span>
+              <Identifier
+                value={entry.number}
+                label="earlier case number"
+                className="self-start text-caption font-medium text-foreground"
+              />
+              {entry.generatedOn ? (
+                <span className="text-caption text-muted-foreground">
+                  Generated on {formatCaseDate(entry.generatedOn)}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>

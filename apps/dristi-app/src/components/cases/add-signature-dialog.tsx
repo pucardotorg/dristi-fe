@@ -402,7 +402,9 @@ export function AddSignatureDialog({
         {/* The register's payment dialog shows the same block. */}
         {step === "payment" ? <CourtFeeSummary /> : null}
 
-        <DialogFooter>
+        {/* The signing flow's warm footer band; see `FLOW_FOOTER` in
+            party-application.tsx. */}
+        <DialogFooter className="bg-surface-sunken">
           {step === "method" ||
           step === "upload" ||
           step === "signed" ||

@@ -7,6 +7,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { DOCUMENT_GROUND } from "@/components/cases/document-ground";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
@@ -163,7 +164,8 @@ export function PdfViewer({
   return (
     <div
       className={cn(
-        "relative min-h-0 overflow-hidden rounded-xl bg-surface-sunken",
+        "relative min-h-0 overflow-hidden rounded-xl",
+        DOCUMENT_GROUND,
         className
       )}
     >

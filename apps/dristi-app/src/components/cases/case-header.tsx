@@ -18,9 +18,11 @@ import {
 import { CaseAdvocates } from "./case-advocates";
 import { CaseHeaderActions } from "./case-header-actions";
 import { CaseFlags, CaseStage } from "./case-identity";
-import { CaseBackButton, CaseStageBadges } from "./case-header-parts";
-import { CaseNumberHistory } from "./case-number-history";
-import { Identifier } from "@/components/chrome/identifier";
+import {
+  CaseBackButton,
+  CaseNumberLine,
+  CaseStageBadges,
+} from "./case-header-parts";
 
 const COUNSEL_LABEL: Record<CounselSide, string> = {
   complainant: "Complainant advocates",
@@ -72,7 +74,9 @@ export function CaseHeader({
     <header className="flex flex-col gap-4">
       {/* Identity and actions share the top row, so the actions anchor the far
           end without costing the header a row of their own. */}
-      <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      {/* Centred on the number-and-title block, so the actions sit on the plane
+          between the two lines rather than hanging off the number (owner, Sept 18). */}
+      <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
           {/* Without parties the title already *is* the number. Only the latest
               number shows (DET-01); the older ones sit behind the icon. */}
@@ -81,12 +85,10 @@ export function CaseHeader({
           <div className="flex min-h-8 items-center gap-1">
             <CaseBackButton />
             {hasParties ? (
-              <>
-              <p className="text-body-compact font-medium text-muted-foreground">
-                <Identifier value={record.caseNumber} label="case number" />
-              </p>
-              <CaseNumberHistory history={numberHistory} />
-              </>
+              <CaseNumberLine
+                caseNumber={record.caseNumber}
+                history={numberHistory}
+              />
             ) : null}
           </div>
           <span className="flex flex-wrap items-center gap-2">
@@ -114,11 +116,17 @@ export function CaseHeader({
         />
       </div>
 
-      <dl className="flex min-w-0 flex-wrap gap-x-8 gap-y-3">
+      {/* Fixed 16rem columns from `md:`. Packed at 2rem apart the facts read
+          as crammed; as equal thirds of the row they drifted apart. This is
+          the owner's middle ground (Sept 18). */}
+      <dl className="flex min-w-0 flex-wrap gap-x-8 gap-y-3 md:grid md:auto-cols-[minmax(0,16rem)] md:grid-flow-col md:justify-start">
         {hasParties ? null : (
           <HeaderFact label="Case number">
-            <Identifier value={record.caseNumber} label="case number" />
-            <CaseNumberHistory history={numberHistory} />
+            <CaseNumberLine
+              caseNumber={record.caseNumber}
+              history={numberHistory}
+              className="text-foreground"
+            />
           </HeaderFact>
         )}
         <HeaderFact label="Stage">

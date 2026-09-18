@@ -236,6 +236,7 @@ function DocumentBody({
       {previewSrc ? (
         <DocumentPreview
           title={document.title}
+          surface="ground"
           source={{ kind: "src", src: previewSrc }}
           download={{
             href: previewSrc,

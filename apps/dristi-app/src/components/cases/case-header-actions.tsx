@@ -25,11 +25,12 @@ import { DownloadCaseFileDialog } from "@/components/cases/download-case-file-di
 import type { AccessCase } from "@/lib/access/content";
 
 /**
- * Share access is out of v1 and returns in the next version (owner, Sept 17).
- * The button, the dialog and their props all stay wired; flip this to bring
- * the entry back.
+ * Share access was hidden for v1 on Sept 17 and is back on Sept 18: the lead
+ * designer's rule is that design carries the full feature list and the
+ * developers cut what is out of a version's scope. The flag stays so that cut
+ * is one line.
  */
-const SHARE_ACCESS_ENABLED = false;
+const SHARE_ACCESS_ENABLED = true;
 
 /**
  * Case-file header actions. Beyond Neer's own filings, this is the case-access hub:

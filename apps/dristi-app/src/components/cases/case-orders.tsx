@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CircleAlertIcon, FileSearchIcon } from "lucide-react";
 
@@ -78,6 +78,10 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
   const searchParams = useSearchParams();
   const [kind, setKind] = useState<OrderKindFilter>(ORDER_KIND_DEFAULT);
   const { recentId, markRecent, recentRowRef } = useRecentRow();
+  /* The mark is for a reader a link dropped here (a round's triggering order,
+     a hearing's order): it shows where that order sits in the list. A row the
+     reader opened themselves needs no pointing back to (owner, Sept 18). */
+  const openedHere = useRef(false);
 
   if (!orders) {
     return (
@@ -97,8 +101,10 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
 
   function setOpenOrder(order: OrderRecord | null) {
     const next = new URLSearchParams(searchParams);
-    if (order) next.set(ORDER_PARAM, order.id);
-    else next.delete(ORDER_PARAM);
+    if (order) {
+      openedHere.current = true;
+      next.set(ORDER_PARAM, order.id);
+    } else next.delete(ORDER_PARAM);
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
@@ -147,9 +153,7 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
               <TableHead className={cn(TABLE_HEAD, "w-36")}>Date</TableHead>
               <TableHead className={cn(TABLE_HEAD, "w-1/3")}>Title</TableHead>
               <TableHead className={TABLE_HEAD}>BoTD</TableHead>
-              <TableHead className={cn(TABLE_HEAD, "w-20 text-right")}>
-                Action
-              </TableHead>
+              <TableHead className={cn(TABLE_HEAD, "w-24")}>Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className={tableBodyClass({ marksOpenRow: true })}>
@@ -166,7 +170,7 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
                 onClick={() => setOpenOrder(order)}
               >
                 <TableCell
-                  className={cn(TABLE_CELL, "align-top tabular-nums")}
+                  className={cn(TABLE_CELL, "tabular-nums")}
                 >
                   <time dateTime={order.issuedOn}>
                     {formatCaseDate(order.issuedOn)}
@@ -175,7 +179,7 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
                 <TableCell
                   className={cn(
                     TABLE_CELL,
-                    "align-top font-medium whitespace-normal"
+                    "font-medium whitespace-normal"
                   )}
                 >
                   {order.title}
@@ -183,7 +187,7 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
                 <TableCell
                   className={cn(
                     TABLE_CELL,
-                    "align-top whitespace-normal text-muted-foreground"
+                    "whitespace-normal text-muted-foreground"
                   )}
                 >
                   {order.botd ? (
@@ -195,7 +199,7 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
                     </>
                   )}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "align-top text-right")}>
+                <TableCell className={TABLE_CELL}>
                   <RowViewButton
                     label={order.title}
                     onClick={() => setOpenOrder(order)}
@@ -211,7 +215,8 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
         order={openOrder}
         onOpenChange={(open) => {
           if (open) return;
-          if (openOrder) markRecent(openOrder.id);
+          if (openOrder && !openedHere.current) markRecent(openOrder.id);
+          openedHere.current = false;
           setOpenOrder(null);
         }}
       />

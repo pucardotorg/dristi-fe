@@ -1,5 +1,5 @@
 import { peekExtras } from "./peek";
-import { formatCaseDate, type CaseRecord } from "./types";
+import type { CaseRecord } from "./types";
 
 /**
  * Header-only facts the PRD adds (DET-02, DET-05). Both are working guesses
@@ -41,10 +41,11 @@ export function secondaryStages(record: CaseRecord): SecondaryStage[] {
 
 export type PastCaseNumber = {
   number: string;
-  /** What kind of number it was, e.g. "Filing number". */
-  kind: string;
-  /** The point in the lifecycle it was generated at, with its date. */
-  generatedAt: string;
+  /**
+   * The day it was generated, ISO. Provenance only: the number's own format
+   * already tells an advocate which stage produced it (owner, Sept 18).
+   */
+  generatedOn?: string;
 };
 
 /**
@@ -53,20 +54,18 @@ export type PastCaseNumber = {
  */
 export function caseNumberHistory(record: CaseRecord): PastCaseNumber[] {
   const history: PastCaseNumber[] = [];
-  const other = peekExtras(record.id).altCaseNumber;
-  if (other) {
+  const extras = peekExtras(record.id);
+  if (extras.altCaseNumber) {
     history.push({
-      number: other,
-      kind: "Summary trial number",
-      generatedAt: "Generated at cognizance",
+      number: extras.altCaseNumber,
+      generatedOn: extras.altCaseNumberOn,
     });
   }
   const filingNumber = FILING_NUMBERS[record.id];
   if (filingNumber && filingNumber !== record.caseNumber) {
     history.push({
       number: filingNumber,
-      kind: "Filing number",
-      generatedAt: `Generated at filing · ${formatCaseDate(record.filedOn)}`,
+      generatedOn: record.filedOn,
     });
   }
   return history;

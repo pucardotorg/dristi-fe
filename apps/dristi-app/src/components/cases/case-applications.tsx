@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -68,6 +68,7 @@ import {
 } from "@/lib/cases/applications";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { COLLAPSE_MOTION } from "@/components/cases/motion";
 import { Identifier } from "@/components/chrome/identifier";
 
 /**
@@ -98,10 +99,15 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   const searchParams = useSearchParams();
   const recordOpen = searchParams.get("application");
   const { recentId, markRecent, recentRowRef } = useRecentRow();
+  /* Only a record a link opened gets its row marked on close; one the reader
+     opened from this list needs no pointing back to (owner, Sept 18). */
+  const openedHere = useRef(false);
   function setRecordOpen(id: string | null) {
     const next = new URLSearchParams(searchParams);
-    if (id) next.set("application", id);
-    else next.delete("application");
+    if (id) {
+      openedHere.current = true;
+      next.set("application", id);
+    } else next.delete("application");
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
   const [signing, setSigning] = useState<ApplicationRecord[]>([]);
@@ -128,7 +134,9 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       (needle === "" ||
         (item.applicationId ?? "").toLowerCase().includes(needle))
   );
-  const actions = groupActions(rows);
+  /* Needs attention is the viewer's to-do list, not a view of the table, so
+     no filter or search narrows it (owner, Sept 18). */
+  const actions = groupActions(register.applications);
   const filtered =
     types.length > 0 ||
     statuses.length > 0 ||
@@ -157,16 +165,25 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   }
 
   return (
-    <ApplicationsPanel
-      search={
-        <RegisterSearch
-          label="Search by application ID"
-          value={query}
-          onChange={setQuery}
+    <ApplicationsPanel>
+      {actions.length > 0 ? (
+        <NeedsAction
+          caseId={record.id}
+          entries={actions}
+          onAct={act}
+          onOpen={setRecordOpen}
         />
-      }
-    >
-      <div className="flex flex-wrap items-center gap-2">
+      ) : null}
+
+      {/* The controls sit directly on the table they narrow, below Needs
+          attention and a step clear of it, so what they act on is read from
+          where they are. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2",
+          actions.length > 0 && "mt-4"
+        )}
+      >
         <RegisterFilter
           label="Type"
           values={types}
@@ -206,6 +223,13 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
             Clear filters
           </Button>
         ) : null}
+        <div className="ml-auto max-sm:w-full">
+          <RegisterSearch
+            label="Search by application ID"
+            value={query}
+            onChange={setQuery}
+          />
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -229,22 +253,12 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           </EmptyHeader>
         </Empty>
       ) : (
-        <>
-          {actions.length > 0 ? (
-            <NeedsAction
-              caseId={record.id}
-              entries={actions}
-              onAct={act}
-              onOpen={setRecordOpen}
-            />
-          ) : null}
-          <ApplicationsTable
-            rows={rows}
-            onOpen={setRecordOpen}
-            recentId={recentId}
-            recentRowRef={recentRowRef}
-          />
-        </>
+        <ApplicationsTable
+          rows={rows}
+          onOpen={setRecordOpen}
+          recentId={recentId}
+          recentRowRef={recentRowRef}
+        />
       )}
 
       <ApplicationRecordDialog
@@ -252,7 +266,8 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         application={openApplication}
         onOpenChange={(open) => {
           if (open) return;
-          if (recordOpen) markRecent(recordOpen);
+          if (recordOpen && !openedHere.current) markRecent(recordOpen);
+          openedHere.current = false;
           setRecordOpen(null);
         }}
       />
@@ -360,9 +375,9 @@ function NeedsAction({
   return (
     <section
       aria-labelledby="applications-needs-action"
-      className="flex flex-col gap-1 rounded-xl bg-surface-sunken p-1"
+      className="flex flex-col gap-2 rounded-xl bg-surface-sunken p-3"
     >
-      <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+      <div className="flex items-center gap-2 px-1 pb-0.5">
         <h3
           id="applications-needs-action"
           className="text-body-compact font-semibold text-foreground"
@@ -373,7 +388,7 @@ function NeedsAction({
           {count}
         </Badge>
       </div>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-2">
         {entries.map((entry) => (
           <li key={entry.key} className="rounded-lg bg-card shadow-raised">
             {entry.kind === "single" ? (
@@ -518,7 +533,7 @@ function ActionGroup({
           </Button>
         ) : null}
       </div>
-      <CollapsibleContent>
+      <CollapsibleContent className={COLLAPSE_MOTION}>
         <ul className="border-t border-hairline">
           {entry.applications.map((application) => (
             <li
@@ -561,7 +576,7 @@ function ApplicationsTable({
           <TableHead className={TABLE_HEAD}>Filed by</TableHead>
           <TableHead className={TABLE_HEAD}>Created on</TableHead>
           <TableHead className={TABLE_HEAD}>Submitted on</TableHead>
-          <TableHead className={cn(TABLE_HEAD, "w-20 text-right")}>
+          <TableHead className={cn(TABLE_HEAD, "w-24")}>
             Action
           </TableHead>
         </TableRow>
@@ -604,7 +619,7 @@ function ApplicationsTable({
             <TableCell className={cn(TABLE_CELL, "tabular-nums")}>
               {item.submittedShort ?? <Dash label="Not submitted" />}
             </TableCell>
-            <TableCell className={cn(TABLE_CELL, "text-right")}>
+            <TableCell className={TABLE_CELL}>
               <RowViewButton
                 label={item.typeLabel}
                 onClick={() => onOpen(item.id)}
