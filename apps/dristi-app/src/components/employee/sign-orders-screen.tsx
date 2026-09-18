@@ -833,7 +833,7 @@ function DraftOrdersItemList({ rows }: { rows: CourtHearing[] }) {
             )}
           />
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{hearing.caseNumber}</span>
+            <Identifier value={hearing.caseNumber} label="case number" />
             {" · Listed for "}
             {courtHearingPurposeLabel(hearing.purpose)}
           </p>

@@ -15,6 +15,7 @@ import {
   tableBodyClass,
   tableRowClass,
 } from "@/components/chrome/table-plate";
+import { Identifier } from "@/components/chrome/identifier";
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { useOrderDrafts } from "@/components/employee/use-order-draft";
 import {
@@ -832,10 +833,12 @@ export function HearingsTable({
                 className="flex items-center"
               />
             </TableCell>
-            <TableCell
-              className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
-            >
-              {hearing.caseNumber}
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              {/* The product's one identifier treatment, not a local `tabular-nums`:
+                  this is read character by character and typed into other systems.
+                  `Identifier` brings the mono face and the figures with it, and stops
+                  its own click from reaching the row opener. */}
+              <Identifier value={hearing.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-nowrap")}>
               <CounselCell

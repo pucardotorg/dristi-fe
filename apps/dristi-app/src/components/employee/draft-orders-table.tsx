@@ -1,5 +1,6 @@
 "use client";
 
+import { Identifier } from "@/components/chrome/identifier";
 import {
   TABLE_CELL,
   TABLE_HEAD,
@@ -131,10 +132,10 @@ export function DraftOrdersTable({
             >
               {causeTitle(hearing)}
             </TableCell>
-            <TableCell
-              className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
-            >
-              {hearing.caseNumber}
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              {/* This table reads the hearings table's cells, so it takes its
+                  identifier treatment too — one face for one kind of fact. */}
+              <Identifier value={hearing.caseNumber} label="case number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-nowrap")}>
               <CounselCell
