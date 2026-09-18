@@ -33,8 +33,29 @@ export type Case = {
   /** "Sreekumar N. v. Vismaya Traders". */
   parties: string;
   court: string;
+  /** Court-issued room/designation, when available. */
+  courtNumber?: string;
   stage: string;
   nextHearingAt?: string;
+  /**
+   * The listed time is a fixed, court-given slot rather than the usual rough
+   * order. Courts rarely commit to a clock time; when a matter is specially
+   * rescheduled the bench does give one, and only then is an upcoming hearing's
+   * time exact. Absent/false means an upcoming time is approximate.
+   */
+  timeFixed?: boolean;
+  /**
+   * The matter was called on its listed day and passed over: reached in the cause
+   * list but not taken up. It is NOT concluded. It goes back among the matters
+   * still to be called that day, in item order, until the court takes it up.
+   */
+  passedOver?: boolean;
+  /**
+   * The matter was passed over on an earlier day (ISO date) and carried to the
+   * current `nextHearingAt`. It lists as an ordinary matter on the new day, tagged
+   * with the day it was passed over.
+   */
+  passedOverOn?: string;
   /**
    * Advocates signed on the vakalatnama, in order — the first is the main advocate.
    * Only they may complete a task (sign, pay, file).
