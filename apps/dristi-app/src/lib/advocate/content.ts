@@ -203,7 +203,28 @@ export const advHome = {
   moreAdvocates: t("More advocates", "കൂടുതൽ അഭിഭാഷകർ"),
   /** Per-court: the court's full official day cause list, all matters. */
   viewCauseList: t("View cause list", "കോസ് ലിസ്റ്റ് കാണുക"),
-  joinCourtroom: t("Join this courtroom", "ഈ കോടതിമുറിയിൽ ചേരുക"),
+  /** Signals it joins one of the advocate's OWN hearings, not a generic courtroom. */
+  joinCourtroom: t("Join your hearing", "നിങ്ങളുടെ വിചാരണയിൽ ചേരുക"),
+  /** The "Join your hearing" picker: only the advocate's own hearings being called now. */
+  joinDialogTitle: t("Join your hearing", "നിങ്ങളുടെ വിചാരണയിൽ ചേരുക"),
+  joinDialogBody: t(
+    "Your hearings being called right now.",
+    "നിങ്ങളുടെ വിചാരണകൾ ഇപ്പോൾ വിളിക്കുന്നു.",
+  ),
+  /** Footer note pointing to the cause list for any hearing that isn't the advocate's. */
+  joinDialogOther: t(
+    "To join any other hearing, open the cause list.",
+    "മറ്റേതെങ്കിലും വിചാരണയിൽ ചേരാൻ കോസ് ലിസ്റ്റ് തുറക്കുക.",
+  ),
+  joinDialogEmpty: t(
+    "None of your hearings are being called right now.",
+    "നിങ്ങളുടെ വിചാരണകളൊന്നും ഇപ്പോൾ വിളിക്കുന്നില്ല.",
+  ),
+  joinDialogEmptyHint: t(
+    "Open the cause list to see every hearing being called across the courts.",
+    "എല്ലാ കോടതികളിലും വിളിക്കുന്ന വിചാരണകൾ കാണാൻ കോസ് ലിസ്റ്റ് തുറക്കുക.",
+  ),
+  joinAction: t("Join", "ചേരുക"),
   emptyDayTitle: t("Nothing listed this day", "ഈ ദിവസം ഒന്നും പട്ടികയിലില്ല"),
   /** Board-level since the courts stack: the empty state is the whole day's,
       not one court's, and no court can be selected away from any more. */
@@ -316,6 +337,111 @@ export const advHome = {
   peekNoTasksBody: t(
     "This matter is ready for the hearing.",
     "ഈ വിഷയം ഹിയറിംഗിന് തയ്യാറാണ്.",
+  ),
+
+  /* Day timeline — the unified rail + accordion view across every court */
+  courtFilterAll: t("All courts", "എല്ലാ കോടതികളും"),
+  courtFilterLabel: t("Filter by court", "കോടതി പ്രകാരം അരിക്കുക"),
+  courtFilterCount: t("{n} courts", "{n} കോടതികൾ"),
+  courtFilterMore: t("+{n} more", "+{n} കൂടി"),
+  /* Summary strip — the number is set apart, these are its words */
+  statHearingOne: t("hearing", "ഹിയറിംഗ്"),
+  statHearingMany: t("hearings", "ഹിയറിംഗുകൾ"),
+  statConflictOne: t("conflict", "കൂട്ടിയിടി"),
+  statConflictMany: t("conflicts", "കൂട്ടിയിടികൾ"),
+  statOverlap: t("{n} overlap", "{n} ഓവർലാപ്പ്"),
+  statConflictSub: t("{n} hearings overlap", "{n} ഹിയറിംഗുകൾ ഓവർലാപ്പ്"),
+  statClearCard: t("clear slots", "ഒഴിവുള്ള സ്ലോട്ടുകൾ"),
+  blockingOne: t("{n} pending task", "{n} തീർപ്പാക്കാനുള്ള ജോലി"),
+  blockingMany: t("{n} pending tasks", "{n} തീർപ്പാക്കാനുള്ള ജോലികൾ"),
+  pendingOpen: t("Show pending tasks for this matter", "ഈ കേസിന്റെ തീർപ്പാക്കാനുള്ള ജോലികൾ കാണിക്കുക"),
+  /** The quiet per-hearing icon that opens the cause list and traces this matter's row. */
+  viewOnCauseList: t("View this hearing on the cause list", "ഈ വിചാരണ കോസ് ലിസ്റ്റിൽ കാണുക"),
+  refreshHearings: t("Refresh hearings", "ഹിയറിംഗുകൾ പുതുക്കുക"),
+  refreshedDone: t("Refreshed", "പുതുക്കി"),
+  lastRefreshed: t("Last refreshed {time}", "അവസാനം പുതുക്കിയത് {time}"),
+  approxLabel: t("approx", "ഏകദേശം"),
+  /* Cause list modal */
+  causeListTitle: t("Cause list", "കോസ് ലിസ്റ്റ്"),
+  causeListScope: t("Every matter listed across all the courts", "എല്ലാ കോടതികളിലുമായി ലിസ്റ്റ് ചെയ്ത എല്ലാ കേസുകളും"),
+  causeListScopeCourt: t("Every matter listed in {court}", "{court}-ൽ ലിസ്റ്റ് ചെയ്ത എല്ലാ കേസുകളും"),
+  /* When many courts are picked, name the first two and count the rest, so the
+     scope line stays short and never pushes the buttons below it. */
+  causeListScopeOthers: t("{courts} and {n} others", "{courts} കൂടാതെ {n} എണ്ണം"),
+  causeListAllCourts: t("All courts", "എല്ലാ കോടതികളും"),
+  causeListSearch: t("Search by case name, number or advocate", "കേസ് പേര്, നമ്പർ അല്ലെങ്കിൽ വക്കീൽ ഉപയോഗിച്ച് തിരയുക"),
+  causeListReset: t("Reset", "പുനഃസജ്ജമാക്കുക"),
+  causeListDownload: t("Download cause list", "കോസ് ലിസ്റ്റ് ഡൗൺലോഡ് ചെയ്യുക"),
+  causeListJoin: t("Join hearing online", "ഹിയറിംഗ് ഓൺലൈനിൽ ചേരുക"),
+  causeListRefreshed: t("Last refreshed {time}", "അവസാനം പുതുക്കിയത് {time}"),
+  causeListEmpty: t("No matters listed for this search", "ഈ തിരയലിന് കേസുകളൊന്നുമില്ല"),
+  causeListMine: t("You appear", "നിങ്ങൾ ഹാജരാകുന്നു"),
+  causeListMineCount: t("{n} of these matters are yours", "ഇവയിൽ {n} കേസുകൾ നിങ്ങളുടേതാണ്"),
+  colItem: t("Item", "ഇനം"),
+  colCase: t("Case", "കേസ്"),
+  colCourt: t("Court", "കോടതി"),
+  colAdvocates: t("Advocates", "വക്കീലുമാർ"),
+  colCaseNumber: t("Case number", "കേസ് നമ്പർ"),
+  colHearingType: t("Hearing type", "ഹിയറിംഗ് തരം"),
+  colStatus: t("Status", "സ്ഥിതി"),
+  statusCompleted: t("Completed", "പൂർത്തിയായി"),
+  statusOngoing: t("Ongoing", "നടക്കുന്നു"),
+  statusListed: t("Listed", "ലിസ്റ്റ് ചെയ്തു"),
+  /* A concluded hearing reached but not taken up. On the home board only the
+     passed-over concluded matters carry this tag (completed ones need none, since
+     concluded means completed); the cause list makes it a fourth status. */
+  statusPassedOver: t("Passed over", "മാറ്റിവെച്ചു"),
+  statusPassedOverOn: t("Passed over on {date}", "{date}-ന് മാറ്റിവെച്ചു"),
+  approxNote: t(
+    "Times are approximate unless the court has fixed a slot.",
+    "കോടതി സമയം നിശ്ചയിച്ചിട്ടില്ലെങ്കിൽ സമയം ഏകദേശമാണ്.",
+  ),
+  ongoingTag: t("Ongoing hearings", "നടക്കുന്ന വിചാരണകൾ"),
+  conflictTag: t("Conflicting hearings", "ഒരേസമയത്തെ വിചാരണകൾ"),
+  /* The hearing and court nouns are filled already pluralised ({hw}/{cw}), so the
+     line reads right at one or many ("1 hearing across 1 court"). */
+  slotAcrossCourts: t("{n} {hw} across {c} {cw}", "{c} {cw}, {n} {hw}"),
+  pendingHeading: t("Pending before this hearing", "ഈ ഹിയറിംഗിന് മുൻപ് ബാക്കി"),
+  statClear: t("clear", "ഒഴിവ്"),
+  statClearSub: t("single-hearing slots", "ഒറ്റ ഹിയറിംഗ് സ്ലോട്ടുകൾ"),
+  statCourtOne: t("court", "കോടതി"),
+  statCourtMany: t("courts", "കോടതികൾ"),
+  statDueOne: t("task due", "ജോലി അവസാനിക്കുന്നു"),
+  statDueMany: t("tasks due", "ജോലികൾ അവസാനിക്കുന്നു"),
+  /* Slot stat — takes the conflict stat's place in the launch view. A single
+     sitting shows its time range ("9:00 am – 5:00 pm"); several show a count. */
+  /* Blocking-task stat — matters that owe work before their hearing today. The
+     slot stat reuses slotOne/slotMany for its count; the exact time range shows in
+     the slot tab, not the stat. */
+  statBlockingOne: t("pending task", "തീർപ്പാക്കാനുള്ള ജോലി"),
+  statBlockingMany: t("pending tasks", "തീർപ്പാക്കാനുള്ള ജോലികൾ"),
+  /* Slot tabs — the sitting's live tab throbs; this names the state for readers
+     who cannot see the dot. */
+  slotLive: t("in session", "സെഷനിൽ"),
+  /* Zones */
+  zoneUpcoming: t("Upcoming", "വരാനുള്ളവ"),
+  nextHintOne: t("Next: {time} · 1 hearing", "അടുത്തത്: {time} · 1 ഹിയറിംഗ്"),
+  nextHintMany: t("Next: {time} · {n} hearings", "അടുത്തത്: {time} · {n} ഹിയറിംഗുകൾ"),
+  concludedWord: t("concluded", "കഴിഞ്ഞു"),
+  slotOne: t("slot", "സ്ലോട്ട്"),
+  slotMany: t("slots", "സ്ലോട്ടുകൾ"),
+  concludedShow: t("Show concluded hearings", "കഴിഞ്ഞ ഹിയറിംഗുകൾ കാണിക്കുക"),
+  /* Conflict slots */
+  conflictPill: t("{n} hearings", "{n} ഹിയറിംഗുകൾ"),
+  nowConflictPill: t("{n} hearings now", "ഇപ്പോൾ {n} ഹിയറിംഗുകൾ"),
+  slotExpand: t("Show the hearings at {time}", "{time}-ലെ ഹിയറിംഗുകൾ കാണിക്കുക"),
+  nowEmpty: t(
+    "Nothing is being called right now",
+    "ഇപ്പോൾ ഒന്നും വിളിക്കുന്നില്ല",
+  ),
+  noUpcoming: t("No upcoming hearings", "വരാനുള്ള ഹിയറിംഗുകളില്ല"),
+  emptyCourtsTitle: t(
+    "No hearings in the selected courts",
+    "തിരഞ്ഞെടുത്ത കോടതികളിൽ ഹിയറിംഗുകളില്ല",
+  ),
+  emptyCourtsBody: t(
+    "Nothing is listed today in the courts you filtered to.",
+    "നിങ്ങൾ തിരഞ്ഞെടുത്ത കോടതികളിൽ ഇന്ന് ഒന്നും പട്ടികയിലില്ല.",
   ),
 } as const;
 

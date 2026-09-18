@@ -518,6 +518,47 @@ const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
       },
     ],
   },
+  // Today's cause-list matters that still owe work before the hearing — the
+  // home timeline flags these, and the peek states the task with its action.
+  "tw-c-hd3": {
+    appearingFor: "complainant",
+    tasks: [
+      {
+        id: "t-twhd3-1",
+        title: "Pay the process fee for the summons to the accused",
+        dueOn: "2026-09-14",
+        consequence:
+          "If it is not paid, the summons cannot issue and the matter may be adjourned, subject to the court's direction.",
+        action: { label: "Pay process fee", section: "applications" },
+      },
+    ],
+  },
+  "tw-c-hd5": {
+    appearingFor: "complainant",
+    tasks: [
+      {
+        id: "t-twhd5-1",
+        title: "File the chief affidavit of PW-1 before the evidence posting",
+        dueOn: "2026-09-14",
+        consequence:
+          "If it is not filed, evidence cannot be led on the next posting, subject to the court's direction.",
+        action: { label: "File affidavit", section: "documents" },
+      },
+    ],
+  },
+  "tw-c-hd8": {
+    appearingFor: "complainant",
+    tasks: [
+      {
+        id: "t-twhd8-1",
+        title: "Produce the postal acknowledgement of the demand notice",
+        dueOn: "2026-09-14",
+        consequence:
+          "If it is not produced, service may remain unproved on the next posting, subject to the court's direction.",
+        action: { label: "Upload acknowledgement", section: "documents" },
+      },
+    ],
+  },
   "c-1002": { chequeAmount: 620000 },
   "c-1006": { chequeAmount: 150000 },
   "c-1008": { chequeAmount: 340000 },

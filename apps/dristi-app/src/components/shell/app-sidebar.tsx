@@ -46,6 +46,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Tooltip,
@@ -596,6 +597,25 @@ function ProfileFooter() {
   );
 }
 
+/**
+ * On a phone the primitive renders the rail as a Sheet and keeps `style` and
+ * `className` for the Sheet root, which has no DOM. The theme's vars never land, so
+ * the sheet fell back to the DS default plate with the seams at `currentColor`: a
+ * wireframe. This re-declares the theme on a wrapper inside the sheet, where it can
+ * paint the whole panel. On desktop the vars already land, so it adds nothing.
+ */
+function RailPlate({ vars, children }: { vars: React.CSSProperties; children: React.ReactNode }) {
+  const { isMobile } = useSidebar();
+  if (!isMobile) return <>{children}</>;
+  return (
+    // A pixel wider than the sheet so the plate also covers the sheet's own light
+    // 1px edge border, which otherwise shows as a beige line down the right side.
+    <div style={vars} className="flex h-full w-[calc(100%+1px)] flex-col bg-sidebar text-(--sidebar-foreground)">
+      {children}
+    </div>
+  );
+}
+
 /** Main navigation for the whole app. Icon rail from `md`, sheet below it. */
 export function AppSidebar() {
   const { theme } = useRailTheme();
@@ -635,6 +655,7 @@ export function AppSidebar() {
        * first item. The header is the top bar's own height so its rule and the
        * breadcrumb bar's rule are one continuous line across the whole chrome.
        */}
+      <RailPlate vars={theme.vars as React.CSSProperties}>
       <SidebarHeader className="h-14 flex-row items-center justify-between border-b border-(--rail-seam) px-3 py-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
         {/* The glyph alone, in both states. The full lockup stacks its wordmark under
             the mark, and at the size a 56px bar can spare, "24×7 ON COURTS" cannot be
@@ -653,6 +674,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <ProfileFooter />
+      </RailPlate>
     </Sidebar>
   );
 }

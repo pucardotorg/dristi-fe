@@ -237,8 +237,12 @@ export function ItemChip({
       aria-hidden="true"
       className={cn(
         "flex shrink-0 flex-col items-center justify-center rounded-md",
-        surface === "card" ? "bg-surface-sunken" : "bg-card",
-        size === "lg" ? "size-12" : "size-11"
+        // On a card-surface row the box is a sunken beige well; when the row is
+        // hovered it turns white so it separates from the row's hover tint.
+        surface === "card"
+          ? "bg-surface-sunken group-hover/row:bg-card"
+          : "bg-card",
+        size === "lg" ? "size-11" : "size-11"
       )}
     >
       {size === "lg" ? (
