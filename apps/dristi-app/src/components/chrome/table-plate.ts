@@ -96,13 +96,24 @@ export const TABLE_HEAD =
  * lifts the short rows and moves nothing else: a row with two lines in any column is
  * already past the floor and stays where it was, `/cases` included.
  *
+ * **The padding is `2.5`, and that is what makes the floor bind.** A row opener carries
+ * `min-h-10` for the touch target, so with `py-3` an opener row measured 40 + 24 + 1 =
+ * 65 and sailed past a 64 floor — every queue with a clickable row sat 1px above every
+ * queue without one, which is where the bulk board's odd height came from (measured,
+ * 2026-09-18). At `py-2.5` the opener fits inside the floor and every single-line queue
+ * lands on 64 exactly, bulk reschedule included.
+ *
+ * Lowering the floor was the other candidate and it does not work: at `h-14` only the
+ * bulk board moves, to 56, because every other table is held up by its opener. Measured
+ * across the queues, 56 restores the mismatch rather than removing it.
+ *
  * It is `h-16` and not `min-h-16` because this is a table cell. The CSS table model
  * treats a cell's `height` as a *minimum* — the row takes the tallest cell and grows past
  * it for content — while `min-height` on a cell is simply ignored, which is how the first
  * attempt at this floor changed nothing.
  */
 export const TABLE_CELL =
-  "h-16 border-b border-hairline px-4 py-3 align-middle text-left text-body-compact";
+  "h-16 border-b border-hairline px-4 py-2.5 align-middle text-left text-body-compact";
 
 /**
  * The header row: no hover (nothing in it is live) and rounded ends, so the strip reads

@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import {
   CheckIcon,
-  ChevronRightIcon,
   CornerUpLeftIcon,
   MicIcon,
   TriangleAlertIcon,
@@ -163,33 +162,6 @@ export function ReviewDialog({
     [flags, allFields, fieldById, docRow],
   );
   const total = Object.values(groups).reduce((n, v) => n + v.length, 0);
-
-  /**
-   * Field labels that **more than one raised item shares**, and therefore the only ones
-   * that still print the group they came from.
-   *
-   * The owner asked for the group gone (2026-09-17): *"it should just show 'mobile
-   * number' and complainant details can be removed, its confusing me"* — and for almost
-   * every field they are right, because 31 of the form's 36 labels are unique across the
-   * whole filing and naming the group is words the reader already knows.
-   *
-   * Five are not. `Full name`, `Mobile number` and `Permanent address` each exist under
-   * both Complainant Details and Accused Details, `Age` under Accused and Witness, and
-   * `Affidavit` in two sections. Flag the complainant's mobile number *and* the accused's
-   * and the send-back would list two rows reading `Mobile number`, with different values
-   * and nothing to say whose — which is the kind of miss this whole screen exists to
-   * catch. So the group returns only where it is the difference between two rows, and the
-   * reader sees it exactly when it is load-bearing.
-   */
-  const shared = React.useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of Object.values(groups).flat()) {
-      counts.set(item.field.label, (counts.get(item.field.label) ?? 0) + 1);
-    }
-    return new Set(
-      [...counts].filter(([, n]) => n > 1).map(([label]) => label),
-    );
-  }, [groups]);
 
   if (!decision) return null;
 
@@ -410,27 +382,37 @@ export function ReviewDialog({
              and this does not. */
           <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
               {GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
-                <section key={g} className="pt-6 first:pt-0">
+                /*
+                 * **A band per kind, ruled from the next.** What the advocate has to
+                 * *do* differs by band — confirm a correction, fix a flag, re-upload a
+                 * document — and the owner asked for that boundary to be visible
+                 * (2026-09-18). The rule is the band's; items inside one are separated
+                 * by space alone. Two separators would have been one too many, and the
+                 * line that means "a different kind of work" should not look like the
+                 * line that means "the next row".
+                 */
+                <section
+                  key={g}
+                  className="-mx-4 border-t border-hairline px-4 pt-6 first:border-t-0 first:pt-0 sm:-mx-6 sm:px-6"
+                >
                   {/*
-                   * A heading, set as one: caption size but foreground ink at 600, so
-                   * it does not read as one more line of item metadata — and sticky,
-                   * because on a send-back with twenty items the kind of grant you are
-                   * reading is the thing that scrolls away first. It needs the stage's
-                   * own fill behind it, or items would show through as it passes — and it
-                   * bleeds to the scroller's insets so the rule it makes runs full width.
+                   * The band's name, at the same 14px as everything under it and
+                   * carrying its weight instead of a size of its own. Sticky, because on
+                   * a send-back with twenty items the kind of work you are reading is
+                   * what scrolls away first; it needs the stage's fill behind it, and it
+                   * bleeds to the scroller's insets so its rule runs the full width.
                    */}
-                  <h3 className="sticky top-0 z-10 -mx-4 bg-card px-4 pb-2 text-caption font-semibold text-foreground sm:-mx-6 sm:px-6">
+                  <h3 className="sticky top-0 z-10 -mx-4 bg-card px-4 pb-3 text-body-compact font-semibold text-foreground sm:-mx-6 sm:px-6">
                     {g.split(" — ")[0]}{" "}
-                    <span className="text-muted-foreground tabular-nums">
+                    <span className="font-normal text-muted-foreground tabular-nums">
                       ({groups[g].length})
                     </span>
                   </h3>
-                  <ul>
+                  <ul className="flex flex-col gap-6">
                     {groups[g].map((item) => (
                       <SummaryItem
                         key={item.field.id}
                         item={item}
-                        withGroup={shared.has(item.field.label)}
                         onGoToItem={(fieldId) => {
                           onOpenChange(false);
                           onGoToItem(fieldId);
@@ -459,12 +441,9 @@ export function ReviewDialog({
 
 function SummaryItem({
   item,
-  withGroup,
   onGoToItem,
 }: {
   item: Item;
-  /** Name the group this came from — only where another item shares the label. */
-  withGroup: boolean;
   onGoToItem: (fieldId: string) => void;
 }) {
   const { docById, docRow } = useScrutinyCase();
@@ -479,30 +458,25 @@ function SummaryItem({
    * box is what constrains the rows inside a dialog.
    */
   return (
-    <li className="@container flex flex-col gap-2 border-b border-hairline py-4 last:border-0">
+    <li className="@container flex flex-col gap-2">
       {/*
-       * **Usually just the field.** The group was here on every item and the owner read
-       * it as noise, which it is when the label already says everything — see `shared`
-       * above for the five labels where it does not.
+       * **`Complainant: Mobile number`** — the party, then the field, on one line at one
+       * size.
        *
-       * Where it is needed it reads as a path rather than as a tag beside the name: side
-       * by side, "ID proof" then "Complainant Details" read as a name and a category and
-       * the containment was not evident (owner, 2026-09-17). Leading, muted, and
-       * chevroned into the field at 600, it is the same order the officer will hunt for
-       * it in when they go back to the workbench.
+       * Naming the group on every item was noise; hiding it left five labels that exist
+       * under two parties reading identically; and a chevroned path was a third face in
+       * a list that already had too many (owner, 2026-09-17 and 2026-09-18). A colon is
+       * the cheapest thing that carries containment: it costs two characters, it reads
+       * as a prefix rather than as a second heading, and it is the form the owner wrote.
        *
-       * `items-center`, not baseline: a 12px glyph has no baseline worth aligning to.
+       * The trailing " Details" comes off because the groups are named for the form, not
+       * for a sentence: "Complainant Details: Mobile number" says Details twice over.
+       * The groups that are not "… Details" keep their whole name.
        */}
-      <h4 className="flex flex-wrap items-center gap-1 text-body-compact">
-        {withGroup ? (
-          <>
-            <span className="text-muted-foreground">{field.group}</span>
-            <ChevronRightIcon
-              aria-hidden="true"
-              className="size-3 shrink-0 text-muted-foreground"
-            />
-          </>
-        ) : null}
+      <h4 className="text-body-compact">
+        <span className="text-muted-foreground">
+          {field.group.replace(/ Details$/, "")}:{" "}
+        </span>
         <span className="font-semibold">{field.label}</span>
       </h4>
 
@@ -530,7 +504,7 @@ function SummaryItem({
           <RecordRow label="FSO’s comment">
             <span className="break-words">{flag.comment}</span>
             {flag.voice ? (
-              <span className="ms-2 inline-flex items-center gap-1 text-caption text-muted-foreground">
+              <span className="ms-2 inline-flex items-center gap-1 text-body-compact text-muted-foreground">
                 <MicIcon className="size-3" aria-hidden="true" /> voice
               </span>
             ) : null}
@@ -572,7 +546,7 @@ function SummaryItem({
        * discovered on resubmission. Icon + words + colour, never colour alone.
        */}
       {item.stranded ? (
-        <p className="flex flex-wrap items-center gap-2 text-caption text-warning-ink">
+        <p className="flex flex-wrap items-center gap-2 text-body-compact text-warning-ink">
           <span className="inline-flex items-center gap-1">
             <TriangleAlertIcon className="size-3" aria-hidden="true" />
             Marked on {docName(item.stranded, docById)} — re-upload is not unlocked.

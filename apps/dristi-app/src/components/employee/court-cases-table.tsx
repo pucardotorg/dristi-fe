@@ -69,11 +69,14 @@ export function CourtCasesTable({
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
         <TableRow className={TABLE_HEAD_ROW}>
-          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
-            Case number
-          </TableHead>
+          {/* Name first, number second — the order every other court queue uses. The
+              exception here cost the screen its copy affordance, because the number was
+              the row's opener and a control cannot nest another (owner, 2026-09-18). */}
           <TableHead className={cn(TABLE_HEAD, "min-w-64 whitespace-normal")}>
             Case name
+          </TableHead>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
+            Case number
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Stage
@@ -98,25 +101,22 @@ export function CourtCasesTable({
           const next = nextHearingDay(record, today);
           return (
             <TableRow key={record.id} {...rowActivation(tableRowClass())}>
+              {/* The cause is the opener; the number beside it is a value to take. */}
               <TableCell
-                className={cn(
-                  TABLE_CELL,
-                  "font-medium tabular-nums whitespace-nowrap",
-                )}
+                className={cn(TABLE_CELL, "min-w-64 whitespace-normal")}
               >
                 <button
                   type="button"
                   onClick={() => onOpen(record)}
                   {...rowOpener}
-                  className={rowOpenerClass}
+                  className={cn(rowOpenerClass, "font-medium")}
                 >
                   <span className="sr-only">Open </span>
-                  {/* The number is the row's opener — the face without a second control. */}
-                  <Identifier value={record.caseNumber} label="case number" copyable={false} />
+                  {courtCaseTitle(record)}
                 </button>
               </TableCell>
-              <TableCell className={cn(TABLE_CELL, "min-w-64 whitespace-normal")}>
-                {courtCaseTitle(record)}
+              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                <Identifier value={record.caseNumber} label="case number" />
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
                 {courtCaseStageLabel(record.stage)}
@@ -178,23 +178,24 @@ export function CourtCaseItemList({
             key={record.id}
             className="flex flex-col gap-2"
           >
+            {/* Same order as the table above it: the cause opens the record, the number
+                sits under it as a value to take. */}
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <button
                 type="button"
                 onClick={() => onOpen(record)}
                 {...rowOpener}
-                className={cn(rowOpenerClass, "w-fit")}
+                className={cn(rowOpenerClass, "w-fit text-body font-semibold")}
               >
                 <span className="sr-only">Open </span>
-                {/* The number is the row's opener — the face without a second control. */}
-                <Identifier value={record.caseNumber} label="case number" copyable={false} />
+                {courtCaseTitle(record)}
               </button>
               <span className="text-body-compact text-muted-foreground">
                 {courtCaseStageLabel(record.stage)}
               </span>
             </div>
-            <span className="text-body font-semibold">
-              {courtCaseTitle(record)}
+            <span className="text-body-compact text-muted-foreground">
+              <Identifier value={record.caseNumber} label="case number" />
             </span>
             <span className="text-body-compact text-muted-foreground tabular-nums">
               {next ? `Next hearing ${formatListingDate(next)}` : "No date fixed"}

@@ -50,9 +50,11 @@ export function RecordRow({
 }) {
   return (
     <>
-      <dt className="pt-px text-caption text-muted-foreground @[22rem]:pt-0.5">
-        {label}
-      </dt>
+      {/* 14px muted, not 12: the owner's standing rule for key-value data (2026-09-11,
+          restated 2026-09-18 on this dialog — *"avoid the use of 12 size copy for these
+          kind of things"*). Hierarchy here is colour and column, not size, so the label
+          and its value are one size and the whole record reads as one table. */}
+      <dt className="text-body-compact text-muted-foreground">{label}</dt>
       <dd className="-mt-1 min-w-0 text-body-compact leading-snug @[22rem]:mt-0">
         {children}
       </dd>

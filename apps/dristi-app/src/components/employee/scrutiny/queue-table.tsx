@@ -61,17 +61,25 @@ export function WaitingCell({ filing }: { filing: Filing }) {
  * row is a dead line. A real `Link` rather than a row-level `onClick` restores what a
  * hand-rolled handler took away — middle-click, ⌘-click and open-in-new-tab.
  */
-function FilingNo({ filing }: { filing: Filing }) {
+/**
+ * **The cause is the row's opener, and the filing number is a value you can take.**
+ *
+ * This queue used to lead with the number and make the number the link. Every other
+ * court queue leads with the case name and carries the number second, and the owner
+ * called the exception out (2026-09-18): there was no reason for it, and it cost the
+ * screen the copy affordance, because a control cannot nest another. With the cause
+ * holding the link, the number is free to be an identifier like everywhere else.
+ */
+function CauseLink({ filing }: { filing: Filing }) {
   return (
     <Link
       href={`/employee/scrutiny/${encodeURIComponent(filing.no)}`}
       onClick={() => markArrival("next")}
       {...rowOpener}
-      className="flex min-h-10 w-full items-center rounded-sm tabular-nums underline-offset-4 outline-none group-hover/row:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+      className="flex min-h-10 w-full items-center rounded-sm font-medium underline-offset-4 outline-none group-hover/row:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
     >
       <span className="sr-only">Scrutinise </span>
-      {/* The number is the link — the identifier's face without a second control inside it. */}
-      <Identifier value={filing.no} label="filing number" copyable={false} />
+      {filing.parties}
     </Link>
   );
 }
@@ -99,11 +107,11 @@ export function ScrutinyQueueTable({ rows }: { rows: Filing[] }) {
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
         <TableRow className={TABLE_HEAD_ROW}>
-          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
-            Filing no.
-          </TableHead>
           <TableHead className={cn(TABLE_HEAD, "min-w-64 whitespace-normal")}>
             Parties
+          </TableHead>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
+            Filing no.
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Stage
@@ -139,13 +147,12 @@ export function ScrutinyQueueTable({ rows }: { rows: Filing[] }) {
         </tr>
         {rows.map((filing) => (
           <TableRow key={filing.no} {...rowActivation(tableRowClass())}>
-            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
-              <FilingNo filing={filing} />
-            </TableCell>
-            {/* The row's one emphasised cell, and now only that: the case type moved to
-                its own column, so the cause is a single line at a single weight. */}
+            {/* The row's one emphasised cell, and the control that opens it. */}
             <TableCell className={cn(TABLE_CELL, "min-w-64 whitespace-normal")}>
-              <span className="font-medium">{filing.parties}</span>
+              <CauseLink filing={filing} />
+            </TableCell>
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              <Identifier value={filing.no} label="filing number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
               {filing.stage}
@@ -193,10 +200,12 @@ export function ScrutinyQueueItemList({ rows }: { rows: Filing[] }) {
     <ul className="flex flex-col gap-3">
       {rows.map((filing) => (
         <QueueItemRow key={filing.no} className="flex flex-col gap-2">
-          <div className="text-body-compact font-medium">
-            <FilingNo filing={filing} />
+          <div className="text-body-compact">
+            <CauseLink filing={filing} />
           </div>
-          <p className="min-w-0 text-body-compact">{filing.parties}</p>
+          <p className="min-w-0 text-body-compact text-muted-foreground">
+            <Identifier value={filing.no} label="filing number" />
+          </p>
           <p className="text-caption text-muted-foreground">
             {filing.type}
             {" · "}
