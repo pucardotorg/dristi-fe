@@ -99,22 +99,22 @@ export function HomeGreeting({
   // the strip drops below it whole, as on a phone, rather than squeezing the
   // greeting into three lines.
   return (
-    <div className="flex flex-col items-start justify-between gap-6 lg:gap-4 @xl:flex-row @xl:flex-wrap @xl:items-center @4xl:gap-6">
-      <div className="flex max-w-full min-w-0 flex-col gap-1 @xl:shrink-0">
+    <div className="flex flex-col items-start justify-between gap-6 lg:gap-4 lg:@xl:flex-row lg:@xl:flex-wrap lg:@xl:items-center lg:@4xl:gap-6">
+      <div className="flex max-w-full min-w-0 flex-col gap-1 lg:@xl:shrink-0">
         {/* Steps down when the board gives up width to the peek or the rail —
             a 32px greeting on a 400px board wraps to three lines. */}
-        <h1 className="text-title font-semibold tracking-tight text-balance lg:text-title @xl:text-title-s @4xl:text-title">
+        <h1 className="text-title font-semibold tracking-tight text-balance lg:text-title lg:@xl:text-title-s lg:@4xl:text-title">
           {fillCopy(greetingCopy(nowDate.getHours()), locale, { name: firstName })}
         </h1>
         {/* Just the date. The due count moved to the timeline's summary strip;
             the week strip's per-day dot still carries its own text equivalent
             through the tooltip and the sr-only line below. */}
-        <p className="text-body text-muted-foreground lg:text-body-compact @4xl:text-body">
+        <p className="text-body text-muted-foreground lg:text-body-compact lg:@4xl:text-body">
           {dateLine}
         </p>
       </div>
 
-      <div className="-mx-4 grid self-stretch grid-cols-[auto_auto_1fr_auto] items-center gap-x-0 gap-y-1 min-[360px]:grid-cols-9 lg:mx-0 lg:flex lg:w-auto lg:max-w-full lg:self-auto lg:gap-1 @4xl:lg:gap-1.5">
+      <div className="-mx-4 grid self-stretch grid-cols-[auto_auto_1fr_auto] items-center gap-x-0 gap-y-1 min-[360px]:grid-cols-9 lg:mx-0 lg:flex lg:w-auto lg:max-w-full lg:self-auto lg:gap-1 lg:@4xl:gap-1.5">
         {/* The jump-to-date control sits with the week strip it drives, a step
             larger than the paging chevrons to match the header's scale. */}
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -124,9 +124,9 @@ export function HomeGreeting({
               size="icon"
               aria-label={pick(advHome.pickDate, locale)}
               // Drawn at 32px on a phone; the ::after keeps the 40px touch target.
-              className="relative col-start-4 row-start-2 mr-4 size-8 justify-self-end after:absolute after:-inset-1 lg:size-8 lg:after:hidden @4xl:lg:size-10 border border-border text-muted-foreground min-[360px]:col-start-9 lg:mr-0 lg:shrink-0 lg:border-0"
+              className="relative col-start-4 row-start-2 mr-4 size-8 justify-self-end after:absolute after:-inset-1 lg:size-8 lg:after:hidden lg:@4xl:size-10 border border-border text-muted-foreground min-[360px]:col-start-9 lg:mr-0 lg:shrink-0 lg:border-0"
             >
-              <CalendarDays aria-hidden="true" className="size-4.5 lg:size-5 @4xl:lg:size-6" />
+              <CalendarDays aria-hidden="true" className="size-4.5 lg:size-5 lg:@4xl:size-6" />
             </Button>
           </PopoverTrigger>
           <PopoverContent align="center" collisionPadding={16} className="w-auto p-0">
@@ -175,7 +175,7 @@ export function HomeGreeting({
           onClick={(event) => shiftWeek(-1, event.detail > 0)}
           // Centred in its column, as the next-week arrow is, so both sit the same
           // distance from the day beside them.
-          className="col-start-1 row-start-2 size-10 text-muted-foreground min-[360px]:row-start-1 min-[360px]:justify-self-center lg:size-8 @4xl:lg:size-9"
+          className="col-start-1 row-start-2 size-10 text-muted-foreground min-[360px]:row-start-1 min-[360px]:justify-self-center lg:size-8 lg:@4xl:size-9"
         >
           <ChevronLeft aria-hidden="true" className="size-5" />
         </Button>
@@ -193,7 +193,7 @@ export function HomeGreeting({
                       aria-pressed={isSelected}
                       onClick={() => onSelectDay(cell.key)}
                       className={cn(
-                        "flex min-h-12 w-full min-w-10 flex-col items-center gap-0 rounded-lg py-1 lg:min-h-14 lg:gap-1 lg:py-2 transition-colors active:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-8 lg:min-w-0 @4xl:w-11",
+                        "flex min-h-12 w-full min-w-10 flex-col items-center gap-0 rounded-lg py-1 lg:min-h-14 lg:gap-1 lg:py-2 transition-colors active:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-8 lg:min-w-0 lg:@4xl:w-11",
                         // Brand tint means "today", not "selected" — a chosen day
                         // elsewhere in the week gets a neutral cue instead.
                         cell.today
@@ -243,7 +243,7 @@ export function HomeGreeting({
           size="icon-sm"
           aria-label={pick(advHome.nextWeek, locale)}
           onClick={(event) => shiftWeek(1, event.detail > 0)}
-          className="col-start-2 row-start-2 size-10 text-muted-foreground min-[360px]:col-start-9 min-[360px]:row-start-1 min-[360px]:justify-self-center lg:size-8 @4xl:lg:size-9"
+          className="col-start-2 row-start-2 size-10 text-muted-foreground min-[360px]:col-start-9 min-[360px]:row-start-1 min-[360px]:justify-self-center lg:size-8 lg:@4xl:size-9"
         >
           <ChevronRight aria-hidden="true" className="size-5" />
         </Button>

@@ -191,7 +191,7 @@ function SummaryStrip({
   // middle pair (courts, slot) together while every other centre-to-centre
   // distance stays what it was.
   return (
-    <div data-oneline={locale === "en"} className="group/stats grid w-full min-w-0 grid-cols-[1.1fr_0.9fr_0.9fr_1.1fr] gap-1 pr-6 pl-2 lg:flex lg:w-auto lg:px-0 lg:flex-wrap lg:items-center lg:gap-x-3 lg:gap-y-1.5 @5xl:gap-x-6">
+    <div data-oneline={locale === "en"} className="group/stats grid w-full min-w-0 grid-cols-[1.1fr_0.9fr_0.9fr_1.1fr] gap-1 pr-6 pl-2 lg:flex lg:w-auto lg:px-0 lg:flex-wrap lg:items-center lg:gap-x-3 lg:gap-y-1.5 lg:@5xl:gap-x-6">
       <Stat
         value={total}
         label={pick(total === 1 ? advHome.statHearingOne : advHome.statHearingMany, locale)}
@@ -241,7 +241,7 @@ function Stat({
       <span
         className={cn(
           // An upright tablet has the room for a step larger than the phone.
-          "text-body font-semibold tabular-nums md:max-lg:text-title-s @5xl:text-title-s",
+          "text-body font-semibold tabular-nums md:max-lg:text-title-s lg:@5xl:text-title-s",
           warning && "text-warning-ink"
         )}
       >
@@ -250,7 +250,7 @@ function Stat({
       {/* English labels hold one line: a wrapped label changes the block's width,
           which would throw off the optical centring the asymmetric padding sets
           up. Malayalam labels run longer and must wrap to stay in their column. */}
-      <span className="text-caption wrap-anywhere text-muted-foreground group-data-[oneline=true]/stats:whitespace-nowrap md:max-lg:text-body-compact @5xl:text-body">{label}</span>
+      <span className="text-caption wrap-anywhere text-muted-foreground group-data-[oneline=true]/stats:whitespace-nowrap md:max-lg:text-body-compact lg:@5xl:text-body">{label}</span>
     </span>
   );
 }
@@ -279,7 +279,7 @@ function Toolbar({
     // On a phone the actions wrap onto a second line rather than overflowing the
     // screen; from @xl (the board wide enough to hold them) they stay one line and
     // hold their size beside the stats, as the rail-open desktop header needs.
-    <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:flex-wrap lg:items-center @xl:flex-nowrap @xl:shrink-0">
+    <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:flex-wrap lg:items-center lg:@xl:flex-nowrap lg:@xl:shrink-0">
       <div className="grid w-full grid-cols-2 gap-2 lg:contents">
       <CourtFilter
         courts={courts}
@@ -299,10 +299,10 @@ function Toolbar({
             size="sm"
             onClick={onViewCauseList}
             aria-label={pick(advHome.viewCauseList, locale)}
-            className="border-border h-auto min-h-10 min-w-0 gap-1.5 px-3 py-2 text-body-compact whitespace-normal lg:h-9 lg:py-0 lg:whitespace-nowrap lg:min-h-9 lg:text-caption @xl:gap-0 @xl:px-2.5 @4xl:gap-1.5 @4xl:px-3"
+            className="border-border h-auto min-h-10 min-w-0 gap-1.5 px-3 py-2 text-body-compact whitespace-normal lg:h-9 lg:py-0 lg:whitespace-nowrap lg:min-h-9 lg:text-caption lg:@xl:gap-0 lg:@xl:px-2.5 lg:@4xl:gap-1.5 lg:@4xl:px-3"
           >
             <ScrollText aria-hidden="true" />
-            <span className="min-w-0 wrap-anywhere @xl:hidden @4xl:inline">{pick(advHome.viewCauseList, locale)}</span>
+            <span className="min-w-0 wrap-anywhere lg:@xl:hidden lg:@4xl:inline">{pick(advHome.viewCauseList, locale)}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">{pick(advHome.viewCauseList, locale)}</TooltipContent>
@@ -315,10 +315,10 @@ function Toolbar({
             size="sm"
             onClick={onJoinCourt}
             aria-label={pick(advHome.joinCourtroom, locale)}
-            className="flex-1 lg:flex-none h-auto min-h-10 min-w-0 gap-1.5 px-3 py-2 text-body-compact whitespace-normal lg:h-9 lg:py-0 lg:whitespace-nowrap lg:min-h-9 lg:text-caption @xl:gap-0 @xl:px-2.5 @4xl:gap-1.5 @4xl:px-3"
+            className="flex-1 lg:flex-none h-auto min-h-10 min-w-0 gap-1.5 px-3 py-2 text-body-compact whitespace-normal lg:h-9 lg:py-0 lg:whitespace-nowrap lg:min-h-9 lg:text-caption lg:@xl:gap-0 lg:@xl:px-2.5 lg:@4xl:gap-1.5 lg:@4xl:px-3"
           >
             <Video aria-hidden="true" />
-            <span className="min-w-0 wrap-anywhere @xl:hidden @4xl:inline">{pick(advHome.joinCourtroom, locale)}</span>
+            <span className="min-w-0 wrap-anywhere lg:@xl:hidden lg:@4xl:inline">{pick(advHome.joinCourtroom, locale)}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">{pick(advHome.joinCourtroom, locale)}</TooltipContent>
@@ -589,7 +589,7 @@ function HearingRow({
           right-hand column centred against the two-line matter. The threshold is the
           board's own width (a container query), not the viewport, because the rail
           and side nav narrow the board without narrowing the screen. */}
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 lg:@xl:flex-row lg:@xl:items-center lg:@xl:justify-between lg:@xl:gap-3">
         {/* No top pad and no gap: the name (24px) and the detail line (20px) then
             total the item box's 44px exactly, so the two share a top and a bottom. */}
         <div className="flex min-w-0 flex-col">
@@ -615,8 +615,8 @@ function HearingRow({
             <span className="block break-words text-caption tabular-nums lg:inline lg:text-body-compact">{hearing.kase.cnr || hearing.kase.stNumber}</span>
           </span>
         </div>
-        <div className="flex shrink-0 flex-col items-start gap-1.5 @xl:items-end">
-          <div className="flex flex-wrap items-center gap-1.5 @xl:flex-nowrap @xl:justify-end">
+        <div className="flex shrink-0 flex-col items-start gap-1.5 lg:@xl:items-end">
+          <div className="flex flex-wrap items-center gap-1.5 lg:@xl:flex-nowrap lg:@xl:justify-end">
             <PendingChip
               count={hearing.blockers.length}
               taskIds={hearing.blockers.map((task) => task.id)}
@@ -1193,7 +1193,7 @@ export function HearingTimeline({
               (shrink-0) and the stats take the rest, so the actions never fall
               under the stats. On a phone it still stacks. The extra bottom margin
               holds the refresh button's hover/refreshed caption clear of the board. */}
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-4 lg:gap-y-3 @xl:flex-nowrap">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-4 lg:gap-y-3 lg:@xl:flex-nowrap">
             <SummaryStrip
               total={total}
               courts={courtCount}
