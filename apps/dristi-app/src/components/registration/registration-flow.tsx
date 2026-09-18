@@ -190,6 +190,13 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
         >
           {journeyKeys.map((key, index) => <StepperItem key={key} step={index + 1} title={pick(journeySteps[key].title, locale)} status={index < journeyIndex ? "complete" : index === journeyIndex ? "current" : "upcoming"} />)}
         </Stepper>
+        {/* Six names do not fit under six circles on a phone (Malayalam collides
+            even at caption size), so below md one line names the step you are on. */}
+        <p className="mt-3 text-center text-caption text-muted-foreground md:hidden">
+          {pick(registrationUi.stepOf, locale).replace("{current}", String(journeyIndex + 1)).replace("{total}", String(journeyKeys.length))}
+          {" · "}
+          <span className="font-medium text-foreground">{pick(journeySteps[journeyKeys[journeyIndex]].title, locale)}</span>
+        </p>
       </div>
 
       <div className="mx-auto w-full max-w-xl">
