@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ChevronDownIcon, CircleCheckIcon, SearchXIcon } from "lucide-react";
 
+import { PayScenarioSelect } from "@/components/tasks/pay-scenario-select";
 import { dueCueOf, outcomeOf, secondLineOf, waitingOnOf } from "@/lib/tasks/format";
 import { canArchive, verbFor, whoCanActOn } from "@/lib/tasks/permissions";
 import { BANDED_VIEWS, bandByDue, type DueBand, type DueBucket } from "@/lib/tasks/selectors";
@@ -630,7 +631,15 @@ function WideRow({ ctx, task }: { ctx: RowCtx; task: Task }) {
         </TableCell>
       ) : null}
       <TableCell className={cn(TABLE_CELL, "text-right")}>
-        <VerbButton verb={verb} disabled={offline} onClick={() => onVerb(task, verb)} />
+        {/* The scenario select is sandbox scaffolding and sits beside the verb rather
+            than in a column of its own: it belongs to this row's payment, and a column
+            would reserve width on every queue that has no payment in it. */}
+        <div className="flex items-center justify-end gap-3">
+          {verb === "Pay" ? (
+            <PayScenarioSelect taskId={task.id} taskTitle={task.title} />
+          ) : null}
+          <VerbButton verb={verb} disabled={offline} onClick={() => onVerb(task, verb)} />
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -759,7 +768,10 @@ function StackedList({ ctx, tasks }: { ctx: RowCtx; tasks: Task[] }) {
                 </>
               ) : null}
             </dl>
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {verb === "Pay" ? (
+                <PayScenarioSelect taskId={task.id} taskTitle={task.title} className="mr-auto" />
+              ) : null}
               <VerbButton verb={verb} size="default" disabled={offline} onClick={() => onVerb(task, verb)} />
             </div>
           </li>

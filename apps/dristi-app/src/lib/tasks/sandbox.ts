@@ -16,7 +16,7 @@ import type { Case, Defect, Person, Task } from "./types";
 /** Bump when the seed's shape changes; a browser holding an older seed is re-seeded.
  *  (The seed stamp also folds in the people/case counts, so adding or removing
  *  fixture matters reseeds on its own even without a bump — see store.tsx.) */
-export const SEED_VERSION = 25;
+export const SEED_VERSION = 26;
 
 /**
  * A defect on a filing that was made outside this app, so there is no draft to open and
@@ -661,6 +661,59 @@ export function buildTasks(): Task[] {
       dueKind: "court-set",
       deadlineNote: "Payable at joining — due immediately",
       closesWhen: "Closes when this or any other vakalatnama fee on the case is paid",
+      status: "open",
+    }),
+
+    /* ─────────────────────── the payment bench ───────────────────────
+     * Three fees that are always due today and always payable, because the whole point
+     * of them is to be run over and over. An ordinary pay task closes on success and
+     * parks in Waiting on a confirming gateway — either way its card leaves Needs action
+     * and the queue you were testing from loses the row you were testing with. These
+     * three re-arm themselves once the run has landed (`isBenchTask`), so the bench is
+     * still there for the next scenario. Nothing else in the seed behaves this way: a
+     * paid fee is supposed to leave, and the Completed tab needs tasks that did.
+     */
+    task({
+      id: "t-bench-vakfee",
+      caseId: "c-509",
+      kind: "pay",
+      title: "Pay the vakalatnama fee",
+      why: created(-1, "S. Prakash joined the case; the vakalatnama fee was not paid at joining"),
+      whatToDo: "Pay the vakalatnama fee so the joining is complete on the record.",
+      amountPaise: 25 * RUPEE,
+      feeHead: "Vakalatnama fee",
+      dueAt: at(0),
+      dueKind: "court-set",
+      deadlineNote: "Payable at joining — due immediately",
+      closesWhen: "Closes when this or any other vakalatnama fee on the case is paid",
+      status: "open",
+    }),
+    task({
+      id: "t-bench-process",
+      caseId: "c-509",
+      kind: "pay",
+      title: "Pay the process fee for the summons to the accused",
+      why: created(-2, "Summons issued to the accused — process fee payable for service by post"),
+      whatToDo: "Pay the process fee so the registry can dispatch the summons.",
+      amountPaise: 314 * RUPEE,
+      feeHead: "Process fee",
+      dueAt: at(0),
+      dueKind: "court-set",
+      closesWhen: "Closes on payment",
+      status: "open",
+    }),
+    task({
+      id: "t-bench-copying",
+      caseId: "c-509",
+      kind: "pay",
+      title: "Pay the copying charges for the certified order copy",
+      why: created(-3, "Certified copy of the order dated 12 Sep applied for"),
+      whatToDo: "Pay the copying charges so the certified copy can be issued.",
+      amountPaise: 120 * RUPEE,
+      feeHead: "Copying charges",
+      dueAt: at(0),
+      dueKind: "court-set",
+      closesWhen: "Closes on payment",
       status: "open",
     }),
     task({

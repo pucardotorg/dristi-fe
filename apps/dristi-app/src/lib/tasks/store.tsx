@@ -13,6 +13,7 @@
 import * as React from "react";
 
 import { getRepository } from "./data";
+import { isBenchTask, rearmBench } from "./pay-scenario";
 import { buildTasks, CASES, DEFAULT_USER_ID, PEOPLE, SEED_VERSION } from "./sandbox";
 import { type Ctx, type Transition, TransitionError } from "./transitions";
 import type { Case, Person, PersonId, Task, TaskId } from "./types";
@@ -147,6 +148,24 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         await Promise.all([repo.putPeople(ppl), repo.putCases(cs), repo.putTasks(ts)]);
         rememberSeed();
       }
+      /* SANDBOX SCAFFOLDING — the payment bench heals itself on every load.
+       *
+       * The three bench fees exist to be paid over and over, so a run must never be able
+       * to leave one of them spent: a success closes the task and a confirming gateway
+       * parks it, and either way the card is gone from Due today until the next reseed.
+       * `pay-page` restores them the moment an answer lands, which covers the session
+       * they were paid in; this covers everything else — a run that was interrupted, a
+       * browser holding a fee spent before the restore existed, a transition that failed
+       * halfway. Nothing else in the seed is touched, and it costs one write only on the
+       * loads where something actually needs putting back. See `pay-scenario.ts`. */
+      const spent = ts.filter((t) => isBenchTask(t.id) && t.status !== "open");
+      if (spent.length) {
+        const restored = spent.map(rearmBench);
+        await repo.putTasks(restored);
+        const byId = new Map(restored.map((t) => [t.id, t]));
+        ts = ts.map((t) => byId.get(t.id) ?? t);
+      }
+
       const uid = (await repo.getCurrentUserId()) ?? DEFAULT_USER_ID;
       // IndexedDB returns rows by key; the team reads in its seeded order (you first).
       const order = (p: Person) => {

@@ -31,9 +31,8 @@ import { FileBody } from "@/components/tasks/act/file-page";
 import { PayBody } from "@/components/tasks/act/pay-page";
 import { Identifier } from "@/components/chrome/identifier";
 
-/** The one quiet line per flow that says what is not real here. */
-const SANDBOX: Record<ActMode, string> = {
-  pay: "Sandbox — no money moves; the gateway's answer is whatever you pick and the receipt is generated locally.",
+/** The one quiet line that says what is not real here — pay no longer carries one. */
+const SANDBOX: Partial<Record<ActMode, string>> = {
   file: "Sandbox — uploads stay in this browser and the registry's answer is whatever you pick.",
 };
 
@@ -119,7 +118,9 @@ export function TaskActModal({
             <DialogTitle className="text-title-s font-semibold text-balance">{task.title}</DialogTitle>
             <DialogDescription className="text-caption text-muted-foreground">{caseLine}</DialogDescription>
           </DialogHeader>
-          <p className="text-caption text-muted-foreground">{SANDBOX[mode]}</p>
+          {SANDBOX[mode] ? (
+            <p className="text-caption text-muted-foreground">{SANDBOX[mode]}</p>
+          ) : null}
           <Body ctx={ctx} mode={mode} />
         </ChromeDialogContent>
       </Dialog>
@@ -137,7 +138,9 @@ export function TaskActModal({
           <SheetTitle className="text-title-s font-semibold text-balance">{task.title}</SheetTitle>
           <SheetDescription className="text-caption text-muted-foreground">{caseLine}</SheetDescription>
         </div>
-        <p className="text-caption text-muted-foreground">{SANDBOX[mode]}</p>
+        {SANDBOX[mode] ? (
+          <p className="text-caption text-muted-foreground">{SANDBOX[mode]}</p>
+        ) : null}
         <Body ctx={ctx} mode={mode} />
       </SheetContent>
     </Sheet>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { benchDefault, isBenchTask, scenarioSpec } from "./pay-scenario";
 import { cardKindOf, canView, viewOf } from "./permissions";
 import { buildTasks, CASES, PEOPLE } from "./sandbox";
 import type { Person } from "./types";
@@ -46,6 +47,29 @@ describe("sandbox seed — grounded in the 1.0 inventory", () => {
       // O7 is open, so the note must read as an assumption and not as the Registry's rule.
       assert.match(t.deadlineNote ?? "", /^Assumed 5 days .*not yet confirmed$/);
     }
+  });
+
+  it("the payment bench: three fees due today, one per outcome, in rail order", () => {
+    const bench = tasks.filter((t) => isBenchTask(t.id));
+    assert.equal(bench.length, 3, "three bench fees");
+    for (const t of bench) {
+      assert.equal(t.kind, "pay");
+      assert.equal(t.status, "open", `${t.id} starts payable`);
+      assert.equal(daysBetween(new Date().toISOString(), t.dueAt!), 0, `${t.id} due today`);
+    }
+
+    /* The rail orders a due-date tie by oldest created, which is what puts these three in
+       a fixed order at the bottom of Due today — the order the owner reads them in. */
+    const order = [...bench].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    assert.deepEqual(
+      order.map((t) => t.id),
+      ["t-bench-copying", "t-bench-process", "t-bench-vakfee"],
+    );
+
+    /* One per answer, and every one of them an outcome the transitions can actually
+       produce — a bench fee resting on an unbuilt scenario would be a dead button. */
+    const outcomes = order.map((t) => scenarioSpec(benchDefault(t.id)!).result);
+    assert.deepEqual(outcomes, ["success", "pending", "failed"]);
   });
 
   it("open payment tasks declare their closure rule, auto-closure included", () => {
