@@ -362,7 +362,7 @@ function PayFlow({ ctx }: { ctx: ActContext }) {
   if (flow.stage === "outcome" && answered) {
     const answer = ANSWER[answered.result];
     return (
-      <div className="flex min-w-0 flex-col gap-4 sm:min-h-96">
+      <div className="flex min-w-0 flex-col gap-4">
         <h3 ref={outcomeRef} tabIndex={-1} className="sr-only outline-none">
           Payment result
         </h3>
@@ -402,17 +402,23 @@ function PayFlow({ ctx }: { ctx: ActContext }) {
           </div>
         </div>
 
-        <p className="text-body-compact text-muted-foreground">{answer.body}</p>
-
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          {answered.result === "failed" ? (
-            <Button variant="outline" disabled={!!busy} onClick={retry}>
-              Try again
+        {/* One footer row: what it means on the left, what to do about it on the right
+            (owner, 2026-09-20). Two stacked full-width blocks left the modal ending in a
+            lot of vertical nothing, and the sentence and the button are answering the
+            same moment. Below `sm` it stacks — the failed body runs to two lines at phone
+            width and would crush a pair of buttons beside it. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <p className="text-body-compact text-muted-foreground sm:flex-1">{answer.body}</p>
+          <div className="flex flex-col-reverse gap-2 sm:shrink-0 sm:flex-row">
+            {answered.result === "failed" ? (
+              <Button variant="outline" disabled={!!busy} onClick={retry}>
+                Try again
+              </Button>
+            ) : null}
+            <Button disabled={!!busy} onClick={close}>
+              {answered.result === "failed" ? "Close" : "Done"}
             </Button>
-          ) : null}
-          <Button disabled={!!busy} onClick={close}>
-            {answered.result === "failed" ? "Close" : "Done"}
-          </Button>
+          </div>
         </div>
       </div>
     );
@@ -424,9 +430,14 @@ function PayFlow({ ctx }: { ctx: ActContext }) {
        somewhere other than its biggest structural seam. One rhythm — 16px between blocks,
        12px and 8px within them — so hierarchy reads from the tighter end.
 
-       The floor keeps the panel where it is: a dialog is centred, so a shorter stage
-       would otherwise shrink the box and walk it up the screen on the way. */
-    <div className="flex min-w-0 flex-col gap-4 sm:min-h-96">
+       **No height floor.** There was a `sm:min-h-96` here to stop the panel shrinking
+       when the shorter stage arrived. It never earned it: the demand stage runs past
+       384px on its own, so the floor could not equalise the two — it only propped the
+       outcome up, which showed as ~55px of dead space under the footer against a 24px
+       `p-6` on every other edge (owner, 2026-09-20). Trading a stable panel height for a
+       consistent frame is the right way round here; the two stages share a scene, so the
+       resize is the only movement between them and nothing slides under it. */
+    <div className="flex min-w-0 flex-col gap-4">
       <OwedSection ctx={ctx} headingRef={demandRef} />
       <div className="flex flex-col gap-3">
         <PreparedNote ctx={ctx} />
