@@ -4,6 +4,7 @@ import {
   FolderIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  SettingsIcon,
   SignatureIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -148,20 +149,26 @@ export const COURT_CASES_PAGE = {
 } as const;
 
 /**
- * The two rows that stand on their own, above the grouped work.
+ * The rows that stand on their own, above the grouped work.
  *
- * They were transcribed from the reference as `Dashboards` and `All cases` and both
- * marked `external` — real, focusable rows that said plainly they went nowhere. Both are
- * built now and both are internal. They stay two rows, and not one: a health check and a
- * register are two questions, and the owner's ruling on 2026-09-14 was that answering
- * both on one screen compromised the form of each.
+ * Configurations is the one row here still open in a placeholder sense elsewhere in the
+ * app — it opens the order-template configuration screen for the magistrate. Dashboard
+ * and All cases were transcribed from the reference as `Dashboards` and `All cases`,
+ * both then marked `external`; both are built now and both are internal — see
+ * `COURT_DASHBOARD` and `COURT_CASES_PAGE` above.
  *
- * **Neither carries a count.** Every other number in this rail is work waiting on the
+ * **None carries a count.** Every other number in this rail is work waiting on the
  * bench, and the rail prints them in the destructive red its badge is painted in. Forty
  * cases on the file is not a backlog — a red 40 beside "All cases" reads as forty
  * problems — so these rows stay bare and each screen's own line says its number.
  */
 export const COURT_NAV_LINKS: CourtNavItem[] = [
+  {
+    id: "configurations",
+    label: "Configurations",
+    icon: SettingsIcon,
+    href: "/employee/configurations",
+  },
   {
     id: "dashboard",
     label: COURT_DASHBOARD.label,

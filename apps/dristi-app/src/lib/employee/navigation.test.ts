@@ -159,23 +159,25 @@ describe("courtTrail", () => {
 });
 
 describe("the court's standalone rows", () => {
-  /* Both were dead external rows transcribed from the reference. Both are built now, and
-     they stay two rows: a health check and a register are two questions. */
-  it("are the dashboard and the register, both internal and both built", () => {
+  /* Dashboard and All cases were dead external rows transcribed from the reference and
+     are now built and internal. Configurations joined them ahead of Dashboard as the
+     one other standalone destination above the grouped work. */
+  it("are configurations, the dashboard and the register, all internal and built", () => {
     assert.deepEqual(
       COURT_NAV_LINKS.map((row) => row.href),
-      [COURT_DASHBOARD.href, COURT_CASES_PAGE.href],
+      ["/employee/configurations", COURT_DASHBOARD.href, COURT_CASES_PAGE.href],
     );
     for (const row of COURT_NAV_LINKS) {
       assert.ok(row.href, `${row.id} still goes nowhere`);
       assert.equal(row.external, undefined, `${row.id} still leaves the app`);
-      /* The rail paints its counts in destructive red, and neither of these numbers is
+      /* The rail paints its counts in destructive red, and none of these numbers is
          a backlog. */
       assert.equal(row.count, undefined, `${row.id} carries a count`);
     }
   });
 
   it("carry no trail, because nothing nests under them", () => {
+    assert.deepEqual(courtTrail("/employee/configurations"), []);
     assert.deepEqual(courtTrail(COURT_DASHBOARD.href), []);
     assert.deepEqual(courtTrail(COURT_CASES_PAGE.href), []);
   });
