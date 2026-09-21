@@ -86,7 +86,7 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
         <div className="flex min-w-0 flex-col gap-0.5">
           <CardTitle className="text-body font-semibold">Bulk filing</CardTitle>
           <CardDescription className="text-body-compact">
-            Import many cases from your client&apos;s system and file them as one batch.
+            Bring in many cases from your client&apos;s system and file them together.
           </CardDescription>
         </div>
       </CardHeader>
@@ -97,7 +97,7 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
             <EmptyHeader className="max-w-none items-start">
               <EmptyTitle className="text-body font-semibold">No imports yet</EmptyTitle>
               <EmptyDescription className="text-body-compact text-wrap">
-                Batches your clients send will show here with their progress.
+                When a client sends cases, they appear here with their progress.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>

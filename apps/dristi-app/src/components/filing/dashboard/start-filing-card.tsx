@@ -72,7 +72,7 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
         <div className="flex min-w-0 flex-col gap-0.5">
           <CardTitle className="text-body font-semibold">Start a new filing</CardTitle>
           <CardDescription className="text-body-compact">
-            We&apos;ll guide you through parties, documents and the court fee.
+            Step by step: parties, documents, then the court fee.
           </CardDescription>
         </div>
       </CardHeader>
@@ -96,11 +96,11 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
               {/* A zero here is noise — "0 filed by you" tells nobody anything. */}
               {filedCount ? (
                 <>
-                  <span className="tabular-nums">{filedCount}</span> filed by you · about 40
+                  <span className="tabular-nums">{filedCount}</span> filed by you · takes about 40
                   minutes
                 </>
               ) : (
-                "About 40 minutes"
+                "Takes about 40 minutes"
               )}
             </span>
           </span>
@@ -127,7 +127,7 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
                 variant="ghost"
                 className="-mx-3 w-[calc(100%+--spacing(6))] justify-between px-3 text-muted-foreground"
               >
-                Other case types ({NOT_YET.length})
+                Case types not on DRISTI yet ({NOT_YET.length})
                 <ChevronDownIcon
                   aria-hidden
                   data-icon="inline-end"
@@ -147,7 +147,7 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
               }}
             >
               <p className="px-2 pt-1 text-caption text-muted-foreground">
-                Not on DRISTI yet. These are still filed at the court counter.
+                File these at the court counter for now.
               </p>
               <div className="relative">
                 <SearchIcon
