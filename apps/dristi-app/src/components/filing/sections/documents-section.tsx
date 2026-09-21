@@ -469,9 +469,17 @@ export function DocumentsSection() {
                 {group.docs.map((doc, index) => {
                   const cells = docCells(doc, index, group);
                   return (
-                    <li key={doc.id} className="flex flex-col gap-3 p-4">
+                    /* Phone: the three parts stack. Upright tablet (from `sm`): one row per
+                       document, the name on the left, then "Natively digital", then
+                       the file or Upload in a fixed column on the right, so the list
+                       reads across like the table it stands in for and a row is 64px,
+                       not 140. */
+                    <li
+                      key={doc.id}
+                      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-6 sm:py-3"
+                    >
                       {/* The name leads, numbered as the court's list numbers it. */}
-                      <div className="flex items-start gap-2">
+                      <div className="flex min-w-0 items-start gap-2 sm:flex-1">
                         <span className="flex h-10 shrink-0 items-center text-body-compact tabular-nums text-muted-foreground">
                           {index + 1}.
                         </span>
@@ -482,7 +490,7 @@ export function DocumentsSection() {
                       {doc.file ? (
                         /* The upload step's filled pill: the file, then what can be done
                            to it, in one sunken row. */
-                        <div className="flex items-center gap-1 rounded-lg bg-surface-sunken py-1 pr-1 pl-3">
+                        <div className="flex items-center gap-1 rounded-lg bg-surface-sunken py-1 pr-1 pl-3 sm:order-last sm:w-64 sm:shrink-0">
                           <div className="min-w-0 flex-1">{cells.file}</div>
                           {cells.actions}
                         </div>
@@ -490,9 +498,9 @@ export function DocumentsSection() {
                         <Button
                           type="button"
                           variant="outline"
-                          // Edge to edge on a phone; on an upright tablet a 740px
-                          // button is a bar, so it takes its own width from `sm`.
-                          className="w-full sm:w-auto sm:self-start"
+                          // Edge to edge on a phone; on a tablet it fills the row's
+                          // right-hand column, the same width a filed document takes.
+                          className="w-full sm:order-last sm:w-64 sm:shrink-0"
                           onClick={() => uploadDoc(doc.id)}
                           aria-label={`Upload ${doc.name || `row ${index + 1}`}`}
                         >
@@ -501,7 +509,7 @@ export function DocumentsSection() {
                         </Button>
                       )}
 
-                      <label className="flex items-center gap-2 text-body-compact text-muted-foreground">
+                      <label className="flex shrink-0 items-center gap-2 text-body-compact text-muted-foreground">
                         {cells.digital}
                         Natively digital
                       </label>
