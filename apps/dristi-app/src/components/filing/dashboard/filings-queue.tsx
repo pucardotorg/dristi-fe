@@ -520,7 +520,9 @@ export function FilingsQueue({
                 {slice.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="relative border-hairline"
+                    // Selected: the cards' light teal wash, not the DS `accent-strong`, which
+                    // read as a heavy beige band across the table.
+                    className="relative border-hairline data-[state=selected]:bg-brand-muted/50 data-[state=selected]:hover:bg-brand-muted/75"
                     data-state={selected.has(row.id) ? "selected" : undefined}
                   >
                     {selectable ? (
