@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FilesIcon, PanelLeftIcon } from "lucide-react";
+import { ChevronRightIcon, FilesIcon, PanelLeftOpenIcon } from "lucide-react";
 
 import { draftProgress } from "@/lib/filing/selectors";
 import {
@@ -219,7 +219,7 @@ export function SectionsRail() {
       <aside
         aria-label="Sections"
         style={{ top: TOP_BAR_HEIGHT, height: `calc(100svh - ${TOP_BAR_HEIGHT})` }}
-        className="sticky hidden w-72 shrink-0 flex-col self-start overflow-y-auto border-r border-hairline bg-sidebar lg:flex"
+        className="sticky hidden w-72 shrink-0 flex-col self-start overflow-y-auto border-r border-hairline bg-sidebar lg:pointer-fine:flex lg:landscape:flex"
       >
         <div className="flex flex-col gap-3 px-4 py-4">
           <span className="text-body font-medium text-foreground">Sections</span>
@@ -260,23 +260,38 @@ export function SectionsRail() {
 }
 
 /**
- * Opens the rail below `lg`, where it is a sheet rather than a column. From `lg` up the
- * rail is simply always there, so this is the only trigger that has to exist at all.
+ * Opens the rail wherever it is a sheet rather than a column: below `lg`, and on an
+ * upright tablet of any width, where the main nav, an 18rem rail and the form would
+ * share 1024px three ways.
+ *
+ * A slim bar on the form's own canvas, not a lone button on a white strip: it reads as
+ * where you are in the filing (the step count) and as something that opens (the panel
+ * glyph and the chevron), the same pair the case file's Browse bar uses.
  */
 export function SectionsTrigger() {
   const { sectionsSheetOpen, setSectionsSheetOpen } = useFilingChrome();
+  const active = useActiveStep();
+  const walked = FILING_STEPS.filter((s) => !s.placeholder);
+  const position = active ? walked.findIndex((s) => s.id === active.id) + 1 : 0;
 
   return (
-    <div className="px-4 pt-4 sm:px-6 lg:hidden">
+    <div className="bg-muted px-4 pt-4 sm:px-6 lg:pointer-fine:hidden lg:landscape:hidden dark:bg-background">
       <Button
         type="button"
         variant="outline"
         aria-haspopup="dialog"
         aria-expanded={sectionsSheetOpen}
         onClick={() => setSectionsSheetOpen(true)}
+        className="w-full justify-start bg-card sm:w-auto"
       >
-        <PanelLeftIcon data-icon="inline-start" aria-hidden />
+        <PanelLeftOpenIcon data-icon="inline-start" aria-hidden />
         Sections
+        {position ? (
+          <span className="ml-auto pl-3 text-caption font-normal tabular-nums text-muted-foreground">
+            Step {position} of {walked.length}
+          </span>
+        ) : null}
+        <ChevronRightIcon aria-hidden className={cn("text-muted-foreground", !position && "ml-auto")} />
       </Button>
     </div>
   );

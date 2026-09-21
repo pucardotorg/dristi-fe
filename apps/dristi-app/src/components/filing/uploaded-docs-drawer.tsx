@@ -101,7 +101,7 @@ export function UploadedDocsDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetContent side="right" className="w-full data-[side=right]:w-full sm:max-w-md">
           <SheetHeader>
             <SheetTitle>Uploaded documents</SheetTitle>
             <SheetDescription>Read in your browser to pre-fill your form</SheetDescription>

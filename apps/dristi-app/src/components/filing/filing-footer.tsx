@@ -56,24 +56,32 @@ export function FilingFooter({
    * (brief D14 — ration teal). So the walking footer stands down.
    */
   const inCorrection = useInCorrection();
+  /* On a phone Back is the arrow alone (the label stays its accessible name), so the
+     bar holds one line: Back, the save state, and a primary action wide enough to hit.
+     From `sm` up it is the worded button it always was. */
+  const backFace = (
+    <>
+      <ArrowLeftIcon data-icon="inline-start" aria-hidden className="max-sm:hidden" />
+      <ArrowLeftIcon aria-hidden className="size-5 sm:hidden" />
+      <span className="max-sm:sr-only">{backLabel}</span>
+    </>
+  );
+  const BACK_CLASS = "max-sm:w-11 max-sm:shrink-0 max-sm:gap-0 max-sm:px-0";
   const back =
     backHref !== undefined ? (
-      <Button asChild variant="outline" size="lg">
-        <Link href={backHref}>
-          <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-          {backLabel}
-        </Link>
+      <Button asChild variant="outline" size="lg" className={BACK_CLASS}>
+        <Link href={backHref}>{backFace}</Link>
       </Button>
     ) : onBack ? (
-      <Button type="button" variant="outline" size="lg" onClick={onBack}>
-        <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-        {backLabel}
+      <Button type="button" variant="outline" size="lg" onClick={onBack} className={BACK_CLASS}>
+        {backFace}
       </Button>
     ) : null;
 
+  const PRIMARY_CLASS = "max-sm:min-w-0 max-sm:flex-1";
   const primary =
     continueHref !== undefined && !continueDisabled ? (
-      <Button asChild size="lg" variant={continueVariant}>
+      <Button asChild size="lg" variant={continueVariant} className={PRIMARY_CLASS}>
         <Link href={continueHref}>
           {continueLabel}
           <ArrowRightIcon data-icon="inline-end" aria-hidden />
@@ -87,7 +95,7 @@ export function FilingFooter({
         onClick={onContinue}
         disabled={continueDisabled}
         aria-disabled={continueDisabled || continueBlocked || undefined}
-        className={cn(continueBlocked && "opacity-50")}
+        className={cn(PRIMARY_CLASS, continueBlocked && "opacity-50")}
       >
         {continueLabel}
         <ArrowRightIcon data-icon="inline-end" aria-hidden />
@@ -99,16 +107,23 @@ export function FilingFooter({
   return (
     <footer
       className={cn(
-        "sticky bottom-0 z-30 border-t border-hairline bg-card px-4 py-3 sm:px-6",
+        "sticky bottom-0 z-30 border-t border-hairline bg-card px-4 pt-3 pb-[calc(--spacing(3)+env(safe-area-inset-bottom))] sm:px-6",
         className
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+      {/* Phone: a status line (when a screen has one) over a single row of Back, the
+          save state and the primary action. `contents` lifts Back and the status out of
+          their group so the status can take the first line to itself. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 sm:gap-3">
+        <div className="contents min-w-0 items-center gap-3 sm:flex">
           {back}
-          {leading}
+          {leading ? (
+            <div className="order-first flex w-full min-w-0 items-center sm:order-none sm:w-auto">
+              {leading}
+            </div>
+          ) : null}
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-3 sm:gap-4">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:ml-auto sm:flex-none sm:flex-wrap sm:gap-4">
           {showSaveState ? <SavingIndicator /> : null}
           {extra}
           {primary}

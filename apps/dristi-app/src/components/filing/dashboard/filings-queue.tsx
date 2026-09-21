@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowRightIcon, InboxIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { ArrowRightIcon, ChevronDownIcon, InboxIcon, SearchIcon, Trash2Icon } from "lucide-react";
 
 import {
   applyQueueFilters,
@@ -22,7 +22,16 @@ import {
 import { NEW_FILING } from "@/lib/filing/steps";
 import { cn } from "@/lib/utils";
 import { withOrigin } from "@/lib/nav/origin";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { RegisterTrayCard, useOneOpen } from "@/components/cases/register-card";
+import {
+  REGISTER_CARDS_ONLY,
+  REGISTER_CARDS_QUERY,
+  REGISTER_TABLE_ONLY,
+  SHOW_MORE_STEP,
+} from "@/components/cases/register-layout";
 import { Identifier } from "@/components/chrome/identifier";
+import { OverflowTabsList } from "@/components/chrome/overflow-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,7 +57,7 @@ import {
 } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { PANEL_CLASS } from "@/components/filing/form-card";
 
 import { CompletionRing } from "./completion-ring";
@@ -65,6 +74,17 @@ const PAGE_SIZES = [10, 15, 20, 25, 30] as const;
 const DEFAULT_PAGE_SIZE = 10;
 
 export type QueueData = Record<QueueTab, QueueRow[]>;
+
+/* The desk layout, stated twice because Tailwind has no "or": a mouse from `md`, or any
+   landscape screen from `md`. Everything else (phones, upright tablets) is the base. */
+const DESK_TOOLBAR =
+  "md:pointer-fine:flex md:pointer-fine:flex-wrap md:pointer-fine:gap-3 md:pointer-fine:px-6 md:landscape:flex md:landscape:flex-wrap md:landscape:gap-3 md:landscape:px-6";
+const DESK_SEARCH =
+  "md:pointer-fine:min-w-60 md:pointer-fine:flex-1 md:landscape:min-w-60 md:landscape:flex-1";
+const DESK_AUTO = "md:pointer-fine:w-auto md:landscape:w-auto";
+const DESK_GUTTER = "md:pointer-fine:px-6 md:landscape:px-6";
+const DESK_HEAD = "md:pointer-fine:px-6 md:pointer-fine:pt-6 md:landscape:px-6 md:landscape:pt-6";
+const DESK_PAGER = "hidden md:pointer-fine:flex md:landscape:flex";
 
 /** The view, as it lives in the URL — so back, refresh and a shared link all restore it. */
 type View = {
@@ -135,9 +155,15 @@ export function FilingsQueue({
   const selectable = view.tab === "drafts";
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(() => new Set());
   const [selectedTab, setSelectedTab] = React.useState(view.tab);
+  /* Under a finger the list is cards that grow by "Show more" and has no pages (owner,
+     Sept 21); the table keeps its pager. One tray open at a time. */
+  const cards = useMediaQuery(REGISTER_CARDS_QUERY);
+  const [visible, setVisible] = React.useState(SHOW_MORE_STEP);
+  const tray = useOneOpen<string>();
   if (selectedTab !== view.tab) {
     setSelectedTab(view.tab);
     setSelected(new Set());
+    setVisible(SHOW_MORE_STEP);
   }
   const toggleSelected = (id: string) =>
     setSelected((prev) => {
@@ -189,7 +215,7 @@ export function FilingsQueue({
   const pageCount = Math.max(1, Math.ceil(filtered.length / view.size));
   const page = Math.min(view.page, pageCount);
   const start = (page - 1) * view.size;
-  const slice = filtered.slice(start, start + view.size);
+  const slice = cards ? filtered.slice(0, visible) : filtered.slice(start, start + view.size);
 
   /* Rows that were ticked and then filtered or paged away still count — the discard
      button names how many, and the confirmation names them again. */
@@ -205,18 +231,20 @@ export function FilingsQueue({
 
   const body = (
     <>
-      <div className="flex flex-wrap items-center gap-3 px-6 py-4">
+      {/* Touch: search on a line of its own, the selects sharing the next one edge to
+          edge. With a mouse from `md` they sit in one row at their own widths. */}
+      <div className={cn("grid grid-cols-2 items-center gap-2 px-4 py-4", DESK_TOOLBAR)}>
         {selectable && selectedIds.length > 0 ? (
           <Button
             variant="destructive"
             onClick={() => onDiscard(selectedIds)}
-            className="shrink-0"
+            className={cn("col-span-2 shrink-0", DESK_AUTO)}
           >
             <Trash2Icon data-icon="inline-start" aria-hidden />
             Discard {selectedIds.length} {selectedIds.length === 1 ? "draft" : "drafts"}
           </Button>
         ) : null}
-        <div className="relative min-w-60 flex-1">
+        <div className={cn("relative col-span-2", DESK_SEARCH)}>
           <SearchIcon
             aria-hidden
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -234,7 +262,7 @@ export function FilingsQueue({
             value={court}
             onChange={(event) => go({ court: event.target.value, page: 1 })}
             aria-label="Filter by court"
-            className="w-auto"
+            className={cn("w-full", DESK_AUTO)}
           >
             <NativeSelectOption value="">All courts</NativeSelectOption>
             {courts.map((name) => (
@@ -248,7 +276,7 @@ export function FilingsQueue({
           value={sort.value}
           onChange={(event) => go({ sort: event.target.value, page: 1 })}
           aria-label="Order this list"
-          className="w-auto"
+          className={cn("w-full", courts.length > 1 ? null : "col-span-2", DESK_AUTO)}
         >
           {TAB_SORTS[view.tab].map((option) => (
             <NativeSelectOption key={option.value} value={option.value}>
@@ -259,7 +287,7 @@ export function FilingsQueue({
       </div>
 
       {!ready ? (
-        <div className="flex flex-col gap-3 px-6 pb-8" aria-hidden>
+        <div className={cn("flex flex-col gap-3 px-4 pb-8", DESK_GUTTER)} aria-hidden>
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-10 w-full" />
           ))}
@@ -298,7 +326,82 @@ export function FilingsQueue({
         </Empty>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <ul className={cn("flex flex-col gap-3 px-4 pb-4", REGISTER_CARDS_ONLY)}>
+            {slice.map((row) => (
+              <li key={row.id}>
+                <RegisterTrayCard
+                  title={row.parties}
+                  open={tray.isOpen(row.id)}
+                  onOpenChange={tray.toggle(row.id)}
+                  marked={selected.has(row.id)}
+                  actions={
+                    <>
+                      <Button asChild>
+                        <Link href={withOrigin(row.action.href, here)}>
+                          {row.action.label}
+                          <ArrowRightIcon data-icon="inline-end" aria-hidden />
+                        </Link>
+                      </Button>
+                      {row.discardable ? (
+                        <Button variant="outline" onClick={() => onDiscard([row.id])}>
+                          <Trash2Icon data-icon="inline-start" aria-hidden />
+                          Discard
+                        </Button>
+                      ) : null}
+                    </>
+                  }
+                >
+                  {row.ref || row.court ? (
+                    <p className="-mt-2 flex flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground">
+                      {row.ref ? <Identifier value={row.ref} copyable={false} /> : null}
+                      {row.ref && row.court ? <span aria-hidden>·</span> : null}
+                      {row.court || null}
+                    </p>
+                  ) : null}
+                  <dl className="grid grid-cols-2 gap-3 border-t border-hairline pt-3 text-body-compact">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <dt className="text-caption text-muted-foreground">{layout.info}</dt>
+                      <dd>{renderCell("info", row, onDiscard, here)}</dd>
+                    </div>
+                    {row.progress ? (
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <dt className="text-caption text-muted-foreground">Completed</dt>
+                        <dd>{renderCell("progress", row, onDiscard, here)}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  {selectable ? (
+                    /* Above the card's stretched title button, so a tap ticks the draft
+                       instead of opening its tray. */
+                    <label className="relative z-10 flex w-fit items-center gap-2 text-body-compact text-muted-foreground">
+                      <Checkbox
+                        checked={selected.has(row.id)}
+                        onCheckedChange={() => toggleSelected(row.id)}
+                        className="size-5"
+                      />
+                      Select to discard
+                    </label>
+                  ) : null}
+                </RegisterTrayCard>
+              </li>
+            ))}
+          </ul>
+
+          {cards && filtered.length > slice.length ? (
+            <div className="px-4 pb-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setVisible((count) => count + SHOW_MORE_STEP)}
+              >
+                Show more
+                <ChevronDownIcon data-icon="inline-end" aria-hidden />
+              </Button>
+            </div>
+          ) : null}
+
+          <div className={cn("overflow-x-auto", REGISTER_TABLE_ONLY)}>
             <Table aria-label={layout.label}>
               <TableHeader>
                 <TableRow className="border-hairline">
@@ -367,9 +470,21 @@ export function FilingsQueue({
             </Table>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline px-6 py-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-caption text-muted-foreground">
+          <p className={cn("px-4 pb-4 text-caption text-muted-foreground", REGISTER_CARDS_ONLY)}>
+            Showing <span className="tabular-nums">{slice.length}</span> of{" "}
+            <span className="tabular-nums">{filtered.length}</span>
+          </p>
+
+          <div
+            className={cn(
+              "flex-wrap items-center justify-between gap-4 border-t border-hairline px-6 py-4",
+              DESK_PAGER
+            )}
+          >
+            {/* `items-center` on one line, and the select at the DS `sm` height with
+                caption type, so the count and the size read as one sentence. */}
+            <div className="flex items-center gap-3">
+              <p className="text-caption leading-none text-muted-foreground">
                 Showing <span className="tabular-nums">{start + 1}</span>–
                 <span className="tabular-nums">
                   {Math.min(start + view.size, filtered.length)}
@@ -380,7 +495,8 @@ export function FilingsQueue({
                 value={String(view.size)}
                 onChange={(event) => go({ size: Number(event.target.value), page: 1 })}
                 aria-label="Rows per page"
-                className="h-8 w-auto"
+                size="sm"
+                className="w-auto [&_select]:text-caption"
               >
                 {PAGE_SIZES.map((size) => (
                   <NativeSelectOption key={size} value={String(size)}>
@@ -432,7 +548,7 @@ export function FilingsQueue({
   // rounded corner here, so nothing needs the clip. Logged upstream.
   return (
     <Card className={cn(PANEL_CLASS, "gap-0 overflow-visible py-0")}>
-      <div className="flex flex-col gap-1 px-6 pt-6 pb-4">
+      <div className={cn("flex flex-col gap-1 px-4 pt-4 pb-4", DESK_HEAD)}>
         <h2 className="text-title-s font-semibold text-foreground">Your filings</h2>
         <p className="text-body-compact text-muted-foreground">
           Everything you have filed and everything still in progress. The tab says where it
@@ -443,32 +559,40 @@ export function FilingsQueue({
       <Tabs
         value={view.tab}
         onValueChange={(value) => {
-          const tab = value as QueueTab;
+          // More hands over a value no tab owns when nothing is folded behind it.
+          if (!isQueueTab(value)) return;
+          const tab = value;
           // The order belongs to the tab, so it resets with the tab; the search follows.
           go({ tab, sort: defaultSortFor(tab), page: 1 });
         }}
       >
         {/* Only the strip pins: the heading above it is read once, and keeping it on
             screen cost 90px of every scroll. */}
-        <div className="sticky top-14 z-10 overflow-x-auto border-b border-hairline bg-card px-6">
-          <TabsList
-            variant="line"
+        <div className={cn("sticky top-14 z-10 border-b border-hairline bg-card px-4", DESK_GUTTER)}>
+          {/* Never a sideways scroll: what does not fit folds into More (owner, Sept 21). */}
+          <OverflowTabsList
             aria-label="Filing states"
-            className="h-10 w-max min-w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
-          >
-            {QUEUE_TABS.map((entry) => (
-              <TabsTrigger
-                key={entry.id}
-                value={entry.id}
-                className="h-10 flex-none gap-2 px-3 text-body group-data-horizontal/tabs:after:-bottom-px"
-              >
-                {entry.label}
-                <span className="tabular-nums text-muted-foreground">
-                  {ready ? data[entry.id].length : "–"}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+            value={view.tab}
+            onSelect={(value) => {
+              if (!isQueueTab(value)) return;
+              go({ tab: value, sort: defaultSortFor(value), page: 1 });
+            }}
+            className="h-10 w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
+            triggerClassName="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
+            items={QUEUE_TABS.map((entry) => {
+              const count = ready ? String(data[entry.id].length) : "–";
+              return {
+                value: entry.id,
+                measure: count,
+                label: (
+                  <>
+                    {entry.label}
+                    <span className="tabular-nums text-muted-foreground">{count}</span>
+                  </>
+                ),
+              };
+            })}
+          />
         </div>
 
         {/* One panel per tab so the tablist actually controls something; only the

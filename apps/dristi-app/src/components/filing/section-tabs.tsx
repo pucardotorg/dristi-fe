@@ -79,7 +79,9 @@ export function SectionTabs({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 border-b border-hairline",
+        // Phone: the trailing control takes a line of its own above the strip, so the
+        // tabs and Add are not squeezed three to a row. From `sm` up it is one row.
+        "flex flex-wrap items-center gap-x-2 border-b border-hairline sm:flex-nowrap",
         className
       )}
     >
@@ -143,7 +145,11 @@ export function SectionTabs({
           {addLabel}
         </Button>
       ) : null}
-      {trailing ? <div className="ml-auto flex items-center">{trailing}</div> : null}
+      {trailing ? (
+        <div className="order-first flex w-full items-center justify-end pb-2 sm:order-none sm:ml-auto sm:w-auto sm:pb-0">
+          {trailing}
+        </div>
+      ) : null}
     </div>
   );
 }

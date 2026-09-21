@@ -62,7 +62,7 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
 
   return (
     <Card className={cn(PANEL_CLASS, "gap-0")}>
-      <CardHeader className="flex-row items-start gap-3">
+      <CardHeader className="flex flex-row items-start gap-3">
         <span
           aria-hidden
           className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-muted text-brand-muted-foreground"
@@ -128,7 +128,7 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
           </CollapsibleTrigger>
           <CollapsibleContent className="flex flex-col gap-2 pt-3">
             <p className="px-3 text-caption text-muted-foreground">
-              Not on DRISTI yet — these are still filed at the court counter.
+              Not on DRISTI yet. These are still filed at the court counter.
             </p>
             <div className="relative px-1">
               <SearchIcon

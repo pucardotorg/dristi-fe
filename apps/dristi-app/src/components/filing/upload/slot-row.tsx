@@ -177,6 +177,10 @@ export function IntakeSlotRow({
              the 24px step, on `surface-sunken` because `muted` is invisible on a card. */
           className={cn(
             "min-w-0 flex-1 items-center [&>button]:h-10",
+            /* Phone, empty slot: the name and its guidance take the row, and Choose file
+               goes under them edge to edge. Beside them it left the text a 90px column
+               that broke every name over three lines (owner, Sept 21). */
+            !slot.file && "max-sm:flex-wrap max-sm:[&>button]:w-full",
             MEDIA_CLASS,
             slot.file
               ? "[&_[data-slot=document-slot-media]]:bg-card"

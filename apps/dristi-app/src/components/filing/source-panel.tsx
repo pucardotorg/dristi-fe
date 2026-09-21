@@ -151,7 +151,7 @@ export function SourcePanel(props: SourcePanelProps) {
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+      <SheetContent side="right" className="w-full overflow-y-auto data-[side=right]:w-full sm:max-w-md">
         <SheetHeader className="sr-only">
           <SheetTitle>Source for {props.title}</SheetTitle>
           <SheetDescription>The uploaded document this value was read from.</SheetDescription>

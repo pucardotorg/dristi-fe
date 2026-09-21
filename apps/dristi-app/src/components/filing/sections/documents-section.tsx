@@ -36,6 +36,7 @@ import type {
   IntakeSlot,
   StoredFileRef,
 } from "@/lib/filing/types";
+import { REGISTER_CARDS_ONLY, REGISTER_TABLE_ONLY } from "@/components/cases/register-layout";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -307,6 +308,139 @@ export function DocumentsSection() {
     router.push(hrefFor("preview"));
   };
 
+  /* One row's four cells, written once. The table lays them out as columns; on a phone
+     or an upright tablet the same four stack as a list row (see below), so the two
+     layouts cannot drift apart. */
+  const docCells = (doc: CaseDocument, index: number, group: DocumentGroup) => ({
+    name: (
+      <>
+      {doc.custom ? (
+        <Input
+          value={doc.name}
+          onChange={(e) =>
+            patchDoc(doc.id, (d) => {
+              d.name = e.target.value;
+            })
+          }
+          placeholder="Document name"
+          aria-label={`Document name, row ${index + 1} of ${group.title}`}
+        />
+      ) : (
+        <div className="flex min-h-10 flex-col justify-center gap-0.5">
+          <span className="text-body-compact font-medium">
+            {doc.name}
+            {doc.required ? (
+              <>
+                {" "}
+                <RequiredMark />
+              </>
+            ) : null}
+          </span>
+          {doc.intakeKey && doc.file ? (
+            <span className="text-caption text-muted-foreground">
+              Provided at case intake
+            </span>
+          ) : null}
+        </div>
+      )}
+      </>
+    ),
+    file: (
+      <>
+      {doc.file ? (
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto min-h-10 max-w-full justify-start px-0 py-1"
+          onClick={() => setPreviewId(doc.id)}
+          aria-label={`Preview ${doc.file.name}`}
+        >
+          <FileTextIcon data-icon="inline-start" aria-hidden />
+          <span className="flex min-w-0 flex-col items-start">
+            <span className="max-w-full truncate">{doc.file.name}</span>
+            <span className="text-caption font-normal text-muted-foreground tabular-nums">
+              {formatBytes(doc.file.size)}
+            </span>
+          </span>
+        </Button>
+      ) : (
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => uploadDoc(doc.id)}
+            aria-label={`Upload ${doc.name || `row ${index + 1}`}`}
+          >
+            <UploadIcon data-icon="inline-start" aria-hidden />
+            Upload
+          </Button>
+          <span className="text-caption text-muted-foreground">
+            No file chosen
+          </span>
+        </div>
+      )}
+      </>
+    ),
+    digital: (
+      <>
+      <span className="inline-flex h-10 items-center">
+        <Checkbox
+          checked={doc.digital}
+          onCheckedChange={(checked) =>
+            patchDoc(doc.id, (d) => {
+              d.digital = checked === true;
+            })
+          }
+          aria-label={`Natively digital — ${
+            doc.name || `row ${index + 1}`
+          }`}
+        />
+      </span>
+      </>
+    ),
+    actions: (
+      <>
+      <div className="flex h-10 items-center justify-end gap-1">
+        {doc.file ? (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => uploadDoc(doc.id)}
+              aria-label={`Re-upload ${doc.name || `row ${index + 1}`}`}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCwIcon aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => askRemoveDoc(doc.id)}
+              aria-label={`Delete ${doc.name || `row ${index + 1}`}`}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2Icon aria-hidden />
+            </Button>
+          </>
+        ) : doc.custom ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => askRemoveDoc(doc.id)}
+            aria-label={`Remove row ${index + 1}`}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <XIcon aria-hidden />
+          </Button>
+        ) : null}
+      </div>
+      </>
+    ),
+  });
+
   const previewDoc = previewId ? findDoc(groups, previewId) : undefined;
   const previewFile = previewDoc?.file ?? null;
 
@@ -329,8 +463,32 @@ export function DocumentsSection() {
             <h2 className="text-title-s font-semibold">{group.title}</h2>
 
             <div className={cn(PANEL_CLASS, "rounded-xl border bg-card")}>
-              <div className="overflow-x-auto">
-                <Table className="table-fixed">
+              {/* Phone and upright tablet: a list. The table's fixed columns need about
+                  830px before the name gets any room; under that they overlapped. */}
+              <ul className={cn(REGISTER_CARDS_ONLY, "divide-y divide-hairline")}>
+                {group.docs.map((doc, index) => {
+                  const cells = docCells(doc, index, group);
+                  return (
+                    <li key={doc.id} className="flex flex-col gap-2 p-4">
+                      <div className="flex items-start gap-2">
+                        <span className="flex h-10 w-6 shrink-0 items-center text-caption tabular-nums text-muted-foreground">
+                          {index + 1}.
+                        </span>
+                        <div className="min-w-0 flex-1">{cells.name}</div>
+                        {cells.actions}
+                      </div>
+                      <div className="pl-8">{cells.file}</div>
+                      <label className="flex items-center gap-2 pl-8 text-body-compact">
+                        {cells.digital}
+                        Natively digital
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className={cn(REGISTER_TABLE_ONLY, "overflow-x-auto")}>
+                <Table className="min-w-3xl table-fixed">
                   {/* Fixed column widths so the three groups line up as one list. */}
                   <colgroup>
                     <col className="w-16" />
@@ -358,136 +516,32 @@ export function DocumentsSection() {
                   </TableHeader>
 
                   <TableBody>
-                    {group.docs.map((doc, index) => (
+                    {group.docs.map((doc, index) => {
+                      const cells = docCells(doc, index, group);
+                      return (
                       <TableRow key={doc.id} className="border-hairline">
                         <TableCell className="px-4 py-2 align-middle text-muted-foreground tabular-nums">
                           {index + 1}
                         </TableCell>
 
                         <TableCell className="py-2 align-middle whitespace-normal">
-                          {doc.custom ? (
-                            <Input
-                              value={doc.name}
-                              onChange={(e) =>
-                                patchDoc(doc.id, (d) => {
-                                  d.name = e.target.value;
-                                })
-                              }
-                              placeholder="Document name"
-                              aria-label={`Document name, row ${index + 1} of ${group.title}`}
-                            />
-                          ) : (
-                            <div className="flex min-h-10 flex-col justify-center gap-0.5">
-                              <span className="text-body-compact font-medium">
-                                {doc.name}
-                                {doc.required ? (
-                                  <>
-                                    {" "}
-                                    <RequiredMark />
-                                  </>
-                                ) : null}
-                              </span>
-                              {doc.intakeKey && doc.file ? (
-                                <span className="text-caption text-muted-foreground">
-                                  Provided at case intake
-                                </span>
-                              ) : null}
-                            </div>
-                          )}
+                          {cells.name}
                         </TableCell>
 
                         <TableCell className="py-2 align-middle whitespace-normal">
-                          {doc.file ? (
-                            <Button
-                              type="button"
-                              variant="link"
-                              className="h-auto min-h-10 max-w-full justify-start px-0 py-1"
-                              onClick={() => setPreviewId(doc.id)}
-                              aria-label={`Preview ${doc.file.name}`}
-                            >
-                              <FileTextIcon data-icon="inline-start" aria-hidden />
-                              <span className="flex min-w-0 flex-col items-start">
-                                <span className="max-w-full truncate">{doc.file.name}</span>
-                                <span className="text-caption font-normal text-muted-foreground tabular-nums">
-                                  {formatBytes(doc.file.size)}
-                                </span>
-                              </span>
-                            </Button>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => uploadDoc(doc.id)}
-                                aria-label={`Upload ${doc.name || `row ${index + 1}`}`}
-                              >
-                                <UploadIcon data-icon="inline-start" aria-hidden />
-                                Upload
-                              </Button>
-                              <span className="text-caption text-muted-foreground">
-                                No file chosen
-                              </span>
-                            </div>
-                          )}
+                          {cells.file}
                         </TableCell>
 
                         <TableCell className="py-2 text-center align-middle">
-                          <span className="inline-flex h-10 items-center">
-                            <Checkbox
-                              checked={doc.digital}
-                              onCheckedChange={(checked) =>
-                                patchDoc(doc.id, (d) => {
-                                  d.digital = checked === true;
-                                })
-                              }
-                              aria-label={`Natively digital — ${
-                                doc.name || `row ${index + 1}`
-                              }`}
-                            />
-                          </span>
+                          {cells.digital}
                         </TableCell>
 
                         <TableCell className="px-4 py-2 align-middle">
-                          <div className="flex h-10 items-center justify-end gap-1">
-                            {doc.file ? (
-                              <>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => uploadDoc(doc.id)}
-                                  aria-label={`Re-upload ${doc.name || `row ${index + 1}`}`}
-                                  className="text-muted-foreground hover:text-foreground"
-                                >
-                                  <RefreshCwIcon aria-hidden />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => askRemoveDoc(doc.id)}
-                                  aria-label={`Delete ${doc.name || `row ${index + 1}`}`}
-                                  className="text-muted-foreground hover:text-destructive"
-                                >
-                                  <Trash2Icon aria-hidden />
-                                </Button>
-                              </>
-                            ) : doc.custom ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => askRemoveDoc(doc.id)}
-                                aria-label={`Remove row ${index + 1}`}
-                                className="text-muted-foreground hover:text-foreground"
-                              >
-                                <XIcon aria-hidden />
-                              </Button>
-                            ) : null}
-                          </div>
+                          {cells.actions}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

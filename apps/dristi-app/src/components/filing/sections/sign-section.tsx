@@ -959,9 +959,16 @@ export function SignSection() {
           continueLabel="Back to dashboard"
           showSaveState={false}
           extra={
-            <Button type="button" variant="outline" size="lg" onClick={printFile}>
-              <PrinterIcon data-icon="inline-start" aria-hidden />
-              Print or save as PDF
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={printFile}
+              className="max-sm:w-11 max-sm:shrink-0 max-sm:gap-0 max-sm:px-0"
+            >
+              <PrinterIcon data-icon="inline-start" aria-hidden className="max-sm:hidden" />
+              <PrinterIcon aria-hidden className="size-5 sm:hidden" />
+              <span className="max-sm:sr-only">Print or save as PDF</span>
             </Button>
           }
         />
@@ -977,9 +984,16 @@ export function SignSection() {
           showSaveState={false}
           onContinue={() => setModal("payment")}
           extra={
-            <Button type="button" variant="outline" size="lg" onClick={printFile}>
-              <PrinterIcon data-icon="inline-start" aria-hidden />
-              Print or save as PDF
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={printFile}
+              className="max-sm:w-11 max-sm:shrink-0 max-sm:gap-0 max-sm:px-0"
+            >
+              <PrinterIcon data-icon="inline-start" aria-hidden className="max-sm:hidden" />
+              <PrinterIcon aria-hidden className="size-5 sm:hidden" />
+              <span className="max-sm:sr-only">Print or save as PDF</span>
             </Button>
           }
         />

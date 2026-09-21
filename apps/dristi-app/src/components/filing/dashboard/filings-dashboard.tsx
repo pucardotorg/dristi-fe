@@ -73,8 +73,7 @@ export function FilingsDashboard() {
           {firstName ? `File a case, ${firstName}` : "File a case"}
         </h1>
         <p className={PAGE_SUBTITLE}>
-          Start a new e-filing, import a batch from your client&apos;s system, or track
-          what you have already filed.
+          Start a filing, import a batch, or track what you have filed.
         </p>
       </header>
 
