@@ -32,11 +32,24 @@ export function FlowDialogContent({
   ownBack?: boolean;
 }) {
   const flow = useFlowWindow();
+  // A simple dialog is a plain grid: header, body, DS footer. Stretched to a
+  // phone's height that left the footer floating under the last field with its
+  // rounded card corners, mid-screen. In the window such a dialog stacks as a
+  // column and its footer goes to the bottom edge, squared, clear of the home
+  // indicator. Dialogs that lay themselves out (`flex`, `grid-rows-*`) already
+  // place their own footer and are left alone.
+  const selfLaidOut = /(^|\s)(flex|grid-rows-\S+)(\s|$)/.test(className ?? "");
   const closeRef = React.useRef<HTMLButtonElement>(null);
   useBackCloses(flow.phone && !ownBack, () => closeRef.current?.click());
   return (
     <ChromeDialogContent
-      className={cn(className, flow.className)}
+      className={cn(
+        className,
+        flow.className,
+        flow.phone && !selfLaidOut && "flex flex-col",
+        flow.phone &&
+          "[&>[data-slot=dialog-footer]]:mt-auto [&>[data-slot=dialog-footer]]:rounded-none [&>[data-slot=dialog-footer]]:pb-[calc(--spacing(6)+env(safe-area-inset-bottom))]"
+      )}
       style={{ ...style, ...flow.style }}
       {...props}
     >

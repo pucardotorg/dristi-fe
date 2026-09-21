@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -106,7 +107,9 @@ export function TaskRespondDialog({
           </div>
         ) : null}
 
-        <div className="flex justify-end gap-2 pt-2">
+        {/* The DS footer, so the pair is a full-width stack at the foot of the
+            phone window and a right-aligned row from `sm`. */}
+        <DialogFooter>
           <Button
             type="button"
             variant="outline"
@@ -118,7 +121,7 @@ export function TaskRespondDialog({
           <Button type="button" disabled={!!busy} onClick={() => void decide(true)}>
             Accept
           </Button>
-        </div>
+        </DialogFooter>
       </FlowDialogContent>
     </Dialog>
   );
