@@ -82,7 +82,7 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
             the same 12px, their icon and label stand on the header icon's edge. */}
         <Link
           href={NEW_FILING}
-          className="group -mx-3 flex items-center gap-3 rounded-lg bg-brand-muted/50 p-3 transition-colors hover:bg-brand-muted active:bg-brand-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="group -mx-3 flex items-center gap-3 rounded-lg bg-brand-muted/50 p-3 ring-1 ring-transparent transition-[background-color,box-shadow] ring-inset hover:bg-brand-muted hover:ring-primary/40 active:bg-brand-muted active:ring-primary/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <span
             aria-hidden
