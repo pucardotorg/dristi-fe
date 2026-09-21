@@ -116,8 +116,8 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
           </div>
         )}
 
-        {/* Phone: the pair shares the row edge to edge, as every tray and footer does. */}
-        <div className="flex flex-wrap items-center gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-none">
+        {/* The pair shares the row half and half at every width (owner, Sept 22). */}
+        <div className="flex flex-wrap items-center gap-2 [&>*]:flex-1">
           <Button asChild variant="outline">
             <Link href={`${FILINGS_HOME}/bulk`}>
               {batch ? "Review batch" : "About bulk filing"}

@@ -138,7 +138,14 @@ export function IntakeSlotRow({
           media={slot.file ? "thumbnail" : "icon"}
           label={
             <span className="flex flex-col gap-1">
-              <span id={titleId}>{slot.label}</span>
+              <span id={titleId}>
+                {slot.label}
+                {/* Phone: "optional" as the form fields say it, a quiet word after the
+                    name. The DS badge wrapped under the guidance and split the block. */}
+                {!slot.required && !slot.file ? (
+                  <span className="font-normal text-muted-foreground sm:hidden"> optional</span>
+                ) : null}
+              </span>
               {showGuidance ? (
                 <span className="text-caption text-muted-foreground">{slot.desc}</span>
               ) : null}
@@ -177,10 +184,12 @@ export function IntakeSlotRow({
              the 24px step, on `surface-sunken` because `muted` is invisible on a card. */
           className={cn(
             "min-w-0 flex-1 items-center [&>button]:h-10",
-            /* Phone, empty slot: the name and its guidance take the row, and Choose file
-               goes under them edge to edge. Beside them it left the text a 90px column
-               that broke every name over three lines (owner, Sept 21). */
-            !slot.file && "max-sm:flex-wrap max-sm:[&>button]:w-full",
+            /* Phone, empty slot: the name, its guidance and the state read as one block
+               the full width of the slot, and Choose file goes under them edge to edge.
+               The file glyph goes: beside three lines of text it was a grey square
+               holding nothing, and it cost the text a quarter of the row. */
+            !slot.file &&
+              "max-sm:flex-wrap max-sm:gap-3 max-sm:p-3 max-sm:[&>button]:w-full max-sm:[&_[data-slot=document-slot-media]]:hidden max-sm:[&_[data-slot=badge]]:hidden",
             MEDIA_CLASS,
             slot.file
               ? "[&_[data-slot=document-slot-media]]:bg-card"

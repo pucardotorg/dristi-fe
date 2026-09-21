@@ -115,12 +115,21 @@ export function FilingFooter({
           sits on one quiet line above them. */}
       <div className="flex flex-col gap-2 sm:hidden">
         {hasStatusLine ? (
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">{leading ?? status}</div>
-            <div className="flex shrink-0 items-center gap-3">
-              {leading ? status : null}
-              {showSaveState ? <SavingIndicator /> : null}
-            </div>
+          /* One quiet line, read from the left like any sentence. The save state leads
+             when it is all there is; when the step has its own statement, that leads
+             and the save state closes the line. */
+          <div className="flex items-center justify-between gap-3 text-caption [&_*]:text-caption">
+            {leading || status ? (
+              <>
+                <div className="min-w-0">{leading ?? status}</div>
+                <div className="flex shrink-0 items-center gap-3">
+                  {leading ? status : null}
+                  {showSaveState ? <SavingIndicator /> : null}
+                </div>
+              </>
+            ) : (
+              <SavingIndicator />
+            )}
           </div>
         ) : null}
         <div className="flex flex-col [&>*]:w-full">{primary}</div>
