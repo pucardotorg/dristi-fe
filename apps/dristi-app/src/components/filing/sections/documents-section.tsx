@@ -490,7 +490,9 @@ export function DocumentsSection() {
                         <Button
                           type="button"
                           variant="outline"
-                          className="w-full"
+                          // Edge to edge on a phone; on an upright tablet a 740px
+                          // button is a bar, so it takes its own width from `sm`.
+                          className="w-full sm:w-auto sm:self-start"
                           onClick={() => uploadDoc(doc.id)}
                           aria-label={`Upload ${doc.name || `row ${index + 1}`}`}
                         >
