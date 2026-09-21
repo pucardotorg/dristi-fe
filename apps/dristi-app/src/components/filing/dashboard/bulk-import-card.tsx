@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRightIcon, PlusIcon } from "lucide-react";
+import { ArrowRightIcon, DownloadIcon, PlusIcon } from "lucide-react";
 
 import { FILINGS_HOME } from "@/lib/filing/steps";
 import { cn } from "@/lib/utils";
@@ -76,19 +76,26 @@ export function BatchProgress({ counts }: { counts: BulkBatch["counts"] }) {
 export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
   return (
     <Card className={cn(PANEL_CLASS, "gap-0")}>
-      {/* A heading only: no icon tile, so nothing here looks pressable but the buttons. */}
-      <CardHeader className="gap-0.5">
-        <CardTitle className="text-title-s font-semibold">Bulk filing</CardTitle>
-        <CardDescription className="text-body-compact">
-          Bring in many cases from your client&apos;s system and file them together.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start gap-3">
+        <span
+          aria-hidden
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-info-muted text-info-muted-foreground"
+        >
+          <DownloadIcon className="size-5" />
+        </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <CardTitle className="text-body font-semibold">Bulk filing</CardTitle>
+          <CardDescription className="text-body-compact">
+            Bring in many cases from your client&apos;s system and file them together.
+          </CardDescription>
+        </div>
       </CardHeader>
 
       <CardContent className="mt-auto flex flex-col gap-4 pt-4">
         {batch === null ? (
-          <Empty className="items-start gap-0 rounded-lg border-0 bg-surface-sunken p-4 text-left text-wrap">
+          <Empty className="items-start gap-0 border-0 p-0 text-left text-wrap">
             <EmptyHeader className="max-w-none items-start">
-              <EmptyTitle className="text-body-compact font-medium">No imports yet</EmptyTitle>
+              <EmptyTitle className="text-body font-semibold">No imports yet</EmptyTitle>
               <EmptyDescription className="text-body-compact text-wrap">
                 When a client sends cases, they appear here with their progress.
               </EmptyDescription>

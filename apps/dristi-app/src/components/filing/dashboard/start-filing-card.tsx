@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronDownIcon, ChevronRightIcon, CreditCardIcon, SearchIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, CreditCardIcon, FilePlusIcon, SearchIcon } from "lucide-react";
 
 import { CASE_TYPE } from "@/lib/filing/options";
 import { NEW_FILING } from "@/lib/filing/steps";
@@ -62,20 +62,27 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
 
   return (
     <Card className={cn(PANEL_CLASS, "gap-0 pb-3")}>
-      {/* A heading, and only a heading. It used to wear the same icon tile, title and
-          caption as the Cheque bounce row under it, so both read as things to press
-          (owner, Sept 22). Now the tile and the edge belong to what can be pressed. */}
-      <CardHeader className="gap-0.5">
-        <CardTitle className="text-title-s font-semibold">Start a new filing</CardTitle>
-        <CardDescription className="text-body-compact">
-          Step by step: parties, documents, then the court fee.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start gap-3">
+        <span
+          aria-hidden
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-muted text-brand-muted-foreground"
+        >
+          <FilePlusIcon className="size-5" />
+        </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <CardTitle className="text-body font-semibold">Start a new filing</CardTitle>
+          <CardDescription className="text-body-compact">
+            Step by step: parties, documents, then the court fee.
+          </CardDescription>
+        </div>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-1 pt-4">
+        {/* The row and the trigger below carry 12px of their own padding; pulled out by
+            the same 12px, their icon and label stand on the header icon's edge. */}
         <Link
           href={NEW_FILING}
-          className="group flex items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-accent active:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="group -mx-3 flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <span
             aria-hidden
