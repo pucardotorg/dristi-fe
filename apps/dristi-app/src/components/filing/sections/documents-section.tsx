@@ -469,16 +469,37 @@ export function DocumentsSection() {
                 {group.docs.map((doc, index) => {
                   const cells = docCells(doc, index, group);
                   return (
-                    <li key={doc.id} className="flex flex-col gap-2 p-4">
+                    <li key={doc.id} className="flex flex-col gap-3 p-4">
+                      {/* The name leads, numbered as the court's list numbers it. */}
                       <div className="flex items-start gap-2">
-                        <span className="flex h-10 w-6 shrink-0 items-center text-caption tabular-nums text-muted-foreground">
+                        <span className="flex h-10 shrink-0 items-center text-body-compact tabular-nums text-muted-foreground">
                           {index + 1}.
                         </span>
                         <div className="min-w-0 flex-1">{cells.name}</div>
-                        {cells.actions}
+                        {!doc.file && doc.custom ? cells.actions : null}
                       </div>
-                      <div className="pl-8">{cells.file}</div>
-                      <label className="flex items-center gap-2 pl-8 text-body-compact">
+
+                      {doc.file ? (
+                        /* The upload step's filled pill: the file, then what can be done
+                           to it, in one sunken row. */
+                        <div className="flex items-center gap-1 rounded-lg bg-surface-sunken py-1 pr-1 pl-3">
+                          <div className="min-w-0 flex-1">{cells.file}</div>
+                          {cells.actions}
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => uploadDoc(doc.id)}
+                          aria-label={`Upload ${doc.name || `row ${index + 1}`}`}
+                        >
+                          <UploadIcon data-icon="inline-start" aria-hidden />
+                          Upload
+                        </Button>
+                      )}
+
+                      <label className="flex items-center gap-2 text-body-compact text-muted-foreground">
                         {cells.digital}
                         Natively digital
                       </label>

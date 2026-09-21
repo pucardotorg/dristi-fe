@@ -97,7 +97,11 @@ export function FilingMain({
   return (
     <div
       className={cn(
-        "flex-1 bg-muted px-4 pb-8 pt-6 sm:px-6 dark:bg-background",
+        /* 24px gutters at every width, the page frame's own (`PAGE_GUTTER`): at 16 the
+           title sat tighter to the glass than on any other screen. The cards give the
+           8px back on a phone by padding at 16, the product's phone card padding, so a
+           field is exactly as wide as it was. */
+        "flex-1 bg-muted px-6 pb-8 pt-6 max-sm:[&_[data-slot=card]]:[--card-spacing:--spacing(4)] dark:bg-background",
         sourceOpen ? "lg:px-6" : "lg:px-12",
         className
       )}

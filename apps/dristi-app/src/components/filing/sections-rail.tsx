@@ -275,7 +275,7 @@ export function SectionsTrigger() {
   const position = active ? walked.findIndex((s) => s.id === active.id) + 1 : 0;
 
   return (
-    <div className="bg-muted px-4 pt-4 sm:px-6 lg:pointer-fine:hidden lg:landscape:hidden dark:bg-background">
+    <div className="bg-muted px-6 pt-4 lg:pointer-fine:hidden lg:landscape:hidden dark:bg-background">
       <Button
         type="button"
         variant="outline"

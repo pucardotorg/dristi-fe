@@ -26,6 +26,7 @@ export function FilingFooter({
   continueVariant = "default",
   showSaveState = true,
   leading,
+  status,
   extra,
   className,
 }: {
@@ -46,7 +47,10 @@ export function FilingFooter({
   showSaveState?: boolean;
   /** Left-side status (e.g. "3 required documents still needed"); replaces Back's slot when Back is absent. */
   leading?: React.ReactNode;
-  /** Extra controls between the save state and the primary action. */
+  /** A right-side statement about the step ("2 sections incomplete"), where the save
+   *  state sits. On a phone it joins the status line above the buttons. */
+  status?: React.ReactNode;
+  /** Extra controls (buttons) between the save state and the primary action. */
   extra?: React.ReactNode;
   className?: string;
 }) {
@@ -56,32 +60,24 @@ export function FilingFooter({
    * (brief D14 — ration teal). So the walking footer stands down.
    */
   const inCorrection = useInCorrection();
-  /* On a phone Back is the arrow alone (the label stays its accessible name), so the
-     bar holds one line: Back, the save state, and a primary action wide enough to hit.
-     From `sm` up it is the worded button it always was. */
-  const backFace = (
-    <>
-      <ArrowLeftIcon data-icon="inline-start" aria-hidden className="max-sm:hidden" />
-      <ArrowLeftIcon aria-hidden className="size-5 sm:hidden" />
-      <span className="max-sm:sr-only">{backLabel}</span>
-    </>
-  );
-  const BACK_CLASS = "max-sm:w-11 max-sm:shrink-0 max-sm:gap-0 max-sm:px-0";
   const back =
     backHref !== undefined ? (
-      <Button asChild variant="outline" size="lg" className={BACK_CLASS}>
-        <Link href={backHref}>{backFace}</Link>
+      <Button asChild variant="outline" size="lg">
+        <Link href={backHref}>
+          <ArrowLeftIcon data-icon="inline-start" aria-hidden />
+          {backLabel}
+        </Link>
       </Button>
     ) : onBack ? (
-      <Button type="button" variant="outline" size="lg" onClick={onBack} className={BACK_CLASS}>
-        {backFace}
+      <Button type="button" variant="outline" size="lg" onClick={onBack}>
+        <ArrowLeftIcon data-icon="inline-start" aria-hidden />
+        {backLabel}
       </Button>
     ) : null;
 
-  const PRIMARY_CLASS = "max-sm:min-w-0 max-sm:flex-1";
   const primary =
     continueHref !== undefined && !continueDisabled ? (
-      <Button asChild size="lg" variant={continueVariant} className={PRIMARY_CLASS}>
+      <Button asChild size="lg" variant={continueVariant}>
         <Link href={continueHref}>
           {continueLabel}
           <ArrowRightIcon data-icon="inline-end" aria-hidden />
@@ -95,7 +91,7 @@ export function FilingFooter({
         onClick={onContinue}
         disabled={continueDisabled}
         aria-disabled={continueDisabled || continueBlocked || undefined}
-        className={cn(PRIMARY_CLASS, continueBlocked && "opacity-50")}
+        className={cn(continueBlocked && "opacity-50")}
       >
         {continueLabel}
         <ArrowRightIcon data-icon="inline-end" aria-hidden />
@@ -104,27 +100,46 @@ export function FilingFooter({
 
   if (inCorrection) return null;
 
+  const hasStatusLine = Boolean(leading || status || showSaveState);
+
   return (
     <footer
       className={cn(
-        "sticky bottom-0 z-30 border-t border-hairline bg-card px-4 pt-3 pb-[calc(--spacing(3)+env(safe-area-inset-bottom))] sm:px-6",
+        "sticky bottom-0 z-30 border-t border-hairline bg-card px-6 pt-3 pb-[calc(--spacing(3)+env(safe-area-inset-bottom))] sm:pb-3",
         className
       )}
     >
-      {/* Phone: a status line (when a screen has one) over a single row of Back, the
-          save state and the primary action. `contents` lifts Back and the status out of
-          their group so the status can take the first line to itself. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 sm:gap-3">
-        <div className="contents min-w-0 items-center gap-3 sm:flex">
-          {back}
-          {leading ? (
-            <div className="order-first flex w-full min-w-0 items-center sm:order-none sm:w-auto">
-              {leading}
+      {/* Phone: the actions stack, as every dialog footer in the product does below
+          `sm`: the primary action on top at full width, Back under it. A second
+          control (Print) shares Back's row half and half. What the step has to say
+          sits on one quiet line above them. */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        {hasStatusLine ? (
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">{leading ?? status}</div>
+            <div className="flex shrink-0 items-center gap-3">
+              {leading ? status : null}
+              {showSaveState ? <SavingIndicator /> : null}
             </div>
-          ) : null}
+          </div>
+        ) : null}
+        <div className="flex flex-col [&>*]:w-full">{primary}</div>
+        {back || extra ? (
+          <div className="flex items-center gap-2 [&>*]:min-w-0 [&>*]:flex-1">
+            {back}
+            {extra}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="hidden flex-wrap items-center justify-between gap-3 sm:flex">
+        <div className="flex min-w-0 items-center gap-3">
+          {back}
+          {leading}
         </div>
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:ml-auto sm:flex-none sm:flex-wrap sm:gap-4">
+        <div className="ml-auto flex flex-wrap items-center gap-3 sm:gap-4">
           {showSaveState ? <SavingIndicator /> : null}
+          {status}
           {extra}
           {primary}
         </div>

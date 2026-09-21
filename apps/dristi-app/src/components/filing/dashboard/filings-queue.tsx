@@ -234,7 +234,7 @@ export function FilingsQueue({
       {/* Touch: search on a line of its own, the selects sharing the next one edge to
           edge. With a mouse from `md` they sit in one row at their own widths. */}
       <div className={cn("grid grid-cols-2 items-center gap-2 px-4 py-4", DESK_TOOLBAR)}>
-        {selectable && selectedIds.length > 0 ? (
+        {selectable && selectedIds.length > 0 && !cards ? (
           <Button
             variant="destructive"
             onClick={() => onDiscard(selectedIds)}
@@ -334,6 +334,17 @@ export function FilingsQueue({
                   open={tray.isOpen(row.id)}
                   onOpenChange={tray.toggle(row.id)}
                   marked={selected.has(row.id)}
+                  className={cn("relative", selected.has(row.id) && "bg-accent-strong")}
+                  leading={
+                    selectable ? (
+                      <Checkbox
+                        checked={selected.has(row.id)}
+                        onCheckedChange={() => toggleSelected(row.id)}
+                        aria-label={`Select ${row.parties}`}
+                        className="size-5"
+                      />
+                    ) : undefined
+                  }
                   actions={
                     <>
                       <Button asChild>
@@ -351,36 +362,70 @@ export function FilingsQueue({
                     </>
                   }
                 >
-                  {row.ref || row.court ? (
-                    <p className="-mt-2 flex flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground">
-                      {row.ref ? <Identifier value={row.ref} copyable={false} /> : null}
-                      {row.ref && row.court ? <span aria-hidden>·</span> : null}
-                      {row.court || null}
-                    </p>
-                  ) : null}
-                  <dl className="grid grid-cols-2 gap-3 border-t border-hairline pt-3 text-body-compact">
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <dt className="text-caption text-muted-foreground">{layout.info}</dt>
-                      <dd>{renderCell("info", row, onDiscard, here)}</dd>
-                    </div>
-                    {row.progress ? (
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <dt className="text-caption text-muted-foreground">Completed</dt>
-                        <dd>{renderCell("progress", row, onDiscard, here)}</dd>
-                      </div>
+                  {/* The Pending tasks card's grammar: under the title, the one line
+                      that says how urgent this is; under a hairline, what identifies
+                      it (or, for a draft, how far along it is). */}
+                  <p
+                    className={cn(
+                      "-mt-2 text-body-compact text-muted-foreground",
+                      selectable && "pl-8"
+                    )}
+                  >
+                    {layout.info}{" "}
+                    {row.count !== undefined ? (
+                      <Badge variant="secondary" className="tabular-nums">
+                        {row.count}
+                      </Badge>
+                    ) : (
+                      <span
+                        className={cn(
+                          "font-medium tabular-nums",
+                          row.info.lead === "NA"
+                            ? "font-normal text-muted-foreground"
+                            : row.info.tone === "default"
+                              ? "text-foreground"
+                              : TONE_CLASS[row.info.tone]
+                        )}
+                      >
+                        {row.info.lead}
+                      </span>
+                    )}
+                    {row.info.sub ? (
+                      <span className={TONE_CLASS[row.info.tone]}>
+                        <span aria-hidden> · </span>
+                        {row.info.sub}
+                      </span>
                     ) : null}
-                  </dl>
-                  {selectable ? (
-                    /* Above the card's stretched title button, so a tap ticks the draft
-                       instead of opening its tray. */
-                    <label className="relative z-10 flex w-fit items-center gap-2 text-body-compact text-muted-foreground">
-                      <Checkbox
-                        checked={selected.has(row.id)}
-                        onCheckedChange={() => toggleSelected(row.id)}
-                        className="size-5"
-                      />
-                      Select to discard
-                    </label>
+                  </p>
+                  <div className="flex items-center justify-between gap-3 border-t border-hairline pt-3">
+                    {row.progress ? (
+                      <>
+                        <span className="flex items-center gap-2 text-body-compact tabular-nums">
+                          <CompletionRing percent={row.progress.percent} />
+                          {row.progress.percent}% complete
+                        </span>
+                        <span className="text-caption text-muted-foreground tabular-nums">
+                          Saved {row.progress.savedOn}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-caption text-muted-foreground">
+                        {row.ref ? <Identifier value={row.ref} copyable={false} /> : null}
+                        {row.ref && row.court ? <span aria-hidden> · </span> : null}
+                        {row.court || (row.ref ? null : "Court not assigned")}
+                      </span>
+                    )}
+                  </div>
+                  {/* While picking, the whole card is the toggle, as on Cases. Pointer
+                      only: the checkbox is the same control for a keyboard. */}
+                  {selectable && selected.size > 0 ? (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      aria-hidden
+                      onClick={() => toggleSelected(row.id)}
+                      className="absolute inset-0 z-20 cursor-pointer rounded-xl"
+                    />
                   ) : null}
                 </RegisterTrayCard>
               </li>
@@ -398,6 +443,41 @@ export function FilingsQueue({
                 Show more
                 <ChevronDownIcon data-icon="inline-end" aria-hidden />
               </Button>
+            </div>
+          ) : null}
+
+          {/* Touch: ticking a draft raises one bar from the bottom edge, where the thumb
+              is, in the selection bar's own grammar (count and Clear left, the act
+              right). Zero height, so it never moves the list; it rides the bottom of the
+              screen while the list is on it. Same travel and curve as the bottom sheets.
+              Reduced motion keeps the fade and drops the travel. */}
+          {cards && selectable ? (
+            <div className="pointer-events-none sticky bottom-0 z-30 h-0">
+              <div
+                role="region"
+                aria-label="Selected drafts"
+                inert={selectedIds.length === 0 || undefined}
+                className={cn(
+                  "border-hairline shadow-modal pointer-events-auto absolute inset-x-4 bottom-[calc(--spacing(4)+env(safe-area-inset-bottom))] flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 transition-[translate,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity",
+                  selectedIds.length === 0 &&
+                    "translate-y-[calc(100%+--spacing(8))] opacity-0 duration-200 motion-reduce:translate-y-0"
+                )}
+              >
+                <p className="flex flex-wrap items-center gap-x-3 text-body-compact text-muted-foreground" aria-live="polite">
+                  <span className="tabular-nums">{selectedIds.length} selected</span>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 font-normal underline"
+                    onClick={() => setSelected(new Set())}
+                  >
+                    Clear
+                  </Button>
+                </p>
+                <Button variant="destructive" onClick={() => onDiscard(selectedIds)}>
+                  <Trash2Icon data-icon="inline-start" aria-hidden />
+                  Discard
+                </Button>
+              </div>
             </div>
           ) : null}
 

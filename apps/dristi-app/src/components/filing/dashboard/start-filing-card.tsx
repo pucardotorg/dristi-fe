@@ -61,7 +61,7 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
   }, [query]);
 
   return (
-    <Card className={cn(PANEL_CLASS, "gap-0")}>
+    <Card className={cn(PANEL_CLASS, "gap-0 pb-3")}>
       <CardHeader className="flex flex-row items-start gap-3">
         <span
           aria-hidden
@@ -78,15 +78,17 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
       </CardHeader>
 
       <CardContent className="flex flex-col gap-1 pt-4">
+        {/* The row and the trigger below carry 12px of their own padding; pulled out by
+            the same 12px, their icon and label stand on the header icon's edge. */}
         <Link
           href={NEW_FILING}
-          className="group flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="group -mx-3 flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <span
             aria-hidden
-            className="flex size-9 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-muted-foreground"
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-muted-foreground"
           >
-            <CreditCardIcon className="size-4.5" />
+            <CreditCardIcon className="size-5" />
           </span>
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="text-body font-semibold">{CASE_TYPE.title}</span>
@@ -117,7 +119,7 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
           className="mt-2 border-t border-hairline pt-3"
         >
           <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="w-full justify-between px-3 text-muted-foreground">
+            <Button variant="ghost" className="-mx-3 w-[calc(100%+--spacing(6))] justify-between px-3 text-muted-foreground">
               {open ? "Hide other case types" : `Other case types (${NOT_YET.length})`}
               <ChevronDownIcon
                 aria-hidden

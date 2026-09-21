@@ -93,10 +93,10 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
 
       <CardContent className="mt-auto flex flex-col gap-4 pt-4">
         {batch === null ? (
-          <Empty className="items-start border-0 p-0 text-left">
+          <Empty className="items-start gap-0 border-0 p-0 text-left text-wrap">
             <EmptyHeader className="max-w-none items-start">
               <EmptyTitle className="text-body font-semibold">No imports yet</EmptyTitle>
-              <EmptyDescription className="text-body-compact">
+              <EmptyDescription className="text-body-compact text-wrap">
                 Batches your clients send will show here with their progress.
               </EmptyDescription>
             </EmptyHeader>
@@ -117,14 +117,16 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
         )}
 
         {/* Phone: the pair shares the row edge to edge, as every tray and footer does. */}
-        <div className="flex flex-wrap items-center gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
+        <div className="flex flex-wrap items-center gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-none">
           <Button asChild variant="outline">
             <Link href={`${FILINGS_HOME}/bulk`}>
               {batch ? "Review batch" : "About bulk filing"}
               <ArrowRightIcon data-icon="inline-end" aria-hidden />
             </Link>
           </Button>
-          <Button asChild variant="ghost">
+          {/* Outline, not ghost: sharing a row half and half, a button with no edge read
+              as a stray label beside a real one. */}
+          <Button asChild variant="outline">
             <Link href={`${FILINGS_HOME}/bulk`}>
               <PlusIcon data-icon="inline-start" aria-hidden />
               New import
