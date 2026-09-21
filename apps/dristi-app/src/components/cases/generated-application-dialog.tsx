@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { DocumentPreview } from "@/components/cases/document-preview";
 import { ReviewRow } from "@/components/cases/filing-form-shared";
@@ -61,7 +61,7 @@ export function GeneratedApplicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         className="grid-rows-[auto_auto_1fr_auto] max-h-[85dvh] sm:max-w-3xl"
         // Radix's own restore lands on document.body here, so put focus back
         // on the button that opened the dialog explicitly.
@@ -121,7 +121,7 @@ export function GeneratedApplicationDialog({
             Add signature
           </Button>
         </DialogFooter>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

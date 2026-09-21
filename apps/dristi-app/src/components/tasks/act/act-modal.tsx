@@ -12,19 +12,17 @@
 import * as React from "react";
 import { toast } from "sonner";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { canComplete } from "@/lib/tasks/permissions";
 import { useTasks } from "@/lib/tasks/store";
 import type { Case, Task, TaskId } from "@/lib/tasks/types";
-import { useMinWidth } from "@/hooks/use-min-width";
 import {
   Dialog,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { type ActContext } from "@/components/tasks/act/shared";
 import { type ActMode } from "@/components/tasks/use-task-actions";
 import { FileBody } from "@/components/tasks/act/file-page";
@@ -69,7 +67,6 @@ export function TaskActModal({
   onFinished?: (taskId: TaskId) => void;
 }) {
   const { user, people, online } = useTasks();
-  const overlay = useMinWidth(768);
 
   const finish = React.useCallback(
     (message?: string, taskId?: string) => {
@@ -111,35 +108,20 @@ export function TaskActModal({
     </>
   );
 
-  if (overlay) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <ChromeDialogContent className={`max-h-[85svh] w-full overflow-y-auto ${WIDTH[mode]}`}>
-          <DialogHeader className="pr-8">
-            <DialogTitle className="text-title-s font-semibold text-balance">{task.title}</DialogTitle>
-            <DialogDescription className="text-caption text-muted-foreground">{caseLine}</DialogDescription>
-          </DialogHeader>
-          <p className="text-caption text-muted-foreground">{SANDBOX[mode]}</p>
-          <Body ctx={ctx} mode={mode} />
-        </ChromeDialogContent>
-      </Dialog>
-    );
-  }
-
-  // A phone has no room for a floating panel: the same content as a full sheet.
+  // One dialog at every width. On a phone `FlowDialogContent` turns it into the
+  // window that slides in from the right (lead designer, Sept 21: no full-height
+  // sheets for a workflow); it replaced a bottom `Sheet` that stood the full
+  // height of the screen.
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="gap-4 overflow-y-auto p-6 data-[side=bottom]:h-svh"
-      >
-        <div className="flex flex-col gap-2 pr-8">
-          <SheetTitle className="text-title-s font-semibold text-balance">{task.title}</SheetTitle>
-          <SheetDescription className="text-caption text-muted-foreground">{caseLine}</SheetDescription>
-        </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <FlowDialogContent className={`max-h-[85svh] w-full overflow-y-auto ${WIDTH[mode]}`}>
+        <DialogHeader className="pr-8 text-left">
+          <DialogTitle className="text-title-s font-semibold text-balance">{task.title}</DialogTitle>
+          <DialogDescription className="text-caption text-muted-foreground">{caseLine}</DialogDescription>
+        </DialogHeader>
         <p className="text-caption text-muted-foreground">{SANDBOX[mode]}</p>
         <Body ctx={ctx} mode={mode} />
-      </SheetContent>
-    </Sheet>
+      </FlowDialogContent>
+    </Dialog>
   );
 }

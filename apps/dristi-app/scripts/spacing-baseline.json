@@ -231,9 +231,6 @@
   "src/components/tasks/act/court-document.tsx": [
     "p-10"
   ],
-  "src/components/tasks/filter-row.tsx": [
-    "gap-5"
-  ],
   "src/components/vakalatnama/steps/review-sign.tsx": [
     "gap-5"
   ],

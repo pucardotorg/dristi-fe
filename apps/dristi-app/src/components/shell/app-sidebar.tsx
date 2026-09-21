@@ -27,6 +27,7 @@ import { BrandGlyph } from "@/components/brand-lockup";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { YourDetailsItem } from "@/components/filing/your-details-item";
 import { useAppSearch } from "@/components/shell/app-search";
+import { useChrome } from "@/components/shell/chrome";
 import { useProfile } from "@/components/shell/profile";
 import { RAIL_THEMES, useRailTheme } from "@/components/shell/rail-theme";
 import { Button } from "@/components/ui/button";
@@ -253,6 +254,7 @@ function SearchShortcut() {
 
 function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
   const pathname = usePathname();
+  const { crumbRoot } = useChrome();
   // On a phone the rail is a sheet over the page. Choosing where to go is the
   // end of its job, so it puts itself away; left open, it sat over the screen
   // that had just loaded behind it (owner, Sept 21). A no-op on desktop.
@@ -306,7 +308,11 @@ function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
   }
 
   // Highlighted for the whole area; `aria-current="page"` only on the list itself.
-  const inArea = pathname.startsWith(href);
+  // A screen reached through another area's door roots its trail there
+  // (`lib/nav/origin.ts`), and the rail agrees with the trail: the types page
+  // opened from Raise application lives under `/cases`, but Cases is not where
+  // the person is.
+  const inArea = (crumbRoot?.href ?? pathname).startsWith(href);
   const isPage = pathname === href;
   return (
     <SidebarMenuItem>

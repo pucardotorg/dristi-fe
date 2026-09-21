@@ -1,28 +1,26 @@
 "use client";
 
+import * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { useRouter } from "next/navigation";
+
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
 
 import { DocumentPreview } from "@/components/cases/document-preview";
 import {
-  ChoicePillGroup,
   DiscardFilingDialog,
   FileField,
-  FilingFrame,
-  PrototypeActions,
   focusFirstInvalid,
-  useDraftExit,
 } from "@/components/cases/filing-form-shared";
 import {
   EMPTY_RICH_TEXT,
   RichTextField,
   type RichTextValue,
 } from "@/components/cases/rich-text-field";
-import { RICH_TEXT_CLASSES } from "@/components/cases/application-type-fields";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogDescription,
@@ -34,10 +32,16 @@ import {
   Field,
   FieldDescription,
   FieldError,
-  FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   SUBMISSION_DOCUMENT_TYPES,
   type SubmissionDocumentTypeId,
@@ -76,13 +80,59 @@ function validateDocument(draft: DocumentDraft): DocumentErrors {
   return errors;
 }
 
-export function SubmitDocumentsForm({ caseId }: { caseId: string }) {
+/**
+ * The route, kept for links that land on it. It is the dialog, standing open
+ * over an empty page; leaving it goes to the case's Documents register.
+ */
+export function SubmitDocumentsForm({
+  caseId,
+  caseLine,
+}: {
+  caseId: string;
+  caseLine?: React.ReactNode;
+}) {
+  const router = useRouter();
+  const caseHref = caseSectionHref(caseId, "documents");
+  return (
+    <SubmitDocumentsDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) router.push(caseHref);
+      }}
+      caseLine={caseLine}
+      onSubmitted={() => router.push(caseHref)}
+    />
+  );
+}
+
+/**
+ * Submit documents, in the filing dialogs' one grammar (the bail application
+ * is the reference): a header naming the act and the case, one scrolling
+ * column of fields at the DS field sizes, a sunken footer with the two ways
+ * out. It used to be a full page with a card of boxed radio pills and 16px
+ * labels, the last filing flow still in the old language (owner, Sept 21).
+ * On a phone it is the window that slides in, as every workflow is.
+ */
+export function SubmitDocumentsDialog({
+  open,
+  onOpenChange,
+  caseLine,
+  onSubmitted,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Case number and parties, under the description. */
+  caseLine?: React.ReactNode;
+  onSubmitted: () => void;
+}) {
   const formRef = useRef<HTMLFormElement>(null);
+  const formId = useId();
+  const typeId = useId();
   const reasonLabelId = useId();
   const [draft, setDraft] = useState<DocumentDraft>(EMPTY_DRAFT);
   const [errors, setErrors] = useState<DocumentErrors>({});
   const [previewOpen, setPreviewOpen] = useState(false);
-  const caseHref = caseSectionHref(caseId, "documents");
+  const [discardOpen, setDiscardOpen] = useState(false);
   const dirty = useMemo(
     () =>
       Boolean(
@@ -93,7 +143,6 @@ export function SubmitDocumentsForm({ caseId }: { caseId: string }) {
       ),
     [draft]
   );
-  const exit = useDraftExit(dirty, caseHref);
 
   function update<Key extends keyof DocumentDraft>(
     key: Key,
@@ -103,7 +152,21 @@ export function SubmitDocumentsForm({ caseId }: { caseId: string }) {
     setErrors((current) => ({ ...current, [key]: undefined }));
   }
 
-  /** The preview only opens on a clean form — errors surface in place first. */
+  function closeNow() {
+    setDiscardOpen(false);
+    setPreviewOpen(false);
+    setDraft(EMPTY_DRAFT);
+    setErrors({});
+    onOpenChange(false);
+  }
+
+  /** Closing midway asks first, only when something was entered. */
+  function requestClose() {
+    if (dirty) setDiscardOpen(true);
+    else closeNow();
+  }
+
+  /** The preview only opens on a clean form; errors surface in place first. */
   function review(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextErrors = validateDocument(draft);
@@ -115,120 +178,144 @@ export function SubmitDocumentsForm({ caseId }: { caseId: string }) {
     setPreviewOpen(true);
   }
 
-  /**
-   * Nothing is persisted, so this claims nothing. It closes the preview and
-   * lands on the Documents register, where the submission is designed to
-   * appear — and it leaves via complete(), not requestExit(), so finishing
-   * the flow never triggers the discard prompt.
-   */
+  /** Nothing is persisted, so this claims nothing: it closes and hands back. */
   function submit() {
-    setPreviewOpen(false);
-    exit.complete();
+    closeNow();
+    onSubmitted();
   }
+
+  const { phone } = useFlowWindow();
+  useBackCloses(phone && open, () => {
+    if (discardOpen) setDiscardOpen(false);
+    else if (previewOpen) setPreviewOpen(false);
+    else requestClose();
+  });
 
   return (
     <>
-      <FilingFrame
-        title="Submit documents"
-        description="Use this form to submit Memos, Affidavits, and other documents regarding your case to the court."
-        onExit={exit.requestExit}
-        showPrototypeBanner={false}
-        showCaseContext={false}
+      {/* One dialog at a time: the form steps aside for the review. */}
+      <Dialog
+        open={open && !previewOpen}
+        onOpenChange={(next) => {
+          if (!next) requestClose();
+        }}
       >
-        <form
-          ref={formRef}
-          noValidate
-          onSubmit={review}
-          className="flex flex-col gap-8"
+        <FlowDialogContent
+          className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+          onInteractOutside={(event) => event.preventDefault()}
         >
-          {/*
-            One card, not four loose fields: Laws gives grouped content a
-            border, and Raise application already frames its fields this way.
-            No CardHeader — the h1 above names the form, and a second title
-            here would only repeat it.
-          */}
-          <Card className="hover:bg-card">
-            <CardContent>
-              <FieldGroup className="gap-6">
-                <ChoicePillGroup
-                  legend="Document type"
-                  options={SUBMISSION_DOCUMENT_TYPES}
-                  value={draft.type}
-                  error={errors.type}
-                  onChange={(value) => update("type", value)}
-                />
+          <DialogHeader className="shrink-0 border-b border-hairline px-6 py-4 pr-12 text-left">
+            <DialogTitle className="text-title-s font-semibold text-balance">
+              Submit documents
+            </DialogTitle>
+            <DialogDescription className="text-body-compact text-pretty">
+              Place a memo, an affidavit or another document on the case record.
+            </DialogDescription>
+            {caseLine ? (
+              <p className="text-caption text-muted-foreground">{caseLine}</p>
+            ) : null}
+          </DialogHeader>
 
-                <Field data-invalid={Boolean(errors.title)}>
-                  <FieldLabel className="text-body">Document title</FieldLabel>
-                  <Input
-                    value={draft.title}
-                    onChange={(event) => update("title", event.target.value)}
-                  />
-                  <FieldDescription className="text-body-compact">
-                    Use a specific title that distinguishes this document
-                    from other records of the same type.
-                  </FieldDescription>
-                  <FieldError className="text-body-compact">
-                    {errors.title}
-                  </FieldError>
-                </Field>
+          <form
+            id={formId}
+            ref={formRef}
+            noValidate
+            onSubmit={review}
+            className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6"
+          >
+            <Field data-invalid={Boolean(errors.type)}>
+              <FieldLabel htmlFor={typeId}>Document type</FieldLabel>
+              <Select
+                value={draft.type}
+                onValueChange={(value) =>
+                  update("type", value as SubmissionDocumentTypeId)
+                }
+              >
+                <SelectTrigger
+                  id={typeId}
+                  className="w-full"
+                  aria-invalid={Boolean(errors.type)}
+                >
+                  <SelectValue placeholder="Choose a type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUBMISSION_DOCUMENT_TYPES.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError>{errors.type}</FieldError>
+            </Field>
 
-                <FileField
-                  required
-                  label="Documents"
-                  description="Choose related files in the order they should be merged."
-                  files={draft.files}
-                  error={errors.files}
-                  onFilesChange={(files) => update("files", files)}
-                  onErrorChange={(error) =>
-                    setErrors((current) => ({ ...current, files: error }))
-                  }
-                />
+            <Field data-invalid={Boolean(errors.title)}>
+              <FieldLabel>Document title</FieldLabel>
+              <Input
+                value={draft.title}
+                aria-invalid={Boolean(errors.title)}
+                onChange={(event) => update("title", event.target.value)}
+              />
+              <FieldDescription>
+                A title that tells this document apart from others of its type.
+              </FieldDescription>
+              <FieldError>{errors.title}</FieldError>
+            </Field>
 
-                <Field data-invalid={Boolean(errors.reason)}>
-                  <FieldLabel id={reasonLabelId} className="text-body">
-                    Reason for filing
-                  </FieldLabel>
-                  <RichTextField
-                    labelId={reasonLabelId}
-                    value={draft.reason}
-                    onChange={(reason) => update("reason", reason)}
-                    className={RICH_TEXT_CLASSES}
-                  />
-                  <FieldDescription className="text-body-compact">
-                    Explain why this document is being placed on the case record.
-                  </FieldDescription>
-                  <FieldError className="text-body-compact">
-                    {errors.reason}
-                  </FieldError>
-                </Field>
-              </FieldGroup>
-            </CardContent>
-          </Card>
+            <FileField
+              required
+              label="Documents"
+              description="Choose related files in the order they should be merged."
+              files={draft.files}
+              error={errors.files}
+              onFilesChange={(files) => update("files", files)}
+              onErrorChange={(error) =>
+                setErrors((current) => ({ ...current, files: error }))
+              }
+            />
 
-          <PrototypeActions
-            reviewLabel="Review submission"
-            onCancel={exit.requestExit}
-          />
-        </form>
-      </FilingFrame>
+            <Field data-invalid={Boolean(errors.reason)}>
+              <FieldLabel id={reasonLabelId}>Reason for filing</FieldLabel>
+              <RichTextField
+                compact
+                labelId={reasonLabelId}
+                value={draft.reason}
+                onChange={(reason) => update("reason", reason)}
+              />
+              <FieldDescription>
+                Why this document is being placed on the case record.
+              </FieldDescription>
+              <FieldError>{errors.reason}</FieldError>
+            </Field>
+          </form>
+
+          <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={requestClose}>
+              Cancel
+            </Button>
+            <Button type="submit" form={formId}>
+              Review submission
+            </Button>
+          </footer>
+        </FlowDialogContent>
+      </Dialog>
 
       <DocumentPreviewDialog
-        open={previewOpen}
+        open={open && previewOpen}
         onOpenChange={setPreviewOpen}
         files={draft.files}
         onSubmit={submit}
         onReturnFocus={() =>
-          formRef.current
-            ?.querySelector<HTMLElement>('button[type="submit"]')
+          document
+            .querySelector<HTMLElement>(`button[form="${CSS.escape(formId)}"]`)
             ?.focus()
         }
       />
 
       <DiscardFilingDialog
-        open={exit.open}
-        onOpenChange={exit.setOpen}
-        onDiscard={exit.discard}
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        onDiscard={closeNow}
       />
     </>
   );
@@ -249,7 +336,7 @@ function DocumentPreviewDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         className="grid-rows-[auto_1fr_auto] max-h-[85dvh] sm:max-w-2xl"
         // Radix's own restore lands on document.body here, so put focus back
         // on the button that opened the dialog explicitly.
@@ -275,7 +362,7 @@ function DocumentPreviewDialog({
             Submit
           </Button>
         </DialogFooter>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

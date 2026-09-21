@@ -407,6 +407,9 @@ export function CasesScreen({
   );
 }
 
+/** `sm` up to `lg`: a tablet held upright, or a small window. */
+const UPRIGHT_TABLET_QUERY = "(min-width: 640px) and (max-width: 1023.98px)";
+
 /**
  * The panel's top row: what the list is (title + count) on the left, what narrows it on
  * the right. When the peek is docked open it squeezes this column, so the row reads the
@@ -444,21 +447,25 @@ function CasesToolbar({
   // upright tablet it lies over the cards, and the toolbar re-arranging itself
   // behind either was movement with no cause (owner, Sept 21).
   const pushes = useMediaQuery(TABLE_QUERY);
-  const compact = pushes && docked && Boolean(record) && !closing;
+  const squeezed = pushes && docked && Boolean(record) && !closing;
+  // A tablet held upright (iPad Air, 820) has room for one line only if the two
+  // actions give up their words (owner, Sept 21). Same icon form the docked
+  // peek already uses, so it is one compact state, reached two ways.
+  const upright = useMediaQuery(UPRIGHT_TABLET_QUERY);
+  const compact = squeezed || upright;
 
   return (
     <div
       className={
         // Three children: what the list is, its actions, its search. Phone: a
-        // column, search before actions. `sm` to `lg` (a tablet held upright): a
-        // grid, search up on the heading's line, actions under it at the far
-        // end. `lg` up: one line, heading left, actions then search right.
-        "flex min-w-0 flex-col gap-4 sm:max-lg:grid sm:max-lg:grid-cols-[minmax(0,1fr)_auto] sm:max-lg:items-center lg:flex-row lg:items-center " +
-        (compact ? "lg:flex-nowrap " : "lg:flex-wrap ") +
+        // column, search before actions. `sm` up: one line, heading left,
+        // actions then search right.
+        "flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center " +
+        (compact ? "sm:flex-nowrap " : "sm:flex-wrap ") +
         PEEK_PUSH_CLASS
       }
     >
-      <div className="flex min-w-0 flex-col gap-1 max-sm:order-1">
+      <div className="flex min-w-0 flex-col gap-1 max-sm:order-1 sm:shrink-0">
         <h2 className="text-title-s font-semibold">Your cases</h2>
         {/* Says how many matched out of everything, so a filtered list is never
             mistaken for the whole book. */}
@@ -471,7 +478,7 @@ function CasesToolbar({
       </div>
       <div
         className={
-          "flex min-w-0 items-center gap-2 max-sm:order-3 sm:max-lg:col-span-2 sm:max-lg:row-start-2 sm:max-lg:justify-self-end lg:ml-auto lg:justify-end " +
+          "flex min-w-0 items-center gap-2 max-sm:order-3 sm:ml-auto sm:justify-end " +
           (compact ? "flex-nowrap" : "flex-wrap")
           // Below `sm`: search on its own line first, then Share access and
           // Filters splitting the next one. Wrapped left, they read as dropped.
@@ -523,8 +530,12 @@ function CasesToolbar({
           else. Only the search moves; the icons stay packed to its left. */}
       <div
         className={
-          "min-w-0 transition-[width,margin] duration-300 ease-out max-sm:order-2 sm:max-lg:col-start-2 sm:max-lg:row-start-1 " +
-          (compact ? "-mr-6 w-44" : "w-full sm:w-72 lg:w-52 xl:w-72")
+          "min-w-0 transition-[width,margin] duration-300 ease-out max-sm:order-2 " +
+          (squeezed
+            ? "-mr-6 w-44"
+            : upright
+              ? "w-48 min-w-28 shrink"
+              : "w-full sm:w-72 lg:w-52 xl:w-72")
         }
       >
         <Label htmlFor="cases-search" className="sr-only">

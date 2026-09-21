@@ -17,7 +17,7 @@ import {
   isPdfSrc,
   parsePdfSrc,
 } from "@/components/cases/pdf-viewer";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,7 +55,7 @@ export function ApplicationRecordDialog({
 }) {
   return (
     <Dialog open={application !== null} onOpenChange={onOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         showCloseButton={false}
         className="flex h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
       >
@@ -66,7 +66,7 @@ export function ApplicationRecordDialog({
             application={application}
           />
         ) : null}
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

@@ -68,6 +68,12 @@ import {
 } from "@/lib/cases/applications";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { RegisterTrayCard, useOneOpen } from "@/components/cases/register-card";
+import {
+  REGISTER_CARDS_ONLY,
+  REGISTER_FILTER_ROW,
+  REGISTER_TABLE_ONLY,
+} from "@/components/cases/register-layout";
 import { COLLAPSE_MOTION } from "@/components/cases/motion";
 import { Identifier } from "@/components/chrome/identifier";
 
@@ -180,7 +186,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           where they are. */}
       <div
         className={cn(
-          "flex flex-wrap items-center gap-2",
+          REGISTER_FILTER_ROW,
           actions.length > 0 && "mt-4"
         )}
       >
@@ -223,7 +229,8 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
             Clear filters
           </Button>
         ) : null}
-        <div className="ml-auto max-sm:w-full">
+        {/* On a phone the search leads and the filters follow it (owner, Sept 21). */}
+        <div className="ml-auto max-sm:order-first max-sm:col-span-2 max-sm:w-full">
           <RegisterSearch
             label="Search by application ID"
             value={query}
@@ -372,6 +379,7 @@ function NeedsAction({
       sum + (entry.kind === "group" ? entry.applications.length : 1),
     0
   );
+  const tray = useOneOpen<string>();
   return (
     <section
       aria-labelledby="applications-needs-action"
@@ -388,7 +396,34 @@ function NeedsAction({
           {count}
         </Badge>
       </div>
-      <ul className="flex flex-col gap-2">
+      {/* Under a finger held upright: tray cards, the step waiting under the
+          card it belongs to. Rows with their button always showing stacked
+          into a column of buttons (owner, Sept 21). */}
+      <ul className={cn("flex flex-col gap-2", REGISTER_CARDS_ONLY)}>
+        {entries.map((entry) => (
+          <li key={entry.key}>
+            {entry.kind === "single" ? (
+              <TouchActionCard
+                caseId={caseId}
+                application={entry.application}
+                open={tray.isOpen(entry.key)}
+                onOpenChange={tray.toggle(entry.key)}
+                onAct={onAct}
+                onOpen={onOpen}
+              />
+            ) : (
+              <TouchActionGroup
+                entry={entry}
+                open={tray.isOpen(entry.key)}
+                onOpenChange={tray.toggle(entry.key)}
+                onAct={onAct}
+                onOpen={onOpen}
+              />
+            )}
+          </li>
+        ))}
+      </ul>
+      <ul className={cn("flex-col gap-2", REGISTER_TABLE_ONLY, "md:pointer-fine:flex md:landscape:flex")}>
         {entries.map((entry) => (
           <li key={entry.key} className="rounded-lg bg-card shadow-raised">
             {entry.kind === "single" ? (
@@ -405,6 +440,149 @@ function NeedsAction({
         ))}
       </ul>
     </section>
+  );
+}
+
+/** What the step's button does: a draft goes back to its form, the rest act here. */
+function StepAction({
+  caseId,
+  application,
+  onAct,
+}: {
+  caseId: string;
+  application: ApplicationRecord;
+  onAct: (applications: ApplicationRecord[]) => void;
+}) {
+  const step = nextStepCopy(application.status);
+  if (!step) return null;
+  return application.status === "draft" ? (
+    <Button asChild>
+      <Link href={`/cases/${caseId}/filings/application`}>{step}</Link>
+    </Button>
+  ) : (
+    <Button type="button" onClick={() => onAct([application])}>
+      {step}
+    </Button>
+  );
+}
+
+function TouchActionCard({
+  caseId,
+  application,
+  open,
+  onOpenChange,
+  onAct,
+  onOpen,
+  nested = false,
+}: {
+  caseId: string;
+  application: ApplicationRecord;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAct: (applications: ApplicationRecord[]) => void;
+  onOpen: (id: string) => void;
+  nested?: boolean;
+}) {
+  return (
+    <RegisterTrayCard
+      title={application.typeLabel}
+      open={open}
+      onOpenChange={onOpenChange}
+      actions={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpen(application.id)}
+          >
+            View
+          </Button>
+          <StepAction caseId={caseId} application={application} onAct={onAct} />
+        </>
+      }
+    >
+      <div className="-mt-1 flex flex-wrap items-center gap-2">
+        {nested ? null : (
+          <Badge variant={application.statusVariant}>
+            {application.statusLabel}
+          </Badge>
+        )}
+        <p className="text-caption text-muted-foreground">
+          {nested ? null : `${application.filedBy} · `}
+          <span className="tabular-nums">Created {application.created}</span>
+        </p>
+      </div>
+    </RegisterTrayCard>
+  );
+}
+
+function TouchActionGroup({
+  entry,
+  open,
+  onOpenChange,
+  onAct,
+  onOpen,
+}: {
+  entry: Extract<ActionEntry, { kind: "group" }>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAct: (applications: ApplicationRecord[]) => void;
+  onOpen: (id: string) => void;
+}) {
+  const [lead] = entry.applications;
+  const count = entry.applications.length;
+  const signing = entry.status === "pending-signature";
+  const bulk = !signing || HAS_BULK_SIGNING_TOOL;
+  const [showEach, setShowEach] = useState(!bulk);
+  const each = useOneOpen<string>();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <RegisterTrayCard
+        title={`${count} applications ${signing ? "need a signature" : "need payment"}`}
+        open={open}
+        onOpenChange={onOpenChange}
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              aria-expanded={showEach}
+              onClick={() => setShowEach((value) => !value)}
+            >
+              {showEach ? "Hide each" : "Show each"}
+            </Button>
+            {bulk ? (
+              <Button type="button" onClick={() => onAct(entry.applications)}>
+                {signing ? "Sign all" : "Pay all"}
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        <div className="-mt-1 flex flex-wrap items-center gap-2">
+          <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
+          <p className="text-caption text-muted-foreground">{entry.filedBy}</p>
+        </div>
+      </RegisterTrayCard>
+      {showEach ? (
+        <ul className="flex flex-col gap-2 border-l border-hairline pl-3">
+          {entry.applications.map((application) => (
+            <li key={application.id}>
+              <TouchActionCard
+                caseId=""
+                application={application}
+                open={each.isOpen(application.id)}
+                onOpenChange={each.toggle(application.id)}
+                onAct={onAct}
+                onOpen={onOpen}
+                nested
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -566,7 +744,49 @@ function ApplicationsTable({
   recentId: string | null;
   recentRowRef: (node: HTMLTableRowElement | null) => void;
 }) {
+  const tray = useOneOpen<string>();
   return (
+    <>
+    <ul className={cn("flex flex-col gap-3", REGISTER_CARDS_ONLY)}>
+      {rows.map((item) => (
+        <li key={item.id}>
+          <RegisterTrayCard
+            title={item.typeLabel}
+            open={tray.isOpen(item.id)}
+            onOpenChange={tray.toggle(item.id)}
+            className={cn(recentId === item.id && RECENT_ROW)}
+            actions={
+              <Button type="button" onClick={() => onOpen(item.id)}>
+                View application
+              </Button>
+            }
+          >
+            <p className="-mt-2 text-caption text-muted-foreground">
+              {item.applicationId ? (
+                <Identifier
+                  value={item.applicationId}
+                  label="application id"
+                  copyable={false}
+                />
+              ) : (
+                "ID not allotted yet"
+              )}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
+            </div>
+            <div className="flex flex-col gap-0.5 border-t border-hairline pt-3">
+              <p className="text-body-compact text-foreground">{item.filedBy}</p>
+              <p className="text-caption tabular-nums text-muted-foreground">
+                Created {item.createdShort}
+                {item.submittedShort ? ` · Submitted ${item.submittedShort}` : ""}
+              </p>
+            </div>
+          </RegisterTrayCard>
+        </li>
+      ))}
+    </ul>
+    <div className={REGISTER_TABLE_ONLY}>
     <Table>
       <TableHeader>
         <TableRow className={TABLE_HEAD_ROW}>
@@ -629,6 +849,8 @@ function ApplicationsTable({
         ))}
       </TableBody>
     </Table>
+    </div>
+    </>
   );
 }
 

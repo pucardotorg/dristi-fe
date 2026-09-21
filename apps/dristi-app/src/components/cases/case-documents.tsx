@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import {
+  ChevronDownIcon,
   CircleAlertIcon,
   FileSearchIcon,
   FileTextIcon,
@@ -36,12 +37,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Item,
-  ItemContent,
-  ItemGroup,
-  ItemTitle,
-} from "@/components/ui/item";
 import { Label } from "@/components/ui/label";
 import {
   Pagination,
@@ -105,6 +100,16 @@ import {
 } from "@/lib/cases/documents";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { RegisterTrayCard, useOneOpen } from "@/components/cases/register-card";
+import {
+  REGISTER_CARDS_ONLY,
+  REGISTER_CARDS_QUERY,
+  REGISTER_FILTER_ROW,
+  REGISTER_SWITCH,
+  REGISTER_TABLE_ONLY,
+  SHOW_MORE_STEP,
+} from "@/components/cases/register-layout";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { displayName } from "@/lib/cases/names";
 import { Identifier } from "@/components/chrome/identifier";
 
@@ -193,6 +198,8 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
     DOCUMENTS_PAGE_SIZE
   );
   const [page, setPage] = useState(1);
+  const cards = useMediaQuery(REGISTER_CARDS_QUERY);
+  const [visible, setVisible] = useState(SHOW_MORE_STEP);
   const [recordOpen, setRecordOpen] = useState<CaseDocument | null>(null);
 
   const peopleById = new Map(file.people.map((person) => [person.id, person]));
@@ -231,8 +238,10 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
     typeId: null,
     submittedById: null,
     filingQuery,
-    pageSize,
-    page,
+    // Under a finger the list grows by "Show more" and has no pages (owner,
+    // Sept 21); the table keeps its pager.
+    pageSize: cards ? visible : pageSize,
+    page: cards ? 1 : page,
   });
 
   const filtered =
@@ -241,6 +250,7 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
 
   function resetPage() {
     setPage(1);
+    setVisible(SHOW_MORE_STEP);
   }
 
   function clearFilters() {
@@ -303,7 +313,7 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
   return (
     <>
       <DocumentsPanel switcher={switcher} search={search}>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={REGISTER_FILTER_ROW}>
           {showTypeFilter ? (
             <RegisterFilter
               label="Type"
@@ -344,7 +354,7 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
           />
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 pt-2">
               <p
                 aria-live="polite"
                 className="text-caption font-medium tabular-nums text-muted-foreground"
@@ -354,7 +364,7 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
             </div>
 
             <div className="overflow-x-auto">
-              <div className="hidden md:block">
+              <div className={REGISTER_TABLE_ONLY}>
                 <DocumentsTable
                   caption={documentKindTitle(kind)}
                   rows={selection.rows}
@@ -362,7 +372,9 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
                   onOpenRecord={setRecordOpen}
                 />
               </div>
-              <div className="p-4 md:hidden">
+              {/* No inset of its own: the panel already pads it, and a second
+                  16px left the cards floating in a box (owner, Sept 21). */}
+              <div className={REGISTER_CARDS_ONLY}>
                 <DocumentsItemList
                   rows={selection.rows}
                   peopleById={peopleById}
@@ -371,7 +383,25 @@ function DocumentsReady({ file }: { file: DocumentsFile }) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            {selection.total > selection.rows.length ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={cn("w-full", REGISTER_CARDS_ONLY)}
+                onClick={() => setVisible((count) => count + SHOW_MORE_STEP)}
+              >
+                Show more
+                <ChevronDownIcon data-icon="inline-end" aria-hidden />
+              </Button>
+            ) : null}
+
+            <div
+              className={cn(
+                "flex-col gap-3 md:flex-row md:items-center md:justify-between",
+                REGISTER_TABLE_ONLY,
+                "md:pointer-fine:flex md:landscape:flex"
+              )}
+            >
               <div className="flex flex-wrap items-center gap-4">
                 {selection.pageCount > 1 ? (
                   <p className="text-body-compact text-muted-foreground">
@@ -549,6 +579,7 @@ function KindTabs({
     <SegmentedControl
       type="single"
       size="compact"
+      className={REGISTER_SWITCH}
       value={kind}
       onValueChange={(next) => {
         if (isDocumentKind(next)) onKindChange(next);
@@ -747,55 +778,54 @@ function DocumentsItemList({
   peopleById: Map<string, DocumentPerson>;
   onOpenRecord: (document: CaseDocument) => void;
 }) {
+  const tray = useOneOpen<string>();
   return (
-    <ItemGroup className="flex flex-col gap-3">
+    <ul className="flex flex-col gap-3">
       {rows.map((document) => (
-        <Item
-          key={document.id}
-          variant="outline"
-          role="listitem"
-          className="relative h-full items-start gap-3 p-4 has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-focus-ring"
-        >
-          <ItemContent className="min-w-0 flex-1 gap-2 text-left">
-            <ItemTitle className="line-clamp-none">
-              <button
-                type="button"
-                onClick={() => onOpenRecord(document)}
-                className="cursor-pointer p-0 text-left outline-none after:absolute after:inset-0"
-              >
-                {document.title}
-              </button>
-            </ItemTitle>
-            <p className="text-caption font-medium text-muted-foreground">
-              {/* The title button's `after:inset-0` covers this whole card, so a copy
-                  control here could never be clicked — the face only. */}
+        <li key={document.id}>
+          <RegisterTrayCard
+            title={document.title}
+            open={tray.isOpen(document.id)}
+            onOpenChange={tray.toggle(document.id)}
+            actions={
+              <Button type="button" onClick={() => onOpenRecord(document)}>
+                View document
+              </Button>
+            }
+          >
+            <p className="-mt-2 text-caption text-muted-foreground">
+              {/* Under the title's stretched hit area, so the face only. */}
               <Identifier value={document.id} label="document id" copyable={false} />
-              {" · "}
+              <span aria-hidden> · </span>
               {documentSourceLabel(document.source)}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={documentStatusVariant(document.submissionStatus)}>
                 {documentStatusLabel(document.submissionStatus)}
               </Badge>
-              {document.evidenceStatus ? (
-                <EvidenceValue document={document} />
-              ) : null}
-              <p className="text-body-compact text-muted-foreground">
-                {formatCaseDate(document.submittedOn)}
+              {document.evidenceStatus ? <EvidenceValue document={document} /> : null}
+            </div>
+            {/* Under the hairline, the filing facts: type and date, then who. */}
+            <div className="flex flex-col gap-0.5 border-t border-hairline pt-3">
+              <p className="text-body-compact text-foreground">
+                {documentTypeLabel(document.type)}
+                <span className="text-muted-foreground">
+                  <span aria-hidden> · </span>
+                  <span className="tabular-nums">
+                    {formatCaseDate(document.submittedOn)}
+                  </span>
+                </span>
+              </p>
+              <p className="text-caption text-muted-foreground">
+                {submittedBySideLabel(document, peopleById)}
+                <span aria-hidden> · </span>
+                {displayName(submittedByName(document, peopleById))}
               </p>
             </div>
-            <p className="text-body-compact text-muted-foreground">
-              {documentTypeLabel(document.type)}
-            </p>
-            <p className="text-body-compact text-muted-foreground">
-              {submittedBySideLabel(document, peopleById)}
-              {" · "}
-              {displayName(submittedByName(document, peopleById))}
-            </p>
-          </ItemContent>
-        </Item>
+          </RegisterTrayCard>
+        </li>
       ))}
-    </ItemGroup>
+    </ul>
   );
 }
 

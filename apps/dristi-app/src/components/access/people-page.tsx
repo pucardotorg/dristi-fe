@@ -204,7 +204,7 @@ function PersonListRow({
         </span>
         {/* Under a hairline, the one number the card is opened for. */}
         <span className="flex items-center justify-between gap-3 border-t border-hairline pt-3">
-          <span className="text-body-compact font-semibold tabular-nums">
+          <span className="text-body-compact font-medium text-muted-foreground tabular-nums">
             {caseCount}
           </span>
           <ChevronRightIcon

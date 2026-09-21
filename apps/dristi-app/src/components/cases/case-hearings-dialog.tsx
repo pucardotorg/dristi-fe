@@ -8,7 +8,7 @@ import {
   HearingsList,
 } from "@/components/cases/hearings-register";
 import { useRecentRow } from "@/components/cases/register-controls";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -76,7 +76,7 @@ export function CaseHearingsDialog({
         onOpenChange(next);
       }}
     >
-      <ChromeDialogContent
+      <FlowDialogContent
         className="flex max-h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
         onCloseAutoFocus={(event) => {
           const trigger = triggerRef.current;
@@ -127,7 +127,7 @@ export function CaseHearingsDialog({
             </Button>
           </DialogFooter>
         ) : null}
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

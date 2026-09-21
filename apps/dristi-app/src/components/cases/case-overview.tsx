@@ -1,5 +1,7 @@
 "use client";
 
+import { REGISTER_TABLE_ONLY } from "@/components/cases/register-layout";
+import { cn } from "@/lib/utils";
 import { Fragment, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -389,7 +391,7 @@ function PendingTasksBlock({
             {tasks.map((task, index) => (
               <Fragment key={task.id}>
                 {index > 0 || consentTask ? (
-                  <ItemSeparator className="my-0 bg-hairline" />
+                  <ItemSeparator className={cn("my-0 bg-hairline", REGISTER_TABLE_ONLY)} />
                 ) : null}
                 <PendingTaskRow
                   title={task.title}
@@ -406,7 +408,7 @@ function PendingTasksBlock({
             {bondTask ? (
               <>
                 {tasks.length > 0 || consentTask ? (
-                  <ItemSeparator className="my-0 bg-hairline" />
+                  <ItemSeparator className={cn("my-0 bg-hairline", REGISTER_TABLE_ONLY)} />
                 ) : null}
                 {bondTask}
               </>

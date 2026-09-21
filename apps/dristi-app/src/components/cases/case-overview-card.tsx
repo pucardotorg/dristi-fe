@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArchiveIcon } from "lucide-react";
 
@@ -31,6 +31,11 @@ import {
 import { PANEL_CLASS } from "@/components/shell/panel";
 import { type DueRamp, type DueStatusView } from "@/lib/cases/peek";
 import { cn } from "@/lib/utils";
+import { RegisterTrayCard } from "@/components/cases/register-card";
+import {
+  REGISTER_CARDS_ONLY,
+  REGISTER_TABLE_ONLY,
+} from "@/components/cases/register-layout";
 
 /**
  * The card shell every Overview region is built from. Shared rather than
@@ -139,11 +144,52 @@ export function PendingTaskRow({
   /** The lines under the title: deadline, owner, note. */
   children?: ReactNode;
 }) {
+  const [trayOpen, setTrayOpen] = useState(false);
   return (
+    <>
+      {/* Under a finger held upright: the register tray card, as on every other
+          list of the case. Respond and Archive wait in the tray; a full-width
+          button on every row made the block a column of buttons (owner,
+          Sept 21). */}
+      <div role="listitem" className={cn("py-1", REGISTER_CARDS_ONLY)}>
+        <RegisterTrayCard
+          title={title}
+          open={trayOpen}
+          onOpenChange={setTrayOpen}
+          className="shadow-none"
+          actions={
+            <>
+              {onArchive ? (
+                <Button type="button" variant="outline" onClick={onArchive}>
+                  <ArchiveIcon data-icon="inline-start" aria-hidden />
+                  Archive
+                </Button>
+              ) : null}
+              {"href" in respond ? (
+                <Button asChild>
+                  <Link href={respond.href}>Respond</Link>
+                </Button>
+              ) : (
+                <Button type="button" onClick={respond.onClick}>
+                  Respond
+                </Button>
+              )}
+            </>
+          }
+        >
+          {children ? (
+            <div className="-mt-1 flex flex-col gap-1.5">{children}</div>
+          ) : null}
+        </RegisterTrayCard>
+      </div>
     <Item
       role="listitem"
       size="sm"
-      className="items-start px-0 py-2.5 hover:bg-transparent"
+      className={cn(
+        "items-start px-0 py-2.5 hover:bg-transparent",
+        REGISTER_TABLE_ONLY,
+        "md:pointer-fine:flex md:landscape:flex"
+      )}
     >
       <ItemContent className="gap-1.5">
         <ItemTitle className="line-clamp-none min-w-0">{title}</ItemTitle>
@@ -191,6 +237,7 @@ export function PendingTaskRow({
         ) : null}
       </ItemActions>
     </Item>
+    </>
   );
 }
 

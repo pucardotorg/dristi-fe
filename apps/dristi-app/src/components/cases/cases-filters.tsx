@@ -51,7 +51,7 @@ function toggleIn<T>(list: readonly T[], value: T, on: boolean): T[] {
  * after the label in muted `tabular-nums` where the group has them — same
  * presentation for every option, never a badge on one and text on the next.
  */
-function CheckGroup<T extends string>({
+export function CheckGroup<T extends string>({
   id,
   legend,
   options,

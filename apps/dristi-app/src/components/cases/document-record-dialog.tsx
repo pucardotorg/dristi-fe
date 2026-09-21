@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { MessageSquareIcon, PaperclipIcon } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { DocumentPreview } from "@/components/cases/document-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -76,7 +76,7 @@ export function DocumentRecordFrame({
   children: ReactNode;
 }) {
   return (
-    <ChromeDialogContent
+    <FlowDialogContent
       className={cn(
         "flex max-h-[90svh] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl",
         className,
@@ -103,7 +103,7 @@ export function DocumentRecordFrame({
         <Separator orientation="vertical" className="hidden md:block" />
         <CommentsPane fieldId={commentId} />
       </div>
-    </ChromeDialogContent>
+    </FlowDialogContent>
   );
 }
 

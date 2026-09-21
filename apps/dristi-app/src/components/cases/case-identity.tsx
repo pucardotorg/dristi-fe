@@ -122,14 +122,10 @@ export function CaseIdentity({
 export function CaseStage({
   record,
   detail = true,
-  clampDetail = false,
 }: {
   record: CaseRecord;
   /** Substage / disposed date under the stage. Off on the dense table. */
   detail?: boolean;
-  /** In a table: one line, cut with an ellipsis, so a long sub stage neither
-   *  widens the column nor adds a third line to the row. */
-  clampDetail?: boolean;
 }) {
   const label = record.disposal
     ? outcomeLabel(record.disposal.outcome)
@@ -149,15 +145,7 @@ export function CaseStage({
         {label}
       </Badge>
       {secondary ? (
-        <span
-          title={clampDetail ? secondary : undefined}
-          className={cn(
-            "text-caption text-muted-foreground",
-            clampDetail && "block max-w-48 truncate"
-          )}
-        >
-          {secondary}
-        </span>
+        <span className="text-caption text-muted-foreground">{secondary}</span>
       ) : null}
     </div>
   );

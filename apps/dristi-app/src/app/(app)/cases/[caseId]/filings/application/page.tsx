@@ -9,7 +9,8 @@ import {
 } from "@/lib/cases/applications";
 import { PAGE_GROUND, PAGE_GUTTER } from "@/components/shell/page-frame";
 import { CASES } from "@/lib/cases/fixtures";
-import { safeOrigin } from "@/lib/nav/origin";
+import { Breadcrumbs } from "@/components/shell/chrome";
+import { areaOf, originCrumb, safeOrigin } from "@/lib/nav/origin";
 import { cn } from "@/lib/utils";
 
 function findCase(caseId: string) {
@@ -55,13 +56,27 @@ export default async function RaiseApplicationPage({
   const record = findCase(caseId);
   if (!record) notFound();
 
+  // Reached from the rail's Raise application, the person never opened the
+  // case: a trail of `Cases › the case › here` named two places they had not
+  // been, and lit Cases in the rail (owner, Sept 21). The trail follows the
+  // door instead: `Raise application › the case`.
+  const door = originCrumb(from);
+  const fromOutsideCases = door && areaOf(door.href).label !== "Cases";
+
   return (
     <main className="flex flex-1 flex-col">
-      <CaseBreadcrumbs
-        caseId={record.id}
-        caseNumber={record.caseNumber}
-        trail={[{ label: "Raise application" }]}
-      />
+      {fromOutsideCases ? (
+        <Breadcrumbs
+          root={door}
+          crumbs={[{ label: record.caseNumber, mono: true }]}
+        />
+      ) : (
+        <CaseBreadcrumbs
+          caseId={record.id}
+          caseNumber={record.caseNumber}
+          trail={[{ label: "Raise application" }]}
+        />
+      )}
       {/* View Case's ground, so this reads as the same place and the white
           cards stand off it. Dark keeps its own background. */}
       <div className={cn("flex min-w-0 flex-1 flex-col", PAGE_GROUND, PAGE_GUTTER)}>

@@ -1,8 +1,7 @@
 "use client";
 
 import { useId, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowLeftIcon, HourglassIcon } from "lucide-react";
+import { HourglassIcon } from "lucide-react";
 
 import { AddSignatureDialog } from "@/components/cases/add-signature-dialog";
 import {
@@ -20,9 +19,15 @@ import {
 } from "@/components/cases/filing-form-shared";
 import { GeneratedApplicationDialog } from "@/components/cases/generated-application-dialog";
 import { BailApplicationDialog } from "@/components/filing/bail-application-dialog";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { Identifier } from "@/components/chrome/identifier";
 import { useLocale } from "@/components/shell/locale";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
+import {
+  PAGE_BACK_COLUMN,
+  PAGE_BACK_ROW,
+  PageBackButton,
+} from "@/components/shell/page-back-button";
 import { PAGE_TITLE } from "@/components/shell/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,12 +44,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   applicationTypeGuide,
   suggestedApplicationTypes,
@@ -257,6 +256,19 @@ export function RaiseApplicationForm({
   /* One dialog at a time, as the signing chain already works: the form steps
      aside for the generated document and returns if that is closed. */
   const formOpen = stage === "details" && !generatedOpen && !signatureOpen;
+
+  /* On a phone the form is a window that slides in, and the phone's own Back
+     is its Cancel: it meets the same discard warning. The later steps (the
+     generated document, signing) each step back to the one before. */
+  const flow = useFlowWindow();
+  useBackCloses(flow.phone && stage === "details", () => {
+    if (discardOpen) setDiscardOpen(false);
+    else if (signatureOpen) {
+      setSignatureOpen(false);
+      setGeneratedOpen(true);
+    } else if (generatedOpen) setGeneratedOpen(false);
+    else requestCloseForm();
+  });
   const formTitle =
     draft.type === "application-others"
       ? "Other application"
@@ -274,16 +286,18 @@ export function RaiseApplicationForm({
           <div className="flex flex-col gap-4 @2xl:flex-row @2xl:items-end @2xl:justify-between @2xl:gap-8">
             {/* The arrow hangs in its own column, so the case line starts on
                 the heading's edge, not under the arrow. */}
-            <div className="flex min-w-0 items-start gap-1">
-              <div className="flex h-8 shrink-0 items-center">
-                <BackButton
+            <div className={PAGE_BACK_ROW}>
+              <div className={PAGE_BACK_COLUMN}>
+                <PageBackButton
                   href={backHref ?? caseHref}
                   label={backHref ? "Back to cases list" : "Back to case"}
                 />
               </div>
               <div className="flex min-w-0 flex-col gap-1">
+                {/* Not "Raise application" again: reached from the rail, the page
+                    before this one already carries that name (owner, Sept 21). */}
                 <h1 className={cn(PAGE_TITLE, "flex min-h-8 items-center")}>
-                  Raise application
+                  Choose application type
                 </h1>
                 {/* Which case this files into. Reached from the rail, nothing
                     else on the screen says so. */}
@@ -323,7 +337,7 @@ export function RaiseApplicationForm({
           if (!open) requestCloseForm();
         }}
       >
-        <ChromeDialogContent
+        <FlowDialogContent
           className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
           onInteractOutside={(event) => event.preventDefault()}
         >
@@ -388,7 +402,7 @@ export function RaiseApplicationForm({
               </Button>
             )}
           </footer>
-        </ChromeDialogContent>
+        </FlowDialogContent>
       </Dialog>
 
       <GeneratedApplicationDialog
@@ -455,28 +469,3 @@ function clearRow(
   return { ...errors, [bucket]: next };
 }
 
-/**
- * View Case's own way out, the small ghost arrow, sitting ahead of the heading
- * instead of on a row of its own above it.
- */
-function BackButton({ href, label }: { href: string; label: string }) {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            asChild
-            className="relative -ml-2 text-foreground after:absolute after:-inset-1 [&_svg]:size-4"
-          >
-            <Link href={href} aria-label={label}>
-              <ArrowLeftIcon aria-hidden />
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{label}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}

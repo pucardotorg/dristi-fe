@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronDownIcon, DownloadIcon, Share2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,9 @@ import {
 import { ShareDialog } from "@/components/access/share-dialog";
 import type { AccessPerson } from "@/lib/access/content";
 import { useCaseBail } from "@/components/cases/case-bail-flow";
+import { Identifier } from "@/components/chrome/identifier";
+import { SubmitDocumentsDialog } from "@/components/cases/submit-documents-form";
+import { caseSectionHref } from "@/lib/cases/sections";
 import { DownloadCaseFileDialog } from "@/components/cases/download-case-file-dialog";
 import type { AccessCase } from "@/lib/access/content";
 
@@ -57,11 +61,16 @@ export function CaseHeaderActions({
   const bail = useCaseBail();
   const [shareOpen, setShareOpen] = React.useState(false);
   const [downloadOpen, setDownloadOpen] = React.useState(false);
+  const [submitOpen, setSubmitOpen] = React.useState(false);
+  const router = useRouter();
   const caseId = accessCase.id;
 
   return (
     <TooltipProvider>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      {/* Below `md` the row spans the header: the primary leads and takes the
+          width, the two icon actions close the line. Left-packed at three
+          different widths they read as loose parts (owner, Sept 21). */}
+      <div className="flex shrink-0 items-center gap-2 max-md:w-full">
         {SHARE_ACCESS_ENABLED ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -96,21 +105,25 @@ export function CaseHeaderActions({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button">
+            <Button type="button" className="max-md:order-first max-md:flex-1">
               Make filings
               <ChevronDownIcon data-icon="inline-end" aria-hidden />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-max whitespace-nowrap">
+          <DropdownMenuContent align="end" className="w-max min-w-(--radix-dropdown-menu-trigger-width) whitespace-nowrap">
             <DropdownMenuItem asChild>
               <Link href={`/cases/${caseId}/filings/application`}>
                 Raise application
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`/cases/${caseId}/filings/documents`}>
-                Submit documents
-              </Link>
+            {/* A dialog over the case, as every filing is; not a page. */}
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                setSubmitOpen(true);
+              }}
+            >
+              Submit documents
             </DropdownMenuItem>
             {/* Bail is raised from Raise application, under its own type. */}
             {disposed ? null : (
@@ -135,6 +148,20 @@ export function CaseHeaderActions({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <SubmitDocumentsDialog
+        open={submitOpen}
+        onOpenChange={setSubmitOpen}
+        caseLine={
+          <>
+            <Identifier value={accessCase.caseNumber} label="case number" copyable={false} />
+            <span aria-hidden> · </span>
+            {accessCase.title}
+          </>
+        }
+        // Lands on the register the submission is designed to appear in.
+        onSubmitted={() => router.push(caseSectionHref(caseId, "documents"))}
+      />
 
       <DownloadCaseFileDialog
         open={downloadOpen}

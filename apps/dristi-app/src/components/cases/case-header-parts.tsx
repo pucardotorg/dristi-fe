@@ -1,16 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 
 import { Identifier } from "@/components/chrome/identifier";
 import type { PastCaseNumber } from "@/lib/cases/header";
+import { PageBackButton } from "@/components/shell/page-back-button";
 import { cn } from "@/lib/utils";
 import { CaseNumberHistory } from "./case-number-history";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -18,27 +17,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-/** Back to the cases list. Full-strength ink, so it reads as the way out. */
+/** Back to the cases list: the product's one page-level back control. */
 export function CaseBackButton() {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            asChild
-            className="relative -ml-2 text-foreground after:absolute after:-inset-1 [&_svg]:size-4"
-          >
-            <Link href="/cases" aria-label="Back to cases">
-              <ArrowLeftIcon aria-hidden />
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">Back to cases</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
+  return <PageBackButton href="/cases" label="Back to cases" />;
 }
 
 /**

@@ -272,7 +272,7 @@ export function FileField({
     <Field data-invalid={Boolean(error)}>
       {attached ? (
         <>
-          <FieldLabel className="flex items-center gap-1.5 text-body">
+          <FieldLabel className="flex items-center gap-1.5">
             <span>{label}</span>
             {required ? null : <RequiredMark optional />}
           </FieldLabel>

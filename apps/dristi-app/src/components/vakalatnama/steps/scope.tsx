@@ -57,6 +57,7 @@ export function ScopeStep({ vak }: { vak: Vakalatnama }) {
       >
         <FormField label="Scope" asGroup>
           <Segmented
+            size="compact"
             value={s.type}
             onValueChange={(v) => setScope({ type: v as Scope["type"] })}
             options={scopeOptions}
@@ -68,6 +69,7 @@ export function ScopeStep({ vak }: { vak: Vakalatnama }) {
           <>
             <FormField label="Is the case already filed?" asGroup>
               <Segmented
+                size="compact"
                 value={s.caseState}
                 onValueChange={(v) => setScope({ caseState: v as Scope["caseState"] })}
                 options={[

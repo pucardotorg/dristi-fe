@@ -19,6 +19,7 @@ import {
   tableRowClass,
 } from "@/components/chrome/table-plate";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import {
   Empty,
@@ -50,6 +51,12 @@ import {
 } from "@/lib/cases/orders";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { RegisterTrayCard, useOneOpen } from "@/components/cases/register-card";
+import {
+  REGISTER_CARDS_ONLY,
+  REGISTER_SWITCH,
+  REGISTER_TABLE_ONLY,
+} from "@/components/cases/register-layout";
 
 const ORDER_PARAM = "order";
 
@@ -77,6 +84,7 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [kind, setKind] = useState<OrderKindFilter>(ORDER_KIND_DEFAULT);
+  const tray = useOneOpen<string>();
   const { recentId, markRecent, recentRowRef } = useRecentRow();
   /* The mark is for a reader a link dropped here (a round's triggering order,
      a hearing's order): it shows where that order sits in the list. A row the
@@ -114,6 +122,7 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
         <SegmentedControl
           type="single"
           size="compact"
+          className={REGISTER_SWITCH}
           value={kind}
           onValueChange={(next) => {
             if (isOrderKindFilter(next)) setKind(next);
@@ -147,6 +156,41 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
           </EmptyHeader>
         </Empty>
       ) : (
+        <>
+        {/* Under a finger held upright: a card per order. Date and title lead,
+            the business of the day follows in full rather than cut at two
+            lines, and the card itself opens the order. */}
+        <ul className={cn("flex flex-col gap-3", REGISTER_CARDS_ONLY)}>
+          {rows.map((order) => (
+            <li key={order.id}>
+              <RegisterTrayCard
+                title={order.title}
+                open={tray.isOpen(order.id)}
+                onOpenChange={tray.toggle(order.id)}
+                marked={openOrder?.id === order.id}
+                className={cn(recentId === order.id && RECENT_ROW)}
+                actions={
+                  <Button type="button" onClick={() => setOpenOrder(order)}>
+                    View order
+                  </Button>
+                }
+              >
+                <time
+                  dateTime={order.issuedOn}
+                  className="-mt-2 text-caption tabular-nums text-muted-foreground"
+                >
+                  {formatCaseDate(order.issuedOn)}
+                </time>
+                {order.botd ? (
+                  <p className="border-t border-hairline pt-3 text-body-compact text-muted-foreground">
+                    {order.botd}
+                  </p>
+                ) : null}
+              </RegisterTrayCard>
+            </li>
+          ))}
+        </ul>
+        <div className={REGISTER_TABLE_ONLY}>
         <Table>
           <TableHeader>
             <TableRow className={TABLE_HEAD_ROW}>
@@ -209,6 +253,8 @@ export function CaseOrders({ record }: { record: CaseRecord }) {
             ))}
           </TableBody>
         </Table>
+        </div>
+        </>
       )}
 
       <OrderRecordDialog
@@ -251,8 +297,8 @@ function OrdersPanel({
   return (
     <RestingCard>
       <CardContent className="flex flex-col gap-4" aria-busy={busy}>
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <h2 className="text-body font-semibold text-foreground">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <h2 className="text-body font-semibold text-foreground max-sm:w-full">
             Orders & Notifications
           </h2>
           {action}

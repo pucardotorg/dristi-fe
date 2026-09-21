@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +69,7 @@ function PaymentBody({
   }, [paid]);
 
   return (
-    <ChromeDialogContent className="flex max-h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+    <FlowDialogContent className="flex max-h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
       <DialogHeader className="gap-1 border-b border-hairline px-6 py-4 text-left">
         <DialogTitle
           ref={titleRef}
@@ -145,6 +145,6 @@ function PaymentBody({
           </>
         )}
       </div>
-    </ChromeDialogContent>
+    </FlowDialogContent>
   );
 }

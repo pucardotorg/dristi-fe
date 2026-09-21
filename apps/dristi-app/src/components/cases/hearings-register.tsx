@@ -44,6 +44,11 @@ import { type HearingRecord } from "@/lib/cases/hearing-record";
 import { formatHearingClock } from "@/lib/cases/hearings";
 import { orderHref } from "@/lib/cases/sections";
 import { cn } from "@/lib/utils";
+import { RegisterTrayCard, useOneOpen } from "@/components/cases/register-card";
+import {
+  REGISTER_CARDS_ONLY,
+  REGISTER_TABLE_ONLY,
+} from "@/components/cases/register-layout";
 
 /**
  * The hearings list (§5.4.1): Date, Hearing purpose, Status, Action, newest
@@ -62,6 +67,7 @@ export function HearingsList({
   recentId?: string | null;
   recentRowRef?: (node: HTMLTableRowElement | null) => void;
 }) {
+  const tray = useOneOpen<string>();
   if (hearings.length === 0) {
     return (
       <Empty className="border border-dashed border-border">
@@ -81,6 +87,39 @@ export function HearingsList({
   }
 
   return (
+    <>
+    {/* Under a finger held upright: a tray card per hearing, as in every
+        other register of the case. */}
+    <ul className={cn("flex flex-col gap-3", REGISTER_CARDS_ONLY)}>
+      {hearings.map((hearing) => (
+        <li key={hearing.id}>
+          <RegisterTrayCard
+            title={hearing.purpose}
+            open={tray.isOpen(hearing.id)}
+            onOpenChange={tray.toggle(hearing.id)}
+            className={cn(recentId === hearing.id && RECENT_ROW)}
+            actions={
+              <Button type="button" onClick={() => onOpen(hearing)}>
+                View hearing
+              </Button>
+            }
+          >
+            <div className="-mt-1 flex flex-wrap items-center gap-2">
+              <time
+                dateTime={hearing.on}
+                className="text-caption tabular-nums text-muted-foreground"
+              >
+                {hearing.date}
+              </time>
+              <Badge variant={hearing.status.variant}>
+                {hearing.status.label}
+              </Badge>
+            </div>
+          </RegisterTrayCard>
+        </li>
+      ))}
+    </ul>
+    <div className={REGISTER_TABLE_ONLY}>
     <Table>
       <TableHeader>
         <TableRow className={TABLE_HEAD_ROW}>
@@ -125,6 +164,8 @@ export function HearingsList({
         ))}
       </TableBody>
     </Table>
+    </div>
+    </>
   );
 }
 

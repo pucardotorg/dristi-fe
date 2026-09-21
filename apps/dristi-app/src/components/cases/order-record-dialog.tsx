@@ -3,7 +3,7 @@
 import { DownloadIcon, FileClockIcon, XIcon } from "lucide-react";
 
 import { PdfViewer } from "@/components/cases/pdf-viewer";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -44,7 +44,7 @@ export function OrderRecordDialog({
 
   return (
     <Dialog open={Boolean(order)} onOpenChange={onOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         showCloseButton={false}
         className={cn(
           "flex flex-col gap-0 overflow-hidden p-0",
@@ -128,7 +128,7 @@ export function OrderRecordDialog({
             )}
           </>
         ) : null}
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

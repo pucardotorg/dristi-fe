@@ -69,8 +69,8 @@ export function CaseAdvocatesPair({
           side={side}
           markSide
           dense={dense}
-          /* "+2 others" as on the case header, not a +2 chip: one pattern for
-             the same fact on both screens (owner, Sept 18). */
+          /* The header's dotted text pattern, not a chip (owner, Sept 18);
+             in the dense table it reads "+2" without the word. */
           more="text"
         />
       ))}
@@ -220,7 +220,10 @@ export function CaseAdvocates({
                 )}
                 onClick={(event) => event.stopPropagation()}
               >
-                +{extra} {extra === 1 ? "other" : "others"}
+                {/* The dense table says just "+2" (owner, Sept 21): the
+                    column is narrow and the dotted rule already says there is
+                    more. The case header keeps the PM's "+2 others". */}
+                {dense ? `+${extra}` : `+${extra} ${extra === 1 ? "other" : "others"}`}
               </button>
             ) : (
               <Badge

@@ -14,7 +14,6 @@ import {
   CasePeekPushRegion,
   PEEK_PUSH_CLASS,
 } from "@/components/cases/case-peek";
-import { CasesPager } from "@/components/cases/cases-list-results";
 import { COLLAPSE_MOTION } from "@/components/cases/motion";
 import { RegisterSearch } from "@/components/cases/register-controls";
 import {
@@ -56,7 +55,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { PAGE_SIZE, type CasesPageSize } from "@/lib/cases/query";
 import { partiesLabel, type CaseRecord } from "@/lib/cases/types";
 import { withOrigin } from "@/lib/nav/origin";
 import { cn } from "@/lib/utils";
@@ -70,6 +68,10 @@ import { cn } from "@/lib/utils";
  * working advocate has dozens of them. Most recently moved first, since the
  * case someone is about to file in is usually the one that just had a hearing.
  */
+/** How many cases open, and how many each "Show more" adds. Twenty (owner,
+ *  Sept 21): two screens on a phone, most of a desk monitor. */
+const LOAD_STEP = 20;
+
 export function RaiseApplicationCaseChooser({
   cases,
   now,
@@ -81,8 +83,7 @@ export function RaiseApplicationCaseChooser({
   const headingId = useId();
   const [query, setQuery] = useState("");
   const typed = query.trim().length > 0;
-  const [pageSize, setPageSize] = useState<CasesPageSize>(PAGE_SIZE);
-  const [page, setPage] = useState(1);
+  const [visible, setVisible] = useState(LOAD_STEP);
   /** Touch rows: the one whose actions are showing. */
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -100,12 +101,12 @@ export function RaiseApplicationCaseChooser({
     );
   }, [ordered, query]);
 
-  // The Cases page's own paging, held here rather than in the URL: this is a
-  // step on the way somewhere, not a view anyone returns to or shares.
-  const size = pageSize === "all" ? Math.max(shown.length, 1) : pageSize;
-  const pageCount = Math.max(1, Math.ceil(shown.length / size));
-  const current = Math.min(page, pageCount);
-  const rows = shown.slice((current - 1) * size, current * size);
+  // One growing list, not pages (owner, Sept 21). Picking a case is a scan down
+  // a list on the way somewhere: nobody returns to "page 4" of it, and a pager
+  // plus a per-page menu was two controls for that. Search is the fast path;
+  // this is for the person who would rather look.
+  const rows = shown.slice(0, visible);
+  const remaining = shown.length - rows.length;
 
   return (
     <TooltipProvider>
@@ -126,7 +127,7 @@ export function RaiseApplicationCaseChooser({
                   value={query}
                   onChange={(value) => {
                     setQuery(value);
-                    setPage(1);
+                    setVisible(LOAD_STEP);
                   }}
                   className="@2xl:w-80 @2xl:shrink-0 sm:w-full"
                 />
@@ -165,25 +166,26 @@ export function RaiseApplicationCaseChooser({
                 </ItemGroup>
               ) : null}
               {shown.length > 0 ? (
-                <CasesPager
-                  from={(current - 1) * size + 1}
-                  to={(current - 1) * size + rows.length}
-                  total={shown.length}
-                  page={current}
-                  pageCount={pageCount}
-                  pageSize={pageSize}
-                  onPageSizeChange={(next) => {
-                    setPageSize(next);
-                    setPage(1);
-                  }}
-                  pageLink={(target) => ({
-                    href: "#",
-                    onClick: (event) => {
-                      event.preventDefault();
-                      setPage(target);
-                    },
-                  })}
-                />
+                <div className="flex flex-col items-center gap-3">
+                  <p
+                    className="text-body-compact text-muted-foreground tabular-nums"
+                    aria-live="polite"
+                  >
+                    Showing {rows.length} of {shown.length}{" "}
+                    {shown.length === 1 ? "case" : "cases"}
+                  </p>
+                  {remaining > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setVisible((count) => count + LOAD_STEP)}
+                    >
+                      Show more
+                      <ChevronDownIcon data-icon="inline-end" aria-hidden />
+                    </Button>
+                  ) : null}
+                </div>
               ) : (
                 <Empty>
                   <EmptyHeader>

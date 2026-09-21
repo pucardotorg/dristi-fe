@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { ChevronDownIcon } from "lucide-react";
 
 import { useTasks } from "@/lib/tasks/store";
 import {
@@ -18,6 +19,8 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { taskHref } from "@/lib/tasks/routes";
 import { areaOf } from "@/lib/nav/origin";
 import { cn } from "@/lib/utils";
+import { COLLAPSE_MOTION } from "@/components/cases/motion";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { caseOf, tasksInView } from "@/lib/tasks/selectors";
 import { compareUrgency, daysUntil, isOverdue } from "@/lib/tasks/urgency";
 import { useChrome, type Crumb } from "@/components/shell/chrome";
@@ -44,10 +47,9 @@ import { LOCALES, pick, ui, type Locale } from "@/lib/onboarding/content";
  */
 const idFace = (crumb: Crumb) => (crumb.mono ? "font-mono tabular-nums" : undefined);
 
-function ChromeBreadcrumb() {
+function useTrail() {
   const { crumbs, crumbRoot } = useChrome();
   const pathname = usePathname();
-  const last = crumbs.length - 1;
   /*
    * The trail's root. A screen that knows which door it was reached through publishes
    * that door and it wins — the way back is where the person actually was, down to the
@@ -55,57 +57,113 @@ function ChromeBreadcrumb() {
    * which is what a screen reached directly deserves.
    */
   const root = crumbRoot ?? areaOf(pathname);
+  return { crumbs, root };
+}
+
+/** Every crumb, linked, in order. Shared by the wide bar and the phone's opened row. */
+function TrailList({ className }: { className?: string }) {
+  const { crumbs, root } = useTrail();
+  const last = crumbs.length - 1;
+  return (
+    <BreadcrumbList className={cn("flex-nowrap", className)}>
+      <BreadcrumbItem className="shrink-0">
+        {crumbs.length && root.href ? (
+          <BreadcrumbLink asChild>
+            <Link href={root.href} className={idFace(root)}>
+              {root.label}
+            </Link>
+          </BreadcrumbLink>
+        ) : (
+          <BreadcrumbPage className={idFace(root)}>{root.label}</BreadcrumbPage>
+        )}
+      </BreadcrumbItem>
+      {crumbs.map((crumb, i) => {
+        const isLast = i === last;
+        return (
+          <React.Fragment key={`${i}-${crumb.label}`}>
+            <BreadcrumbSeparator className="shrink-0" />
+            <BreadcrumbItem className={isLast ? "min-w-0" : "shrink-0"}>
+              {isLast ? (
+                <BreadcrumbPage className={cn("truncate font-medium", idFace(crumb))}>
+                  {crumb.label}
+                </BreadcrumbPage>
+              ) : crumb.href ? (
+                <BreadcrumbLink asChild>
+                  <Link href={crumb.href} className={idFace(crumb)}>
+                    {crumb.label}
+                  </Link>
+                </BreadcrumbLink>
+              ) : (
+                <span className={idFace(crumb)}>{crumb.label}</span>
+              )}
+            </BreadcrumbItem>
+          </React.Fragment>
+        );
+      })}
+    </BreadcrumbList>
+  );
+}
+
+const TRAIL_ROW_ID = "chrome-trail-row";
+
+/**
+ * From `lg` the bar has room and shows the trail whole. Under it (a phone, a
+ * tablet held upright with the rail open) the language switch and the bell
+ * leave the trail a few words, and it used to answer by dropping the middle
+ * and cutting the end: "Cases › CMP/18…".
+ *
+ * So there the bar shows where you are, the last crumb, as a button (owner,
+ * Sept 21). Tapping it opens the whole trail on a row of its own under the bar.
+ * The row is in the flow, so the page moves down rather than being covered, and
+ * a long trail scrolls sideways inside it. Going anywhere closes it.
+ */
+function ChromeBreadcrumb({
+  open,
+  onToggle,
+}: {
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { crumbs, root } = useTrail();
+  const here = crumbs.length ? crumbs[crumbs.length - 1] : root;
 
   return (
-    <Breadcrumb className="min-w-0 flex-1">
-      <BreadcrumbList className="flex-nowrap">
-        <BreadcrumbItem className="shrink-0">
-          {crumbs.length && root.href ? (
-            <BreadcrumbLink asChild>
-              <Link href={root.href} className={idFace(root)}>
-                {root.label}
-              </Link>
-            </BreadcrumbLink>
-          ) : (
-            <BreadcrumbPage className={idFace(root)}>{root.label}</BreadcrumbPage>
-          )}
-        </BreadcrumbItem>
-
-        {crumbs.map((crumb, i) => {
-          const isLast = i === last;
-          return (
-            <React.Fragment key={`${i}-${crumb.label}`}>
-              {/* Middle crumbs are what a narrow bar can afford to drop: the last crumb
-                  is what orients you. */}
-              <BreadcrumbSeparator
-                className={isLast ? "shrink-0" : "hidden md:inline-flex"}
-              />
-              <BreadcrumbItem
-                className={isLast ? "min-w-0" : "hidden min-w-0 md:inline-flex"}
-              >
-                {isLast ? (
-                  <BreadcrumbPage
-                    className={cn("truncate font-medium", idFace(crumb))}
-                  >
-                    {crumb.label}
-                  </BreadcrumbPage>
-                ) : crumb.href ? (
-                  <BreadcrumbLink asChild className="truncate">
-                    <Link href={crumb.href} className={idFace(crumb)}>
-                      {crumb.label}
-                    </Link>
-                  </BreadcrumbLink>
-                ) : (
-                  <span className={cn("truncate", idFace(crumb))}>
-                    {crumb.label}
-                  </span>
+    <>
+      <Breadcrumb className="hidden min-w-0 flex-1 lg:block">
+        <TrailList />
+      </Breadcrumb>
+      <div className="flex min-w-0 flex-1 lg:hidden">
+        {crumbs.length ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={TRAIL_ROW_ID}
+            onClick={onToggle}
+            className="-mx-2 flex min-h-10 min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 text-left outline-none transition-colors active:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span className="sr-only">Show the full path. You are on </span>
+            <span className={cn("truncate text-body-compact font-medium text-foreground", idFace(here))}>
+              {here.label}
+            </span>
+            <span
+              aria-hidden
+              className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-accent-strong text-muted-foreground"
+            >
+              <ChevronDownIcon
+                className={cn(
+                  "size-3.5 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+                  open && "rotate-180"
                 )}
-              </BreadcrumbItem>
-            </React.Fragment>
-          );
-        })}
-      </BreadcrumbList>
-    </Breadcrumb>
+              />
+            </span>
+          </button>
+        ) : (
+          <span className={cn("truncate text-body-compact font-medium text-foreground", idFace(root))}>
+            {root.label}
+          </span>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -246,11 +304,21 @@ export function TopBar() {
   // A litigant's notifications are their own (empty in this demo) — no advocate alerts.
   const items = profileRole === "litigant" ? [] : notifications.items;
 
+  const { crumbs } = useChrome();
+  const pathname = usePathname();
+  // Open only for the page it was opened on: any navigation puts it away.
+  const [trailFor, setTrailFor] = React.useState<string | null>(null);
+  const trailOpen = trailFor === pathname && crumbs.length > 0;
+
   return (
     // `sticky` is positioned, so the phone search row can hang under it, full width.
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-hairline bg-card px-4 sm:px-6">
+    <header className="sticky top-0 z-30 flex shrink-0 flex-col border-b border-hairline bg-card">
+     <div className="flex h-14 shrink-0 items-center gap-3 px-4 sm:px-6">
       <NavTrigger />
-      <ChromeBreadcrumb />
+      <ChromeBreadcrumb
+        open={trailOpen}
+        onToggle={() => setTrailFor(trailOpen ? null : pathname)}
+      />
       <LanguageToggle />
       {/* The person is named once, at the foot of the rail. A second avatar here said
           the same thing twice and put two account controls on one screen. What stays is
@@ -260,6 +328,14 @@ export function TopBar() {
         onRead={notifications.markAllRead}
         onClearAll={notifications.clearStale}
       />
+     </div>
+      <Collapsible open={trailOpen} className="lg:hidden">
+        <CollapsibleContent id={TRAIL_ROW_ID} className={COLLAPSE_MOTION}>
+          <Breadcrumb className="overflow-x-auto border-t border-hairline px-4 py-3 sm:px-6">
+            <TrailList className="w-max" />
+          </Breadcrumb>
+        </CollapsibleContent>
+      </Collapsible>
     </header>
   );
 }

@@ -12,7 +12,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OverflowTabsList } from "@/components/chrome/overflow-tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   CASE_NAV_SECTIONS,
   caseSectionHref,
@@ -124,24 +125,25 @@ export function CaseSectionTabs({
       className="flex min-w-0 flex-col gap-4"
     >
       <div className={STRIP_ROW}>
-        <TabsList
-          variant="line"
+        {/* The sections that fit stay in the row; the rest fold under More
+            (owner, Sept 21), so nine destinations never scroll sideways. */}
+        <OverflowTabsList
           aria-label={STRIP_LABEL}
-          className="h-10 w-max min-w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
-        >
-          {CASE_NAV_SECTIONS.map((item) => (
-            <TabsTrigger
-              key={item.value}
-              value={item.value}
-              className={cn(
-                STRIP_ITEM,
-                "group-data-horizontal/tabs:after:-bottom-px"
-              )}
-            >
-              {item.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+          value={section}
+          onSelect={(value) => {
+            if (!isCaseSection(value)) return;
+            router.replace(caseSectionHref(caseId, value), { scroll: false });
+          }}
+          className="h-10 w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
+          triggerClassName={cn(
+            STRIP_ITEM,
+            "group-data-horizontal/tabs:after:-bottom-px"
+          )}
+          items={CASE_NAV_SECTIONS.map((item) => ({
+            value: item.value,
+            label: item.label,
+          }))}
+        />
       </div>
 
       {/* Panels for the strip's own members only. An unlisted section never

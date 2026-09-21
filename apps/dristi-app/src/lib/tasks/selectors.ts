@@ -30,22 +30,27 @@ export type DueFilter = "any" | "overdue" | "today" | "week" | "before-hearing";
 
 export type Filters = {
   view: TaskView;
-  /** One card at a time; null = every kind. */
-  kind: PillKind | null;
-  due: DueFilter;
-  /** A court name; "" = all courts. */
-  court: string;
-  /** An advocate on the case; "" = anyone. */
-  advocate: PersonId | "";
+  /**
+   * Every labelled filter holds a set, and an empty set means "any" (owner,
+   * Sept 21: checkboxes, as on the Cases filters, so any combination can be
+   * asked for). Within one filter the choices widen (Pay OR File); across
+   * filters they narrow (Pay AND overdue).
+   */
+  kinds: PillKind[];
+  /** Never holds "any": that is the empty set. */
+  dues: DueFilter[];
+  courts: string[];
+  /** Advocates on the case. */
+  advocates: PersonId[];
   query: string;
 };
 
 export const DEFAULT_FILTERS: Filters = {
   view: "needs-action",
-  kind: null,
-  due: "any",
-  court: "",
-  advocate: "",
+  kinds: [],
+  dues: [],
+  courts: [],
+  advocates: [],
   query: "",
 };
 
@@ -137,9 +142,9 @@ function matchesDue(task: Task, due: DueFilter, now: Date | string): boolean {
 /** Everything but the view and the card: the labelled filters and the search. */
 function passesFilters(task: Task, kase: Case, f: Filters, now: Date | string): boolean {
   if (!matchesSearch(task, kase, f.query)) return false;
-  if (f.court && kase.court !== f.court) return false;
-  if (f.advocate && !canView(f.advocate, kase)) return false;
-  if (!matchesDue(task, f.due, now)) return false;
+  if (f.courts.length && !f.courts.includes(kase.court)) return false;
+  if (f.advocates.length && !f.advocates.some((id) => canView(id, kase))) return false;
+  if (f.dues.length && !f.dues.some((due) => matchesDue(task, due, now))) return false;
   return true;
 }
 
@@ -179,7 +184,7 @@ export function sortTasks(world: World, tasks: Task[]): Task[] {
 export function applyFilters(world: World, f: Filters): Task[] {
   const rows = tasksInView(world, f.view).filter((t) => {
     const kase = caseOf(world, t)!;
-    if (f.kind && cardKindOf(t) !== f.kind) return false;
+    if (f.kinds.length && !f.kinds.includes(cardKindOf(t) as PillKind)) return false;
     return passesFilters(t, kase, f, world.now);
   });
   return sortTasks(world, rows);
@@ -310,5 +315,11 @@ export function courtsOf(world: World): string[] {
 
 /** Whether anything narrows the view beyond the tab (for "Clear filters" and the empty state). */
 export function isNarrowed(f: Filters): boolean {
-  return !!f.kind || f.due !== "any" || !!f.court || !!f.advocate || !!f.query.trim();
+  return (
+    f.kinds.length > 0 ||
+    f.dues.length > 0 ||
+    f.courts.length > 0 ||
+    f.advocates.length > 0 ||
+    !!f.query.trim()
+  );
 }

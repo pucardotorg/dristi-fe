@@ -51,10 +51,14 @@ export function RegisterFilter({
           type="button"
           variant="outline"
           size="sm"
-          className="max-w-full gap-1.5 font-normal max-sm:h-10"
+          // On a phone the filter fills its grid cell (see `REGISTER_FILTER_ROW`),
+          // label and value at the start, chevron at the far end.
+          className="max-w-full gap-1.5 font-normal max-sm:h-10 max-sm:w-full max-sm:justify-between"
         >
-          <span className="text-muted-foreground">{label}</span>
-          <span className="truncate font-medium">{summary}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="truncate font-medium">{summary}</span>
+          </span>
           <ChevronDownIcon
             aria-hidden
             className="text-muted-foreground"

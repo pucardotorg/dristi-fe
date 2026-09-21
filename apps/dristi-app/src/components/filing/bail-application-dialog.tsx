@@ -16,6 +16,8 @@ import {
   ChromeAlertDialogContent,
   ChromeDialogContent,
 } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -432,6 +434,21 @@ export function BailApplicationDialog({
     else closeNow();
   }
 
+  /* On a phone this is a window that slid in, and the phone's own Back works
+     the way the footer does: Cancel on the first step (so the discard warning
+     still guards typed work), the previous step after that. A filed
+     application has nothing to go back to, so Back closes it. */
+  const { phone } = useFlowWindow();
+  useBackCloses(phone && open, () => {
+    if (discardOpen) setDiscardOpen(false);
+    else if (reviewFullscreen) setReviewFullscreen(false);
+    else if (stage === "sureties") setStage("details");
+    else if (stage === "review") setStage("sureties");
+    else if (stage === "sign") setStage("review");
+    else if (stage === "payment") setStage("sign");
+    else handleOpenChange(false);
+  });
+
   function choosePetitioner(id: string) {
     setPetitionerId(id);
     const entry = BAIL_PETITIONERS.find((option) => option.id === id);
@@ -511,7 +528,7 @@ export function BailApplicationDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         onInteractOutside={(event) => event.preventDefault()}
@@ -1311,7 +1328,7 @@ export function BailApplicationDialog({
             </>
           ) : null}
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
 
     <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>

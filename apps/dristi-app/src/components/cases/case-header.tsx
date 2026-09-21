@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { PAGE_BACK_COLUMN, PAGE_BACK_ROW } from "@/components/shell/page-back-button";
 import { derivedAccessPeople } from "@/lib/access/derived";
 import {
   caseNumberHistory,
@@ -77,29 +78,33 @@ export function CaseHeader({
       {/* Centred on the number-and-title block, so the actions sit on the plane
           between the two lines rather than hanging off the number (owner, Sept 18). */}
       <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex min-w-0 flex-col gap-1">
-          {/* Without parties the title already *is* the number. Only the latest
-              number shows (DET-01); the older ones sit behind the icon. */}
-          {/* The way back rides the number line, so it costs the header no
-              row of its own. */}
-          <div className="flex min-h-8 items-center gap-1">
+        {/* The way back in its own column, on the title's line. The case
+            number sits UNDER the title (owner, Sept 21): the parties are what
+            the person looks for, the number confirms it. */}
+        <div className={PAGE_BACK_ROW}>
+          <div className={PAGE_BACK_COLUMN}>
             <CaseBackButton />
-            {hasParties ? (
-              <CaseNumberLine
-                caseNumber={record.caseNumber}
-                history={numberHistory}
-              />
-            ) : null}
           </div>
-          <span className="flex flex-wrap items-center gap-2">
-            <h1 className="text-title font-semibold">{title}</h1>
-            {hideLongPendingFlag ? null : <CaseFlags record={record} />}
-          </span>
-          {hasParties ? null : (
-            <p className="text-body-compact text-muted-foreground">
-              Parties not yet recorded
-            </p>
-          )}
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <h1 className="text-title font-semibold">{title}</h1>
+              {hideLongPendingFlag ? null : <CaseFlags record={record} />}
+            </span>
+            {/* Without parties the title already *is* the number. Only the latest
+                number shows (DET-01); the older ones sit behind the icon. */}
+            {hasParties ? (
+              <div className="flex min-h-6 items-center">
+                <CaseNumberLine
+                  caseNumber={record.caseNumber}
+                  history={numberHistory}
+                />
+              </div>
+            ) : (
+              <p className="text-body-compact text-muted-foreground">
+                Parties not yet recorded
+              </p>
+            )}
+          </div>
         </div>
 
         <CaseHeaderActions
@@ -119,7 +124,7 @@ export function CaseHeader({
       {/* Fixed 16rem columns from `md:`. Packed at 2rem apart the facts read
           as crammed; as equal thirds of the row they drifted apart. This is
           the owner's middle ground (Sept 18). */}
-      <dl className="flex min-w-0 flex-wrap gap-x-8 gap-y-3 md:grid md:auto-cols-[minmax(0,16rem)] md:grid-flow-col md:justify-start">
+      <dl className="flex min-w-0 flex-col divide-y divide-hairline border-y border-hairline md:divide-y-0 md:border-y-0 md:gap-x-8 md:grid md:auto-cols-[minmax(0,16rem)] md:grid-flow-col md:justify-start">
         {hasParties ? null : (
           <HeaderFact label="Case number">
             <CaseNumberLine
@@ -178,13 +183,16 @@ function HeaderFact({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-caption font-medium text-muted-foreground">
+    /* Below `md`: a row, label left and value right, ruled off from its
+       neighbours. Wrapped as loose label-over-value pairs, two landed on one
+       line and the third alone, and the block read as jumbled (owner, Sept 21). */
+    <div className="flex min-w-0 items-center justify-between gap-4 py-2 md:flex-col md:items-stretch md:justify-start md:gap-1 md:py-0">
+      <dt className="shrink-0 text-caption font-medium text-muted-foreground">
         {label}
       </dt>
       {/* min-h-6 keeps every value on one baseline; the counsel +N chip
           reaches its 40px target through its own `after:` inset. */}
-      <dd className="flex min-h-6 items-center gap-1 text-body-compact font-medium text-foreground">
+      <dd className="flex min-h-6 min-w-0 items-center gap-1 text-body-compact font-medium text-foreground max-md:justify-end">
         {children}
       </dd>
     </div>

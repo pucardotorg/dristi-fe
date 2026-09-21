@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  PanelLeftOpenIcon,
+} from "lucide-react";
 
 import { DigitalRecord } from "@/components/cases/digital-record";
 import { DocumentPreviewActions } from "@/components/cases/document-preview";
@@ -133,9 +138,15 @@ export function CaseFile({
           <Button
             type="button"
             variant="outline"
-            className="w-full shrink-0 sm:w-auto md:hidden"
+            className="w-full shrink-0 justify-between sm:w-auto sm:justify-center md:hidden"
           >
-            Browse case file
+            {/* The panel glyph says where the list comes from: a side panel
+                from the left, not a page and not a menu (owner, Sept 21). */}
+            <span className="flex items-center gap-2">
+              <PanelLeftOpenIcon aria-hidden />
+              Browse case file
+            </span>
+            <ChevronRightIcon aria-hidden className="text-muted-foreground sm:hidden" />
           </Button>
         </SheetTrigger>
         <SheetContent
@@ -179,8 +190,12 @@ export function CaseFile({
           className="hidden self-stretch bg-hairline md:block"
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-1">
+          {/* One wrapping row at every width: the name on the left, the switch
+              and the two actions at the far end. When a long name leaves no
+              room they drop to their own line and still keep the far end
+              (owner, Sept 21: stacked on the left they read as stray). */}
+          <div className="flex shrink-0 flex-row flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
               <h2 className="min-w-0 text-body font-semibold">
                 {selected && !isCaseFileFolder(selected)
                   ? selected.label
@@ -197,7 +212,7 @@ export function CaseFile({
               ) : null}
             </div>
             {isLeaf ? (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="ml-auto flex items-center gap-2">
                 <DocumentViewSwitch
                   view={view}
                   onViewChange={(next) => {

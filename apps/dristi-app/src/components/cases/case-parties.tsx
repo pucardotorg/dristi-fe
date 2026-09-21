@@ -44,6 +44,9 @@ export function CaseParties({
         court: record.court,
       }}
       selectedId={resolveSelection(file, selectedId)}
+      /* Whether the URL names someone, as opposed to the default first row:
+         a phone opens the details drawer only for a choice. */
+      chosen={selectedId !== undefined}
     />
   );
 }

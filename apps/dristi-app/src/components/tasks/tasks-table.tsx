@@ -8,10 +8,15 @@ import { canArchive, verbFor, whoCanActOn } from "@/lib/tasks/permissions";
 import { BANDED_VIEWS, bandByDue, type DueBand, type DueBucket } from "@/lib/tasks/selectors";
 import type { Case, Person, Task, TaskId, TaskView, Verb } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
-import { useMinWidth } from "@/hooks/use-min-width";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Empty,
   EmptyContent,
@@ -38,6 +43,8 @@ import {
   tableRowClass,
 } from "@/components/chrome/table-plate";
 import { Identifier } from "@/components/chrome/identifier";
+import { TABLE_QUERY } from "@/components/cases/cases-layout";
+import { COLLAPSE_MOTION } from "@/components/cases/motion";
 import { PANEL_CLASS } from "@/components/shell/panel";
 import { AdvocateStack } from "@/components/tasks/advocate-stack";
 
@@ -222,11 +229,15 @@ function BandLabel({
   id,
   heading,
   open = true,
+  loose = false,
   onToggle,
 }: {
   band: DueBand;
   id: string;
   heading?: boolean;
+  /** Over a run of separate cards rather than inside the table's panel: no
+   *  rule or panel inset, since the cards below draw their own edges. */
+  loose?: boolean;
   /** Whether the band's rows are showing. */
   open?: boolean;
   onToggle?: () => void;
@@ -235,7 +246,13 @@ function BandLabel({
   const label = (
     <span
       id={id}
-      className={cn("text-caption font-semibold", hot ? "text-destructive-ink" : "text-foreground")}
+      className={cn(
+        "font-semibold",
+        /* Over loose cards the header is the only thing naming the group, so it
+           steps up to the compact body size (owner, Sept 21). */
+        loose ? "text-body-compact" : "text-caption",
+        hot ? "text-destructive-ink" : "text-foreground"
+      )}
     >
       {band.label}
     </span>
@@ -244,16 +261,33 @@ function BandLabel({
     <>
       {heading ? <h3 className="contents">{label}</h3> : label}
       <span className="text-caption tabular-nums text-muted-foreground">{band.tasks.length}</span>
-      <ChevronDownIcon
-        aria-hidden
-        className={cn(
-          "ml-auto size-4 shrink-0 text-muted-foreground transition-transform",
-          !open && "-rotate-90"
-        )}
-      />
+      {loose ? (
+        /* The Home hearing cards' disclosure: the chevron in a small disc. */
+        <span
+          aria-hidden
+          className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-accent-strong text-muted-foreground"
+        >
+          <ChevronDownIcon
+            className={cn(
+              "size-3.5 transition-transform duration-200 motion-reduce:transition-none",
+              !open && "-rotate-90"
+            )}
+          />
+        </span>
+      ) : (
+        <ChevronDownIcon
+          aria-hidden
+          className={cn(
+            "ml-auto size-4 shrink-0 text-muted-foreground transition-transform",
+            !open && "-rotate-90"
+          )}
+        />
+      )}
     </>
   );
-  const shell = "flex w-full items-center gap-2 border-b border-hairline px-4 pt-4 pb-2 text-left";
+  const shell = loose
+    ? "flex min-h-10 w-full items-center gap-2 rounded-lg px-1 text-left"
+    : "flex w-full items-center gap-2 border-b border-hairline px-4 pt-4 pb-2 text-left";
   if (!onToggle) return <div className={shell}>{body}</div>;
   return (
     <button
@@ -314,7 +348,9 @@ export type TasksTableProps = {
  */
 export function TasksTable(props: TasksTableProps) {
   const { rows, emptyKind, query, view, onClearFilters } = props;
-  const wide = useMinWidth(768);
+  // The Cases page's rule: a table with a mouse or on a tablet's side, cards
+  // under a finger held upright and on any phone.
+  const wide = useMediaQuery(TABLE_QUERY);
   const listRef = React.useRef<HTMLDivElement>(null);
 
   const focusRow = React.useCallback((index: number) => {
@@ -405,11 +441,19 @@ export function TasksTable(props: TasksTableProps) {
     // the viewport, so which columns fit has to answer to the table's own width. The
     // clip is for the stacked list, which runs its rows and band strips full-bleed into
     // the card's rounded corners; the wide table is inset and rounds its own well.
-    <Card className={cn(PANEL_CLASS, "@container gap-0 overflow-clip py-0")}>
+    wide ? (
+      <Card className={cn(PANEL_CLASS, "@container gap-0 overflow-clip py-0")}>
+        <div ref={listRef} onKeyDown={onKeyDown}>
+          <WideTable {...props} />
+        </div>
+      </Card>
+    ) : (
+      // Cards stand on the page's ground themselves; a panel around them would
+      // be a box of boxes.
       <div ref={listRef} onKeyDown={onKeyDown}>
-        {wide ? <WideTable {...props} /> : <StackedRows {...props} />}
+        <TaskCards {...props} />
       </div>
-    </Card>
+    )
   );
 }
 
@@ -636,8 +680,19 @@ function WideRow({ ctx, task }: { ctx: RowCtx; task: Task }) {
   );
 }
 
-/** Below `md`: the same columns as labelled stacked rows — one fact per line. */
-function StackedRows(props: TasksTableProps) {
+/**
+ * Touch screens, and anything under `md`: one card per task, grouped under the
+ * same due bands (owner, Sept 21). The stacked rows this replaces were the
+ * table stood on end: a label for every fact, and the verb always on show at
+ * the foot of a tall block.
+ *
+ * A card carries what the person scans for, in the order they scan: what to
+ * do, how late it is, then which case and who can act. No labels, because on
+ * a card the value says what it is. The verb waits in a tray that slides out
+ * from under the card on tap, the move the advocate Home hearing cards make, so the
+ * list stays a list and only the task in hand shows its action.
+ */
+function TaskCards(props: TasksTableProps) {
   const { rows, cases, user, now, view, banded = true } = props;
   const caseById = React.useMemo(() => new Map(cases.map((c) => [c.id, c])), [cases]);
   const anySelectable = rows.some((t) => {
@@ -646,6 +701,9 @@ function StackedRows(props: TasksTableProps) {
   });
   const bands = bandsOf(rows, view, now, banded);
   const { folded, toggleBand, shown } = useFoldedBands(bands);
+  // One tray at a time: a second open card would push the verb of the first
+  // off the screen of a phone.
+  const [openId, setOpenId] = React.useState<TaskId | null>(null);
   const ctx: RowCtx = {
     ...props,
     caseById,
@@ -654,23 +712,45 @@ function StackedRows(props: TasksTableProps) {
     actorsShown: ACTOR_VIEWS.has(view),
     indexById: indexOf(shown(rows)),
   };
-  if (!bands) return <StackedList ctx={ctx} tasks={rows} />;
+  const list = (tasks: Task[]) => (
+    <ul className="flex flex-col gap-3">
+      {tasks.map((task) => (
+        <TaskCard
+          key={task.id}
+          ctx={ctx}
+          task={task}
+          open={openId === task.id}
+          onOpenChange={(open) => setOpenId(open ? task.id : null)}
+        />
+      ))}
+    </ul>
+  );
+  if (!bands) return list(rows);
   return (
-    <div>
+    /* Ruled off from one another: folded, the headers are all that is left, and
+       three bare labels floating 24px apart read as unfinished (owner, Sept 21).
+       A hairline between groups makes the folded stack a list. */
+    <div className="flex flex-col divide-y divide-hairline">
       {bands.map((band) => {
         const open = !folded.has(band.bucket);
         return (
           /* A group, not a landmark: five date bands would put five regions in the
              phone's landmark list, none of which is a section of the page. */
-          <div key={band.bucket} role="group" aria-labelledby={`band-${band.bucket}`}>
+          <div
+            key={band.bucket}
+            role="group"
+            aria-labelledby={`band-${band.bucket}`}
+            className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0"
+          >
             <BandLabel
               band={band}
               id={`band-${band.bucket}`}
               heading
+              loose
               open={open}
               onToggle={() => toggleBand(band.bucket)}
             />
-            {open ? <StackedList ctx={ctx} tasks={band.tasks} /> : null}
+            {open ? list(band.tasks) : null}
           </div>
         );
       })}
@@ -678,94 +758,142 @@ function StackedRows(props: TasksTableProps) {
   );
 }
 
-function StackedList({ ctx, tasks }: { ctx: RowCtx; tasks: Task[] }) {
+function TaskCard({
+  ctx,
+  task,
+  open,
+  onOpenChange,
+}: {
+  ctx: RowCtx;
+  task: Task;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const { caseById, indexById, people, user, now, view, selected, offline, fifthHead, actorsShown, onVerb, onToggleSelect } = ctx;
+  const kase = caseById.get(task.caseId);
+  if (!kase) return null;
+  const verb = verbFor(user, task, kase);
+  const selectable = canArchive(user, task, kase);
+  const isSelected = selected.has(task.id);
+  const fifth = fifthCellOf(view, task, kase, people);
+  const note = secondLineOf(task, user, people);
+  const due = dueCueOf(task, now);
+
   return (
-    <ul className="divide-y divide-hairline">
-      {tasks.map((task) => {
-        const index = indexById.get(task.id) ?? 0;
-        const kase = caseById.get(task.caseId);
-        if (!kase) return null;
-        const verb = verbFor(user, task, kase);
-        const selectable = canArchive(user, task, kase);
-        const isSelected = selected.has(task.id);
-        const fifth = fifthCellOf(view, task, kase, people);
-        const note = secondLineOf(task, user, people);
-        return (
-          <li
-            key={task.id}
-            data-task-row
-            data-task-id={task.id}
-            data-index={index}
-                  className={cn(
-              "flex flex-col gap-3 px-4 py-4 transition-colors",
-              isSelected ? "bg-accent-strong" : "bg-transparent"
-            )}
-            onClick={(event) => {
-              const target = event.target as HTMLElement;
-              if (target.closest("button, a, [role=checkbox], label")) return;
-              onVerb(task, verb);
-            }}
-          >
-            <div className="flex items-start gap-3">
-              {selectable ? (
-                <span className="flex size-10 shrink-0 items-center justify-center -my-2.5 -ml-2.5">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleSelect(task)}
-                    aria-label={`Select: ${task.title}`}
-                  />
-                </span>
-              ) : null}
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+    <li data-task-row data-task-id={task.id} data-index={indexById.get(task.id) ?? 0}>
+      <Collapsible open={open} onOpenChange={onOpenChange} className="min-w-0">
+        {/* The card sits above its tray; the tray is inset and squared at the
+            top, so it reads as sliding out from under the card. */}
+        <div
+          className={cn(
+            PANEL_CLASS,
+            "relative z-10 flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors has-[[data-task-title]:active]:bg-accent",
+            (isSelected || open) && "border-border",
+            isSelected && "bg-accent-strong"
+          )}
+        >
+          <div className="flex items-start gap-3">
+            {selectable ? (
+              <span className="relative z-10 flex shrink-0 items-center">
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => onToggleSelect(task)}
+                  aria-label={`Select: ${task.title}`}
+                  className="size-5"
+                />
+              </span>
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              {/* The title is the one control on the card: its hit area is the whole
+                  card, and it opens the tray. */}
+              <CollapsibleTrigger asChild>
                 <button
                   type="button"
                   data-task-title
-                  onClick={() => onVerb(task, verb)}
-                  className="rounded-sm text-left text-body-compact font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="rounded-sm text-left text-body font-semibold break-words text-foreground outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   {task.title}
                 </button>
-                {note ? <span className="text-caption text-muted-foreground">{note}</span> : null}
-              </div>
+              </CollapsibleTrigger>
+              {note ? <span className="text-caption text-muted-foreground">{note}</span> : null}
+              {/* How late, then the date it is counted from, on one line. */}
+              <span className="text-body-compact tabular-nums">
+                <span
+                  className={cn(
+                    due.overdue
+                      ? "font-medium text-destructive-ink"
+                      : due.date
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground"
+                  )}
+                >
+                  {due.primary}
+                </span>
+                {due.date ? (
+                  <span className="text-muted-foreground">
+                    <span aria-hidden> · </span>
+                    {due.date}
+                  </span>
+                ) : null}
+              </span>
             </div>
-            <dl className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
-              <dt className="text-caption text-muted-foreground">Case</dt>
-              <dd>
-                <CaseCell kase={kase} />
-              </dd>
-              <dt className="text-caption text-muted-foreground">Due</dt>
-              <dd>
-                <DueCell task={task} now={now} />
-              </dd>
-              {actorsShown ? (
-                <>
-                  <dt className="text-caption text-muted-foreground">Who can act</dt>
-                  <dd>
-                    <AdvocateStack
-                      kase={kase}
-                      people={people}
-                      user={user}
-                      advocates={whoCanActOn(task, kase, people)}
-                      label="Who can act"
-                    />
-                  </dd>
-                </>
-              ) : null}
+            {/* Bare on the card; the disc belongs to the group headers only
+                (owner, Sept 21). */}
+            <ChevronDownIcon
+              aria-hidden
+              className={cn(
+                "mt-1 size-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+                open && "rotate-180"
+              )}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-hairline pt-3">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-body-compact text-foreground">{kase.parties}</span>
+              <span className="text-caption text-muted-foreground">
+                {kase.stNumber ? (
+                  <Identifier value={kase.stNumber} label="case number" copyable={false} />
+                ) : (
+                  "Not yet numbered"
+                )}
+                <span aria-hidden> · </span>
+                {courtShort(kase.court)}
+              </span>
               {fifthHead && fifth ? (
-                <>
-                  <dt className="text-caption text-muted-foreground">{fifthHead}</dt>
-                  <dd className="text-body-compact text-foreground">{fifth}</dd>
-                </>
+                <span className="text-caption text-muted-foreground">
+                  {fifthHead}: <span className="text-foreground">{fifth}</span>
+                </span>
               ) : null}
-            </dl>
-            <div className="flex justify-end">
-              <VerbButton verb={verb} size="default" disabled={offline} onClick={() => onVerb(task, verb)} />
             </div>
-          </li>
-        );
-      })}
-    </ul>
+            {actorsShown ? (
+              <div className="relative z-10 shrink-0">
+                <AdvocateStack
+                  kase={kase}
+                  people={people}
+                  user={user}
+                  advocates={whoCanActOn(task, kase, people)}
+                  label="Who can act"
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <CollapsibleContent className={cn(COLLAPSE_MOTION, "mx-3")}>
+          <div className="flex items-center gap-2 rounded-b-xl bg-secondary p-3">
+            <Button
+              type="button"
+              variant={verb === "View" ? "outline" : "default"}
+              disabled={offline}
+              className="flex-1"
+              onClick={() => onVerb(task, verb)}
+            >
+              {verb}
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </li>
   );
 }
 

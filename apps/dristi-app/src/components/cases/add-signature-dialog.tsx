@@ -10,7 +10,7 @@ import {
   XCircleIcon,
 } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { SignMethodCard } from "@/components/cases/party-application";
 import {
@@ -200,7 +200,7 @@ export function AddSignatureDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
         // Radix's own restore lands on document.body here, so put focus back
         // on the button that opened the chain explicitly.
@@ -547,7 +547,7 @@ export function AddSignatureDialog({
             )}
           </footer>
         ) : null}
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

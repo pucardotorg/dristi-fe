@@ -176,7 +176,12 @@ function TypeSection({
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
-      <h2 id={headingId} className="text-body font-semibold">
+      {/* The card titles' size in the muted ink (owner, Sept 21): a label over
+          a group, quieter than the cards it names. */}
+      <h2
+        id={headingId}
+        className="text-body-compact font-semibold text-muted-foreground"
+      >
         {title}
       </h2>
       <TypeGrid

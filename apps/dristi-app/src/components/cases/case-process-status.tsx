@@ -43,6 +43,11 @@ import {
 import { hearingHref, orderHref } from "@/lib/cases/sections";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import {
+  REGISTER_CARD_STATIC,
+  REGISTER_CARDS_ONLY,
+  REGISTER_TABLE_ONLY,
+} from "@/components/cases/register-layout";
 import { COLLAPSE_MOTION } from "@/components/cases/motion";
 
 /**
@@ -223,6 +228,52 @@ function Round({
             </Fact>
           </dl>
 
+          {/* Under a finger held upright: a small well per channel. Channel and
+              status share the first line, then where it went and when, then
+              the remark in full. */}
+          <ul className={cn("flex flex-col gap-2", REGISTER_CARDS_ONLY)}>
+            {round.channels.map((channel) => {
+              const status = channelStatusView(channel.status);
+              return (
+                <li key={channel.type} className={REGISTER_CARD_STATIC}>
+                  {/* Three ruled bands, so the eye has steps to take: what and
+                      how it stands, then where and when as labelled facts,
+                      then the remark (owner, Sept 21: one undivided block
+                      read as cramped). */}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-body-compact font-semibold text-foreground">
+                      {channel.type}
+                    </span>
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                  </div>
+                  <dl className="flex flex-col gap-2 border-t border-hairline pt-3">
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="shrink-0 text-caption text-muted-foreground">
+                        Sent to
+                      </dt>
+                      <dd className="text-right text-body-compact text-foreground">
+                        {channel.destination}
+                      </dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <dt className="shrink-0 text-caption text-muted-foreground">
+                        Status date
+                      </dt>
+                      <dd className="text-body-compact tabular-nums text-foreground">
+                        {channel.statusOn}
+                      </dd>
+                    </div>
+                  </dl>
+                  {channel.remarks ? (
+                    <p className="border-t border-hairline pt-3 text-body-compact text-muted-foreground">
+                      {channel.remarks}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+          <div className={REGISTER_TABLE_ONLY}>
           <Table>
             <TableHeader>
               <TableRow className={TABLE_HEAD_ROW}>
@@ -279,6 +330,7 @@ function Round({
               })}
             </TableBody>
           </Table>
+          </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
