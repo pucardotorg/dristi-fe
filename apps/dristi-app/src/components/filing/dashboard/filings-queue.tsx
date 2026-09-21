@@ -334,8 +334,9 @@ export function FilingsQueue({
                   open={tray.isOpen(row.id)}
                   onOpenChange={tray.toggle(row.id)}
                   marked={selected.has(row.id)}
-                  // A light teal wash and a thin teal edge, the Cheque bounce row's own
-                  // pair: `accent-strong` read as a heavy beige slab on a phone.
+                  // OPEN DECISION (see PR #31): selected is a light teal wash here, while
+                  // Cases and Pending tasks keep the DS beige `accent-strong`. The product
+                  // needs one; settle it before copying either to another screen.
                   className={cn(
                     "relative",
                     selected.has(row.id) && "border-primary/40 bg-brand-muted/50"
@@ -520,8 +521,8 @@ export function FilingsQueue({
                 {slice.map((row) => (
                   <TableRow
                     key={row.id}
-                    // Selected: the cards' light teal wash, not the DS `accent-strong`, which
-                    // read as a heavy beige band across the table.
+                    // OPEN DECISION (see PR #31): the cards' light teal wash, not the DS
+                    // beige `accent-strong` that Cases and Pending tasks still use.
                     className="relative border-hairline data-[state=selected]:bg-brand-muted/50 data-[state=selected]:hover:bg-brand-muted/75"
                     data-state={selected.has(row.id) ? "selected" : undefined}
                   >
