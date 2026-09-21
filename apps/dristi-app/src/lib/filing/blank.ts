@@ -195,7 +195,7 @@ export function intakeChequeGroup(n: number): IntakeGroup {
         key: `c${n}f`,
         docType: "cheque-front",
         label: "Cheque (front side)",
-        desc: "The bounced cheque, front side — a photo or scan.",
+        desc: "The bounced cheque, front side. A photo or scan.",
         required: true,
         file: null,
       },
@@ -386,13 +386,13 @@ export function buildDocumentGroups(draft: FilingDraft): DocumentGroup[] {
     const n = i + 1;
     const id = `complainant-${n}`;
     const specs: DocSpec[] = [
-      { name: "Identity proof — complainant", required: true, intakeKey: `p${n}id` },
+      { name: "Identity proof: complainant", required: true, intakeKey: `p${n}id` },
       { name: "Power of attorney", required: c.poa === "yes", intakeKey: `p${n}poa` },
       { name: "Vakalatnama", required: c.pip !== "yes", intakeKey: `p${n}vak` },
     ];
     groups.push({
       id,
-      title: `Complainant ${n} — documents`,
+      title: `Complainant ${n}: documents`,
       docs: [
         ...specs.map((s) => docRow(s, findExisting(id, s), resolveSlot(s.intakeKey))),
         ...customOf(id),

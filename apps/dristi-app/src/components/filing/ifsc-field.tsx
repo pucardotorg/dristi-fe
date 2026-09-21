@@ -130,12 +130,12 @@ export function IfscField({
     status === "not-found"
       ? {
           tone: "warning" as const,
-          text: "We couldn't find this IFSC — check the code, or type the bank details",
+          text: "We couldn't find this IFSC. Check the code, or type the bank details",
         }
       : status === "error"
         ? {
             tone: "warning" as const,
-            text: "Couldn't reach the IFSC registry — type the bank details below",
+            text: "Couldn't reach the IFSC registry. Type the bank details below",
           }
         : fetched && status === "idle"
           ? {

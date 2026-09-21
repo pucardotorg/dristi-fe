@@ -184,7 +184,7 @@ export function AdvocateSection() {
             }
           >
             {allInPerson
-              ? "This filing has no advocate on record — you conduct the case yourself."
+              ? "This filing has no advocate on record. You conduct the case yourself."
               : `${pipLabels.join(" and ")} ${
                   pipLabels.length > 1 ? "conduct" : "conducts"
                 } the case in person, so no advocate goes on record for them.`}{" "}

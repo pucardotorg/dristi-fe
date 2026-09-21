@@ -141,7 +141,7 @@ export function FormField({
       <span className="sr-only">
         {resolved
           ? " by scrutiny, and corrected in the corrections panel"
-          : " by scrutiny — correct it in the corrections panel"}
+          : " by scrutiny. Correct it in the corrections panel"}
       </span>
     </span>
   ) : null;

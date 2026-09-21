@@ -315,7 +315,7 @@ export function AccusedSection() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <ChromeDialogContent aria-describedby={confirmStatementId} className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Confirm — proceed without details</DialogTitle>
+            <DialogTitle>Confirm: proceed without details</DialogTitle>
           </DialogHeader>
           <Label
             htmlFor={confirmCheckboxId}

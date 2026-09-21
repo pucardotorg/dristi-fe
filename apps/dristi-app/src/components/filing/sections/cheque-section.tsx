@@ -382,7 +382,7 @@ export function ChequeSection() {
                   label="Bank name"
                   name="bankName"
                   required
-                  tip="The bank written on the cheque — i.e. the drawer's (accused's) bank."
+                  tip="The bank written on the cheque, i.e. the drawer's (accused's) bank."
                 >
                   <TextField
                     value={cheque.bankName}
@@ -396,7 +396,7 @@ export function ChequeSection() {
                   label="Bank branch"
                   name="bankBranch"
                   required
-                  tip="The branch written on the cheque — i.e. the drawer's (accused's) branch."
+                  tip="The branch written on the cheque, i.e. the drawer's (accused's) branch."
                 >
                   <TextField
                     value={cheque.bankBranch}
@@ -414,7 +414,7 @@ export function ChequeSection() {
             <InfoWell>
               <CreditCardIcon className="size-5 shrink-0" aria-hidden />
               <p className="min-w-0 flex-1 text-body">
-                Using bank details from Cheque {index} —{" "}
+                Using bank details from Cheque {index}:{" "}
                 <span className="font-semibold">{inheritedBank}</span>
                 {previous?.bankBranch ? `, ${previous.bankBranch}` : ""}.
               </p>

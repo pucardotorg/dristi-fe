@@ -51,34 +51,34 @@ function docSvg(title: string, lines: [string, string][]): Blob {
 
 const PAGES: Record<string, () => Blob> = {
   [SCRUTINY_FILES.cheque1.id]: () =>
-    docSvg("Kerala Gramin Bank — Chalakudy", [
+    docSvg("Kerala Gramin Bank, Chalakudy", [
       ["Pay", "Sainaba K."],
       ["Rupees", "Two lakh forty thousand only"],
       ["Date", "14 / 05 / 2026"],
       ["Cheque no.", "447162"],
     ]),
   [SCRUTINY_FILES.cheque2.id]: () =>
-    docSvg("Kerala Gramin Bank — Kodungallur town branch", [
+    docSvg("Kerala Gramin Bank, Kodungallur town branch", [
       ["Pay", "Sainaba K."],
       ["Rupees", "One lakh eighty-five thousand only"],
       ["Date", "02 / 06 / 2026"],
       ["Cheque no.", "447163"],
     ]),
   [SCRUTINY_FILES.memo2.id]: () =>
-    docSvg("Cheque return memo — cheque 447163", [
+    docSvg("Cheque return memo: cheque 447163", [
       ["Amount", "1,85,000.00"],
       ["Presented on", "09 / 06 / 2026"],
       ["Returned on", "11 / 06 / 2026"],
       ["Reason", "Funds insufficient"],
     ]),
   [SCRUTINY_FILES.adCard.id]: () =>
-    docSvg("Acknowledgement due — RP 4471 8820 3IN", [
+    docSvg("Acknowledgement due: RP 4471 8820 3IN", [
       ["Addressee", "Riyas M."],
       ["Delivered on", "(cut off at the fold)"],
       ["Signature", "(cut off at the fold)"],
     ]),
   [SCRUTINY_FILES.ifscEvidence.id]: () =>
-    docSvg("Branch certificate — Kerala Gramin Bank", [
+    docSvg("Branch certificate: Kerala Gramin Bank", [
       ["Branch", "Kodungallur town"],
       ["IFSC", "KLGB0040213"],
       ["MICR", "680487002"],

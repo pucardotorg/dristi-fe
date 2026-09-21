@@ -240,7 +240,7 @@ export function ComboField({
   items,
   onSelect,
   placeholder = "Search or type",
-  emptyLabel = "No match — what you typed is kept.",
+  emptyLabel = "No match. What you typed is kept.",
   renderItem,
   itemKey = (item) => String(item),
   itemLabel = (item) => String(item),

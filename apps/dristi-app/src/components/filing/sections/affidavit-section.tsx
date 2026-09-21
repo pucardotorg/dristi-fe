@@ -69,7 +69,7 @@ export function AffidavitSection() {
           title="Affidavit of fact"
           description={
             edited
-              ? "Your wording — it no longer follows the rest of the filing."
+              ? "Your wording. It no longer follows the rest of the filing."
               : "Written from your case details, and follows them until you edit it."
           }
         >

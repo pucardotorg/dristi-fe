@@ -293,7 +293,7 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
       ]),
       files: [],
       noSourceText:
-        "Drafted from your case — there is no uploaded source document for this section.",
+        "Drafted from your case. There is no uploaded source document for this section.",
     },
     witnesses: {
       title: "Witnesses",
@@ -305,7 +305,7 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
         ])
       ),
       files: [],
-      noSourceText: "Witness details are entered by hand — there is no source document.",
+      noSourceText: "Witness details are entered by hand. There is no source document.",
     },
     documents: {
       title: "Documents",
@@ -494,7 +494,7 @@ export function PreviewSection() {
                 ))
               ) : (
                 <p className="text-body-compact text-muted-foreground">
-                  No advocate added — the complainant appears as a party in person.
+                  No advocate added. The complainant appears as a party in person.
                 </p>
               )}
             </FormCard>
@@ -736,7 +736,7 @@ export function PreviewSection() {
             ) : panel ? (
               <p className="rounded-lg bg-surface-sunken p-4 text-body-compact text-muted-foreground">
                 {panel.noSourceText ??
-                  "Nothing has been uploaded for this section yet — you can add it in Case documents."}
+                  "Nothing has been uploaded for this section yet. You can add it in Case documents."}
               </p>
             ) : null}
           </div>

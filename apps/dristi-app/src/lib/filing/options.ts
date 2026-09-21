@@ -292,13 +292,13 @@ export const COURT_FEE_LINES: FeeLine[] = [
   { key: "legal-benefit", label: "Legal Benefit Fund", amount: 25 },
   { key: "advocate-welfare", label: "Advocate Welfare Fund", amount: 25 },
   { key: "clerk-welfare", label: "Advocate Clerk Welfare Fund", amount: 25 },
-  { key: "delay-notice", label: "Court fee — delay notice", amount: 1 },
+  { key: "delay-notice", label: "Court fee: delay notice", amount: 1 },
 ];
 
 /** Charged only when the complaint is filed after the one-month limitation period. */
 export const CONDONATION_FEE: FeeLine = {
   key: "condonation",
-  label: "Application fee — condonation of delay",
+  label: "Application fee: condonation of delay",
   amount: 25,
   note: "Charged because this complaint is being filed after the limitation period.",
 };
@@ -319,7 +319,7 @@ export const CHANNEL_FEE: FeeLine = {
   label: `${DELIVERY_CHANNEL} delivery of summons`,
   amount: 100,
   perAddress: true,
-  note: "Placeholder e-post rate — the real charge is still to come.",
+  note: "Placeholder e-post rate. The real charge is still to come.",
 };
 
 /**

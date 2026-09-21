@@ -123,7 +123,7 @@ describe("each tab has its own order, and the default is the useful one", () => 
       (r) => r.urgencyAt === "9999-12-31" && r.info.lead !== "Awaiting listing"
     );
     assert.ok(past.length > 0, "fixtures should hold at least one past listing");
-    for (const row of past) assert.equal(row.info.sub, "Last listed — no new date yet");
+    for (const row of past) assert.equal(row.info.sub, "Last listed. No new date yet");
   });
 
   it("drafts lead with the tightest deadline", () => {

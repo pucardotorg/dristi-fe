@@ -675,7 +675,7 @@ export function ComplainantSection() {
         {c.pip === "yes" ? (
           <FormCard
             title="Affidavit for appearing as party-in-person"
-            description="Pre-filled from the standard template — edit if needed."
+            description="Pre-filled from the standard template. Edit if needed."
           >
             <RichTextEditor
               value={c.affidavit}
@@ -724,7 +724,7 @@ export function ComplainantSection() {
             <DialogTitle>Verify &amp; fetch details</DialogTitle>
             <DialogDescription>
               This confirms the number the court will use to reach{" "}
-              {complainantLabel(c, active)} — and, if ON Court already holds a record
+              {complainantLabel(c, active)} and, if ON Court already holds a record
               against it, fills in the name and address it has.
             </DialogDescription>
           </DialogHeader>
@@ -751,7 +751,7 @@ export function ComplainantSection() {
               </InputOTPGroup>
             </InputOTP>
             <p className="text-caption text-muted-foreground">
-              Sandbox — no OTP is sent, and any 6-digit code is accepted here.
+              Sandbox: no OTP is sent, and any 6-digit code is accepted here.
             </p>
           </div>
 

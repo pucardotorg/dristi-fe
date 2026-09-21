@@ -22,7 +22,7 @@ export function SavingIndicator() {
       ) : saveState === "error" ? (
         <>
           <TriangleAlertIcon className="size-4 text-destructive-ink" aria-hidden />
-          <span className="text-destructive-ink">Couldn&apos;t save — retrying</span>
+          <span className="text-destructive-ink">Couldn&apos;t save. Retrying</span>
         </>
       ) : (
         <>

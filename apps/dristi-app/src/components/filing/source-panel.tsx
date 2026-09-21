@@ -238,7 +238,7 @@ function SourcePanelBody(p: SourcePanelProps) {
             </FieldLabel>
             <Input value={p.value ?? ""} onChange={(e) => p.onValueChange?.(e.target.value)} />
             <FieldDescription>
-              Correct it here if we misread — this updates the form and clears the
+              Correct it here if we misread. This updates the form and clears the
               auto-filled marker.
             </FieldDescription>
           </Field>

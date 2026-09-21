@@ -90,7 +90,7 @@ function StepRow({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            {step.title} — {PLACEHOLDER_NOTE[step.id] ?? "not a screen of its own"}
+            {step.title}: {PLACEHOLDER_NOTE[step.id] ?? "not a screen of its own"}
           </TooltipContent>
         </Tooltip>
       </li>

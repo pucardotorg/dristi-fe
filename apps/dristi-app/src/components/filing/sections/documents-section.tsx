@@ -391,7 +391,7 @@ export function DocumentsSection() {
               d.digital = checked === true;
             })
           }
-          aria-label={`Natively digital — ${
+          aria-label={`Natively digital: ${
             doc.name || `row ${index + 1}`
           }`}
         />
@@ -455,7 +455,7 @@ export function DocumentsSection() {
 
         <SectionNotice variant="neutral">
           Tick <strong className="font-semibold">Natively digital</strong> for an
-          original digital file, such as an e-signed PDF — not a scan of a paper copy.
+          original digital file, such as an e-signed PDF, not a scan of a paper copy.
         </SectionNotice>
 
         {groups.map((group) => (

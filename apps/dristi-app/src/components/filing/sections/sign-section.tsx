@@ -389,7 +389,7 @@ function ConfirmRow({
               </InputOTPGroup>
             </InputOTP>
             <p className="text-caption text-muted-foreground">
-              Sandbox — any 6-digit code is accepted here.
+              Sandbox: any 6-digit code is accepted here.
             </p>
           </div>
 
@@ -825,7 +825,7 @@ export function SignSection() {
       </div>
 
       <p className="text-caption text-muted-foreground">
-        Sandbox — this filing has not been sent to a real court.
+        Sandbox: this filing has not been sent to a real court.
       </p>
     </div>
   );
@@ -1154,7 +1154,7 @@ export function SignSection() {
           ) : null}
 
           <p className="text-center text-caption text-muted-foreground">
-            Sandbox — any six digits work.
+            Sandbox: any six digits work.
           </p>
         </ChromeDialogContent>
       </Dialog>
@@ -1488,7 +1488,7 @@ export function SignSection() {
                             <span className="text-muted-foreground"> · required</span>
                           </Label>
                           <p className="text-caption text-muted-foreground tabular-nums">
-                            {money(CHANNEL_FEE.amount)} for each address, every round —
+                            {money(CHANNEL_FEE.amount)} for each address, every round,
                             charged by the post office, not by the court.
                           </p>
                         </div>
@@ -1580,7 +1580,7 @@ export function SignSection() {
 
             <FeeGroup
               title={`Delivery of summons · ${DELIVERY_CHANNEL}`}
-              caption="Charged for each address, every round of summons — by the post office, not by the court."
+              caption="Charged for each address, every round of summons, by the post office and not by the court."
               lines={bill.delivery}
               total={bill.deliveryTotal}
             />
@@ -1598,7 +1598,7 @@ export function SignSection() {
           </Button>
 
           <p className="text-caption text-muted-foreground">
-            Sandbox payment — no money moves.
+            Sandbox payment. No money moves.
           </p>
 
           <DialogFooter>
@@ -1630,7 +1630,7 @@ export function SignSection() {
               Please don’t close or refresh this window while we confirm your payment.
             </DialogDescription>
             <p className="text-caption text-muted-foreground">
-              Sandbox payment — no money moves.
+              Sandbox payment. No money moves.
             </p>
           </div>
         </ChromeDialogContent>
@@ -1650,7 +1650,7 @@ export function SignSection() {
               Payment successful
             </DialogTitle>
             <DialogDescription className="text-body-compact text-success-foreground">
-              Your case file is complete. This is a sandbox — nothing has been sent to a
+              Your case file is complete. This is a sandbox. Nothing has been sent to a
               real court.
             </DialogDescription>
           </div>

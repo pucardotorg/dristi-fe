@@ -73,7 +73,7 @@ export function complainantLabel(c: Complainant, index: number): string {
 
 /** Complainant names as the advocate multi-select shows them. */
 export function complainantChoices(complainants: Complainant[]): string[] {
-  return complainants.map((c, i) => `Complainant ${i + 1}${c.name ? ` — ${c.name}` : ""}`);
+  return complainants.map((c, i) => `Complainant ${i + 1}${c.name ? `: ${c.name}` : ""}`);
 }
 
 /**
