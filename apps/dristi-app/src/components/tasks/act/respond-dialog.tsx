@@ -22,7 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useTaskActions } from "@/components/tasks/use-task-actions";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { Identifier } from "@/components/chrome/identifier";
 
 export function TaskRespondDialog({
@@ -71,7 +71,7 @@ export function TaskRespondDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent className="sm:max-w-lg">
+      <FlowDialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Review the request</DialogTitle>
           <DialogDescription>
@@ -119,7 +119,7 @@ export function TaskRespondDialog({
             Accept
           </Button>
         </div>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

@@ -11,7 +11,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { CheckIcon, FileTextIcon, SignatureIcon, TrashIcon } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { fileUrl, formatBytes, storeUpload } from "@/lib/tasks/data";
 import { dateTime, nameOf } from "@/lib/tasks/format";
@@ -346,10 +346,10 @@ export function OtpDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent className="sm:max-w-md">
+      <FlowDialogContent className="sm:max-w-md">
         {/* Mounted per open, so the code always starts empty. */}
         {open ? <OtpForm signer={signer} onSign={onSign} title={title} confirmLabel={confirmLabel} /> : null}
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }
@@ -439,7 +439,7 @@ export function CourtSandbox({ ctx }: { ctx: ActContext }) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <ChromeDialogContent className="sm:max-w-md">
+        <FlowDialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Return with defects</DialogTitle>
             <DialogDescription>
@@ -479,7 +479,7 @@ export function CourtSandbox({ ctx }: { ctx: ActContext }) {
               Return
             </Button>
           </DialogFooter>
-        </ChromeDialogContent>
+        </FlowDialogContent>
       </Dialog>
     </RailCard>
   );
