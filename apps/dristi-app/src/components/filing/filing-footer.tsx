@@ -115,9 +115,8 @@ export function FilingFooter({
           sits on one quiet line above them. */}
       <div className="flex flex-col gap-2 sm:hidden">
         {hasStatusLine ? (
-          /* One quiet line, read from the left like any sentence. The save state leads
-             when it is all there is; when the step has its own statement, that leads
-             and the save state closes the line. */
+          /* One quiet line. The save state always sits on the right (owner, Sept 22):
+             alone, or closing the line after the step's own statement on the left. */
           <div className="flex items-center justify-between gap-3 text-caption [&_*]:text-caption">
             {leading || status ? (
               <>
@@ -128,7 +127,9 @@ export function FilingFooter({
                 </div>
               </>
             ) : (
-              <SavingIndicator />
+              <span className="ml-auto flex">
+                <SavingIndicator />
+              </span>
             )}
           </div>
         ) : null}
