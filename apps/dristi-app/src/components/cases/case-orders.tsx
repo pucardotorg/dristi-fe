@@ -298,7 +298,7 @@ function OrdersPanel({
     <RestingCard>
       <CardContent className="flex flex-col gap-4" aria-busy={busy}>
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3">
-          <h2 className="text-body font-semibold text-foreground max-sm:w-full">
+          <h2 className="w-full text-body font-semibold text-foreground md:pointer-fine:w-auto md:landscape:w-auto">
             Orders & Notifications
           </h2>
           {action}

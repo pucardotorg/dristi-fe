@@ -549,7 +549,7 @@ function DocumentsPanel({
           <div className="flex flex-col gap-3">
             <h2 className="text-body font-semibold">Documents</h2>
             {search ? (
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-3 md:pointer-fine:flex-row md:pointer-fine:items-center md:pointer-fine:justify-between md:landscape:flex-row md:landscape:items-center md:landscape:justify-between">
                 {switcher}
                 {search}
               </div>

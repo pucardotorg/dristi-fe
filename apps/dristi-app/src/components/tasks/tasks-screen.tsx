@@ -360,7 +360,7 @@ export function TasksScreen() {
               onSelect={selectKind}
             />
           </div>
-          <div className="w-full min-w-0 sm:w-auto sm:min-w-72 sm:flex-none">
+          <div className="w-full min-w-0 md:pointer-fine:w-auto md:pointer-fine:min-w-72 md:pointer-fine:flex-none">
             <FilterRow
               kindCounts={state === "ready" ? counts : null}
               filters={filters}

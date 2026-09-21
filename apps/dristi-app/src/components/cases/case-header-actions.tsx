@@ -67,10 +67,10 @@ export function CaseHeaderActions({
 
   return (
     <TooltipProvider>
-      {/* Below `md` the row spans the header: the primary leads and takes the
+      {/* On a phone or a tablet held upright the row spans the header: the primary leads and takes the
           width, the two icon actions close the line. Left-packed at three
           different widths they read as loose parts (owner, Sept 21). */}
-      <div className="flex shrink-0 items-center gap-2 max-md:w-full">
+      <div className="flex w-full shrink-0 items-center gap-2 md:pointer-fine:w-auto md:landscape:w-auto">
         {SHARE_ACCESS_ENABLED ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -105,7 +105,7 @@ export function CaseHeaderActions({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" className="max-md:order-first max-md:flex-1">
+            <Button type="button" className="order-first flex-1 md:pointer-fine:order-none md:pointer-fine:flex-none md:landscape:order-none md:landscape:flex-none">
               Make filings
               <ChevronDownIcon data-icon="inline-end" aria-hidden />
             </Button>

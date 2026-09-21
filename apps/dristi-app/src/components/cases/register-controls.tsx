@@ -51,9 +51,9 @@ export function RegisterFilter({
           type="button"
           variant="outline"
           size="sm"
-          // On a phone the filter fills its grid cell (see `REGISTER_FILTER_ROW`),
+          // On a phone or a tablet held upright the filter fills its grid cell (see `REGISTER_FILTER_ROW`),
           // label and value at the start, chevron at the far end.
-          className="max-w-full gap-1.5 font-normal max-sm:h-10 max-sm:w-full max-sm:justify-between"
+          className="h-10 w-full max-w-full justify-between gap-1.5 font-normal md:pointer-fine:h-9 md:pointer-fine:w-auto md:pointer-fine:justify-center md:landscape:h-9 md:landscape:w-auto md:landscape:justify-center"
         >
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="text-muted-foreground">{label}</span>
@@ -116,7 +116,12 @@ export function RegisterSearch({
   className?: string;
 }) {
   return (
-    <div className={cn("relative w-full sm:w-64", className)}>
+    <div
+      className={cn(
+        "relative w-full md:pointer-fine:w-64 md:landscape:w-64",
+        className
+      )}
+    >
       <SearchIcon
         className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
         aria-hidden
@@ -125,7 +130,7 @@ export function RegisterSearch({
         type="search"
         aria-label={label}
         placeholder={label}
-        className="h-9 pl-8 max-sm:h-10"
+        className="h-10 pl-8 md:pointer-fine:h-9 md:landscape:h-9"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

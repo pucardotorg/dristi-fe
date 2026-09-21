@@ -79,7 +79,7 @@ function SearchBox({ query, onChange }: { query: string; onChange: (q: string) =
   }, []);
 
   return (
-    <InputGroup className="min-w-0 flex-1 sm:w-64 sm:flex-none">
+    <InputGroup className="min-w-0 flex-1 md:pointer-fine:w-64 md:pointer-fine:flex-none">
       <InputGroupAddon>
         <SearchIcon aria-hidden />
       </InputGroupAddon>
@@ -149,9 +149,10 @@ export function FilterRow({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Search and Filters hold one line at every width; on a phone the search
-          takes what the button leaves. Chips wrap onto the lines below. */}
-      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+      {/* Search and Filters hold one line at every width. Wherever the kind
+          pills are gone (any touch screen, either way up) the pair owns the
+          row, so the search takes everything the button leaves. Chips wrap onto the lines below. */}
+      <div className="flex w-full min-w-0 items-center gap-2 md:pointer-fine:w-auto">
       <SearchBox query={filters.query} onChange={(q) => onChange({ query: q })} />
 
       <Sheet>

@@ -72,6 +72,7 @@ import { RegisterTrayCard, useOneOpen } from "@/components/cases/register-card";
 import {
   REGISTER_CARDS_ONLY,
   REGISTER_FILTER_ROW,
+  REGISTER_ROW_SEARCH,
   REGISTER_TABLE_ONLY,
 } from "@/components/cases/register-layout";
 import { COLLAPSE_MOTION } from "@/components/cases/motion";
@@ -230,7 +231,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           </Button>
         ) : null}
         {/* On a phone the search leads and the filters follow it (owner, Sept 21). */}
-        <div className="ml-auto max-sm:order-first max-sm:col-span-2 max-sm:w-full">
+        <div className={REGISTER_ROW_SEARCH}>
           <RegisterSearch
             label="Search by application ID"
             value={query}

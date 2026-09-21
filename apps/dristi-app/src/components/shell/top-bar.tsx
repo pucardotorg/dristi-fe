@@ -61,12 +61,24 @@ function useTrail() {
 }
 
 /** Every crumb, linked, in order. Shared by the wide bar and the phone's opened row. */
-function TrailList({ className }: { className?: string }) {
+function TrailList({
+  className,
+  skip = 0,
+  lead,
+}: {
+  className?: string;
+  /** Leading entries left out (the root is the first), when the bar is short. */
+  skip?: number;
+  /** What stands in for the entries left out. */
+  lead?: React.ReactNode;
+}) {
   const { crumbs, root } = useTrail();
   const last = crumbs.length - 1;
   return (
     <BreadcrumbList className={cn("flex-nowrap", className)}>
-      <BreadcrumbItem className="shrink-0">
+      {lead ? <BreadcrumbItem className="shrink-0">{lead}</BreadcrumbItem> : null}
+      {skip > 0 ? null : (
+      <BreadcrumbItem className="shrink-0" data-trail-entry>
         {crumbs.length && root.href ? (
           <BreadcrumbLink asChild>
             <Link href={root.href} className={idFace(root)}>
@@ -77,12 +89,18 @@ function TrailList({ className }: { className?: string }) {
           <BreadcrumbPage className={idFace(root)}>{root.label}</BreadcrumbPage>
         )}
       </BreadcrumbItem>
+      )}
       {crumbs.map((crumb, i) => {
         const isLast = i === last;
+        // Entry 0 is the root, so crumb `i` is entry `i + 1`.
+        if (i + 1 < skip) return null;
         return (
           <React.Fragment key={`${i}-${crumb.label}`}>
-            <BreadcrumbSeparator className="shrink-0" />
-            <BreadcrumbItem className={isLast ? "min-w-0" : "shrink-0"}>
+            <BreadcrumbSeparator className="shrink-0" data-trail-separator />
+            <BreadcrumbItem
+              className={isLast ? "min-w-0" : "shrink-0"}
+              data-trail-entry
+            >
               {isLast ? (
                 <BreadcrumbPage className={cn("truncate font-medium", idFace(crumb))}>
                   {crumb.label}
@@ -107,65 +125,125 @@ function TrailList({ className }: { className?: string }) {
 const TRAIL_ROW_ID = "chrome-trail-row";
 
 /**
- * From `lg` the bar has room and shows the trail whole. Under it (a phone, a
- * tablet held upright with the rail open) the language switch and the bell
- * leave the trail a few words, and it used to answer by dropping the middle
- * and cutting the end: "Cases › CMP/18…".
+ * Where the bar has room it shows the trail whole. Where it does not (a phone,
+ * often a tablet held upright with the rail open) the language switch and the
+ * bell leave the trail a few words, and it used to answer by dropping the
+ * middle and cutting the end: "Cases › CMP/18…".
  *
- * So there the bar shows where you are, the last crumb, as a button (owner,
- * Sept 21). Tapping it opens the whole trail on a row of its own under the bar.
+ * So there the trail folds from its start: as many of the last entries as fit
+ * stay, and a small disc button stands for the rest (owner, Sept 21). Tapping
+ * it opens the whole trail on a row of its own under the bar.
  * The row is in the flow, so the page moves down rather than being covered, and
  * a long trail scrolls sideways inside it. Going anywhere closes it.
  */
 function ChromeBreadcrumb({
   open,
   onToggle,
+  onFitsChange,
 }: {
   open: boolean;
   onToggle: () => void;
+  /** Reports whether the whole trail fits the bar, so the opened row can stand down. */
+  onFitsChange: (fits: boolean) => void;
 }) {
   const { crumbs, root } = useTrail();
-  const here = crumbs.length ? crumbs[crumbs.length - 1] : root;
+  const slotRef = React.useRef<HTMLDivElement>(null);
+  const measureRef = React.useRef<HTMLDivElement>(null);
+  // How many leading entries are folded away. 0 = the whole trail shows.
+  const [skip, setSkip] = React.useState(0);
+  const entries = crumbs.length + 1;
+  const trailKey = `${root.label}|${crumbs.map((crumb) => crumb.label).join("|")}`;
+
+  // Room decides, not a breakpoint (owner, Sept 21: an iPad with space to
+  // spare was still getting the folded trail). The whole trail is drawn once,
+  // unseen; entries fold away from the START, one at a time, until what is
+  // left fits beside the fold button. Where you are is the last thing to go.
+  React.useLayoutEffect(() => {
+    const slot = slotRef.current;
+    const measure = measureRef.current;
+    if (!slot || !measure) return;
+    const check = () => {
+      const list = measure.firstElementChild as HTMLElement | null;
+      if (!list) return;
+      const room = slot.clientWidth;
+      const gap = parseFloat(getComputedStyle(list).columnGap) || 0;
+      const widths = [...list.querySelectorAll<HTMLElement>("[data-trail-entry]")].map(
+        (node) => node.getBoundingClientRect().width
+      );
+      const separator =
+        list.querySelector<HTMLElement>("[data-trail-separator]")?.getBoundingClientRect()
+          .width ?? 0;
+      const step = separator + gap * 2;
+      const total = widths.reduce((sum, w) => sum + w, 0) + step * (widths.length - 1);
+      let next = 0;
+      if (total > room) {
+        // The fold button (its 20px disc in a 40px target) and a separator.
+        let used = FOLD_BUTTON_WIDTH + step;
+        let kept = 0;
+        for (let i = widths.length - 1; i >= 0; i -= 1) {
+          const cost = widths[i] + (kept ? step : 0);
+          if (used + cost > room && kept > 0) break;
+          used += cost;
+          kept += 1;
+        }
+        next = widths.length - kept;
+      }
+      setSkip(next);
+      onFitsChange(next === 0);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(slot);
+    return () => observer.disconnect();
+  }, [trailKey, entries, onFitsChange]);
 
   return (
-    <>
-      <Breadcrumb className="hidden min-w-0 flex-1 lg:block">
-        <TrailList />
-      </Breadcrumb>
-      <div className="flex min-w-0 flex-1 lg:hidden">
-        {crumbs.length ? (
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls={TRAIL_ROW_ID}
-            onClick={onToggle}
-            className="-mx-2 flex min-h-10 min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 text-left outline-none transition-colors active:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <span className="sr-only">Show the full path. You are on </span>
-            <span className={cn("truncate text-body-compact font-medium text-foreground", idFace(here))}>
-              {here.label}
-            </span>
-            <span
-              aria-hidden
-              className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-accent-strong text-muted-foreground"
-            >
-              <ChevronDownIcon
-                className={cn(
-                  "size-3.5 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-                  open && "rotate-180"
-                )}
-              />
-            </span>
-          </button>
-        ) : (
-          <span className={cn("truncate text-body-compact font-medium text-foreground", idFace(root))}>
-            {root.label}
-          </span>
-        )}
+    <div ref={slotRef} className="relative flex min-w-0 flex-1 items-center">
+      {/* The measuring copy: out of sight, out of the tab order, out of the
+          accessibility tree. */}
+      <div
+        ref={measureRef}
+        aria-hidden
+        inert
+        className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden"
+      >
+        <TrailList className="w-max" />
       </div>
-    </>
+      <Breadcrumb className="min-w-0 flex-1">
+        <TrailList
+          skip={skip}
+          lead={
+            skip > 0 ? (
+              <button
+                type="button"
+                aria-expanded={open}
+                aria-controls={TRAIL_ROW_ID}
+                aria-label="Show the full path"
+                onClick={onToggle}
+                className="-mx-2 flex size-10 cursor-pointer items-center justify-center rounded-lg outline-none transition-colors active:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <span
+                  aria-hidden
+                  className="flex size-5 items-center justify-center rounded-full border border-border bg-accent-strong text-muted-foreground"
+                >
+                  <ChevronDownIcon
+                    className={cn(
+                      "size-3.5 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+                      open && "rotate-180"
+                    )}
+                  />
+                </span>
+              </button>
+            ) : undefined
+          }
+        />
+      </Breadcrumb>
+    </div>
   );
 }
+
+/** The fold button's footprint in the row: a 40px target pulled in 8px a side. */
+const FOLD_BUTTON_WIDTH = 24;
 
 /**
  * The DS trigger. No `aria-expanded`: the ghost Button paints `aria-expanded` as its
@@ -308,7 +386,8 @@ export function TopBar() {
   const pathname = usePathname();
   // Open only for the page it was opened on: any navigation puts it away.
   const [trailFor, setTrailFor] = React.useState<string | null>(null);
-  const trailOpen = trailFor === pathname && crumbs.length > 0;
+  const [trailFits, setTrailFits] = React.useState(true);
+  const trailOpen = trailFor === pathname && crumbs.length > 0 && !trailFits;
 
   return (
     // `sticky` is positioned, so the phone search row can hang under it, full width.
@@ -318,6 +397,7 @@ export function TopBar() {
       <ChromeBreadcrumb
         open={trailOpen}
         onToggle={() => setTrailFor(trailOpen ? null : pathname)}
+        onFitsChange={setTrailFits}
       />
       <LanguageToggle />
       {/* The person is named once, at the foot of the rail. A second avatar here said
@@ -329,7 +409,7 @@ export function TopBar() {
         onClearAll={notifications.clearStale}
       />
      </div>
-      <Collapsible open={trailOpen} className="lg:hidden">
+      <Collapsible open={trailOpen}>
         <CollapsibleContent id={TRAIL_ROW_ID} className={COLLAPSE_MOTION}>
           <Breadcrumb className="overflow-x-auto border-t border-hairline px-4 py-3 sm:px-6">
             <TrailList className="w-max" />

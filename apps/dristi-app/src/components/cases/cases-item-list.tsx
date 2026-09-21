@@ -119,7 +119,10 @@ export function CasesItemList({
                   tone="muted"
                   hideLongPendingFlag={hideLongPendingFlag}
                 />
-                <ItemTitle className="line-clamp-none text-body-compact font-semibold break-words text-foreground">
+                {/* The parties lead and the number follows (owner, Sept 21): the names
+                    are what a person scans a list for. `order-first` only: the
+                    number stays first in the markup, since it is the control. */}
+                <ItemTitle className="order-first line-clamp-none text-body-compact font-semibold break-words text-foreground">
                   {partiesLabel(record)}
                 </ItemTitle>
                 {/* Under the title and on its edge, so the card reads down one

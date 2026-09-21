@@ -132,13 +132,13 @@ export function CaseFile({
   };
 
   return (
-    <div className="sticky top-0 z-10 flex h-[calc(100svh-theme(spacing.14)-theme(spacing.6))] w-full flex-col gap-4 bg-muted dark:bg-background md:h-[calc(100svh-theme(spacing.14)-theme(spacing.8))] md:gap-0">
+    <div className="sticky top-0 z-10 flex h-[calc(100svh-theme(spacing.14)-theme(spacing.6))] w-full flex-col gap-4 bg-muted dark:bg-background md:pointer-fine:h-[calc(100svh-theme(spacing.14)-theme(spacing.8))] md:landscape:h-[calc(100svh-theme(spacing.14)-theme(spacing.8))] md:pointer-fine:gap-0 md:landscape:gap-0">
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetTrigger asChild>
           <Button
             type="button"
             variant="outline"
-            className="w-full shrink-0 justify-between sm:w-auto sm:justify-center md:hidden"
+            className="w-full shrink-0 justify-between md:pointer-fine:hidden md:landscape:hidden"
           >
             {/* The panel glyph says where the list comes from: a side panel
                 from the left, not a page and not a menu (owner, Sept 21). */}
@@ -146,7 +146,7 @@ export function CaseFile({
               <PanelLeftOpenIcon aria-hidden />
               Browse case file
             </span>
-            <ChevronRightIcon aria-hidden className="text-muted-foreground sm:hidden" />
+            <ChevronRightIcon aria-hidden className="text-muted-foreground" />
           </Button>
         </SheetTrigger>
         <SheetContent
@@ -170,10 +170,10 @@ export function CaseFile({
       <Card
         className={cn(
           PANEL_CLASS,
-          "flex min-h-0 flex-1 flex-col overflow-hidden py-0 hover:bg-card md:flex-row md:items-stretch md:gap-0"
+          "flex min-h-0 flex-1 flex-col overflow-hidden py-0 hover:bg-card md:pointer-fine:flex-row md:landscape:flex-row md:pointer-fine:items-stretch md:landscape:items-stretch md:pointer-fine:gap-0 md:landscape:gap-0"
         )}
       >
-        <div className="hidden min-h-0 w-72 shrink-0 flex-col gap-2 overflow-hidden p-4 md:flex">
+        <div className="hidden min-h-0 w-72 shrink-0 flex-col gap-2 overflow-hidden p-4 md:pointer-fine:flex md:landscape:flex">
           {/* The row height of the document's title bar beside it, so the two
               headings and the PDF/Digital switch share one centre line. */}
           <h2 className="flex min-h-10 shrink-0 items-center px-2 text-body font-semibold">
@@ -187,7 +187,7 @@ export function CaseFile({
         </div>
         <Separator
           orientation="vertical"
-          className="hidden self-stretch bg-hairline md:block"
+          className="hidden self-stretch bg-hairline md:pointer-fine:block md:landscape:block"
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-4">
           {/* One wrapping row at every width: the name on the left, the switch
@@ -378,7 +378,7 @@ const VIEWER_IS_COURT = false;
 const rowShell = "py-1";
 
 const rowClass =
-  "group/file-row flex min-h-8 w-full min-w-0 items-start justify-between gap-2 rounded-lg py-1.5 text-left text-body-compact text-foreground outline-none hover:bg-surface-sunken focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-10 max-md:py-2.5";
+  "group/file-row flex min-h-10 w-full min-w-0 items-start justify-between gap-2 rounded-lg py-2.5 text-left text-body-compact text-foreground outline-none hover:bg-surface-sunken focus-visible:ring-3 focus-visible:ring-ring/50 md:pointer-fine:min-h-8 md:pointer-fine:py-1.5 md:landscape:min-h-8 md:landscape:py-1.5";
 
 const depthPad = ["px-2", "pr-2 pl-6", "pr-2 pl-8"] as const;
 
