@@ -334,7 +334,12 @@ export function FilingsQueue({
                   open={tray.isOpen(row.id)}
                   onOpenChange={tray.toggle(row.id)}
                   marked={selected.has(row.id)}
-                  className={cn("relative", selected.has(row.id) && "bg-accent-strong")}
+                  // A light teal wash and a thin teal edge, the Cheque bounce row's own
+                  // pair: `accent-strong` read as a heavy beige slab on a phone.
+                  className={cn(
+                    "relative",
+                    selected.has(row.id) && "border-primary/40 bg-brand-muted/50"
+                  )}
                   leading={
                     selectable ? (
                       <Checkbox
