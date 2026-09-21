@@ -29,6 +29,9 @@ const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
  * drawer range. With
  * reduced motion the travel goes and a short fade stays.
  *
+ * `content-start`: several dialogs are a plain grid, and a grid stretched to the
+ * window's height spread its rows apart with wide gaps between them.
+ *
  * Spread the result onto `DialogContent`: `className` last in the call site's
  * `cn`, `style` as is. Both are empty from `sm` up.
  */
@@ -43,7 +46,7 @@ export function useFlowWindow(): {
   return {
     phone,
     className:
-      "inset-0 top-0 left-0 h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 rounded-none shadow-none ring-0 ease-[cubic-bezier(0.32,0.72,0,1)] data-open:duration-500 data-closed:duration-300",
+      "inset-0 top-0 left-0 h-dvh max-h-none w-screen max-w-none content-start translate-x-0 translate-y-0 rounded-none shadow-none ring-0 ease-[cubic-bezier(0.32,0.72,0,1)] data-open:duration-500 data-closed:duration-300",
     /* The DS dialog's keyframes read their travel, scale and opacity from
        these vars. Set inline they outrank its `fade-in-0 zoom-in-95`. */
     style: (reduced

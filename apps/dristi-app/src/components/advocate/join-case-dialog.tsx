@@ -13,7 +13,7 @@ import {
   XIcon,
 } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -522,7 +522,7 @@ export function AdvocateJoinCaseDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
         // The litigant combobox portals its list outside this dialog's DOM. Without
@@ -1499,7 +1499,7 @@ export function AdvocateJoinCaseDialog({
             )
           ) : null}
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import {
   emptyStructuredAddress,
   structuredAddressComplete,
@@ -163,7 +163,7 @@ function AddAddressDialog({
       }}
     >
       {/* xl, not md: the structured grid runs two columns. */}
-      <ChromeDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <FlowDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-5 pr-14 text-left">
           <DialogTitle className="text-title-s font-semibold text-balance">
             Add an address for {subjectName}
@@ -214,7 +214,7 @@ function AddAddressDialog({
             Add address
           </Button>
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

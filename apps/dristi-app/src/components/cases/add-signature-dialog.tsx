@@ -201,6 +201,7 @@ export function AddSignatureDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <FlowDialogContent
+        ownBack
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
         // Radix's own restore lands on document.body here, so put focus back
         // on the button that opened the chain explicitly.

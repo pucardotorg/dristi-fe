@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { displayName } from "@/lib/cases/names";
 
 type RemovalConsentFixture = {
@@ -169,7 +169,7 @@ function RemovalConsentDialog({
         else close();
       }}
     >
-      <ChromeDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <FlowDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         {decision ? (
           <>
             <DialogHeader className="shrink-0 px-6 py-5 pr-14 text-left">
@@ -280,7 +280,7 @@ function RemovalConsentDialog({
             </footer>
           </>
         )}
-      </ChromeDialogContent>
+      </FlowDialogContent>
 
       <ConsentDocumentDialog
         open={docOpen}
@@ -315,7 +315,7 @@ function ConsentDocumentDialog({
         onOpenChange(next);
       }}
     >
-      <ChromeDialogContent className="flex max-h-[90dvh] flex-col gap-4 overflow-hidden sm:max-w-lg">
+      <FlowDialogContent className="flex max-h-[90dvh] flex-col gap-4 overflow-hidden sm:max-w-lg">
         {/* Clear of the close control — flush against it, a save was one
             slip from a dismiss (owner, Sept 1). */}
         <Button
@@ -363,7 +363,7 @@ function ConsentDocumentDialog({
             </div>
           </div>
         </div>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

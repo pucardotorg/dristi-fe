@@ -42,6 +42,18 @@ const SHARE_ACCESS_ENABLED = true;
  * status). The bail application itself opens from Raise application, under Bail. The bail lifecycle + dialogs live in <CaseBailProvider>, which
  * wraps the page, so the in-page bond-task card and these entries share one state.
  */
+/**
+ * On a tablet held upright the actions row is wide, and Make filings beside two
+ * 40px icons stretched into a slab (owner, Sept 21). There the two icon actions
+ * take their words and the three share the row. A phone keeps the icons (no
+ * room); the desk layout keeps them too (the row is packed at the far end).
+ */
+const WORDED_ON_TABLET =
+  "sm:w-auto sm:flex-1 sm:gap-2 sm:px-4 " +
+  "md:pointer-fine:w-10 md:pointer-fine:flex-none md:pointer-fine:px-0 " +
+  "md:landscape:w-10 md:landscape:flex-none md:landscape:px-0";
+const TABLET_WORD = "hidden sm:inline md:pointer-fine:hidden md:landscape:hidden";
+
 export function CaseHeaderActions({
   accessCase,
   disposed = false,
@@ -78,10 +90,12 @@ export function CaseHeaderActions({
                 type="button"
                 variant="outline"
                 size="icon"
+                className={WORDED_ON_TABLET}
                 aria-label="Share access to this case"
                 onClick={() => setShareOpen(true)}
               >
                 <Share2Icon aria-hidden />
+                <span className={TABLET_WORD}>Share access</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Share access to this case</TooltipContent>
@@ -94,10 +108,12 @@ export function CaseHeaderActions({
               type="button"
               variant="outline"
               size="icon"
+              className={WORDED_ON_TABLET}
               aria-label="Download case file"
               onClick={() => setDownloadOpen(true)}
             >
               <DownloadIcon aria-hidden />
+              <span className={TABLET_WORD}>Download</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">Download case file</TooltipContent>

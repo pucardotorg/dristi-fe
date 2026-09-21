@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import {
   UPLOAD_HELP,
   UploadedDocField,
@@ -167,7 +167,7 @@ function FullViewButton({
           <Maximize2Icon aria-hidden />
         </Button>
       </DialogTrigger>
-      <ChromeDialogContent className="flex h-[92svh] flex-col gap-4 overflow-hidden sm:max-w-[calc(100%-4rem)]">
+      <FlowDialogContent className="flex h-[92svh] flex-col gap-4 overflow-hidden sm:max-w-[calc(100%-4rem)]">
         <DialogHeader className="pr-12">
           <DialogTitle className="text-title-s font-semibold break-words">
             {title}
@@ -186,7 +186,7 @@ function FullViewButton({
         >
           <div className="mx-auto w-full max-w-4xl">{children}</div>
         </div>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }
@@ -353,7 +353,7 @@ export function PartySignatureDialog({
         else onClose();
       }}
     >
-      <ChromeDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+      <FlowDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
         {step === "done" ? (
           <>
             <DialogHeader className="shrink-0 px-6 py-5 pr-14 text-left">
@@ -519,7 +519,7 @@ export function PartySignatureDialog({
             </footer>
           </>
         )}
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

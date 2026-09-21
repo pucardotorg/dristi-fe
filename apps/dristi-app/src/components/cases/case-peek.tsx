@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ExternalLinkIcon, XIcon } from "lucide-react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
+import { REGISTER_CARDS_QUERY } from "@/components/cases/register-layout";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 
 import { Badge } from "@/components/ui/badge";
@@ -159,7 +159,9 @@ export function CasePeekPushRegion({
 const emptySubscribe = () => () => {};
 
 export function CasePeek({ mobileDrawer = false }: { mobileDrawer?: boolean } = {}) {
-  const isMobile = useIsMobile();
+  // A phone, or a tablet held upright (owner, Sept 21): wherever the list is
+  // cards, the peek rises from the bottom instead of docking at the side.
+  const isMobile = useMediaQuery(REGISTER_CARDS_QUERY);
   const returnFocus = useRef<HTMLElement | null>(null);
   const { record, now, hideLongPendingFlag, docked, closing, close } = useCasePeek();
   // Portal guard: the server (and the hydration render) has no document.body to

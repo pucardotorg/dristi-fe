@@ -529,6 +529,7 @@ export function BailApplicationDialog({
     <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <FlowDialogContent
+        ownBack
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         onInteractOutside={(event) => event.preventDefault()}

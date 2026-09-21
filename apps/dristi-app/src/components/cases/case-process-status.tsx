@@ -176,7 +176,7 @@ function Round({
             same inset as the table's cell text, and share the full width in
             thirds, so a long hearing purpose or order title has room. */}
         <div className="flex flex-col gap-8 border-t border-hairline px-2 pt-8 pb-2">
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-3 px-4 sm:grid-cols-3">
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-3 px-4 md:pointer-fine:grid-cols-3 md:landscape:grid-cols-3">
             <Fact label="Linked hearing">
               {round.hearing ? (
                 <>

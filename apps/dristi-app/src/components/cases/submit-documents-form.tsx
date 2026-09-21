@@ -201,6 +201,7 @@ export function SubmitDocumentsDialog({
         }}
       >
         <FlowDialogContent
+        ownBack
           className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
           onInteractOutside={(event) => event.preventDefault()}
         >
@@ -337,6 +338,7 @@ function DocumentPreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <FlowDialogContent
+        ownBack
         className="grid-rows-[auto_1fr_auto] max-h-[85dvh] sm:max-w-2xl"
         // Radix's own restore lands on document.body here, so put focus back
         // on the button that opened the dialog explicitly.
