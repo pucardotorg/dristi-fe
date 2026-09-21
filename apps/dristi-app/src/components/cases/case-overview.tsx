@@ -233,11 +233,13 @@ function NextHearingBlock({
               {tile.day}
             </span>
             <span aria-hidden className="flex flex-col">
+              {/* Month and year lead: with the day numeral they are the date.
+                  The weekday is the aid, so it takes the quiet line. */}
               <span className="text-body-compact font-medium text-foreground">
-                {tile.weekday}
+                {tile.monthYear}
               </span>
               <span className="text-caption font-medium text-muted-foreground">
-                {tile.monthYear}
+                {tile.weekday}
               </span>
             </span>
           </time>

@@ -621,16 +621,15 @@ export function DiscardFilingDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <ChromeAlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Discard filing draft?</AlertDialogTitle>
+          <AlertDialogTitle>Discard this application?</AlertDialogTitle>
           <AlertDialogDescription>
-            The details and locally selected files will be lost if you return
-            to the case.
+            Anything you entered will be lost.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep editing</AlertDialogCancel>
           <AlertDialogAction variant="destructive-solid" onClick={onDiscard}>
-            Discard draft
+            Discard
           </AlertDialogAction>
         </AlertDialogFooter>
       </ChromeAlertDialogContent>

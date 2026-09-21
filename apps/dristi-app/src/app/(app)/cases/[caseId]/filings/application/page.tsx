@@ -7,7 +7,10 @@ import {
   applicationsFile,
   findDraftSubmission,
 } from "@/lib/cases/applications";
+import { PAGE_GROUND, PAGE_GUTTER } from "@/components/shell/page-frame";
 import { CASES } from "@/lib/cases/fixtures";
+import { safeOrigin } from "@/lib/nav/origin";
+import { cn } from "@/lib/utils";
 
 function findCase(caseId: string) {
   return CASES.find((record) => record.id === caseId);
@@ -45,24 +48,31 @@ export default async function RaiseApplicationPage({
   searchParams,
 }: {
   params: Promise<{ caseId: string }>;
-  searchParams: Promise<{ draft?: string }>;
+  searchParams: Promise<{ draft?: string; from?: string }>;
 }) {
   const { caseId } = await params;
-  const { draft } = await searchParams;
+  const { draft, from } = await searchParams;
   const record = findCase(caseId);
   if (!record) notFound();
 
   return (
-    <main className="flex flex-1 flex-col p-6 md:p-8">
+    <main className="flex flex-1 flex-col">
       <CaseBreadcrumbs
         caseId={record.id}
         caseNumber={record.caseNumber}
         trail={[{ label: "Raise application" }]}
       />
-      <RaiseApplicationForm
-        record={record}
-        resume={resumedDraft(caseId, draft)}
-      />
+      {/* View Case's ground, so this reads as the same place and the white
+          cards stand off it. Dark keeps its own background. */}
+      <div className={cn("flex min-w-0 flex-1 flex-col", PAGE_GROUND, PAGE_GUTTER)}>
+        <RaiseApplicationForm
+          record={record}
+          resume={resumedDraft(caseId, draft)}
+          // The door this was opened from: the rail's case list records itself
+          // here, so the way back returns to it rather than to the case.
+          backHref={safeOrigin(from) ?? undefined}
+        />
+      </div>
     </main>
   );
 }

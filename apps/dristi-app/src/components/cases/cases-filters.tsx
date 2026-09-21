@@ -241,6 +241,7 @@ export function CasesFiltersButton({
       <SheetTrigger asChild>
         <Button
           variant="outline"
+          data-toolbar-action
           className={"shrink-0 gap-0 duration-300 " + (compact ? "px-2.5" : "px-4")}
           aria-label={`Filters${applied ? `, ${applied} applied` : ""}`}
         >

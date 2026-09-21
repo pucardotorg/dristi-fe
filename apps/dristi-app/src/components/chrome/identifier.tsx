@@ -27,10 +27,13 @@ import { cn } from "@/lib/utils";
  * ## The copy affordance
  *
  * No button beside the value — the value *is* the control. At rest it reads as text; on
- * hover or focus it takes a sunken pill and the copy glyph fades in, which is the
- * signal that it can be taken. The glyph's box is reserved at rest, so nothing on the
- * row moves when it appears: a column of identifiers that reflows on hover is worse
- * than no affordance at all.
+ * hover or focus it takes a sunken pill and the copy glyph slides open beside it, which
+ * is the signal that it can be taken. The glyph holds no room at rest (owner,
+ * 2026-09-21): a reserved box left a hole after every identifier, most visibly mid
+ * sentence, "ST 412/2025   · 24×7 ON Court". Whatever follows now sits tight against
+ * the value and eases aside by the glyph's width while the pointer is on it. The move
+ * is 14px over 180ms and only happens under the pointer, so a column of these never
+ * shifts on its own.
  *
  * Clicking copies and says so twice, at two ranges. On the number itself the glyph
  * becomes a tick for a moment — that is the affordance confirming itself, in place. And
@@ -136,26 +139,30 @@ export function Identifier({
       className={cn(
         face,
         /* Negative inline margin against the pill's padding, so the resting text sits
-           exactly where plain text would and the fill grows outside it. `gap-0.5`
-           against a 12px glyph reserves about one word-space, so an identifier that
-           sits mid-sentence — "ST 412/2025 · 24×7 ON Court" — does not read as a typo
-           before the dot. Reserved rather than absolute: the glyph appearing must not
-           move the row. */
-        "group/id -mx-1 inline-flex cursor-pointer items-center gap-0.5 rounded-sm px-1 text-left align-baseline",
+           exactly where plain text would and the fill grows outside it. */
+        "group/id -mx-1 inline-flex cursor-pointer items-center rounded-sm px-1 text-left align-baseline",
         "outline-none transition-colors hover:bg-surface-sunken focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         className
       )}
     >
       <span>{value}</span>
-      {/* The box is held at rest so the row never reflows; only the ink changes. */}
-      {copied ? (
-        <CheckIcon className="size-3 shrink-0 text-success-ink" aria-hidden />
-      ) : (
-        <CopyIcon
-          className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/id:opacity-100 group-focus-visible/id:opacity-100"
-          aria-hidden
-        />
-      )}
+      {/* Closed at rest, so nothing trails the value. It opens to the glyph's width on
+          hover, focus and for the moment the tick shows, and the row eases with it. */}
+      <span
+        aria-hidden
+        className={cn(
+          "flex shrink-0 justify-end overflow-hidden transition-[width,opacity] duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+          copied
+            ? "w-3.5 opacity-100"
+            : "w-0 opacity-0 group-hover/id:w-3.5 group-hover/id:opacity-100 group-focus-visible/id:w-3.5 group-focus-visible/id:opacity-100"
+        )}
+      >
+        {copied ? (
+          <CheckIcon className="size-3 shrink-0 text-success-ink" />
+        ) : (
+          <CopyIcon className="size-3 shrink-0 text-muted-foreground" />
+        )}
+      </span>
     </button>
   );
 }

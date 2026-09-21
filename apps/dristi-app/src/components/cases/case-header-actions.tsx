@@ -34,8 +34,8 @@ const SHARE_ACCESS_ENABLED = true;
 
 /**
  * Case-file header actions. Beyond Neer's own filings, this is the case-access hub:
- * Share access (this one case) and the entries into Mohit's bail flow (application,
- * generate bond, status). The bail lifecycle + dialogs live in <CaseBailProvider>, which
+ * Share access (this one case) and the entries into Mohit's bond flow (generate bond,
+ * status). The bail application itself opens from Raise application, under Bail. The bail lifecycle + dialogs live in <CaseBailProvider>, which
  * wraps the page, so the in-page bond-task card and these entries share one state.
  */
 export function CaseHeaderActions({
@@ -112,27 +112,18 @@ export function CaseHeaderActions({
                 Submit documents
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {/* Bail is raised from Raise application, under its own type. */}
             {disposed ? null : (
-              <>
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    bail.openApplication();
-                  }}
-                >
-                  Raise bail application
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    bail.openBondDirect();
-                  }}
-                >
-                  Generate bail bond
-                </DropdownMenuItem>
-              </>
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  bail.openBondDirect();
+                }}
+              >
+                Generate bail bond
+              </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();

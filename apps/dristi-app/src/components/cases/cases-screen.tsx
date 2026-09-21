@@ -1,5 +1,9 @@
 "use client";
 
+import { PAGE_TITLE } from "@/components/shell/page-frame";
+import { Separator } from "@/components/ui/separator";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -49,6 +53,12 @@ import { useProfile } from "@/components/shell/profile";
 
 import { CasesFiltersButton, CasesAppliedFilters } from "./cases-filters";
 import { CasePeekPushRegion, PEEK_PUSH_CLASS } from "./case-peek";
+import {
+  CARDS_ONLY,
+  TABLE_FRAME,
+  TABLE_ONLY,
+  TABLE_QUERY,
+} from "./cases-layout";
 import { CollapsibleLabel } from "./collapsible-label";
 import { CasesListResults } from "./cases-list-results";
 import { CasesResultsSkeleton } from "./cases-list-skeleton";
@@ -270,7 +280,15 @@ export function CasesScreen({
         moment.
       </Banner>
     ) : (
-      <div className="flex flex-col gap-6 rounded-xl border border-hairline bg-card p-6 shadow-raised">
+      <div
+        className={cn(
+          "flex flex-col gap-6",
+          // The white frame is the table's. Below `md` every case is its own
+          // card, and a framed card full of bordered cards was a box of boxes
+          // with 24px lost on each side of a 375px screen (owner, Sept 21).
+          TABLE_FRAME
+        )}
+      >
           {/* What narrows the list sits with the list: the selection's action,
               the filters, the search. When the peek pushes the column, this row
               compresses in place rather than wrapping below the title. */}
@@ -287,7 +305,8 @@ export function CasesScreen({
             onSearchChange={onSearchChange}
           />
 
-          <div className={PEEK_PUSH_CLASS}>
+          {/* `empty:hidden`: with nothing applied this held a gap of its own. */}
+          <div className={cn(PEEK_PUSH_CLASS, "empty:hidden")}>
             <CasesAppliedFilters query={effective} onChange={applyFilters} />
           </div>
 
@@ -307,7 +326,12 @@ export function CasesScreen({
       <CasePeekProvider now={now} docked>
       {/* The Pending tasks ground, as on the case page, so the white panel and
           its edge stand off the page (owner, Sept 18). */}
-      <CasePeekPushRegion className="flex min-w-0 flex-1 flex-col gap-8 bg-muted p-6 md:p-8 dark:bg-background">
+      <CasePeekPushRegion
+        // On a phone the peek rises from the bottom, as it does from Home.
+        mobileDrawer
+        pushWhen={TABLE_QUERY}
+        className="flex min-w-0 flex-1 flex-col gap-6 bg-muted p-6 md:gap-8 md:p-8 dark:bg-background"
+      >
         {/* One plane above the panel: the title, then on the right the Bookmarked
             lens and the page's one bg-primary action (Laws: ration teal). Bookmarked is
             an icon toggle — a view the person turns on and off, not a command — its
@@ -320,7 +344,7 @@ export function CasesScreen({
             "flex flex-wrap items-center justify-between gap-4 " + PEEK_PUSH_CLASS
           }
         >
-          <h1 className="text-title-l font-semibold">Cases</h1>
+          <h1 className={PAGE_TITLE}>Cases</h1>
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -345,6 +369,11 @@ export function CasesScreen({
             </Button>
           </div>
         </header>
+
+        {/* Cards only: without the table's white frame, "Cases" and its actions
+            ran straight into "Your cases". A hairline parts the page's header
+            from the list's (owner, Sept 21). */}
+        <Separator className={cn("bg-hairline", CARDS_ONLY)} />
 
         {panel}
       </CasePeekPushRegion>
@@ -411,17 +440,25 @@ function CasesToolbar({
   const { record, docked, closing } = useCasePeek();
   // Compress the moment a close begins (not when it ends), so the buttons morph back to
   // labels in step with the panel sliding out and the chrome easing back — no end-pop.
-  const compact = docked && Boolean(record) && !closing;
+  // Only where the peek docks beside the table. On a phone it is a drawer and on an
+  // upright tablet it lies over the cards, and the toolbar re-arranging itself
+  // behind either was movement with no cause (owner, Sept 21).
+  const pushes = useMediaQuery(TABLE_QUERY);
+  const compact = pushes && docked && Boolean(record) && !closing;
 
   return (
     <div
       className={
-        "flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between " +
+        // Three children: what the list is, its actions, its search. Phone: a
+        // column, search before actions. `sm` to `lg` (a tablet held upright): a
+        // grid, search up on the heading's line, actions under it at the far
+        // end. `lg` up: one line, heading left, actions then search right.
+        "flex min-w-0 flex-col gap-4 sm:max-lg:grid sm:max-lg:grid-cols-[minmax(0,1fr)_auto] sm:max-lg:items-center lg:flex-row lg:items-center " +
         (compact ? "lg:flex-nowrap " : "lg:flex-wrap ") +
         PEEK_PUSH_CLASS
       }
     >
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1 max-sm:order-1">
         <h2 className="text-title-s font-semibold">Your cases</h2>
         {/* Says how many matched out of everything, so a filtered list is never
             mistaken for the whole book. */}
@@ -434,8 +471,11 @@ function CasesToolbar({
       </div>
       <div
         className={
-          "flex min-w-0 items-center gap-2 lg:justify-end " +
+          "flex min-w-0 items-center gap-2 max-sm:order-3 sm:max-lg:col-span-2 sm:max-lg:row-start-2 sm:max-lg:justify-self-end lg:ml-auto lg:justify-end " +
           (compact ? "flex-nowrap" : "flex-wrap")
+          // Below `sm`: search on its own line first, then Share access and
+          // Filters splitting the next one. Wrapped left, they read as dropped.
+          + " max-sm:[&>[data-toolbar-action]]:flex-1"
         }
       >
         <Tooltip>
@@ -444,6 +484,7 @@ function CasesToolbar({
               variant="outline"
               disabled={selectedCount === 0}
               onClick={onShare}
+              data-toolbar-action
               className={
                 "relative shrink-0 gap-0 duration-300 " +
                 (compact ? "px-2.5" : "px-4")
@@ -462,7 +503,11 @@ function CasesToolbar({
           {/* The name only needs a tooltip while the label is collapsed. */}
           {compact ? <TooltipContent>Share access</TooltipContent> : null}
         </Tooltip>
-        <CasesTableColumnsMenu compact={compact} />
+        {/* Columns belong to the table. The cards below `md` have one designed
+            shape, so the control that would do nothing there is not offered. */}
+        <div className={TABLE_ONLY}>
+          <CasesTableColumnsMenu compact={compact} />
+        </div>
         <CasesFiltersButton
           query={query}
           cases={cases}
@@ -470,34 +515,36 @@ function CasesToolbar({
           onApply={onApply}
           compact={compact}
         />
-        {/* Compact: the toolbar lives inside the card's p-6, so its right edge sits a
-            padding-width in from Join a case (which is in the outer header). Pull the
-            search out by that 6 so its right edge lands on the same vertical plane as
-            Join (owner, Sept 11), and ease the width so it grows back with everything
-            else. Only the search moves; the icons stay packed to its left. */}
-        <div
-          className={
-            "min-w-0 transition-[width,margin] duration-300 ease-out " +
-            (compact ? "-mr-6 w-44" : "w-full sm:w-72")
-          }
-        >
-          <Label htmlFor="cases-search" className="sr-only">
-            Search cases
-          </Label>
-          <InputGroup>
-            <InputGroupAddon>
-              <SearchIcon aria-hidden />
-            </InputGroupAddon>
-            <InputGroupInput
-              id="cases-search"
-              type="search"
-              autoComplete="off"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder={compact ? "Search" : "Search by case name or number"}
-            />
-          </InputGroup>
-        </div>
+      </div>
+      {/* Compact: the toolbar lives inside the card's p-6, so its right edge sits a
+          padding-width in from Join a case (which is in the outer header). Pull the
+          search out by that 6 so its right edge lands on the same vertical plane as
+          Join (owner, Sept 11), and ease the width so it grows back with everything
+          else. Only the search moves; the icons stay packed to its left. */}
+      <div
+        className={
+          "min-w-0 transition-[width,margin] duration-300 ease-out max-sm:order-2 sm:max-lg:col-start-2 sm:max-lg:row-start-1 " +
+          (compact ? "-mr-6 w-44" : "w-full sm:w-72 lg:w-52 xl:w-72")
+        }
+      >
+        <Label htmlFor="cases-search" className="sr-only">
+          Search cases
+        </Label>
+        <InputGroup>
+          <InputGroupAddon>
+            <SearchIcon aria-hidden />
+          </InputGroupAddon>
+          <InputGroupInput
+            id="cases-search"
+            type="search"
+            autoComplete="off"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            // Short enough to read whole in the narrower box the toolbar gets on a
+            // tablet on its side; the magnifier already says "search".
+            placeholder={compact ? "Search" : "Case name or number"}
+          />
+        </InputGroup>
       </div>
     </div>
   );

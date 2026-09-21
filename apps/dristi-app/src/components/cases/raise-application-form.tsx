@@ -1,25 +1,54 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowLeftIcon, HourglassIcon } from "lucide-react";
 
 import { AddSignatureDialog } from "@/components/cases/add-signature-dialog";
 import {
   ApplicationTypeFields,
   type FieldActions,
 } from "@/components/cases/application-type-fields";
-import { ApplicationTypePicker } from "@/components/cases/application-type-picker";
+import {
+  ApplicationTypePicker,
+  ApplicationTypeSearch,
+} from "@/components/cases/application-type-picker";
 import {
   DiscardFilingDialog,
-  FilingFrame,
-  PrototypeActions,
   focusFirstInvalid,
   useDraftExit,
 } from "@/components/cases/filing-form-shared";
 import { GeneratedApplicationDialog } from "@/components/cases/generated-application-dialog";
+import { BailApplicationDialog } from "@/components/filing/bail-application-dialog";
+import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { Identifier } from "@/components/chrome/identifier";
+import { useLocale } from "@/components/shell/locale";
+import { PAGE_TITLE } from "@/components/shell/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { applicationTypeGuide } from "@/lib/cases/application-type-guide";
+import {
+  Dialog,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  applicationTypeGuide,
+  suggestedApplicationTypes,
+} from "@/lib/cases/application-type-guide";
 import {
   EMPTY_APPLICATION_DRAFT,
   EMPTY_APPLICATION_ERRORS,
@@ -31,11 +60,18 @@ import {
   type ApplicationErrors,
 } from "@/lib/cases/application-draft";
 import {
+  isUnbuiltApplicationType,
   type ApplicationTypeId,
   type Submission,
 } from "@/lib/cases/applications";
 import { caseSectionHref } from "@/lib/cases/sections";
-import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
+import {
+  formatCaseDate,
+  partiesLabel,
+  stageLabel,
+  type CaseRecord,
+} from "@/lib/cases/types";
+import { cn } from "@/lib/utils";
 
 /**
  * Raise application.
@@ -46,14 +82,11 @@ import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
  * actually branches the form — the application type.
  *
  * Two steps, because they are two different jobs. Choosing the type is a
- * decision — the eight are cards that say what each one asks the court for,
- * searchable in the filer's own words — and it is the only thing on the
- * screen while it is being made. Filling the chosen type's fields is the
- * second, and it starts on a screen that is only those fields.
- *
- * A rail carrying all eight types beside the fields was the earlier shape.
- * It made the choice permanent furniture: eight names competing with the form
- * for the whole filing, none of them explaining themselves.
+ * decision: the types are cards that say what each one asks the court for,
+ * led by what the case's stage usually calls for and searchable by name.
+ * Filling the chosen type's fields is the second, and it happens in a dialog
+ * over the chooser (owner, Sept 21: every type files from a modal, as bail
+ * does). Closing it returns to the chooser, never to the case.
  *
  * There is no separate review step: Generate application validates the form
  * and opens the generated document, which restates every entered value as
@@ -64,12 +97,16 @@ import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 export function RaiseApplicationForm({
   record,
   resume = null,
+  backHref,
 }: {
   record: CaseRecord;
   /** A saved draft reopened from the register; null starts a new filing. */
   resume?: Submission | null;
+  /** Set when the filer came from the rail's case list; absent, back is the case. */
+  backHref?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const formId = useId();
   /*
     A resumed draft arrives with its type already chosen, so it opens on the
     fields — asking someone to re-pick the type they picked yesterday is the
@@ -88,12 +125,31 @@ export function RaiseApplicationForm({
   );
   const [generatedOpen, setGeneratedOpen] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
+  /** What the filer typed into the header search; it re-orders the cards. */
+  const [query, setQuery] = useState("");
+  /*
+    Bail keeps its own staged dialog (petitioner, sureties, review, sign, pay):
+    it opens over the chooser rather than as a second page, and it is told the
+    type, so it never asks for one.
+  */
+  const { locale } = useLocale();
+  const [bailOpen, setBailOpen] = useState(false);
+  /* Some types are cards without a form yet: the details step shows a notice,
+     never the fields, and never a Generate button. */
+  const unbuilt = draft.type !== "" && isUnbuiltApplicationType(draft.type);
   const chosen = applicationTypeGuide(
     draft.type || "application-others"
   );
   const caseHref = caseSectionHref(record.id, "applications");
-  const dirty = useMemo(() => isApplicationDirty(draft), [draft]);
-  const exit = useDraftExit(dirty, caseHref);
+  /* Anything typed, the chosen type aside: opening a form and closing it
+     again untouched should not ask whether to throw work away. */
+  const typedAnything = useMemo(
+    () => isApplicationDirty({ ...draft, type: "" }),
+    [draft]
+  );
+  // Only its leave-page guard is used now; every way out of the flow stays
+  // on this page.
+  useDraftExit(typedAnything, caseHref);
 
   const actions: FieldActions = {
     update(key, value) {
@@ -156,6 +212,10 @@ export function RaiseApplicationForm({
    * cost the work you did in the first.
    */
   function chooseType(type: ApplicationTypeId) {
+    if (type === "bail") {
+      setBailOpen(true);
+      return;
+    }
     actions.update("type", type);
     setStage("details");
   }
@@ -173,55 +233,163 @@ export function RaiseApplicationForm({
   }
 
   function returnFocusToGenerate() {
-    formRef.current
-      ?.querySelector<HTMLElement>('button[type="submit"]')
+    // The button lives in the dialog's footer, tied to the form by id.
+    document
+      .querySelector<HTMLElement>(`button[form="${CSS.escape(formId)}"]`)
       ?.focus();
   }
 
+  const [discardOpen, setDiscardOpen] = useState(false);
+
+  /** Back to the chooser with a clean slate. */
+  function closeForm() {
+    setDiscardOpen(false);
+    setDraft(EMPTY_APPLICATION_DRAFT);
+    setErrors(EMPTY_APPLICATION_ERRORS);
+    setStage("type");
+  }
+
+  function requestCloseForm() {
+    if (typedAnything) setDiscardOpen(true);
+    else closeForm();
+  }
+
+  /* One dialog at a time, as the signing chain already works: the form steps
+     aside for the generated document and returns if that is closed. */
+  const formOpen = stage === "details" && !generatedOpen && !signatureOpen;
+  const formTitle =
+    draft.type === "application-others"
+      ? "Other application"
+      : /application$/i.test(chosen.label)
+        ? chosen.label
+        : `${chosen.label} application`;
+
   return (
     <>
-      <FilingFrame
-        title="Raise application"
-        description={
-          stage === "type"
-            ? "Choose what you are asking the court for. Each type asks for different details."
-            : resume
-              ? `Picking up where this ${chosen.label.toLowerCase()} draft was left. Nothing has been filed yet.`
-              : `Fill in what ${chosen.label.toLowerCase()} needs. You can change the type at any point.`
-        }
-        // The cards want the room; a form field 1150px wide does not.
-        contentWidth={stage === "type" ? "wide" : "default"}
-        showPrototypeBanner={false}
-        showCaseContext={false}
-        onExit={exit.requestExit}
-      >
-        {stage === "type" ? (
-          <ApplicationTypePicker value={draft.type} onChoose={chooseType} />
-        ) : (
-          <form ref={formRef} noValidate onSubmit={generate}>
-            <div className="flex flex-col gap-8">
-              <ChosenType
-                label={chosen.label}
-                description={chosen.description}
-                savedOn={resume?.addedOn}
-                onChange={() => setStage("type")}
-              />
+      <div className="flex w-full flex-col gap-6">
+        {/* Keyed to the column, not the viewport: on a portrait tablet the rail
+            is still open, and a viewport rule put the search beside a heading
+            that then broke onto two lines. */}
+        <header className="@container">
+          <div className="flex flex-col gap-4 @2xl:flex-row @2xl:items-end @2xl:justify-between @2xl:gap-8">
+            {/* The arrow hangs in its own column, so the case line starts on
+                the heading's edge, not under the arrow. */}
+            <div className="flex min-w-0 items-start gap-1">
+              <div className="flex h-8 shrink-0 items-center">
+                <BackButton
+                  href={backHref ?? caseHref}
+                  label={backHref ? "Back to cases list" : "Back to case"}
+                />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1">
+                <h1 className={cn(PAGE_TITLE, "flex min-h-8 items-center")}>
+                  Raise application
+                </h1>
+                {/* Which case this files into. Reached from the rail, nothing
+                    else on the screen says so. */}
+                <p className="text-body-compact text-muted-foreground">
+                  <Identifier value={record.caseNumber} label="case number" />
+                  <span aria-hidden> · </span>
+                  {partiesLabel(record)}
+                </p>
+              </div>
+            </div>
+            <div className="w-full @2xl:w-80 @2xl:shrink-0">
+              <ApplicationTypeSearch query={query} onQueryChange={setQuery} />
+            </div>
+          </div>
+        </header>
 
+        <ApplicationTypePicker
+          value=""
+          query={query}
+          suggested={suggestedApplicationTypes(
+            record.stage,
+            record.disposal !== undefined
+          )}
+          stageName={stageLabel(record.stage)}
+          onChoose={chooseType}
+        />
+      </div>
+
+      {/*
+        Every type files from a dialog over the chooser, in the shell the bail
+        flow set: fixed header naming the ask and the case, a scrolling body of
+        that type's fields, a sunken footer holding the two ways out.
+      */}
+      <Dialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          if (!open) requestCloseForm();
+        }}
+      >
+        <ChromeDialogContent
+          className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader className="shrink-0 border-b border-hairline px-6 py-4 pr-12 text-left">
+            <div className="flex flex-wrap items-center gap-2">
+              <DialogTitle className="text-title-s font-semibold text-balance">
+                {formTitle}
+              </DialogTitle>
+              {/* The same Draft chip the register uses, so the row you clicked
+                  and the dialog you landed in are recognisably one filing. */}
+              {resume ? <Badge variant="warning">Draft</Badge> : null}
+            </div>
+            <DialogDescription className="text-pretty">
+              {chosen.description}
+            </DialogDescription>
+            <p className="text-caption text-muted-foreground">
+              <Identifier value={record.caseNumber} label="case number" />
+              <span aria-hidden> · </span>
+              {partiesLabel(record)}
+              {resume ? ` · Started ${formatCaseDate(resume.addedOn)}` : null}
+            </p>
+          </DialogHeader>
+
+          {unbuilt ? (
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <HourglassIcon aria-hidden />
+                  </EmptyMedia>
+                  <EmptyTitle>This application type is coming later</EmptyTitle>
+                  <EmptyDescription>
+                    Close this and pick a type you can file now.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
+          ) : (
+            <form
+              id={formId}
+              ref={formRef}
+              noValidate
+              onSubmit={generate}
+              className="min-h-0 flex-1 overflow-y-auto px-6 py-6"
+            >
               <ApplicationTypeFields
                 draft={draft}
                 errors={errors}
                 record={record}
                 actions={actions}
               />
+            </form>
+          )}
 
-              <PrototypeActions
-                reviewLabel="Generate application"
-                onCancel={exit.requestExit}
-              />
-            </div>
-          </form>
-        )}
-      </FilingFrame>
+          <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <Button type="button" variant="outline" onClick={requestCloseForm}>
+              {unbuilt ? "Close" : "Cancel"}
+            </Button>
+            {unbuilt ? null : (
+              <Button type="submit" form={formId}>
+                Generate application
+              </Button>
+            )}
+          </footer>
+        </ChromeDialogContent>
+      </Dialog>
 
       <GeneratedApplicationDialog
         open={generatedOpen}
@@ -244,20 +412,34 @@ export function RaiseApplicationForm({
           setSignatureOpen(false);
           setGeneratedOpen(true);
         }}
-        // Nothing persists, so completing claims nothing. The flow lands on
-        // the Applications register, where a filed application is designed
-        // to appear.
+        // Finishing returns to the chooser, not the case (owner, Sept 21):
+        // someone filing several applications files the next from here, and
+        // the confirmation has already said where this one waits.
         onComplete={() => {
           setSignatureOpen(false);
-          exit.complete();
+          closeForm();
         }}
         onReturnFocus={returnFocusToGenerate}
       />
 
+      <BailApplicationDialog
+        open={bailOpen}
+        // Closing, filed or not, stays on the chooser like every other type.
+        onOpenChange={setBailOpen}
+        accessCase={{
+          id: record.id,
+          title: partiesLabel(record),
+          caseNumber: record.caseNumber,
+          court: record.court,
+          nextHearing: record.nextHearing?.on ?? "",
+        }}
+        locale={locale}
+      />
+
       <DiscardFilingDialog
-        open={exit.open}
-        onOpenChange={exit.setOpen}
-        onDiscard={exit.discard}
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        onDiscard={closeForm}
       />
     </>
   );
@@ -274,51 +456,27 @@ function clearRow(
 }
 
 /**
- * The details step's first line: which type these fields belong to, and the
- * way back to the choice. It restates the description from the card you
- * picked — the fields below never name the type, so without this the second
- * step could be any of eight forms.
+ * View Case's own way out, the small ghost arrow, sitting ahead of the heading
+ * instead of on a row of its own above it.
  */
-function ChosenType({
-  label,
-  description,
-  savedOn,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  /** Set only when a saved draft was reopened, never on a new filing. */
-  savedOn?: string;
-  onChange: () => void;
-}) {
+function BackButton({ href, label }: { href: string; label: string }) {
   return (
-    <Card size="sm" className="hover:bg-card">
-      <CardContent className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-caption font-medium text-muted-foreground">
-            Application type
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-body font-semibold">{label}</p>
-            {/*
-              The same Draft chip the register uses, so the row you clicked
-              and the screen you landed on are recognisably one filing.
-            */}
-            {savedOn ? <Badge variant="warning">Draft</Badge> : null}
-          </div>
-          {savedOn ? (
-            <p className="mt-1 text-body-compact text-muted-foreground">
-              Started {formatCaseDate(savedOn)}
-            </p>
-          ) : null}
-          <p className="mt-1 max-w-prose text-body-compact text-muted-foreground">
-            {description}
-          </p>
-        </div>
-        <Button type="button" variant="outline" onClick={onChange}>
-          Change type
-        </Button>
-      </CardContent>
-    </Card>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            asChild
+            className="relative -ml-2 text-foreground after:absolute after:-inset-1 [&_svg]:size-4"
+          >
+            <Link href={href} aria-label={label}>
+              <ArrowLeftIcon aria-hidden />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

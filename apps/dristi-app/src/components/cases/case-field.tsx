@@ -61,7 +61,11 @@ export function CaseField({
       );
     }
     case "stage":
-      return <CaseStage record={record} detail={list} />;
+      /* The sub stage rides under the badge in the table too (owner, Sept 21):
+         the phone card shows it, and where a case sits inside "Evidence" is as
+         useful on a desk. Badge plus one caption line is 44px, inside the
+         row's 64px floor that the two-line Advocates cell already sets. */
+      return <CaseStage record={record} clampDetail={!list} />;
     case "nextHearing":
       return (
         <CaseDate iso={record.nextHearing?.on} emphasize={list} />

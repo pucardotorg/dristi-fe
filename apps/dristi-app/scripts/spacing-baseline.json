@@ -10,7 +10,6 @@
     "pl-9",
     "pl-9",
     "pr-10",
-    "py-10",
     "py-14"
   ],
   "src/components/access/share-dialog.tsx": [
@@ -59,12 +58,6 @@
     "pr-14",
     "py-5",
     "py-5"
-  ],
-  "src/components/cases/case-applications.tsx": [
-    "pl-9"
-  ],
-  "src/components/cases/case-documents.tsx": [
-    "pl-9"
   ],
   "src/components/cases/edit-litigant-dialog.tsx": [
     "pr-14",

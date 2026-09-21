@@ -524,8 +524,9 @@ export function PartySignatureDialog({
   );
 }
 
-/** One method on the sign chooser — the complaint sign step's card grammar. */
-function SignMethodCard({
+/** One method on the sign chooser — the complaint sign step's card grammar.
+ *  Exported so the application chain's signing step is built from the same card. */
+export function SignMethodCard({
   icon,
   tone,
   title,
@@ -533,7 +534,8 @@ function SignMethodCard({
   onClick,
 }: {
   icon: ReactNode;
-  tone: "info" | "warning";
+  /** `neutral` is for a way of not signing now: no status colour to claim. */
+  tone: "info" | "warning" | "neutral";
   title: string;
   description: string;
   onClick: () => void;
@@ -550,7 +552,9 @@ function SignMethodCard({
           "flex size-10 shrink-0 items-center justify-center rounded-lg",
           tone === "info"
             ? "bg-info-muted text-info-muted-foreground"
-            : "bg-warning-muted text-warning-muted-foreground"
+            : tone === "warning"
+              ? "bg-warning-muted text-warning-muted-foreground"
+              : "bg-surface-sunken text-muted-foreground group-hover:bg-background"
         )}
       >
         {icon}

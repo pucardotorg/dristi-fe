@@ -44,17 +44,10 @@ export function CaseBackButton() {
 /**
  * The case number with its history icon riding right behind it.
  *
- * `Identifier` reserves a 14px box after the value for its copy glyph, so a
- * sibling placed after it reads as detached from the number. The history icon
- * rests pulled back over that empty box, and steps aside by the same 14px when
- * the number is hovered, focused or showing its "Copied" tick, which is exactly
- * when the glyph needs the room.
- *
- * Transform only, 180ms on a strong ease-out: the icon should already be out of
- * the way by the time the glyph has faded in, and settle rather than stop. The
- * pull-back only applies when the number rendered as a button. Without a
- * clipboard it is a plain span with no reserved box, and the icon sits where
- * the layout puts it.
+ * `Identifier` holds no room for its copy glyph at rest and opens to it on
+ * hover, focus and "Copied", so the icon sits tight against the number and is
+ * eased aside by the layout itself. The move lives in `Identifier`, once, for
+ * every identifier in the product.
  */
 export function CaseNumberLine({
   caseNumber,
@@ -75,17 +68,8 @@ export function CaseNumberLine({
       <Identifier
         value={caseNumber}
         label="case number"
-        className="peer/number"
       />
-      <span
-        className={cn(
-          "flex transition-transform duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-          "peer-[:is(button)]/number:-translate-x-3.5",
-          "peer-[:is(button):hover]/number:translate-x-0",
-          "peer-[:is(button):focus-visible]/number:translate-x-0",
-          "peer-[:is(button)[title=Copied]]/number:translate-x-0"
-        )}
-      >
+      <span className="flex">
         <CaseNumberHistory history={history} />
       </span>
     </span>

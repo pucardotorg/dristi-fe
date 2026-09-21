@@ -53,23 +53,12 @@ import {
   counselFor,
   type CaseRecord,
 } from "@/lib/cases/types";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 
 import { CaseFlags } from "./case-identity";
 import { CASE_PEEK_ID, useCasePeek } from "./use-case-peek";
 import { Identifier } from "@/components/chrome/identifier";
-
-const SLIDE =
-  "transition-transform duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none";
-
-/** Follows the first number: back over its glyph box at rest, aside when it is engaged. */
-const AFTER_FIRST = cn(
-  SLIDE,
-  "peer-[:is(button)]/first:-translate-x-3.5",
-  "peer-[:is(button):hover]/first:translate-x-0",
-  "peer-[:is(button):focus-visible]/first:translate-x-0",
-  "peer-[:is(button)[title=Copied]]/first:translate-x-0"
-);
 
 /**
  * Card that owns peek state in the tree, floating variant. The panel portals to the
@@ -127,14 +116,22 @@ export const PEEK_PUSH_CLASS =
 export function CasePeekPushRegion({
   children,
   className,
+  mobileDrawer = false,
+  pushWhen = "(min-width: 640px)",
 }: {
   children: ReactNode;
   className?: string;
+  /** On a phone the peek rises as a bottom drawer instead of covering the screen. */
+  mobileDrawer?: boolean;
+  /** Where the docked panel makes room for itself. Elsewhere it lies over the
+   *  page and nothing behind it moves. Defaults to `sm`, the panel's own width rule. */
+  pushWhen?: string;
 }) {
   const { record, closing } = useCasePeek();
   // Make room only while the panel is actually there. As soon as a close is asked for,
   // `closing` flips and the chrome eases back in step with the panel sliding out.
-  const open = Boolean(record) && !closing;
+  const pushes = useMediaQuery(pushWhen);
+  const open = pushes && Boolean(record) && !closing;
   return (
     <>
       <div
@@ -144,7 +141,7 @@ export function CasePeekPushRegion({
       >
         {children}
       </div>
-      <CasePeek />
+      <CasePeek mobileDrawer={mobileDrawer} />
     </>
   );
 }
@@ -291,17 +288,15 @@ function CasePeekBody({
               <Identifier
                 value={record.caseNumber}
                 label="case number"
-                className="peer/first"
               />
               {extras.altCaseNumber ? (
                 <>
-                  <span aria-hidden className={cn("whitespace-pre", AFTER_FIRST)}>
+                  <span aria-hidden className="whitespace-pre">
                     {" · "}
                   </span>
                   <Identifier
                     value={extras.altCaseNumber}
                     label="other case number"
-                    className={AFTER_FIRST}
                   />
                 </>
               ) : null}

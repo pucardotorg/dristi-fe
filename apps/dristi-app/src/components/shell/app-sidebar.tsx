@@ -139,7 +139,14 @@ const START: NavItem[] = [
     icon: FilePlusIcon,
     href: "/filings",
   },
-  { id: "file-application", label: "File application", icon: FileTextIcon },
+  // Raised against a case, so the page behind this starts by asking which one;
+  // from there it is the same flow a case's Make filings menu opens.
+  {
+    id: "raise-application",
+    label: "Raise application",
+    icon: FileTextIcon,
+    href: "/raise-application",
+  },
   {
     id: "vakalatnama",
     label: "Vakalatnama",
@@ -246,12 +253,26 @@ function SearchShortcut() {
 
 function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
   const pathname = usePathname();
+  // On a phone the rail is a sheet over the page. Choosing where to go is the
+  // end of its job, so it puts itself away; left open, it sat over the screen
+  // that had just loaded behind it (owner, Sept 21). A no-op on desktop.
+  const { isMobile, setOpenMobile } = useSidebar();
+  const closeSheet = () => {
+    if (isMobile) setOpenMobile(false);
+  };
   const { id, label, icon: Icon, href } = item;
 
   if (onAction) {
     return (
       <SidebarMenuItem>
-        <SidebarMenuButton tooltip={label} className={ROW} onClick={onAction}>
+        <SidebarMenuButton
+          tooltip={label}
+          className={ROW}
+          onClick={() => {
+            closeSheet();
+            onAction();
+          }}
+        >
           <Icon aria-hidden />
           <span className={LABEL}>{label}</span>
           {id === "search" ? <SearchShortcut /> : null}
@@ -295,7 +316,11 @@ function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
         tooltip={label}
         className={ROW}
       >
-        <Link href={href} aria-current={isPage ? "page" : undefined}>
+        <Link
+          href={href}
+          aria-current={isPage ? "page" : undefined}
+          onClick={closeSheet}
+        >
           <Icon aria-hidden />
           <span className={LABEL}>{label}</span>
           {id === "tasks" ? (

@@ -295,7 +295,7 @@ export function TasksScreen() {
         {/* Today anchors every relative date below it — "2 days overdue" from when. */}
         <header className="flex flex-col gap-1">
           <h1 className="text-title-s font-semibold text-foreground">{headerDate(now)}</h1>
-          <p className="text-body text-muted-foreground tabular-nums">
+          <p className="text-body-compact text-muted-foreground tabular-nums">
             {state === "ready"
               ? `${summary.action} need action · ${summary.waiting} waiting on others · ${summary.overdue} overdue`
               : "Loading…"}
@@ -616,7 +616,7 @@ export function TasksScreenFallback() {
       <div className={cn("flex min-w-0 flex-1 flex-col gap-6 px-4 py-6 md:px-6 lg:px-8")}>
         <header className="flex flex-col gap-1">
           <h1 className="text-title-s font-semibold text-foreground">{headerDate(new Date())}</h1>
-          <p className="text-body text-muted-foreground">Loading…</p>
+          <p className="text-body-compact text-muted-foreground">Loading…</p>
         </header>
         <TasksTableSkeleton />
       </div>
