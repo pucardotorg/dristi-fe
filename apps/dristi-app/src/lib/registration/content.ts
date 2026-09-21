@@ -5,9 +5,11 @@ const t = (en: string, ml: string): Copy => ({ en, ml });
 
 export const registrationUi = {
   backToSignIn: t("Back to sign in", "സൈൻ ഇൻ പേജിലേക്ക് മടങ്ങുക"),
+  /** Phone header: the arrow says "back", this names the destination. */
+  backToSignInShort: t("Sign in", "സൈൻ ഇൻ"),
   back: t("Back", "പുറകോട്ട്"),
   continue: t("Continue", "തുടരുക"),
-  stepOf: t("Step {current} of {total}", "{total} ഘട്ടങ്ങളിൽ {current}-ാം ഘട്ടം"),
+  stepOf: t("Step {current} of {total}", "ഘട്ടം {current} / {total}"),
 } as const;
 
 export const journeySteps = {
@@ -153,8 +155,9 @@ export const verificationUi = {
 
 /**
  * The rejected-and-resubmit round. The officer types ONE general message on
- * rejection (PM, Sept 3); fields the officer marked are flagged in place, and
- * the person corrects them and resubmits the same application.
+ * rejection (PM, Sept 3); it shows on every step and is the whole feedback
+ * (owner, Sept 18: no per-field flags), and the person corrects their details
+ * and resubmits the same application.
  */
 export const rejectionUi = {
   /** The first step's headline — the rejection is page structure, not an
@@ -164,28 +167,22 @@ export const rejectionUi = {
     "നിങ്ങളുടെ രജിസ്ട്രേഷൻ അംഗീകരിച്ചില്ല",
   ),
   notApprovedBody: t(
-    "Correct the flagged details and resubmit for approval.",
-    "ഫ്ലാഗ് ചെയ്ത വിവരങ്ങൾ തിരുത്തി അംഗീകാരത്തിനായി വീണ്ടും സമർപ്പിക്കുക.",
+    "Correct your details and resubmit for approval.",
+    "നിങ്ങളുടെ വിവരങ്ങൾ തിരുത്തി അംഗീകാരത്തിനായി വീണ്ടും സമർപ്പിക്കുക.",
   ),
   /** `{id}` is the application number the rejection belongs to. */
   messageMeta: t(
     "Application {id} · message from the verifying officer",
     "അപേക്ഷ {id} · പരിശോധിക്കുന്ന ഉദ്യോഗസ്ഥന്റെ സന്ദേശം",
   ),
-  /** The field marker — it points; the officer's message explains. */
-  flagged: t("Flagged", "ഫ്ലാഗ് ചെയ്തു"),
   /** A long message clamps to three lines; these toggle the rest. */
   readMore: t("Read more", "കൂടുതൽ വായിക്കുക"),
   showLess: t("Show less", "ചുരുക്കുക"),
-  /** sr-only suffix on a flagged stepper step. */
-  stepFlagged: t("has flagged details", "ഫ്ലാഗ് ചെയ്ത വിവരങ്ങളുണ്ട്"),
+  /** sr-only suffix on a stepper step that needs correcting. */
+  stepFlagged: t("has details to correct", "തിരുത്തേണ്ട വിവരങ്ങളുണ്ട്"),
   mobileVerified: t(
     "Verified. This is the number you sign in with.",
     "പരിശോധിച്ചു. ഇതാണ് നിങ്ങൾ സൈൻ ഇൻ ചെയ്യുന്ന നമ്പർ.",
-  ),
-  previousUpload: t(
-    "The earlier upload ({name}) was rejected. Upload a clear scan.",
-    "മുമ്പ് അപ്‌ലോഡ് ചെയ്തത് ({name}) നിരസിച്ചു. വ്യക്തമായ സ്കാൻ അപ്‌ലോഡ് ചെയ്യുക.",
   ),
   resubmit: t("Resubmit for approval", "അംഗീകാരത്തിനായി വീണ്ടും സമർപ്പിക്കുക"),
   resubmittedTitle: t(

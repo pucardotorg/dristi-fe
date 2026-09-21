@@ -83,6 +83,7 @@ import {
   VAKALATNAMAS,
   ADVOCATE_JOIN_CASE,
 } from "@/lib/advocate/content";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Advocate join-a-case dialog.
@@ -675,9 +676,7 @@ export function AdvocateJoinCaseDialog({
                 </p>
                 <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
                 <p className="text-caption text-muted-foreground">
-                  <span className="font-mono tabular-nums">
-                    {joinCase.caseNumber}
-                  </span>
+                  <Identifier value={joinCase.caseNumber} label="case number" />
                   <span aria-hidden> · </span>
                   {pick(caseDetails.chequeAmount, locale)}{" "}
                   <span className="tabular-nums">{joinCase.chequeAmount}</span>

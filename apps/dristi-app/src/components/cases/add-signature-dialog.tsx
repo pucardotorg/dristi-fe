@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckIcon,
-  CopyIcon,
   DownloadIcon,
   FileTextIcon,
   Trash2Icon,
@@ -58,6 +57,7 @@ import { downloadGeneratedApplication } from "@/lib/cases/application-document";
 import { type ApplicationDraft } from "@/lib/cases/application-draft";
 import { applicationsFile } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
+import { Identifier } from "@/components/chrome/identifier";
 
 const ACCEPTED_FILE_TYPES =
   ".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png";
@@ -146,7 +146,6 @@ export function AddSignatureDialog({
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | undefined>(undefined);
   const [paid, setPaid] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   /**
    * The next application number this case would allot — existing
@@ -176,7 +175,6 @@ export function AddSignatureDialog({
     setFile(null);
     setFileError(undefined);
     setPaid(false);
-    setCopied(false);
   }
 
   function finish() {
@@ -211,13 +209,6 @@ export function AddSignatureDialog({
     }
     setFile(files[0]);
     setFileError(undefined);
-  }
-
-  function copySubmissionId() {
-    void navigator.clipboard
-      ?.writeText(submissionId)
-      .then(() => setCopied(true))
-      .catch(() => {});
   }
 
   const stepTitle =
@@ -264,8 +255,6 @@ export function AddSignatureDialog({
             titleRef={titleRef}
             paid={paid}
             submissionId={submissionId}
-            copied={copied}
-            onCopy={copySubmissionId}
           />
         ) : (
           <DialogHeader>
@@ -528,14 +517,10 @@ function SuccessContent({
   titleRef,
   paid,
   submissionId,
-  copied,
-  onCopy,
 }: {
   titleRef: React.Ref<HTMLHeadingElement>;
   paid: boolean;
   submissionId: string;
-  copied: boolean;
-  onCopy: () => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -590,26 +575,10 @@ function SuccessContent({
         </DescriptionRow>
         <DescriptionRow className="grid-cols-[1fr_auto] items-center">
           <DescriptionTerm className="text-body">Submission ID</DescriptionTerm>
+          {/* The value is its own copy control now, so the icon button beside it
+              went with the conversion — same confirmation, one thing to hit. */}
           <DescriptionDetails className="flex items-center gap-2 text-body font-medium">
-            {submissionId}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={
-                copied ? "Submission ID copied" : "Copy submission ID"
-              }
-              onClick={onCopy}
-            >
-              {copied ? (
-                <CheckIcon className="text-success-ink" aria-hidden />
-              ) : (
-                <CopyIcon aria-hidden />
-              )}
-            </Button>
-            <span aria-live="polite" className="sr-only">
-              {copied ? "Submission ID copied" : ""}
-            </span>
+            <Identifier value={submissionId} label="submission id" />
           </DescriptionDetails>
         </DescriptionRow>
       </DescriptionList>

@@ -3,8 +3,8 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { CARD_ORDER, DEFAULT_FILTERS, type DueFilter, type Filters } from "@/lib/tasks/selectors";
-import type { CardKind, TaskView } from "@/lib/tasks/types";
+import { DEFAULT_FILTERS, KIND_ORDER, type DueFilter, type Filters } from "@/lib/tasks/selectors";
+import type { PillKind, TaskView } from "@/lib/tasks/types";
 
 const VIEWS: TaskView[] = ["needs-action", "waiting", "completed", "archived"];
 const DUES: DueFilter[] = ["any", "overdue", "today", "week", "before-hearing"];
@@ -18,7 +18,7 @@ export function parseFilters(params: URLSearchParams): Filters {
   const kind = params.get("kind");
   return {
     view: oneOf(params.get("view"), VIEWS, DEFAULT_FILTERS.view),
-    kind: kind && (CARD_ORDER as string[]).includes(kind) ? (kind as CardKind) : null,
+    kind: kind && (KIND_ORDER as readonly string[]).includes(kind) ? (kind as PillKind) : null,
     due: oneOf(params.get("due"), DUES, DEFAULT_FILTERS.due),
     court: params.get("court") ?? "",
     advocate: params.get("adv") ?? "",

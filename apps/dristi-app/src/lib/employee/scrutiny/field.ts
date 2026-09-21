@@ -1,7 +1,8 @@
 import type * as React from "react";
 
-import { DOC_BY_ID, DOC_ROW, shortDocName } from "@/lib/employee/scrutiny/bundle";
+import { shortDocName } from "@/lib/employee/scrutiny/bundle";
 import type {
+  BundleDoc,
   Draft,
   Evidence,
   Field,
@@ -79,8 +80,9 @@ export function docMarkCount(docId: string, flags: FlagMap): number {
  */
 export function evidencePreviewStyle(
   evidence: Evidence,
+  docById: Record<string, BundleDoc>,
 ): React.CSSProperties | null {
-  const doc = DOC_BY_ID[evidence.doc];
+  const doc = docById[evidence.doc];
   if (!doc || doc.kind !== "image" || !doc.src) return null;
   const [l, t, w, h] = evidence.rect;
   const bx = w >= 99.9 ? 0 : (l / (100 - w)) * 100;
@@ -161,18 +163,24 @@ export function canSaveDraft(field: Field, draft: Draft | null): boolean {
  * where a mark on an uploaded document could mislead — a field sourced from a generated
  * page has nothing to re-upload, so it takes the plain sentence.
  */
-export function unlocksSentence(field: Field): string {
+export function unlocksSentence(
+  field: Field,
+  docRow: Record<string, string>,
+): string {
   if (field.docrow) {
     return "Lets the advocate re-upload this document.";
   }
-  if (field.doc && DOC_ROW[field.doc]) {
+  if (field.doc && docRow[field.doc]) {
     return "Lets the advocate edit this value only.";
   }
   return "Lets the advocate edit this value.";
 }
 
 /** Short enough that a Malayalam or Gujarati bundle label does not blow the line. */
-export function docName(docId: string): string {
-  const doc = DOC_BY_ID[docId];
+export function docName(
+  docId: string,
+  docById: Record<string, BundleDoc>,
+): string {
+  const doc = docById[docId];
   return doc ? shortDocName(doc.name) : "the document";
 }

@@ -99,6 +99,7 @@ import {
   formatAdvocatePhone,
   type PartyOption,
 } from "@/lib/cases/party-actions";
+import { Identifier } from "@/components/chrome/identifier";
 
 type AdvocateStep = 1 | 2 | 3;
 
@@ -541,9 +542,12 @@ export function AddAdvocateDialog({
                                       {formatAdvocatePhone(phoneInput)}
                                     </span>
                                     {" · Bar ID "}
-                                    <span className="font-mono">
-                                      {lookup.barId}
-                                    </span>
+                                    {/* The whole lookup result is the button. */}
+                                    <Identifier
+                                      value={lookup.barId}
+                                      label="bar id"
+                                      copyable={false}
+                                    />
                                   </>
                                 ) : (
                                   "Not on DRISTI yet. They'll be asked to register when they join."
@@ -704,7 +708,7 @@ export function AddAdvocateDialog({
                           {chip.barId ? (
                             <span className="text-muted-foreground">
                               {" · Bar ID "}
-                              <span className="font-mono">{chip.barId}</span>
+                              <Identifier value={chip.barId} label="bar id" />
                             </span>
                           ) : (
                             <span className="text-muted-foreground">

@@ -7,6 +7,7 @@ import {
   readOrderDrafts,
   subscribeToOrderDrafts,
   updateOrderDraft,
+  type OrderDrafts,
 } from "@/lib/employee/order-drafts";
 
 /**
@@ -29,6 +30,30 @@ import {
  * It is handed to the store as well as read from it, so an edit is applied to the draft
  * the screen was actually showing.
  */
+/**
+ * Every draft in this sitting, for a screen that asks *which* listings have one.
+ *
+ * The cause list needs the map rather than one listing's draft: it draws a mark per row
+ * and there is no hook-per-row to read. Same store, same subscription, so the table and
+ * the composer cannot disagree about what has been dictated on.
+ *
+ * **A key here means the typist actually entered something.** `useOrderDraft` writes only
+ * through `setDraft`, never on mount, so opening a composer and leaving without touching
+ * it records nothing — which is what makes this a safe test for "there is work in
+ * progress here" rather than "somebody looked at it". It is also *not* the same question
+ * as "would this listing open with text": a completed listing opens on a written order
+ * out of `order-demo.ts` with no key in this map (D23).
+ *
+ * It dies on a reload, like everything else in this store.
+ */
+export function useOrderDrafts(): OrderDrafts {
+  return React.useSyncExternalStore(
+    subscribeToOrderDrafts,
+    readOrderDrafts,
+    readOrderDrafts,
+  );
+}
+
 export function useOrderDraft(
   hearingId: string,
   initial: OrderDraft = EMPTY_ORDER_DRAFT,

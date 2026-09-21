@@ -31,6 +31,7 @@ import {
 } from "@/lib/filing/selectors";
 import { neighbours } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
+import { Identifier } from "@/components/chrome/identifier";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -323,8 +324,11 @@ export function AdvocateSection() {
                         {onRegister.name}
                       </p>
                       <p className="truncate text-caption text-muted-foreground">
-                        <span className="tabular-nums">{onRegister.barNumber}</span> ·{" "}
-                        {onRegister.bar}
+                        <Identifier
+                          value={onRegister.barNumber}
+                          label="bar registration"
+                        />{" "}
+                        · {onRegister.bar}
                       </p>
                     </div>
                     <Button
@@ -370,8 +374,13 @@ export function AdvocateSection() {
                         <span className="flex min-w-0 flex-col">
                           <span className="truncate font-medium">{adv.name}</span>
                           <span className="truncate text-caption text-muted-foreground">
-                            <span className="tabular-nums">{adv.barNumber}</span> ·{" "}
-                            {adv.bar}
+                            {/* A combobox row is an option — no control nested inside it. */}
+                            <Identifier
+                              value={adv.barNumber}
+                              label="bar registration"
+                              copyable={false}
+                            />{" "}
+                            · {adv.bar}
                           </span>
                         </span>
                       );

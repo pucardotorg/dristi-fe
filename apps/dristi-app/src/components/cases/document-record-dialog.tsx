@@ -47,6 +47,7 @@ import {
 } from "@/lib/cases/documents";
 import { formatCaseDate } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The record overlay chrome: header, a scrolling left pane, comments on the
@@ -171,10 +172,10 @@ function DocumentBody({
     >
       <DescriptionList>
         <RecordRow term="Filing ID">
-          <span className="font-mono">{document.id}</span>
+          <Identifier value={document.id} label="filing id" />
         </RecordRow>
         <RecordRow term="Case number">
-          <span className="font-mono">{file.caseNumber}</span>
+          <Identifier value={file.caseNumber} label="case number" />
         </RecordRow>
         <RecordRow term="Document type">
           {documentTypeLabel(document.type)}
@@ -197,7 +198,7 @@ function DocumentBody({
         </RecordRow>
         {document.evidenceNumber ? (
           <RecordRow term="Evidence no.">
-            {document.evidenceNumber}
+            <Identifier value={document.evidenceNumber} label="evidence number" />
           </RecordRow>
         ) : null}
         {document.evidenceStatus ? (
@@ -207,7 +208,7 @@ function DocumentBody({
         ) : null}
         {document.linkedApplication ? (
           <RecordRow term="Filed with">
-            <span className="font-mono">{document.linkedApplication.id}</span>
+            <Identifier value={document.linkedApplication.id} label="application id" />
             <span className="text-muted-foreground">
               {" "}
               ({document.linkedApplication.label})
@@ -216,7 +217,7 @@ function DocumentBody({
         ) : null}
         {document.linkedHearing ? (
           <RecordRow term="Hearing">
-            <span className="font-mono">{document.linkedHearing.id}</span>
+            <Identifier value={document.linkedHearing.id} label="hearing id" />
             <span className="text-muted-foreground">
               {" "}
               ({document.linkedHearing.label})

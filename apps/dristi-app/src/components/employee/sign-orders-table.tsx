@@ -30,6 +30,7 @@ import {
   type SignOrder,
 } from "@/lib/employee/sign-orders";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The signing queue for orders as a table: which orders are picked for signature, the
@@ -182,9 +183,9 @@ export function SignOrdersTable({
                 </button>
               </TableCell>
               <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {order.caseNumber}
+                <Identifier value={order.caseNumber} label="case number" />
               </TableCell>
               {/* Which decision this is — the fact that tells four rows of one case
                   apart. Plain text, like process type on Sign forms: the opener already

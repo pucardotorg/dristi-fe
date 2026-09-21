@@ -5,8 +5,6 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckCircle2Icon,
-  CheckIcon,
-  CopyIcon,
   DownloadIcon,
   Maximize2Icon,
   PenLineIcon,
@@ -69,6 +67,7 @@ import {
 } from "@/lib/filing/content";
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Raise an application → bail. Staged dialog, same shell as the join flows:
@@ -343,8 +342,6 @@ export function BailApplicationDialog({
   const [downloadNotice, setDownloadNotice] = React.useState(false);
 
   const [paid, setPaid] = React.useState(false);
-  const [copied, setCopied] = React.useState(false);
-  const copyTimerRef = React.useRef<number | null>(null);
   const [doneDownloadNotice, setDoneDownloadNotice] = React.useState(false);
 
   const petitioner = BAIL_PETITIONERS.find((entry) => entry.id === petitionerId);
@@ -355,7 +352,6 @@ export function BailApplicationDialog({
   React.useEffect(
     () => () => {
       if (generateTimerRef.current !== null) window.clearTimeout(generateTimerRef.current);
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
     },
     [],
   );
@@ -382,7 +378,6 @@ export function BailApplicationDialog({
     setSignTouched(false);
     setDownloadNotice(false);
     setPaid(false);
-    setCopied(false);
     setDoneDownloadNotice(false);
   }
 
@@ -450,13 +445,6 @@ export function BailApplicationDialog({
     });
   }
 
-  function copySubmissionId() {
-    void navigator.clipboard?.writeText(BAIL_SUBMISSION_ID);
-    setCopied(true);
-    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = window.setTimeout(() => setCopied(false), 2000);
-  }
-
   const headerCopy: { title: string; body: string } =
     stage === "details"
       ? { title: pick(bailDialog.title, locale), body: pick(bailDialog.detailsBody, locale) }
@@ -506,7 +494,9 @@ export function BailApplicationDialog({
             <DialogDescription className="text-pretty">{headerCopy.body}</DialogDescription>
             {/* The case this filing belongs to is constant across stages. */}
             <p className="text-caption text-muted-foreground">
-              {accessCase.caseNumber} · {accessCase.title}
+              <Identifier value={accessCase.caseNumber} label="case number" />
+              <span aria-hidden> · </span>
+              {accessCase.title}
             </p>
           </DialogHeader>
         )}
@@ -1116,25 +1106,13 @@ export function BailApplicationDialog({
                     {BAIL_SUBMISSION_DATE}
                   </DescriptionDetails>
                 </DescriptionRow>
-                {/* items-center so the label and the ID share the copy
-                    button's vertical midline instead of hanging above it. */}
+                {/* items-center so the label and the ID share one midline. The ID
+                    is its own copy control now, so the icon button beside it went
+                    with the conversion. */}
                 <DescriptionRow className="items-center border-hairline">
                   <DescriptionTerm>{pick(bailDialog.submissionIdLabel, locale)}</DescriptionTerm>
                   <DescriptionDetails className="flex items-center gap-2">
-                    <span className="font-mono">{BAIL_SUBMISSION_ID}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={pick(copied ? bailDialog.copiedId : bailDialog.copyId, locale)}
-                      onClick={copySubmissionId}
-                    >
-                      {copied ? (
-                        <CheckIcon className="text-success-ink" aria-hidden />
-                      ) : (
-                        <CopyIcon aria-hidden />
-                      )}
-                    </Button>
+                    <Identifier value={BAIL_SUBMISSION_ID} label="submission id" />
                   </DescriptionDetails>
                 </DescriptionRow>
                 <DescriptionRow className="border-hairline">

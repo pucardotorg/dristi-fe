@@ -1,10 +1,13 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ExternalLinkIcon, XIcon } from "lucide-react";
+
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +57,7 @@ import { cn } from "@/lib/utils";
 
 import { CaseFlags } from "./case-identity";
 import { CASE_PEEK_ID, useCasePeek } from "./use-case-peek";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Card that owns peek state in the tree, floating variant. The panel portals to the
@@ -64,14 +68,17 @@ import { CASE_PEEK_ID, useCasePeek } from "./use-case-peek";
 export function CasePeekSurface({
   children,
   className,
+  mobileDrawer = false,
 }: {
   children: ReactNode;
   className?: string;
+  /** Opt this surface into a modal bottom drawer on phones. */
+  mobileDrawer?: boolean;
 }) {
   return (
     <div className={className}>
       {children}
-      <CasePeek />
+      <CasePeek mobileDrawer={mobileDrawer} />
     </div>
   );
 }
@@ -142,7 +149,9 @@ export function CasePeekPushRegion({
 /** A subscription with nothing to report — the mount state never changes back. */
 const emptySubscribe = () => () => {};
 
-export function CasePeek() {
+export function CasePeek({ mobileDrawer = false }: { mobileDrawer?: boolean } = {}) {
+  const isMobile = useIsMobile();
+  const returnFocus = useRef<HTMLElement | null>(null);
   const { record, now, hideLongPendingFlag, docked, closing, close } = useCasePeek();
   // Portal guard: the server (and the hydration render) has no document.body to
   // portal into, so both report unmounted; the client re-renders once after
@@ -154,6 +163,37 @@ export function CasePeek() {
   );
 
   if (!record || !mounted) return null;
+
+  if (mobileDrawer && isMobile) {
+    return (
+      <Drawer open={!closing} onOpenChange={(open) => { if (!open) close(); }} autoFocus>
+        <DrawerContent
+          id={CASE_PEEK_ID}
+          aria-labelledby="case-peek-title"
+          aria-describedby={undefined}
+          className="h-[80dvh] overflow-hidden data-[vaul-drawer-direction=bottom]:max-h-[80dvh] [&_[data-slot=button]]:min-h-10"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          onOpenAutoFocus={() => {
+            returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          }}
+          onCloseAutoFocus={(event) => {
+            // There is no DrawerTrigger: the hearing card opens the shared provider.
+            // Keep its 300ms exit, then return to the actual invoking control.
+            event.preventDefault();
+            if (returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
+          }}
+        >
+          <CasePeekBody
+            record={record}
+            now={now}
+            hideLongPendingFlag={hideLongPendingFlag}
+            onClose={close}
+            mobileDrawer
+          />
+        </DrawerContent>
+      </Drawer>
+    );
+  }
 
   return createPortal(
     // The panel slides both ways. Enter is a keyframe that plays on mount; exit is the
@@ -200,12 +240,15 @@ function CasePeekBody({
   now,
   hideLongPendingFlag,
   onClose,
+  mobileDrawer = false,
 }: {
   record: CaseRecord;
   now: number;
   hideLongPendingFlag: boolean;
   onClose: () => void;
+  mobileDrawer?: boolean;
 }) {
+  const Title = mobileDrawer ? DrawerTitle : "h2";
   const title = partiesLabel(record);
   const extras = peekExtras(record.id);
   const stage = record.disposal
@@ -217,21 +260,21 @@ function CasePeekBody({
       {/* No eyebrow — the panel is plainly a case, and "Case peek" only named the
           mechanism (owner, Sept 11). Close is the bare cross, top-right on the title's
           line. The tab row below carries the only divider; the header runs into it. */}
-      <header className="flex flex-col gap-4 p-6 pb-4">
+      <header className={cn("flex shrink-0 flex-col gap-4 p-6 pb-4", mobileDrawer && "p-4")}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1.5">
-            <h2
+            <Title
               id="case-peek-title"
               className="text-title-s font-semibold text-balance"
             >
               {title}
-            </h2>
+            </Title>
             <p className="text-body-compact text-muted-foreground">
-              <span className="font-mono">{record.caseNumber}</span>
+              <Identifier value={record.caseNumber} label="case number" />
               {extras.altCaseNumber ? (
                 <>
                   <span aria-hidden> · </span>
-                  {extras.altCaseNumber}
+                  <Identifier value={extras.altCaseNumber} label="other case number" />
                 </>
               ) : null}
               <span aria-hidden> · </span>
@@ -240,7 +283,7 @@ function CasePeekBody({
           </div>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size={mobileDrawer ? "icon" : "icon-sm"}
             className="-mr-1 -mt-1 shrink-0 text-muted-foreground"
             onClick={onClose}
             aria-label="Close"
@@ -363,6 +406,19 @@ function CasePeekOverview({
         <PeekRow term="Filed">{formatCaseDate(record.filedOn)}</PeekRow>
       </DescriptionList>
 
+      {/* Pending work comes before the last hearing: what still has to be done
+          before the next posting outranks the record of the one that passed. */}
+      {tasks.length > 0 ? (
+        <section className="flex flex-col gap-4">
+          <SectionHeading count={tasks.length}>Pending before the hearing</SectionHeading>
+          <ItemGroup className="gap-3">
+            {tasks.map((task) => (
+              <TaskRow key={task.id} caseId={record.id} task={task} now={now} />
+            ))}
+          </ItemGroup>
+        </section>
+      ) : null}
+
       {record.previousHearingOn ? (
         <LastHearingCard
           on={record.previousHearingOn}
@@ -370,17 +426,6 @@ function CasePeekOverview({
           order={extras.orderOfTheDay ?? record.latestUpdate}
           directed={Boolean(extras.orderOfTheDay)}
         />
-      ) : null}
-
-      {tasks.length > 0 ? (
-        <section className="flex flex-col gap-4">
-          <SectionHeading count={tasks.length}>Pending tasks</SectionHeading>
-          <ItemGroup className="gap-3">
-            {tasks.map((task) => (
-              <TaskRow key={task.id} caseId={record.id} task={task} now={now} />
-            ))}
-          </ItemGroup>
-        </section>
       ) : null}
     </div>
   );
@@ -548,6 +593,46 @@ function TaskRow({
       ? `Assigned to ${task.assignedTo} · marked ${formatCaseDate(task.markedOn)}`
       : due.on;
 
+  const dueLabel = (
+    <p
+      className={cn(
+        "shrink-0 text-caption",
+        due.overdue ? "text-destructive-ink" : "text-muted-foreground"
+      )}
+    >
+      {due.label}
+    </p>
+  );
+
+  // When the task names its verb, the row states the task and offers that action
+  // as its own outline button — the deadline sits quietly beside it. Without a
+  // named verb the whole row is the link to where the task is handled.
+  if (task.action) {
+    // The statement leads on its own line so it is never squeezed by the action
+    // beside it; the deadline and the action then sit together on a second line,
+    // the button anchored to the right.
+    return (
+      <Item variant="muted" size="sm" className="min-h-10 p-4">
+        <ItemContent className="min-w-0 gap-1.5">
+          <ItemTitle className="line-clamp-none text-body-compact font-medium text-foreground">
+            {task.title}
+          </ItemTitle>
+          <ItemDescription className="line-clamp-none text-caption">
+            {detail}
+          </ItemDescription>
+          <div className="mt-1.5 flex items-center justify-between gap-3">
+            {dueLabel}
+            <Button variant="outline" size="xs" asChild>
+              <Link href={caseSectionHref(caseId, task.action.section)}>
+                {task.action.label}
+              </Link>
+            </Button>
+          </div>
+        </ItemContent>
+      </Item>
+    );
+  }
+
   // items-baseline puts the due status on the title's first-line baseline, so the date
   // reads as sitting on the same plane as the heading rather than floating a little low
   // (owner, Sept 11).
@@ -562,14 +647,7 @@ function TaskRow({
             {detail}
           </ItemDescription>
         </ItemContent>
-        <p
-          className={cn(
-            "shrink-0 text-caption",
-            due.overdue ? "text-destructive-ink" : "text-muted-foreground"
-          )}
-        >
-          {due.label}
-        </p>
+        {dueLabel}
       </Link>
     </Item>
   );

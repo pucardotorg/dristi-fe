@@ -10,11 +10,11 @@ import {
   type CaseRecord,
   type CounselSide,
 } from "@/lib/cases/types";
-import { cn } from "@/lib/utils";
 
 import { CaseAdvocates } from "./case-advocates";
 import { CaseHeaderActions } from "./case-header-actions";
 import { CaseFlags, CaseStage } from "./case-identity";
+import { Identifier } from "@/components/chrome/identifier";
 
 const COUNSEL_LABEL: Record<CounselSide, string> = {
   complainant: "Complainant counsel",
@@ -67,12 +67,13 @@ export function CaseHeader({
       <div className="flex min-w-0 flex-col gap-1">
         {/* Without parties the title already *is* the number, so printing it
             here too would just say it twice. Position and the mono face carry
-            the label, the way a record number does above a document title;
-            the sr-only text keeps the semantics the strip's <dt> gave. */}
+            the label, the way a record number does above a document title.
+            The sr-only labels that used to stand in for the strip's <dt> are
+            gone: each Identifier names its own kind ("Copy the case number,
+            ST 412/2025"), and keeping both said it twice. */}
         {hasParties ? (
-          <p className="font-mono text-title-s font-semibold text-foreground">
-            <span className="sr-only">Case number </span>
-            {record.caseNumber}
+          <p className="text-title-s font-semibold text-foreground">
+            <Identifier value={record.caseNumber} label="case number" />
             {/* The registry's other number for the same matter, on the same
                 line. It is the number the other side of the courthouse
                 quotes, so it belongs with the one this side quotes rather
@@ -85,8 +86,7 @@ export function CaseHeader({
                 <span aria-hidden className="text-muted-foreground">
                   {" · "}
                 </span>
-                <span className="sr-only">, other number </span>
-                {extras.altCaseNumber}
+                <Identifier value={extras.altCaseNumber} label="other case number" />
               </>
             ) : null}
           </p>
@@ -109,16 +109,16 @@ export function CaseHeader({
         <dl className="flex min-w-0 flex-wrap gap-x-8 gap-y-4">
           {/* Only when the lede above could not carry it. */}
           {hasParties ? null : (
-            <HeaderFact label="Case number" mono>
-              {record.caseNumber}
+            <HeaderFact label="Case number">
+              <Identifier value={record.caseNumber} label="case number" />
             </HeaderFact>
           )}
           {/* Only in the branch where the lede could not carry it — with no
               parties the title is the case number itself, so neither number
               has a line above to sit on. */}
           {extras.altCaseNumber && !hasParties ? (
-            <HeaderFact label="Other number" mono>
-              {extras.altCaseNumber}
+            <HeaderFact label="Other number">
+              <Identifier value={extras.altCaseNumber} label="other case number" />
             </HeaderFact>
           ) : null}
           <HeaderFact label="Stage">
@@ -173,11 +173,9 @@ export function CaseHeader({
  */
 function HeaderFact({
   label,
-  mono = false,
   children,
 }: {
   label: string;
-  mono?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -185,12 +183,7 @@ function HeaderFact({
       <dt className="text-body text-muted-foreground">{label}</dt>
       {/* min-h-10 keeps every value on one baseline and gives the counsel
           +N trigger its 40px target (Laws: accessibility floor). */}
-      <dd
-        className={cn(
-          "flex min-h-10 items-center text-body font-medium text-foreground",
-          mono && "font-mono"
-        )}
-      >
+      <dd className="flex min-h-10 items-center text-body font-medium text-foreground">
         {children}
       </dd>
     </div>

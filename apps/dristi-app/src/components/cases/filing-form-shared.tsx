@@ -52,6 +52,7 @@ import { DocumentSlot } from "@/components/ui/document-slot";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { RequiredMark } from "@/components/filing/form-field";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 export const MAX_FILING_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_FILE_EXTENSIONS = ["pdf", "jpg", "jpeg", "png"];
@@ -206,7 +207,7 @@ export function FilingFrame({
             <UserRoundIcon className="mt-0.5 size-5 shrink-0" aria-hidden />
             <div>
               <p className="text-body-compact text-muted-foreground">
-                Case {caseNumber}
+                Case <Identifier value={caseNumber} label="case number" />
               </p>
               <p className="text-body font-medium">
                 Filing for Complainant · {complainantName}

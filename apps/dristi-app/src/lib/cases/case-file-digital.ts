@@ -3,7 +3,11 @@
  * Complaint tab uses, filled from existing dummy packs. A paper with no
  * structured fixture stays undefined; the UI must not invent the filing.
  */
-import { complaintPane, type ComplaintPane } from "./complaint";
+import {
+  complaintPane,
+  type ComplaintField,
+  type ComplaintPane,
+} from "./complaint";
 import { CASES } from "./fixtures";
 import {
   documentSourceLabel,
@@ -122,6 +126,11 @@ function field(term: string, value: string) {
   return { term, value };
 }
 
+/** The same row for a value that is an identifier rather than prose. */
+function idField(term: string, value: string): ComplaintField {
+  return { term, value, id: true };
+}
+
 function depositionPane(depositions: WitnessDeposition[]): ComplaintPane {
   const first = depositions[0];
   const exhibits = [
@@ -132,10 +141,14 @@ function depositionPane(depositions: WitnessDeposition[]): ComplaintPane {
     title: `${first.witnessNumber} deposition`,
     badges: [first.witnessType],
     fields: [
+      /* The designation and the name as one sentence — prose, so no mono. The
+         designation on its own carries the face where it is the field
+         (`hearing-record-dialog`). */
       field("Witness", `${first.witnessNumber} ${first.witnessName}`),
       field("Witness type", first.witnessType),
       ...(exhibits.length > 0
         ? [
+            /* Marks with their descriptions: a list of phrases, not a reference. */
             field(
               "Exhibits",
               exhibits.map((code) => `${code} · ${exhibitLabel(code)}`).join("; ")
@@ -178,20 +191,21 @@ function documentPane(
   return {
     title: document.title,
     fields: [
-      field("Filing ID", document.id),
+      idField("Filing ID", document.id),
       field("Document type", documentTypeLabel(document.type)),
       field("Source", documentSourceLabel(document.source)),
       field("Status", documentStatusLabel(document.submissionStatus)),
       field("Submitted on", formatCaseDate(document.submittedOn)),
       field("Submitted by", submittedBy),
       ...(document.evidenceNumber
-        ? [field("Evidence no.", document.evidenceNumber)]
+        ? [idField("Evidence no.", document.evidenceNumber)]
         : []),
       ...(document.evidenceStatus
         ? [field("Evidence status", evidenceStatusLabel(document.evidenceStatus))]
         : []),
       ...(document.linkedApplication
         ? [
+            /* A title with its id in brackets. The sentence is the fact here. */
             field(
               "Filed with",
               `${document.linkedApplication.label} (${document.linkedApplication.id})`

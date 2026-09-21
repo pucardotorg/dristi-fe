@@ -58,6 +58,17 @@ import {
  */
 export type ListingApplicationDecision = "allowed" | "dismissed";
 
+/**
+ * Both answers, for the callers that need to reason about the ones not chosen.
+ *
+ * The composer writes a disposal into the order's passage, so changing an answer has to
+ * find the sentence the other answer wrote — which means building every wording the same
+ * fact could have had. Derived from one list rather than spelled out at the call site, so
+ * a third answer could never be added here and missed there.
+ */
+export const LISTING_APPLICATION_DECISIONS: readonly ListingApplicationDecision[] =
+  ["allowed", "dismissed"];
+
 export type ListingApplication = {
   id: string;
   /**
@@ -77,13 +88,17 @@ export type ListingApplication = {
 };
 
 /** What is pending on this listing. Most listings have nothing. */
-export function applicationsForListing(hearingId: string): ListingApplication[] {
+export function applicationsForListing(
+  hearingId: string,
+): ListingApplication[] {
   return LISTING_APPLICATIONS[hearingId] ?? [];
 }
 
 /** The head the application was filed under — "Bail". */
 export function listingApplicationLabel(
-  application: ListingApplication,
+  /* The head only. Widened from `ListingApplication` so the order composer can name the
+     application a suggestion arrived from without that module holding a whole one. */
+  application: Pick<ListingApplication, "type">,
 ): string {
   return otherApplicationTypeLabel(application.type);
 }
@@ -234,6 +249,25 @@ const LISTING_APPLICATIONS: Partial<Record<string, ListingApplication[]>> = {
       filedOn: "2026-09-02",
       reason:
         "The manager who handled the return memo has since been transferred, and the officer who now holds that charge is the person who can speak to it.",
+    },
+  ],
+  /* A withdrawal of the complaint, and the one listing that exercises the auto-fill pass
+     end to end (D51). §138 complaints are withdrawn often — the cheque gets paid and the
+     complainant no longer wants the prosecution — and `withdrawal-of-case` is the only
+     order in the dropdown whose template takes `[Application Number]` as a locked
+     variable. Without an application of this head on the board there was no reachable
+     path on which an order could open on a filled number, so the pass was correct and
+     invisible. Added on a listing that had nothing pending, so no other screen's counts
+     move. */
+  "h-258": [
+    {
+      id: "la-258-1",
+      number: "CMP/341/2026",
+      type: "case-withdrawal",
+      filedFor: "complainant",
+      filedOn: "2026-09-04",
+      reason:
+        "The cheque amount and the costs have been paid in full since the last posting, and the complainant does not wish to prosecute the complaint further.",
     },
   ],
   "h-253": [

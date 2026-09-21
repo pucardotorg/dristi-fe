@@ -17,6 +17,7 @@ import {
 import { hearingsFile } from "@/lib/cases/hearings";
 import type { CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The register's scroll body. The same utilities the record step uses, for
@@ -233,7 +234,8 @@ export function CaseHearingsDialog({
               {/* Which case's register this is. The overlay covers the page
                   that would otherwise have said so. */}
               <DialogDescription className="text-caption font-medium text-muted-foreground">
-                {record.caseNumber}
+                {/* No copy control inside the dialog's accessible description. */}
+                <Identifier value={record.caseNumber} label="case number" copyable={false} />
               </DialogDescription>
               <DialogTitle className="text-title font-semibold">
                 Hearings

@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useTaskActions } from "@/components/tasks/use-task-actions";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { Identifier } from "@/components/chrome/identifier";
 
 export function TaskRespondDialog({
   task,
@@ -74,7 +75,14 @@ export function TaskRespondDialog({
         <DialogHeader>
           <DialogTitle>Review the request</DialogTitle>
           <DialogDescription>
-            {kase ? `${kase.parties} · ${kase.stNumber}` : null}
+            {kase ? (
+              <>
+                {kase.parties}
+                <span aria-hidden> · </span>
+                {/* No copy control inside the dialog's accessible description. */}
+                <Identifier value={kase.stNumber} label="case number" copyable={false} />
+              </>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
 

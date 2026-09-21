@@ -69,3 +69,24 @@ export function waitTone(filing: Filing): WaitTone {
 export function findFiling(filingNo: string): Filing | undefined {
   return QUEUE.find((r) => r.no === filingNo);
 }
+
+/**
+ * The next filing to scrutinise after this one — what "Next file" reaches for when an
+ * officer has just decided on a file and does not want to be sent back to the list
+ * (owner, 2026-09-17).
+ *
+ * **"Next" is the registry work list in the order the queue shows it**, longest waiting
+ * first, not the fixture's array order: the officer's idea of next is the row under the
+ * one they just left, and that ordering lives in `filterQueue`. Reading it from there
+ * rather than restating it is what keeps the button and the queue from disagreeing.
+ *
+ * A filing that is not in that list — out with an advocate, or closed — has no successor
+ * in it, so the first row is the answer: the question asked was "what next", and that is
+ * the next thing to do. The last row in the list returns `undefined`, which is the
+ * caller's cue to offer the queue instead.
+ */
+export function nextFilingAfter(filingNo: string): Filing | undefined {
+  const work = filterQueue(QUEUE, "registry", "anyone", "");
+  const at = work.findIndex((r) => r.no === filingNo);
+  return at < 0 ? work[0] : work[at + 1];
+}
