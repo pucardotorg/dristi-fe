@@ -82,11 +82,11 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
             the same 12px, their icon and label stand on the header icon's edge. */}
         <Link
           href={NEW_FILING}
-          className="group -mx-3 flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="group -mx-3 flex items-center gap-3 rounded-lg bg-brand-muted/50 p-3 transition-colors hover:bg-brand-muted active:bg-brand-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <span
             aria-hidden
-            className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-muted-foreground"
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-card text-brand-muted-foreground"
           >
             <CreditCardIcon className="size-5" />
           </span>
