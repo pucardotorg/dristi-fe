@@ -683,8 +683,11 @@ export function JoinCaseDialog({
                   label={pick(joinDialog.downloadCaseFile, locale)}
                   onClick={() => setDownloadNotice(true)}
                 />
+                {/* Stacked footer on a phone: the primary fills the row beside
+                    the icon, as wide as the Back button under it. */}
                 <Button
                   type="button"
+                  className="flex-1 sm:flex-none"
                   onClick={() => setStage("identity")}
                   data-icon="inline-end"
                 >

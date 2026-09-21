@@ -1366,7 +1366,14 @@ export function AdvocateJoinCaseDialog({
                   label={pick(joinDialog.downloadCaseFile, locale)}
                   onClick={() => setDownloadNotice(true)}
                 />
-                <Button type="button" onClick={() => setStage("account")} data-icon="inline-end">
+                {/* Stacked footer on a phone: the primary fills the row beside
+                    the icon, as wide as the Back button under it. */}
+                <Button
+                  type="button"
+                  className="flex-1 sm:flex-none"
+                  onClick={() => setStage("account")}
+                  data-icon="inline-end"
+                >
                   {pick(joinDialog.continue, locale)}
                   <ArrowRightIcon aria-hidden />
                 </Button>
