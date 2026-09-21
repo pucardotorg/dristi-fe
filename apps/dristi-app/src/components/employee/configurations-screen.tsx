@@ -24,7 +24,7 @@ import {
   generateId,
   type OrderTemplate,
   type OrderCategory,
-} from "@/lib/employee/order-templates";
+} from "@/lib/employee/order-config-templates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
