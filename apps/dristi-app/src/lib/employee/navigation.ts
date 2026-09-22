@@ -1,4 +1,5 @@
 import {
+  CalendarClockIcon,
   CalendarDaysIcon,
   FileSearchIcon,
   FolderIcon,
@@ -16,6 +17,7 @@ import {
 } from "./cognizance";
 import { DELAY_CONDONATION_QUEUE_COUNT } from "./delay-condonation";
 import { hearingById, TODAYS_HEARING_COUNT } from "./hearings";
+import type { CourtNavLayout } from "./nav-layout";
 import { OTHER_APPLICATIONS_QUEUE_COUNT } from "./other-applications";
 import {
   APPROVE_REGISTRATIONS_TITLE,
@@ -357,6 +359,136 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
 ];
 
 /**
+ * The rows each combined layout keeps standing apart from its one folded row, leading
+ * it or trailing it — the owner's two passes, 2026-09-21. `"actions"` keeps hearings a
+ * tab of its own next to actions, the way `COURT_NAV_GROUPS` already keeps Hearings a
+ * group of its own; `"schedule"` folds hearings in with everything else instead and
+ * gives them a prominent block inside that one screen (`TodaysScheduleScreen`), not a
+ * row of their own. Both keep Bulk reschedule hearings and Sign process apart either
+ * way — a hearing put off to a range the bench chooses is not a due item, and a process
+ * line has its own three-stage count already (`sign-process`'s own count comment).
+ */
+const COURT_NAV_KEPT_APART: Record<
+  CombinedCourtNavLayout,
+  { leading: string[]; trailing: string[] }
+> = {
+  actions: {
+    leading: ["todays-hearings"],
+    trailing: ["bulk-reschedule", "sign-process"],
+  },
+  schedule: { leading: [], trailing: ["bulk-reschedule", "sign-process"] },
+};
+
+/** Every group's rows, in the rail's own order — the one pass every function below shares. */
+function courtNavAllItems(): CourtNavItem[] {
+  return COURT_NAV_GROUPS.flatMap((group) => group.items);
+}
+
+/** The rows named by a list of ids, in the order the ids were given — not the source's. */
+function courtNavItemsByIds(ids: string[]): CourtNavItem[] {
+  const all = courtNavAllItems();
+  return ids
+    .map((id) => all.find((item) => item.id === id))
+    .filter((item): item is CourtNavItem => item !== undefined);
+}
+
+/**
+ * The rows a layout keeps standing on their own, leading rows before trailing rows —
+ * `"actions"`: Today's hearings, then Bulk reschedule hearings, then Sign process.
+ * `"schedule"`: Bulk reschedule hearings, then Sign process.
+ */
+export function courtNavKeptApart(layout: CombinedCourtNavLayout): CourtNavItem[] {
+  const spec = COURT_NAV_KEPT_APART[layout];
+  return courtNavItemsByIds([...spec.leading, ...spec.trailing]);
+}
+
+/**
+ * Everything a layout folds into its one row — every `COURT_NAV_GROUPS` item except
+ * what that layout keeps apart, still in the source's own order.
+ */
+export function courtNavClubbed(layout: CombinedCourtNavLayout): CourtNavItem[] {
+  const apart = new Set(courtNavKeptApart(layout).map((item) => item.id));
+  return courtNavAllItems().filter((item) => !apart.has(item.id));
+}
+
+/** The combined row's own count — every clubbed item's, summed, never restated by hand. */
+export function courtNavClubbedTotal(layout: CombinedCourtNavLayout): number {
+  return courtNavClubbed(layout).reduce(
+    (total, item) => total + (item.count ?? 0),
+    0,
+  );
+}
+
+/** A layout that folds work into one row, rather than the rail's default four groups. */
+type CombinedCourtNavLayout = Exclude<CourtNavLayout, "grouped">;
+
+/** The one row `"actions"` and `"schedule"` differ on — same destination shape, two names. */
+const COURT_NAV_COMBINED_ROW: Record<CombinedCourtNavLayout, CourtNavItem> = {
+  actions: {
+    id: "todays-actions",
+    label: "Today’s actions",
+    href: "/employee/todays-actions",
+  },
+  schedule: {
+    id: "todays-schedule",
+    label: "Today’s schedule",
+    href: "/employee/todays-schedule",
+  },
+};
+
+/**
+ * A mark for a row a combined layout keeps apart, folded rail only — `COURT_NAV_GROUPS`
+ * leaves it unmarked (`CourtNavItem.icon`'s own comment: a group's rows stay bare, the
+ * header carries the glyph). Promoted to a standalone row, it is a destination in its
+ * own right the way `COURT_NAV_LINKS`' rows are, and the folded strip has nothing else
+ * to show for it — `CourtNavGroupMark` is what the grouped layout's rows lean on
+ * instead, and these rows no longer sit inside a group for it to mark.
+ */
+const COURT_NAV_KEPT_APART_ICON: Record<string, LucideIcon> = {
+  "todays-hearings": CalendarDaysIcon,
+  "bulk-reschedule": CalendarClockIcon,
+  "sign-process": SignatureIcon,
+};
+
+/**
+ * The rail's rows under a combined layout: the leading kept-apart rows, then the one
+ * row everything else folds into (its count derived rather than restated), then the
+ * trailing kept-apart rows. `"grouped"` has no use for this — it renders
+ * `COURT_NAV_LINKS` and `COURT_NAV_GROUPS` as it always has.
+ */
+export function courtNavRowsFor(
+  layout: CombinedCourtNavLayout,
+): CourtNavItem[] {
+  const spec = COURT_NAV_KEPT_APART[layout];
+  const withIcon = (item: CourtNavItem): CourtNavItem => ({
+    ...item,
+    icon: COURT_NAV_KEPT_APART_ICON[item.id],
+  });
+  const combined: CourtNavItem = {
+    ...COURT_NAV_COMBINED_ROW[layout],
+    icon: CalendarDaysIcon,
+    count: courtNavClubbedTotal(layout),
+  };
+  return [
+    ...courtNavItemsByIds(spec.leading).map(withIcon),
+    combined,
+    ...courtNavItemsByIds(spec.trailing).map(withIcon),
+  ];
+}
+
+/**
+ * Whether a row is the one `courtNavRowsFor` builds rather than one it passed through —
+ * the row whose active state has to ask `isCourtNavCombinedActive` about the
+ * destinations folded into it, instead of matching its own href the ordinary way.
+ */
+export function isCourtNavCombinedRow(item: CourtNavItem): boolean {
+  return (
+    item.id === COURT_NAV_COMBINED_ROW.actions.id ||
+    item.id === COURT_NAV_COMBINED_ROW.schedule.id
+  );
+}
+
+/**
  * The queues that own routes nested under them, and how each one tells a real child
  * from a sibling that merely looks like one.
  *
@@ -460,6 +592,21 @@ function nestedRecordOf(pathname: string, queue: string): string | undefined {
 export function isCourtNavActive(pathname: string, href: string): boolean {
   if (pathname === href) return true;
   return nestedRecordOf(pathname, href) !== undefined;
+}
+
+/**
+ * Whether the page open is one of the rows this layout folded together — so the one
+ * row it renders can still say "you are here" for the destinations behind it, the way
+ * each of those destinations already answers for itself and its own nested records via
+ * `isCourtNavActive`.
+ */
+export function isCourtNavCombinedActive(
+  pathname: string,
+  layout: CombinedCourtNavLayout,
+): boolean {
+  return courtNavClubbed(layout).some(
+    (item) => item.href !== undefined && isCourtNavActive(pathname, item.href),
+  );
 }
 
 /** One step of the trail. */
