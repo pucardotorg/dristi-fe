@@ -16,6 +16,10 @@
  * phase extends it (and mirrors the request into the requester's view).
  */
 
+import {
+  PendingTaskRow,
+  TaskNote,
+} from "@/components/cases/case-overview-card";
 import { useState, type ReactNode } from "react";
 import {
   CheckCircle2Icon,
@@ -38,14 +42,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemTitle,
-} from "@/components/ui/item";
 import { Textarea } from "@/components/ui/textarea";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { displayName } from "@/lib/cases/names";
 
 type RemovalConsentFixture = {
   /** The advocate who raised the request. */
@@ -81,7 +80,10 @@ const REMOVAL_CONSENT_PACK: Record<string, RemovalConsentFixture> = {
  * its count and skip rendering once the request is decided — the same
  * contract `useBondTaskVisible` + `BondTaskRow` keep.
  */
-export function useRemovalConsentTask(caseId: string): {
+export function useRemovalConsentTask(
+  caseId: string,
+  onArchive?: () => void
+): {
   visible: boolean;
   row: ReactNode;
 } {
@@ -94,6 +96,7 @@ export function useRemovalConsentTask(caseId: string): {
       <RemovalConsentRow
         fixture={fixture}
         onResolved={() => setResolved(true)}
+        onArchive={onArchive}
       />
     ),
   };
@@ -102,39 +105,26 @@ export function useRemovalConsentTask(caseId: string): {
 function RemovalConsentRow({
   fixture,
   onResolved,
+  onArchive,
 }: {
   fixture: RemovalConsentFixture;
   onResolved: () => void;
+  onArchive?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
-      <Item
-        role="listitem"
-        size="sm"
-        className="min-h-10 items-start px-0 hover:bg-transparent"
+      <PendingTaskRow
+        title="Respond to a removal request"
+        respond={{ onClick: () => setOpen(true) }}
+        onArchive={onArchive}
       >
-        <ItemContent className="gap-2">
-          <ItemTitle className="line-clamp-none min-w-0 text-body font-medium text-foreground">
-            Respond to a removal request
-          </ItemTitle>
-          <p className="text-body text-muted-foreground">
-            {fixture.requester} asks that you come off {fixture.party}&apos;s
-            vakalatnama.
-          </p>
-        </ItemContent>
-        <ItemActions className="shrink-0 max-sm:basis-full">
-          <Button
-            type="button"
-            variant="outline"
-            className="max-sm:w-full"
-            onClick={() => setOpen(true)}
-          >
-            Respond
-          </Button>
-        </ItemActions>
-      </Item>
+        <TaskNote>
+          {displayName(fixture.requester)} asks that you come off {fixture.party}&apos;s
+          vakalatnama.
+        </TaskNote>
+      </PendingTaskRow>
 
       <RemovalConsentDialog
         open={open}
@@ -179,7 +169,7 @@ function RemovalConsentDialog({
         else close();
       }}
     >
-      <ChromeDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <FlowDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         {decision ? (
           <>
             <DialogHeader className="shrink-0 px-6 py-5 pr-14 text-left">
@@ -224,7 +214,7 @@ function RemovalConsentDialog({
                 Removal request
               </DialogTitle>
               <DialogDescription>
-                {fixture.requester} asks that you come off the vakalatnama for{" "}
+                {displayName(fixture.requester)} asks that you come off the vakalatnama for{" "}
                 {fixture.party}.
               </DialogDescription>
             </DialogHeader>
@@ -290,7 +280,7 @@ function RemovalConsentDialog({
             </footer>
           </>
         )}
-      </ChromeDialogContent>
+      </FlowDialogContent>
 
       <ConsentDocumentDialog
         open={docOpen}
@@ -325,7 +315,7 @@ function ConsentDocumentDialog({
         onOpenChange(next);
       }}
     >
-      <ChromeDialogContent className="flex max-h-[90dvh] flex-col gap-4 overflow-hidden sm:max-w-lg">
+      <FlowDialogContent className="flex max-h-[90dvh] flex-col gap-4 overflow-hidden sm:max-w-lg">
         {/* Clear of the close control — flush against it, a save was one
             slip from a dismiss (owner, Sept 1). */}
         <Button
@@ -373,7 +363,7 @@ function ConsentDocumentDialog({
             </div>
           </div>
         </div>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

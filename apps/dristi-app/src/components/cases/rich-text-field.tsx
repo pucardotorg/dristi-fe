@@ -168,6 +168,7 @@ export function RichTextField({
   labelId,
   className,
   suggestion,
+  compact = false,
 }: {
   value: RichTextValue;
   onChange: (value: RichTextValue) => void;
@@ -176,6 +177,9 @@ export function RichTextField({
   className?: string;
   /** See `RichTextSuggestion`. Absent on every field that does not want it. */
   suggestion?: RichTextSuggestion;
+  /** Inside a dialog: a textarea's height and type, and a 32px toolbar. The
+   *  full-page size made one optional field fill the whole modal. */
+  compact?: boolean;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const initialHtmlRef = useRef(value.html);
@@ -523,7 +527,7 @@ export function RichTextField({
               key={command}
               value={command}
               aria-label={label}
-              className="size-10"
+              className={compact ? "size-8" : "size-10"}
             >
               <Icon aria-hidden />
             </ToggleGroupItem>
@@ -542,7 +546,7 @@ export function RichTextField({
               key={command}
               value={command}
               aria-label={label}
-              className="size-10"
+              className={compact ? "size-8" : "size-10"}
             >
               <Icon aria-hidden />
             </ToggleGroupItem>
@@ -571,7 +575,7 @@ export function RichTextField({
               key={command}
               value={command}
               aria-label={label}
-              className="size-10"
+              className={compact ? "size-8" : "size-10"}
             >
               <Icon aria-hidden />
             </ToggleGroupItem>
@@ -589,7 +593,10 @@ export function RichTextField({
         contentEditable
         suppressContentEditableWarning
         className={cn(
-          "w-full min-h-64 px-4 py-3 text-body outline-none",
+          "w-full outline-none",
+          compact
+            ? "min-h-24 px-3 py-2 text-body-compact"
+            : "min-h-64 px-4 py-3 text-body",
           LIST_CLASSES
         )}
         onInput={() => {

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { useBottomSheet } from "@/components/chrome/flow-window";
 import { cn } from "@/lib/utils";
 import type { RailPlate } from "@/components/chrome/rail-plate";
 import { AlertDialogContent } from "@/components/ui/alert-dialog";
@@ -322,10 +323,19 @@ export function ChromeDialogContent({
 
 export function ChromeAlertDialogContent({
   className,
+  style,
   ...props
 }: React.ComponentProps<typeof AlertDialogContent>) {
   const pageDialog = useChromePageDialog();
-  return <AlertDialogContent className={cn(className, pageDialog)} {...props} />;
+  // On a phone every confirmation is a bottom sheet; see `useBottomSheet`.
+  const sheet = useBottomSheet();
+  return (
+    <AlertDialogContent
+      className={cn(className, pageDialog, sheet.className)}
+      style={{ ...style, ...sheet.style }}
+      {...props}
+    />
+  );
 }
 
 /**

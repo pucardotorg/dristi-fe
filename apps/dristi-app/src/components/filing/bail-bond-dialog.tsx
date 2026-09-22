@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
 
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -375,6 +377,16 @@ export function BailBondDialog({
     onOpenChange(next);
   }
 
+  /* A window on a phone, with the phone's Back working as the footer does:
+     the previous step, or out from the first one. See the bail application. */
+  const { phone } = useFlowWindow();
+  useBackCloses(phone && open, () => {
+    if (reviewFullscreen) setReviewFullscreen(false);
+    else if (stage === "review") setStage("details");
+    else if (stage === "sign") setStage("review");
+    else handleOpenChange(false);
+  });
+
   function choosePetitioner(id: string) {
     setPetitionerId(id);
     const entry = BAIL_PETITIONERS.find((option) => option.id === id);
@@ -476,7 +488,8 @@ export function BailBondDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
+        ownBack
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         onInteractOutside={(event) => event.preventDefault()}
@@ -1211,7 +1224,7 @@ export function BailBondDialog({
             </>
           ) : null}
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

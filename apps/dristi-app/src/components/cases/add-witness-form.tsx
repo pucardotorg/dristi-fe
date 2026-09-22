@@ -57,7 +57,10 @@ import {
   type CaseRef,
 } from "@/components/cases/party-application";
 import { usePartiesLive } from "@/components/cases/parties-live";
-import { ChromeDialogContent, ChromeAlertDialogContent } from "@/components/chrome/app-chrome";
+import {
+  ChromeAlertDialogContent,
+} from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { blankWitness } from "@/lib/filing/blank";
 import { witnessComplete } from "@/lib/filing/selectors";
 import type { AddressBlock, Witness } from "@/lib/filing/types";
@@ -238,7 +241,7 @@ export function AddWitnessDialog({
           else requestExit();
         }}
       >
-        <ChromeDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <FlowDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-5 pr-14 text-left">
             <DialogTitle className="text-title-s font-semibold text-balance">
               Add witnesses
@@ -413,7 +416,7 @@ export function AddWitnessDialog({
               </Button>
             )}
           </footer>
-        </ChromeDialogContent>
+        </FlowDialogContent>
       </Dialog>
 
       <PartySignatureDialog

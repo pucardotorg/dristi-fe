@@ -63,7 +63,9 @@ export function AppToaster() {
     <Toaster
       position="bottom-center"
       offset={{ bottom: "56px" }}
-      mobileOffset={{ bottom: "24px" }}
+      // 24px sat against the phone browser's own bar and under the thumb; 64
+      // clears both (owner, Sept 21).
+      mobileOffset={{ bottom: "64px" }}
       style={
         {
           /* Neutral — the acknowledgement variant, and the one copying uses. */

@@ -16,6 +16,7 @@ import {
   type CaseRecord,
   type CounselSide,
 } from "@/lib/cases/types";
+import { displayName } from "@/lib/cases/names";
 
 const SIDES: readonly CounselSide[] = ["complainant", "accused"];
 
@@ -68,6 +69,9 @@ export function CaseAdvocatesPair({
           side={side}
           markSide
           dense={dense}
+          /* The header's dotted text pattern, not a chip (owner, Sept 18);
+             in the dense table it reads "+2" without the word. */
+          more="text"
         />
       ))}
     </div>
@@ -137,10 +141,14 @@ export function CaseAdvocates({
   className,
   markSide = false,
   dense = false,
+  more = "chip",
 }: {
   record: CaseRecord;
   side: CounselSide;
   className?: string;
+  /** How the remaining names are offered: the +N chip of the dense table, or
+   *  "+N others" as dotted-underlined text (case header; PM wording). */
+  more?: "chip" | "text";
   /** Append `(C)` / `(A)`. On for the merged column, off where a label names
    *  the side already (case header). */
   markSide?: boolean;
@@ -165,7 +173,7 @@ export function CaseAdvocates({
       <span
         className={cn("truncate text-body-compact text-foreground", className)}
       >
-        {names[0]}
+        {displayName(names[0])}
       </span>
       {markSide ? (
         <>
@@ -190,28 +198,57 @@ export function CaseAdvocates({
       {extra > 0 ? (
         <Popover open={open} onOpenChange={onOpenChange}>
           <PopoverTrigger asChild {...hoverProps}>
-            <Badge
-              asChild
-              variant="ghost"
-              className={cn(
-                "relative shrink-0 cursor-pointer bg-brand-muted text-brand-muted-foreground transition-colors hover:bg-brand-muted-hover hover:text-brand-muted-foreground",
-                /* overflow-visible: the primitive clips to the pill, which
-                   would swallow the `after:` target. Nothing but text is in
-                   the chip, so there is nothing left to clip. */
-                !dense &&
-                  "overflow-visible after:absolute after:-inset-x-1.5 after:-inset-y-2"
-              )}
-            >
+            {more === "text" ? (
+              /* Reads as part of the line; the dotted rule says there is more
+                 behind it. The `after:` inset carries the 40px target. */
               <button
                 type="button"
                 aria-label={`${names[0]} and ${extra} more ${
                   extra === 1 ? copy.one : copy.many
                 }`}
+                className={cn(
+                  "relative shrink-0 cursor-pointer rounded-sm text-muted-foreground underline decoration-dotted underline-offset-4 outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                  /* A step down in the dense table, where it trails a name in
+                     a narrow column; the case header keeps the line's size. */
+                  dense ? "text-caption font-medium" : "text-body-compact",
+                  /* The dense table stacks two of these 4px apart, so the
+                     expanded target would overlap the line below; there the
+                     24px line box is the target, as it was for the chip. */
+                  dense
+                    ? "after:absolute after:-inset-x-1.5 after:inset-y-0"
+                    : "after:absolute after:-inset-x-1.5 after:-inset-y-2"
+                )}
                 onClick={(event) => event.stopPropagation()}
               >
-                +{extra}
+                {/* The dense table says just "+2" (owner, Sept 21): the
+                    column is narrow and the dotted rule already says there is
+                    more. The case header keeps the PM's "+2 others". */}
+                {dense ? `+${extra}` : `+${extra} ${extra === 1 ? "other" : "others"}`}
               </button>
-            </Badge>
+            ) : (
+              <Badge
+                asChild
+                variant="ghost"
+                className={cn(
+                  "relative shrink-0 cursor-pointer bg-brand-muted text-brand-muted-foreground transition-colors hover:bg-brand-muted-hover hover:text-brand-muted-foreground",
+                  /* overflow-visible: the primitive clips to the pill, which
+                     would swallow the `after:` target. Nothing but text is in
+                     the chip, so there is nothing left to clip. */
+                  !dense &&
+                    "overflow-visible after:absolute after:-inset-x-1.5 after:-inset-y-2"
+                )}
+              >
+                <button
+                  type="button"
+                  aria-label={`${names[0]} and ${extra} more ${
+                    extra === 1 ? copy.one : copy.many
+                  }`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  +{extra}
+                </button>
+              </Badge>
+            )}
           </PopoverTrigger>
           <PopoverContent
             align="start"
@@ -234,7 +271,7 @@ export function CaseAdvocates({
                   key={`${name}-${index}`}
                   className="text-body-compact text-foreground"
                 >
-                  {name}
+                  {displayName(name)}
                 </li>
               ))}
             </ul>

@@ -12,6 +12,7 @@ import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "lucide-react";
 
 import { Breadcrumbs } from "@/components/shell/chrome";
 import { Button } from "@/components/ui/button";
+import { CENTRED_STEPPER, STEP_CAPTION } from "@/components/chrome/stepper-layout";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
 import { updateVak, useVak } from "@/lib/vakalatnama/store";
 import { reconcileSigners } from "@/lib/vakalatnama/signers";
@@ -73,21 +74,33 @@ export function VakalatnamaWizard({ id }: { id: string }) {
           <header className="flex flex-col gap-1">
             <h1 className="text-title font-semibold tracking-tight">New vakalatnama</h1>
             <p className="text-body text-muted-foreground">
-              Appoint one or more advocates for a litigant — for a case or all cases.
+              Appoint one or more advocates for a litigant, for one case or all cases.
             </p>
           </header>
 
-          <Stepper aria-label="Vakalatnama steps">
-            {STEPS.map((s, i) => (
-              <StepperItem
-                key={s.key}
-                step={i + 1}
-                title={s.title}
-                status={i < step ? "complete" : i === step ? "current" : "upcoming"}
-                onActivate={i <= step && !executed ? () => go(i) : undefined}
-              />
-            ))}
-          </Stepper>
+          {/* Registration's stepper, the product's one journey stepper (owner,
+              Sept 21). Below `md` the names give way to one line for the step. */}
+          <div>
+            <Stepper
+              className={CENTRED_STEPPER}
+              aria-label={`Step ${step + 1} of ${STEPS.length}`}
+            >
+              {STEPS.map((s, i) => (
+                <StepperItem
+                  key={s.key}
+                  step={i + 1}
+                  title={s.title}
+                  status={i < step ? "complete" : i === step ? "current" : "upcoming"}
+                  onActivate={i <= step && !executed ? () => go(i) : undefined}
+                />
+              ))}
+            </Stepper>
+            <p className={STEP_CAPTION}>
+              Step {step + 1} of {STEPS.length}
+              {" · "}
+              <span className="font-medium text-foreground">{active.title}</span>
+            </p>
+          </div>
 
           <div key={active.key}>{active.render({ vak })}</div>
         </div>

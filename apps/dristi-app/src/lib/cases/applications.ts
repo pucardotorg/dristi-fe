@@ -22,12 +22,16 @@ export type FilingStatus =
   | "expired";
 
 export type ApplicationTypeId =
+  | "absent-application"
   | "advancement-reschedule"
   | "bail"
   | "condonation-of-delay"
   | "production-of-documents"
+  | "reopen-evidence"
   | "settlement"
   | "transfer"
+  | "warrant-by-hand"
+  | "warrant-recall"
   | "withdrawal"
   | "application-others";
 
@@ -52,15 +56,37 @@ export const APPLICATION_TYPES: {
   id: ApplicationTypeId;
   label: string;
 }[] = [
+  { id: "absent-application", label: "Absent application" },
   { id: "advancement-reschedule", label: "Advancement/reschedule" },
   { id: "bail", label: "Bail" },
   { id: "condonation-of-delay", label: "Condonation of delay" },
   { id: "production-of-documents", label: "Production of documents" },
+  { id: "reopen-evidence", label: "Reopen evidence" },
   { id: "settlement", label: "Settlement" },
   { id: "transfer", label: "Transfer" },
+  { id: "warrant-by-hand", label: "Warrant by hand" },
+  { id: "warrant-recall", label: "Warrant recall" },
   { id: "withdrawal", label: "Withdrawal" },
   { id: "application-others", label: "Others" },
 ];
+
+/**
+ * Types the picker shows as cards but whose form is not built yet. Choosing one
+ * lands on a "not built" notice instead of a form: the card says what the type
+ * is for; the flow behind it is still to come. Kept out of the fields switch and
+ * the generate path so a card can never reach a form it does not have.
+ */
+export const UNBUILT_APPLICATION_TYPE_IDS: ReadonlySet<ApplicationTypeId> =
+  new Set<ApplicationTypeId>([
+    "absent-application",
+    "reopen-evidence",
+    "warrant-by-hand",
+    "warrant-recall",
+  ]);
+
+export function isUnbuiltApplicationType(id: ApplicationTypeId): boolean {
+  return UNBUILT_APPLICATION_TYPE_IDS.has(id);
+}
 
 /** Submission-flow buckets — the register's document heads live in documents.ts. */
 export const SUBMISSION_DOCUMENT_TYPES: {
@@ -158,7 +184,7 @@ export function nextStepCopy(status: FilingStatus): string | null {
 }
 
 export function filingActionLabel(status: FilingStatus): string {
-  return nextStepCopy(status) ?? "View submission";
+  return nextStepCopy(status) ?? "View application";
 }
 
 /** Filings that still need a step from you — pin these above the register. */
@@ -187,9 +213,13 @@ export type BatchAction = {
  */
 const BATCH_ACTIONS: Partial<Record<FilingStatus, BatchAction>> = {
   "pending-signature": {
-    title: (count) => `${count} submissions need a signature`,
+    title: (count) =>
+      count === 1
+        ? "1 application needs a signature"
+        : `${count} applications need a signature`,
     cta: "Add signatures",
-    confirm: (count) => `Add signatures to ${count} submissions`,
+    confirm: (count) =>
+      count === 1 ? "Add signature" : `Add signatures to ${count} applications`,
   },
 };
 

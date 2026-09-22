@@ -24,12 +24,15 @@ export function Segmented<T extends string>({
   options,
   ariaLabel,
   disabled = false,
+  size = "default",
   className,
 }: {
   value: T | undefined;
   onValueChange: (value: T) => void;
   options: SegmentedOption<T>[];
   ariaLabel?: string;
+  /** `compact` is the DS's sleeker well (top bar, Documents). Same 40px target. */
+  size?: "default" | "compact";
   /** The answer is settled by another answer — shown, not hidden, so the person sees why. */
   disabled?: boolean;
   className?: string;
@@ -48,6 +51,7 @@ export function Segmented<T extends string>({
     <div className="flex">
       <SegmentedControl
         type="single"
+        size={size}
         value={value}
         onValueChange={(v) => {
           if (v) onValueChange(v as T);

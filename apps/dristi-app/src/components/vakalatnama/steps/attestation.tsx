@@ -35,6 +35,7 @@ export function AttestationStep({ vak }: { vak: Vakalatnama }) {
       >
         <FormField label="Witness" asGroup>
           <Segmented
+            size="compact"
             value={a.hasWitness ? "yes" : "no"}
             onValueChange={(v) => set({ hasWitness: v === "yes" })}
             options={[
@@ -50,6 +51,7 @@ export function AttestationStep({ vak }: { vak: Vakalatnama }) {
         <FormCard title="Witness details">
           <FormField label="Type of witness" asGroup>
             <Segmented
+              size="compact"
               value={a.kind}
               onValueChange={(v) => set({ kind: v as WitnessKind })}
               options={[

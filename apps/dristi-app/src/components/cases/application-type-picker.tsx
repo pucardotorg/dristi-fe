@@ -1,21 +1,12 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
-import { ArrowRightIcon, SearchIcon, XIcon } from "lucide-react";
+import { useId, useMemo } from "react";
+import { ArrowRightIcon } from "lucide-react";
+
+import { RegisterSearch } from "@/components/cases/register-controls";
 
 import { PANEL_CLASS } from "@/components/shell/panel";
 import { Badge } from "@/components/ui/badge";
-import {
-  Field,
-  FieldDescription,
-  FieldLabel,
-} from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
 import {
   Item,
   ItemContent,
@@ -27,34 +18,43 @@ import {
   searchApplicationTypes,
   type ApplicationTypeGuide,
 } from "@/lib/cases/application-type-guide";
+import { Separator } from "@/components/ui/separator";
 import { type ApplicationTypeId } from "@/lib/cases/applications";
 import { cn } from "@/lib/utils";
 
 /**
  * Step one of Raise application: pick what you are asking the court for.
  *
- * The eight types are cards, not a list of names, because the name alone is
- * not the choice — "Condonation of delay" tells a first-time filer nothing,
- * and picking wrong costs them a whole form. Each card says what that type
- * asks for; choosing one is what advances to its fields.
+ * The types are cards, not a list of names, because the name alone is not the
+ * choice — "Condonation of delay" tells a first-time filer nothing, and picking
+ * wrong costs them a whole form. Each card says what that type asks for;
+ * choosing one is what advances.
  *
- * The search reads a plain sentence and ranks the cards against it, rather
- * than filtering: it re-orders, it never hides. A wrong guess would otherwise
- * take a type off the screen with no way to tell it had. It sits centred above
- * the grid because it is the screen's one entry point — everything below it is
- * the same eight cards in a different order.
+ * Two things order the cards, and neither hides one. Before anything is typed
+ * the case's stage leads: the asks that usually come up there sit first, the
+ * rest follow under their own heading. Once the filer types, their sentence
+ * outranks the stage — they have said what they want, and a guess from the
+ * stage should not argue with it.
+ *
+ * The search itself lives in the page header (`ApplicationTypeSearch`), so the
+ * query is the parent's state and arrives here as a prop.
  */
 export function ApplicationTypePicker({
   value,
+  query,
+  suggested,
+  stageName,
   onChoose,
 }: {
   /** The type already chosen, when returning here to change it. */
   value: ApplicationTypeId | "";
+  query: string;
+  /** Types that usually come up at this case's stage; empty when none lead. */
+  suggested: ApplicationTypeId[];
+  /** The stage as the case header names it, for the suggested heading. */
+  stageName: string;
   onChoose: (type: ApplicationTypeId) => void;
 }) {
-  const searchId = useId();
-  const [query, setQuery] = useState("");
-
   const results = useMemo(() => searchApplicationTypes(query), [query]);
   const matched = results.filter(
     (result) => result.score >= APPLICATION_TYPE_MATCH_FLOOR
@@ -65,44 +65,15 @@ export function ApplicationTypePicker({
   const typed = query.trim().length > 0;
   const ranked = typed && matched.length > 0;
 
-  return (
-    <div className="flex flex-col gap-8">
-      <Field className="mx-auto max-w-2xl">
-        <FieldLabel
-          htmlFor={searchId}
-          className="w-full justify-center text-center text-body"
-        >
-          What do you need from the court?
-        </FieldLabel>
-        <InputGroup>
-          <InputGroupAddon>
-            <SearchIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            id={searchId}
-            value={query}
-            placeholder="I want to settle this case"
-            autoComplete="off"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          {typed ? (
-            <InputGroupAddon align="inline-end">
-              <InputGroupButton
-                size="icon-xs"
-                aria-label="Clear what you typed"
-                onClick={() => setQuery("")}
-              >
-                <XIcon aria-hidden />
-              </InputGroupButton>
-            </InputGroupAddon>
-          ) : null}
-        </InputGroup>
-        <FieldDescription className="text-center text-body-compact">
-          Say it in your own words. The closest application type moves to the
-          top — every type stays listed.
-        </FieldDescription>
-      </Field>
+  const all = results.map((result) => result.guide);
+  // In the stage's own order, which is most likely first, not alphabetical.
+  const leading = suggested
+    .map((id) => all.find((guide) => guide.id === id))
+    .filter((guide): guide is ApplicationTypeGuide => guide !== undefined);
+  const rest = all.filter((guide) => !suggested.includes(guide.id));
 
+  return (
+    <div className="flex flex-col gap-6">
       {/* The re-ordering is visual; this is how it reaches a screen reader. */}
       <p aria-live="polite" className="sr-only">
         {typed
@@ -123,7 +94,7 @@ export function ApplicationTypePicker({
           />
           {others.length > 0 ? (
             <TypeSection
-              title="Other types"
+              title="More application types"
               guides={others.map((result) => result.guide)}
               value={value}
               onChoose={onChoose}
@@ -131,22 +102,59 @@ export function ApplicationTypePicker({
           ) : null}
         </>
       ) : (
-        <div className="flex flex-col gap-4">
-          {/* Centred with the search: this is the search answering back. */}
+        <>
           {typed ? (
-            <p className="mx-auto max-w-2xl text-center text-body text-muted-foreground">
-              Nothing matched that. Pick a type below — Others takes anything
-              the seven before it do not cover.
+            <p className="text-body-compact text-muted-foreground">
+              Nothing matched that. Pick a type below. Others takes anything the
+              rest do not cover.
             </p>
           ) : null}
-          <TypeGrid
-            guides={results.map((result) => result.guide)}
-            value={value}
-            onChoose={onChoose}
-          />
-        </div>
+          {leading.length > 0 ? (
+            <>
+              <TypeSection
+                title={`Suggested at the ${stageName} stage`}
+                guides={leading}
+                value={value}
+                onChoose={onChoose}
+              />
+              <Separator className="bg-hairline" />
+              <TypeSection
+                title="More application types"
+                guides={rest}
+                value={value}
+                onChoose={onChoose}
+              />
+            </>
+          ) : (
+            <TypeGrid guides={all} value={value} onChoose={onChoose} />
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+/**
+ * The chooser's search: View Case's own register search, so the field is the
+ * size and shape of every other one on the case screens. It names exactly
+ * what it does. The earlier "What do you need from the court?" read as a
+ * question to answer, not a box to search (owner, Sept 21). It still takes a
+ * plain sentence; the name just no longer depends on anyone knowing that.
+ */
+export function ApplicationTypeSearch({
+  query,
+  onQueryChange,
+}: {
+  query: string;
+  onQueryChange: (query: string) => void;
+}) {
+  return (
+    <RegisterSearch
+      label="Search application types"
+      value={query}
+      onChange={onQueryChange}
+      className="sm:w-full"
+    />
   );
 }
 
@@ -167,8 +175,13 @@ function TypeSection({
   const headingId = useId();
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4">
-      <h2 id={headingId} className="text-body font-semibold">
+    <section aria-labelledby={headingId} className="flex flex-col gap-3">
+      {/* The card titles' size in the muted ink (owner, Sept 21): a label over
+          a group, quieter than the cards it names. */}
+      <h2
+        id={headingId}
+        className="text-body-compact font-semibold text-muted-foreground"
+      >
         {title}
       </h2>
       <TypeGrid
@@ -202,7 +215,7 @@ function TypeGrid({
 }) {
   return (
     <div className="@container">
-      <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
+      <div className="grid gap-3 @xl:grid-cols-2 @4xl:grid-cols-3">
         {guides.map((guide) => (
           <TypeCard
             key={guide.id}
@@ -250,7 +263,13 @@ function TypeCard({
       variant="outline"
       className={cn(
         PANEL_CLASS,
-        "h-full flex-col flex-nowrap items-start gap-3 rounded-xl p-6"
+        "h-full flex-col flex-nowrap items-start gap-2 rounded-xl p-4",
+        /* Three signals at once, because many of these screens are old panels
+           that flatten a soft shadow to nothing (owner, Sept 21): the DS hover
+           fill, a step darker than the muted ground; the edge going from
+           hairline to full border; and the lift. Any one of them surviving is
+           enough to read as "this is under the pointer". */
+        "hover:border-border hover:bg-accent hover:shadow-overlay active:shadow-raised"
       )}
     >
       <button
@@ -259,7 +278,7 @@ function TypeCard({
         onClick={() => onChoose(guide.id)}
       >
         <div className="flex w-full items-center gap-2">
-          <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+          <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           {chosen ? (
             <Badge variant="outline">Chosen</Badge>
           ) : lead ? (
@@ -271,11 +290,11 @@ function TypeCard({
           />
         </div>
 
-        <ItemContent className="w-full min-w-0 gap-2 text-left">
-          <ItemTitle className="line-clamp-none w-full text-body font-semibold break-words text-foreground">
+        <ItemContent className="w-full min-w-0 gap-1 text-left">
+          <ItemTitle className="line-clamp-none w-full text-body-compact font-semibold break-words text-foreground">
             {guide.label}
           </ItemTitle>
-          <ItemDescription className="line-clamp-none text-body text-muted-foreground">
+          <ItemDescription className="line-clamp-none text-body-compact text-muted-foreground">
             {guide.description}
           </ItemDescription>
         </ItemContent>

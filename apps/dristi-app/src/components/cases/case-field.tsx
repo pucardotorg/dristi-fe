@@ -61,6 +61,8 @@ export function CaseField({
       );
     }
     case "stage":
+      /* Badge only in the table (owner, Sept 21, after feedback: the sub
+         stage under it was not needed). The stacked list keeps it. */
       return <CaseStage record={record} detail={list} />;
     case "nextHearing":
       return (

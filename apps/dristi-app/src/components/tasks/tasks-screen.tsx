@@ -25,7 +25,8 @@ import type { PillKind, Task, TaskId, TaskView, Verb } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OverflowTabsList } from "@/components/chrome/overflow-tabs";
+import { Tabs } from "@/components/ui/tabs";
 import { Breadcrumbs } from "@/components/shell/chrome";
 import { useHereHref } from "@/components/shell/origin";
 import { withOrigin } from "@/lib/nav/origin";
@@ -33,7 +34,7 @@ import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { TaskActModal } from "@/components/tasks/act/act-modal";
 import { TaskRespondDialog } from "@/components/tasks/act/respond-dialog";
 import { BatchActDialog } from "@/components/tasks/batch-act-dialog";
-import { FilterRow } from "@/components/tasks/filter-row";
+import { FilterRow, KIND_PILLS_ONLY } from "@/components/tasks/filter-row";
 import { useFilters } from "@/components/tasks/filters";
 import { KindPills } from "@/components/tasks/kind-pills";
 import { TasksTable, TasksTableSkeleton } from "@/components/tasks/tasks-table";
@@ -199,7 +200,7 @@ export function TasksScreen() {
   );
 
   const selectKind = React.useCallback(
-    (kind: PillKind | null) => setFilters((prev: Filters) => ({ ...prev, kind })),
+    (kinds: PillKind[]) => setFilters((prev: Filters) => ({ ...prev, kinds })),
     [setFilters]
   );
 
@@ -295,7 +296,7 @@ export function TasksScreen() {
         {/* Today anchors every relative date below it — "2 days overdue" from when. */}
         <header className="flex flex-col gap-1">
           <h1 className="text-title-s font-semibold text-foreground">{headerDate(now)}</h1>
-          <p className="text-body text-muted-foreground tabular-nums">
+          <p className="text-body-compact text-muted-foreground tabular-nums">
             {state === "ready"
               ? `${summary.action} need action · ${summary.waiting} waiting on others · ${summary.overdue} overdue`
               : "Loading…"}
@@ -304,21 +305,40 @@ export function TasksScreen() {
 
         {/* Views. The active underline sits on the band's own rule rather than floating
             above it — one horizontal line, not two. */}
-        <Tabs value={filters.view} onValueChange={(v) => setView(v as TaskView)} className="gap-0">
-          <TabsList
-            variant="line"
+        <Tabs
+          value={filters.view}
+          onValueChange={(v) => {
+            // More answers with its own sentinel while it stands for no view.
+            if ((VIEWS as readonly string[]).includes(v)) setView(v as TaskView);
+          }}
+          className="gap-0"
+        >
+          {/* Four views do not fit a phone, and a row that scrolls sideways hides
+              the ones off its edge. The ones that fit stay; the rest sit under More. */}
+          <OverflowTabsList
             aria-label="Task views"
-            className="w-full justify-start gap-6 overflow-x-auto border-b border-hairline p-0 pb-0 group-data-horizontal/tabs:h-auto"
-          >
-            {VIEWS.map((v) => (
-              <TabsTrigger key={v} value={v} className={TAB_CLASS}>
-                {VIEW_LABELS[v]}
-                <span className="text-caption tabular-nums text-muted-foreground">
-                  {state === "ready" ? tabCounts[v] : "–"}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+            value={filters.view}
+            onSelect={(v) => setView(v as TaskView)}
+            className="w-full justify-start gap-4 border-b border-hairline p-0 pb-0 group-data-horizontal/tabs:h-auto sm:gap-6"
+            triggerClassName={TAB_CLASS}
+            // The labels ride the baseline above a 10px foot, so the box's
+            // centre is below the words. Lift the two centred parts to them.
+            dividerClassName="-translate-y-1.5"
+            chevronClassName="-translate-y-1"
+            items={VIEWS.map((v) => {
+              const count = state === "ready" ? String(tabCounts[v]) : "–";
+              return {
+                value: v,
+                measure: count,
+                label: (
+                  <>
+                    {VIEW_LABELS[v]}
+                    <span className="text-caption tabular-nums text-muted-foreground">{count}</span>
+                  </>
+                ),
+              };
+            })}
+          />
         </Tabs>
 
         {/* One controls line: the tab is the population, the pills narrow it by the act
@@ -332,16 +352,17 @@ export function TasksScreen() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {/* The pills' floor is what decides "too small": below it the search and
              Filters leave rather than squeezing the pills to two visible kinds. */}
-          <div className="min-w-96 flex-1">
+          <div className={cn("min-w-96 flex-1", KIND_PILLS_ONLY)}>
             <KindPills
               counts={state === "ready" ? counts : null}
-              active={filters.kind}
+              active={filters.kinds}
               loading={state !== "ready"}
               onSelect={selectKind}
             />
           </div>
-          <div className="min-w-72 flex-none">
+          <div className="w-full min-w-0 md:pointer-fine:w-auto md:pointer-fine:min-w-72 md:pointer-fine:flex-none">
             <FilterRow
+              kindCounts={state === "ready" ? counts : null}
               filters={filters}
               courts={courts}
               people={people}
@@ -616,7 +637,7 @@ export function TasksScreenFallback() {
       <div className={cn("flex min-w-0 flex-1 flex-col gap-6 px-4 py-6 md:px-6 lg:px-8")}>
         <header className="flex flex-col gap-1">
           <h1 className="text-title-s font-semibold text-foreground">{headerDate(new Date())}</h1>
-          <p className="text-body text-muted-foreground">Loading…</p>
+          <p className="text-body-compact text-muted-foreground">Loading…</p>
         </header>
         <TasksTableSkeleton />
       </div>

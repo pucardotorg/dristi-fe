@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ExternalLinkIcon, XIcon } from "lucide-react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
+import { REGISTER_CARDS_QUERY } from "@/components/cases/register-layout";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,7 @@ import {
   counselFor,
   type CaseRecord,
 } from "@/lib/cases/types";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 
 import { CaseFlags } from "./case-identity";
@@ -115,14 +116,22 @@ export const PEEK_PUSH_CLASS =
 export function CasePeekPushRegion({
   children,
   className,
+  mobileDrawer = false,
+  pushWhen = "(min-width: 640px)",
 }: {
   children: ReactNode;
   className?: string;
+  /** On a phone the peek rises as a bottom drawer instead of covering the screen. */
+  mobileDrawer?: boolean;
+  /** Where the docked panel makes room for itself. Elsewhere it lies over the
+   *  page and nothing behind it moves. Defaults to `sm`, the panel's own width rule. */
+  pushWhen?: string;
 }) {
   const { record, closing } = useCasePeek();
   // Make room only while the panel is actually there. As soon as a close is asked for,
   // `closing` flips and the chrome eases back in step with the panel sliding out.
-  const open = Boolean(record) && !closing;
+  const pushes = useMediaQuery(pushWhen);
+  const open = pushes && Boolean(record) && !closing;
   return (
     <>
       <div
@@ -132,7 +141,7 @@ export function CasePeekPushRegion({
       >
         {children}
       </div>
-      <CasePeek />
+      <CasePeek mobileDrawer={mobileDrawer} />
     </>
   );
 }
@@ -150,7 +159,9 @@ export function CasePeekPushRegion({
 const emptySubscribe = () => () => {};
 
 export function CasePeek({ mobileDrawer = false }: { mobileDrawer?: boolean } = {}) {
-  const isMobile = useIsMobile();
+  // A phone, or a tablet held upright (owner, Sept 21): wherever the list is
+  // cards, the peek rises from the bottom instead of docking at the side.
+  const isMobile = useMediaQuery(REGISTER_CARDS_QUERY);
   const returnFocus = useRef<HTMLElement | null>(null);
   const { record, now, hideLongPendingFlag, docked, closing, close } = useCasePeek();
   // Portal guard: the server (and the hydration render) has no document.body to
@@ -269,15 +280,32 @@ function CasePeekBody({
             >
               {title}
             </Title>
-            <p className="text-body-compact text-muted-foreground">
-              <Identifier value={record.caseNumber} label="case number" />
+            {/* Each `Identifier` holds a 14px box for its copy glyph, which read
+                as a gap before the next dot. The second number rests pulled
+                back over that box and steps aside while the first is hovered,
+                focused or showing its tick: the header's `CaseNumberLine`
+                move. The court has its own line, so nothing that can wrap
+                ever carries the offset. */}
+            <p className="flex flex-wrap items-baseline text-body-compact text-muted-foreground">
+              <Identifier
+                value={record.caseNumber}
+                label="case number"
+              />
               {extras.altCaseNumber ? (
                 <>
-                  <span aria-hidden> · </span>
-                  <Identifier value={extras.altCaseNumber} label="other case number" />
+                  <span aria-hidden className="whitespace-pre">
+                    {" · "}
+                  </span>
+                  <Identifier
+                    value={extras.altCaseNumber}
+                    label="other case number"
+                  />
                 </>
               ) : null}
-              <span aria-hidden> · </span>
+            </p>
+            {/* A step of air and a step of weight, so the court reads as its
+                own fact and not as a third number (owner, Sept 18). */}
+            <p className="mt-1.5 text-body-compact font-medium text-foreground">
               {record.court}
             </p>
           </div>
