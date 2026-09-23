@@ -141,6 +141,12 @@ export function ChequeSection() {
    */
   const [chosenField, setChosenField] = React.useState<ChequeField | null>(null);
   /**
+   * Whether the rail is answering "where did *this field* come from?" or simply showing
+   * a document. A field entry point is a question about that field; a document chip is a
+   * question about the document, and the header follows whichever was asked.
+   */
+  const [explaining, setExplaining] = React.useState(false);
+  /**
    * What the panel's value box shows while it is being retyped — a half-typed date reads
    * back as "" from the draft, so keep the keystrokes here. Tagged with the field it
    * belongs to so switching cheque or field falls back to the stored value.
@@ -196,6 +202,7 @@ export function ChequeSection() {
 
   const openSource = (field: ChequeField) => {
     setChosenField(field);
+    setExplaining(true);
     setSourceOpen(true);
   };
 
@@ -251,6 +258,9 @@ export function ChequeSection() {
   // documents behind this cheque come from intake; either may not be uploaded yet.
   const fromCheque = CHEQUE_FIELDS.includes(sourceField);
   const sourceSlot = fromCheque ? frontSlot : memoSlot;
+  /** The document in the rail — the rail's subject until a field is asked about. */
+  const sourceDocLabel =
+    sourceSlot?.label ?? (fromCheque ? "Cheque (front side)" : "Cheque return memo");
   const isDateSource = DATE_FIELDS.includes(sourceField);
   const storedValue = isDateSource
     ? toDisplayDate(cheque[sourceField])
@@ -509,13 +519,17 @@ export function ChequeSection() {
       <SourcePanel
         open={sourceOpen}
         onOpenChange={setSourceOpen}
-        title={FIELD_LABELS[sourceField]}
+        title={sourceDocLabel}
+        field={explaining ? FIELD_LABELS[sourceField] : undefined}
         value={sourceValue}
         onValueChange={setSourceValue}
         chips={sourceDocs.map((d) => ({
           label: d.slot?.file?.name ?? d.slot?.label ?? d.fallbackLabel,
           active: d.slot === sourceSlot,
-          onClick: () => setChosenField(d.entry),
+          onClick: () => {
+            setChosenField(d.entry);
+            setExplaining(false);
+          },
         }))}
         file={sourceSlot?.file ?? null}
         uploadHref={hrefFor("upload")}
