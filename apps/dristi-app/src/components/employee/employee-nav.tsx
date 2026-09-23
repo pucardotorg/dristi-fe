@@ -91,11 +91,19 @@ import {
 /**
  * A menu column in this rail.
  *
+ * `gap-2` rather than the DS sidebar default of `gap-1`. Four pixels between rows is
+ * written for a menu of six; this rail renders twenty-two at once, and the owner's read of
+ * the result was that it "adds a lot of visual noise". Noise is marks per unit area, and
+ * with the red sparks already gone the remaining lever is area. Eight pixels is the next
+ * step on the ladder — the micro steps (`1.5`, `2.5`) are for inside controls, not between
+ * them — and it costs about 84px of scroll on a column that already overflows, which is
+ * the trade this layout was chosen knowing.
+ *
  * `items-center` is what keeps the 40px square honest once the rail is a strip: the rail
  * carries a hairline on its trailing edge, so centring by padding leaves 8px on one side
  * and 7px on the other. Centring by flex is immune to the border.
  */
-const RAIL_MENU = "gap-1 group-data-[collapsible=icon]:items-center";
+const RAIL_MENU = "gap-2 group-data-[collapsible=icon]:items-center";
 
 /** What the row says out loud past its label. The count is a mark; the words go here. */
 function spokenNote(item: CourtNavItem): string {
@@ -481,8 +489,18 @@ function CourtSearchRow() {
 function CourtNavOpenSection({ group }: { group: CourtNavGroup }) {
   return (
     <div className="flex flex-col gap-1">
+      {/* The break is air first and a rule second. It was 4px of margin, a 1px rule and
+          two 4px gaps — 45px of which only 8 was space — and at four families in a
+          twenty-two row column that read as ruling rather than grouping. `mt-6` puts 24px
+          of clean space above the label, which is about 1.3 row-pitches: the same
+          proportion the owner's reference screen uses, and that one carries no rules at
+          all. `ui-craft` says the same thing in the same order — spacing, then fill, then
+          a justified divider. The rule stays because the owner asked for it outright
+          (2026-09-18); it is now the quieter half of the break rather than the whole of
+          it. Folded it insets to the width of the squares, where the labels are gone and
+          it is the only thing left holding the marks in groups. */}
       <div
-        className={`mt-1 border-t ${RAIL_SEAM} group-data-[collapsible=icon]:mx-3`}
+        className={`mt-6 border-t ${RAIL_SEAM} group-data-[collapsible=icon]:mx-3 group-data-[collapsible=icon]:mt-4`}
       />
       <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
         {group.label}
@@ -987,7 +1005,7 @@ export function EmployeeNav() {
               not somewhere the bench works, so it closes the rail rather than heading
               it (owner, 2026-09-23). The seam is what says it is a different species
               from the queues above it; without one it reads as a fifth kind of work. */}
-          <SidebarMenu className={`${RAIL_MENU} mt-1 border-t ${RAIL_SEAM} pt-1`}>
+          <SidebarMenu className={`${RAIL_MENU} mt-6 border-t ${RAIL_SEAM} pt-2`}>
             {COURT_NAV_TRAILING.map((item) => (
               <CourtNavRow key={item.id} item={item} />
             ))}
