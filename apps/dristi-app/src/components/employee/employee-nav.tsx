@@ -103,7 +103,8 @@ import {
  * carries a hairline on its trailing edge, so centring by padding leaves 8px on one side
  * and 7px on the other. Centring by flex is immune to the border.
  */
-const RAIL_MENU = "gap-2 group-data-[collapsible=icon]:items-center";
+const RAIL_MENU =
+  "gap-2 group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:items-center";
 
 /** What the row says out loud past its label. The count is a mark; the words go here. */
 function spokenNote(item: CourtNavItem): string {
@@ -481,7 +482,14 @@ function CourtNavBreak() {
       aria-hidden
       className={[
         "mt-6",
-        "group-data-[collapsible=icon]:mx-3 group-data-[collapsible=icon]:mt-4",
+        /* Folded, the rule has to be exactly a square wide, and it is stated rather than
+           inferred. `mx-3` looked right and was not: this sits inside `SidebarGroup`'s
+           `p-2`, so a 12px-a-side margin measures against a 48px content box and drew a
+           24px rule under a 40px square — narrower than the thing it was underlining,
+           which is the near-miss that reads as a mistake. `w-10 mx-auto` matches the
+           squares by construction, whatever padding the parent grows. */
+        "group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mt-4",
+        "group-data-[collapsible=icon]:w-10",
         `group-data-[collapsible=icon]:border-t ${RAIL_SEAM}`,
       ].join(" ")}
     />
@@ -519,7 +527,12 @@ function CourtNavBreak() {
  */
 function CourtNavOpenSection({ group }: { group: CourtNavGroup }) {
   return (
-    <div className="flex flex-col gap-1">
+    /* `gap-0` folded, because the label is still a flex child there. The DS takes it out
+       of view with `-mt-8 opacity-0` rather than `display:none` — so its height cancels
+       but it keeps its two 4px gaps, an invisible 8px per section and 32px down a strip
+       that is already taller than the window. Spacing that works by accident breaks on
+       the next edit; folded, the break's own margin is the whole separation. */
+    <div className="flex flex-col gap-1 group-data-[collapsible=icon]:gap-0">
       <CourtNavBreak />
       <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
         {group.label}
