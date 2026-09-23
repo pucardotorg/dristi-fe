@@ -18,10 +18,15 @@ import { setCourtRole } from "@/lib/employee/court-role";
 import {
   COURT_NAV_GROUPS,
   COURT_NAV_LINKS,
+  courtNavRowsFor,
   isCourtNavActive,
+  isCourtNavCombinedActive,
+  isCourtNavCombinedRow,
   type CourtNavGroup,
   type CourtNavItem,
 } from "@/lib/employee/navigation";
+import { useCourtNavLayout } from "@/components/employee/use-court-nav-layout";
+import type { CourtNavLayout } from "@/lib/employee/nav-layout";
 import { BrandGlyph } from "@/components/brand-lockup";
 import {
   CHROME_FOLD_TRIGGER,
@@ -45,6 +50,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -220,12 +226,24 @@ function deadRowNote(item: CourtNavItem, collapsed: boolean): string {
  * and a row promoted out of a group should not also have to remember to bring its folded
  * name with it.
  */
-function CourtNavRow({ item }: { item: CourtNavItem }) {
+function CourtNavRow({
+  item,
+  active,
+}: {
+  item: CourtNavItem;
+  /**
+   * Overrides the row's own href match. The combined layouts' one row is not itself any
+   * page's href — it stands for whatever `isCourtNavCombinedRow` folded into it
+   * (`isCourtNavCombinedActive`) — so its caller passes the answer in rather than leaving
+   * this row to ask a question its own href cannot answer.
+   */
+  active?: boolean;
+}) {
   const pathname = usePathname();
   const collapsed = useRailCollapsed();
 
   if (item.href) {
-    const isActive = isCourtNavActive(pathname, item.href);
+    const isActive = active ?? isCourtNavActive(pathname, item.href);
     return (
       <SidebarMenuItem>
         <SidebarMenuButton
@@ -607,13 +625,14 @@ function initialsOf(name: string): string {
 }
 
 /**
- * Settings — which seat the court side is being worked from.
+ * Settings — which seat the court side is being worked from, and which shape its rail
+ * takes.
  *
  * It used to be a dead control with a tooltip saying so, because there is no court
  * settings route: the one `/settings` this app has belongs to the citizen half, and a
  * stub route would have been a promise this branch cannot keep. That is still true, and
- * this is still not a route — it is a menu, because the one setting the court side
- * actually has is small enough to answer in place.
+ * this is still not a route — it is a menu, because what the court side actually has to
+ * set is small enough to answer in place.
  *
  * **Four seats** (`COURT_SEATS`) — the same four `/employee/login` signs in to, so the
  * menu can always name the seat the person arrived in. Same rail, same queues, same
@@ -623,8 +642,16 @@ function initialsOf(name: string): string {
  * typist's work is as against a bench clerk's comes from product, and this build must not
  * answer that by quietly showing a different app. The menu is honest by being small.
  *
- * A radio group rather than plain items: the seats are one mutually exclusive answer, and
- * the menu has to show which one is being worked in without being opened twice. `w-auto
+ * **Rail layout** (`nav-layout.ts`) — three shapes for the same rail, kept side by side
+ * (owner, 2026-09-21) rather than settled on one: "Grouped by type" is the rail as it
+ * stands; "Today's actions" keeps hearings a tab of its own and folds the rest into one
+ * row; "Today's schedule" folds hearings in with that same rest instead — see
+ * `courtNavRowsFor`. A second section rather than a second control, because both are one
+ * person's preference about how their own rail looks, not two different kinds of
+ * setting.
+ *
+ * Both sections are radio groups rather than plain items: each is one mutually exclusive
+ * answer, and the menu has to show which one is live without being opened twice. `w-auto
  * min-w-48` because the primitive otherwise inherits the trigger's width, and a 40px
  * trigger would pinch "Bench clerk" to a column of letters.
  *
@@ -636,6 +663,7 @@ function initialsOf(name: string): string {
  */
 function CourtSettingsControl() {
   const seat = useCourtRole();
+  const [layout, setLayout] = useCourtNavLayout();
   return (
     <DropdownMenu>
       <Tooltip>
@@ -670,6 +698,22 @@ function CourtSettingsControl() {
               {COURT_ROLE_LABEL[role]}
             </DropdownMenuRadioItem>
           ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Rail layout</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={layout}
+          onValueChange={(next) => setLayout(next as CourtNavLayout)}
+        >
+          <DropdownMenuRadioItem value="grouped">
+            Grouped by type
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="actions">
+            Today’s actions
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="schedule">
+            Today’s schedule
+          </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -758,6 +802,8 @@ function CourtIdentityFooter() {
 
 export function EmployeeNav() {
   const { openId, setOpenId, currentId } = useCourtNavDisclosure();
+  const [layout] = useCourtNavLayout();
+  const pathname = usePathname();
   return (
     /* Rows that go nowhere explain themselves on hover and on focus; at the DS default of
        0ms that turns a sweep down the rail into a strobe. */
@@ -778,18 +824,39 @@ export function EmployeeNav() {
               <CourtNavRow key={item.id} item={item} />
             ))}
           </SidebarMenu>
-          {COURT_NAV_GROUPS.map((group) => (
-            <CourtNavGroupSection
-              key={group.id}
-              group={group}
-              isCurrent={currentId === group.id}
-              open={openId === group.id}
-              /* Opening one closes whichever was open; closing the open one leaves none.
-                 Both fall out of storing the id rather than four booleans — there is no
-                 state here that could represent two sections open at once. */
-              onOpenChange={(next) => setOpenId(next ? group.id : null)}
-            />
-          ))}
+          {layout === "grouped" ? (
+            COURT_NAV_GROUPS.map((group) => (
+              <CourtNavGroupSection
+                key={group.id}
+                group={group}
+                isCurrent={currentId === group.id}
+                open={openId === group.id}
+                /* Opening one closes whichever was open; closing the open one leaves
+                   none. Both fall out of storing the id rather than four booleans —
+                   there is no state here that could represent two sections open at
+                   once. */
+                onOpenChange={(next) => setOpenId(next ? group.id : null)}
+              />
+            ))
+          ) : (
+            /* The two combined layouts have no groups left to disclose: the rows
+               `courtNavKeptApart` stands apart, and the one row everything else folds
+               into (`courtNavRowsFor`), flat — the same list primitive the standalone
+               links above already use. */
+            <SidebarMenu className={RAIL_MENU}>
+              {courtNavRowsFor(layout).map((item) => (
+                <CourtNavRow
+                  key={item.id}
+                  item={item}
+                  active={
+                    isCourtNavCombinedRow(item)
+                      ? isCourtNavCombinedActive(pathname, layout)
+                      : undefined
+                  }
+                />
+              ))}
+            </SidebarMenu>
+          )}
         </SidebarGroup>
       </ChromeRail>
     </TooltipProvider>

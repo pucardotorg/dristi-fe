@@ -6,9 +6,15 @@ import {
   COURT_DASHBOARD,
   COURT_NAV_GROUPS,
   COURT_NAV_LINKS,
+  courtNavClubbed,
+  courtNavClubbedTotal,
+  courtNavKeptApart,
+  courtNavRowsFor,
   courtTrail,
   courtWaitingGroups,
   isCourtNavActive,
+  isCourtNavCombinedActive,
+  isCourtNavCombinedRow,
 } from "./navigation";
 
 /**
@@ -215,6 +221,126 @@ describe("courtWaitingGroups", () => {
         assert.equal(queue.label, row.label);
         assert.equal(queue.count, row.count);
       }
+    }
+  });
+});
+
+/**
+ * The two combined rail layouts ("actions" and "schedule", `nav-layout.ts`) each fold
+ * `COURT_NAV_GROUPS` into one row, differing in what they keep apart from it (owner,
+ * 2026-09-21): "actions" keeps Today's hearings a tab of its own next to Bulk
+ * reschedule hearings and Sign process; "schedule" keeps only the latter two, and folds
+ * hearings in with everything else instead. Both read `COURT_NAV_GROUPS` rather than a
+ * second list, so a row added to a group is folded in or kept apart by this same rule
+ * without anyone updating a layout by hand.
+ */
+describe("the combined rail layouts", () => {
+  const allIds = COURT_NAV_GROUPS.flatMap((group) => group.items.map((i) => i.id));
+
+  it("keeps hearings a tab of its own under \"actions\", but not under \"schedule\"", () => {
+    assert.deepEqual(
+      courtNavKeptApart("actions").map((item) => item.id),
+      ["todays-hearings", "bulk-reschedule", "sign-process"],
+    );
+    assert.deepEqual(
+      courtNavKeptApart("schedule").map((item) => item.id),
+      ["bulk-reschedule", "sign-process"],
+    );
+  });
+
+  it("clubs every other row, none twice, in the rail's own order", () => {
+    for (const layout of ["actions", "schedule"] as const) {
+      const apart = new Set(courtNavKeptApart(layout).map((item) => item.id));
+      const clubbed = courtNavClubbed(layout).map((item) => item.id);
+      /* Every id `COURT_NAV_GROUPS` holds except what this layout keeps apart — same
+         set, same relative order, nothing dropped and nothing duplicated. */
+      assert.deepEqual(clubbed, allIds.filter((id) => !apart.has(id)));
+      assert.equal(new Set(clubbed).size, clubbed.length);
+    }
+    /* The one row that tells the two layouts apart: hearings are due work under
+       "actions" and are not under "schedule". */
+    assert.ok(courtNavClubbed("actions").every((item) => item.id !== "todays-hearings"));
+    assert.ok(
+      courtNavClubbed("schedule").some((item) => item.id === "todays-hearings"),
+    );
+  });
+
+  it("totals the combined row from the clubbed rows it stands for", () => {
+    for (const layout of ["actions", "schedule"] as const) {
+      const sum = courtNavClubbed(layout).reduce(
+        (total, item) => total + (item.count ?? 0),
+        0,
+      );
+      assert.equal(courtNavClubbedTotal(layout), sum);
+      assert.ok(sum > 0);
+    }
+    /* "actions" excludes hearings from its total, "schedule" folds them in — so the
+       two totals disagree by exactly what Today's hearings carries. */
+    const hearings = COURT_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "todays-hearings",
+    );
+    assert.ok(hearings);
+    assert.equal(
+      courtNavClubbedTotal("schedule") - courtNavClubbedTotal("actions"),
+      hearings.count ?? 0,
+    );
+  });
+
+  it("builds \"actions\" as hearings, the combined row, then the other two kept apart", () => {
+    const rows = courtNavRowsFor("actions");
+    assert.deepEqual(
+      rows.map((item) => item.id),
+      ["todays-hearings", "todays-actions", "bulk-reschedule", "sign-process"],
+    );
+    assert.equal(rows[1].count, courtNavClubbedTotal("actions"));
+    assert.equal(rows[1].href, "/employee/todays-actions");
+    assert.ok(isCourtNavCombinedRow(rows[1]));
+    /* Every row a combined layout renders needs a mark of its own — the folded strip
+       has no group left to carry it for a row promoted out of one. */
+    for (const item of rows) {
+      assert.ok(item.icon, `${item.id} has no mark for the folded rail`);
+    }
+  });
+
+  it("builds \"schedule\" as the combined row, then Bulk reschedule and Sign process", () => {
+    const rows = courtNavRowsFor("schedule");
+    assert.deepEqual(
+      rows.map((item) => item.id),
+      ["todays-schedule", "bulk-reschedule", "sign-process"],
+    );
+    assert.equal(rows[0].count, courtNavClubbedTotal("schedule"));
+    assert.equal(rows[0].href, "/employee/todays-schedule");
+    assert.ok(isCourtNavCombinedRow(rows[0]));
+    for (const item of rows) {
+      assert.ok(item.icon, `${item.id} has no mark for the folded rail`);
+    }
+  });
+
+  it("does not call a kept-apart row combined", () => {
+    for (const layout of ["actions", "schedule"] as const) {
+      for (const item of courtNavKeptApart(layout)) {
+        assert.ok(!isCourtNavCombinedRow(item), `${item.id} is not the combined row`);
+      }
+    }
+  });
+
+  it("answers active for the combined row on any clubbed destination", () => {
+    assert.ok(isCourtNavCombinedActive("/employee/scrutiny", "actions"));
+    assert.ok(isCourtNavCombinedActive("/employee/sign-orders", "actions"));
+    /* Nested under a clubbed queue counts too — the same rule `isCourtNavActive`
+       already gives that queue's own row. */
+    assert.ok(isCourtNavCombinedActive("/employee/register-cases/r-1840", "schedule"));
+    /* Hearings are clubbed under "schedule" and are not under "actions" — the one
+       route the two layouts must disagree about. */
+    assert.ok(isCourtNavCombinedActive("/employee/hearings", "schedule"));
+    assert.ok(!isCourtNavCombinedActive("/employee/hearings", "actions"));
+  });
+
+  it("does not answer active for a row it kept apart, or an unknown route", () => {
+    for (const layout of ["actions", "schedule"] as const) {
+      assert.ok(!isCourtNavCombinedActive("/employee/hearings/bulk-reschedule", layout));
+      assert.ok(!isCourtNavCombinedActive("/employee/sign-process", layout));
+      assert.ok(!isCourtNavCombinedActive("/employee/not-a-queue", layout));
     }
   });
 });
