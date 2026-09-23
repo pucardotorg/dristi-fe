@@ -254,7 +254,13 @@ export function CaseFile({
   );
 }
 
-function CaseFileIndex({
+/**
+ * Exported for `order-case-file.tsx`: the order composer reads a document
+ * from the same case-file tree while writing an order, and this is the
+ * whole of the tree's accessible behaviour — focus rings, `aria-current`,
+ * scroll-into-view — not something a second screen should rebuild.
+ */
+export function CaseFileIndex({
   nodes,
   selectedId,
   openIds,

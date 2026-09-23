@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDownIcon, SettingsIcon } from "lucide-react";
+import { ChevronDownIcon, SearchIcon, SettingsIcon } from "lucide-react";
 
 import {
   useCourtRole,
@@ -18,11 +18,18 @@ import { setCourtRole } from "@/lib/employee/court-role";
 import {
   COURT_NAV_GROUPS,
   COURT_NAV_LINKS,
+  COURT_NAV_TRAILING,
+  courtNavRowsFor,
   isCourtNavActive,
+  isCourtNavCombinedActive,
+  isCourtNavCombinedRow,
   type CourtNavGroup,
   type CourtNavItem,
 } from "@/lib/employee/navigation";
+import { useCourtNavLayout } from "@/components/employee/use-court-nav-layout";
+import type { CourtNavLayout } from "@/lib/employee/nav-layout";
 import { BrandGlyph } from "@/components/brand-lockup";
+import { useCourtSearch } from "@/components/employee/court-search";
 import {
   CHROME_FOLD_TRIGGER,
   ChromeRail,
@@ -45,6 +52,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -83,11 +91,20 @@ import {
 /**
  * A menu column in this rail.
  *
+ * `gap-2` rather than the DS sidebar default of `gap-1`. Four pixels between rows is
+ * written for a menu of six; this rail renders twenty-two at once, and the owner's read of
+ * the result was that it "adds a lot of visual noise". Noise is marks per unit area, and
+ * with the red sparks already gone the remaining lever is area. Eight pixels is the next
+ * step on the ladder — the micro steps (`1.5`, `2.5`) are for inside controls, not between
+ * them — and it costs about 84px of scroll on a column that already overflows, which is
+ * the trade this layout was chosen knowing.
+ *
  * `items-center` is what keeps the 40px square honest once the rail is a strip: the rail
  * carries a hairline on its trailing edge, so centring by padding leaves 8px on one side
  * and 7px on the other. Centring by flex is immune to the border.
  */
-const RAIL_MENU = "gap-1 group-data-[collapsible=icon]:items-center";
+const RAIL_MENU =
+  "gap-2 group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:items-center";
 
 /** What the row says out loud past its label. The count is a mark; the words go here. */
 function spokenNote(item: CourtNavItem): string {
@@ -115,34 +132,34 @@ function RowContents({ item }: { item: CourtNavItem }) {
   const note = spokenNote(item);
   return (
     <>
-      {/* The glyph column is reserved on every row, not just the rows that fill it, so
-          all 17 labels in the rail start at the same x. Only the two standalone links
-          carry a mark; a group's rows hold the space and show nothing. Without the
-          placeholder the two marked rows indent past the fifteen unmarked ones, which is
-          the misalignment this rail was pulled up on. `size-4` matches the icon box above, so the two branches are the same width by construction. */}
+      {/* The placeholder survives for a row that has no mark — nothing in
+          `COURT_NAV_GROUPS` is bare any more, but `courtNavRowsFor` synthesises a
+          combined row and a row promoted out of a group could lose its icon on some
+          future edit. A row without one still has to start its label at the same x as
+          the rest, which is the misalignment this rail was pulled up on. */}
       {Icon ? (
-        /* Matched to the group headers' mark, not to this row's text: the same 16px box
-           the DS gives a `SidebarGroupLabel` glyph, and the same `--rail-muted` ink.
-           `RAIL_ROW` sizes row glyphs at 20px for a rail whose every row is marked; here
-           only two rows are, and at 20px in full-strength ink they read as a louder
-           species of icon than the four section marks they sit above. Muted also keeps
-           the mark under its own label, which stays at the row's ink.
+        /* 20px, which is what `RAIL_ROW` already declares for this rail's glyphs — the
+           `size-4!` override that used to sit here was written for a rail where only two
+           of twenty rows were marked, and where a 20px mark in full ink read as a louder
+           species than the four section glyphs it sat above. Both halves of that are
+           gone: every row is marked now, and the section label carries no glyph at all
+           (`SidebarGroupLabel`), so there is nothing left for a row's mark to shout over.
+           A 16px glyph in a 40px row is the lost mark `RAIL_ROW` sizes against.
 
-           Folded, that reasoning inverts exactly. The labels are gone, every square left
-           in the strip is a mark, and a 16px glyph in a 40px square is the lost mark
-           `RAIL_ROW` sizes against in the first place — so it returns to 20px and hands
-           its ink back to the row, which is what lets the selected card's teal keep
-           winning over it. */
+           The ink stays muted while the label keeps the row's own, so the column reads
+           label-first and the glyphs are a texture you scan rather than nineteen things
+           competing with their own text. Folded there is no label left to be under, so
+           the mark hands its ink back to the row — which is what lets the selected
+           card's teal keep winning over it. */
         <Icon
           aria-hidden
           className={[
-            "size-4! text-(--rail-muted)",
-            "group-data-[collapsible=icon]:size-5!",
+            "text-(--rail-muted)",
             "group-data-[collapsible=icon]:text-current",
           ].join(" ")}
         />
       ) : (
-        <span aria-hidden className="size-4 shrink-0" />
+        <span aria-hidden className="size-5 shrink-0" />
       )}
       {/* The label leaves the layout rather than being clipped by the strip's overflow: a
           flex child of zero visible width is still a flex child, and it holds a centred
@@ -152,15 +169,22 @@ function RowContents({ item }: { item: CourtNavItem }) {
       </span>
       {note ? <span className="sr-only">, {note}</span> : null}
       {item.count !== undefined && item.count > 0 ? (
-        /* How much is waiting: a quiet numeral with a small spark beside it.
-           This is the advocate rail's `TasksCount` treatment, adopted rather than
-           re-derived. That rail was deliberately pulled back from a full red pill —
-           it "read as an alarm bolted to the nav" — and this rail had twelve of them at
-           rest, since every group opens by default. The red also claimed the wrong thing:
-           `--rail-badge` resolves to `--destructive-solid`, and the DS reserves that
-           family for irreversible or dangerous actions. A signing queue is workload.
-           The red survives as the 6px spark — enough to say "live obligation" without
-           shouting a number that is already legible as text.
+        /* How much is waiting: a quiet numeral, and nothing else.
+           **The red spark is gone** (owner, 2026-09-23: the rail "adds a lot of visual
+           noise now"). It was adopted from the advocate rail's `TasksCount`, which had
+           already been pulled back from a full red pill because that "read as an alarm
+           bolted to the nav" — and the comment that stood here admitted the rest: that
+           `--rail-badge` resolves to `--destructive-solid`, which the DS reserves for
+           irreversible or dangerous actions, and that a signing queue is workload, not
+           danger. The 6px dot was the concession that kept the red anyway.
+
+           It does not survive the open layout. That concession was priced against a rail
+           where one family disclosed at a time, so about seven sparks were on screen; with
+           every queue visible there are seventeen, and a mark that appears on every row
+           with work discriminates between nothing. This rail already makes that exact
+           argument against four red dots on the folded strip (`CourtNavGroupMark`) — it
+           was simply never applied to the expanded state. The numeral was always the
+           thing carrying the count.
 
            The ink has to change with the row's ground. Idle, the numeral sits on the
            charcoal plate at `--rail-muted` (6.28:1). Selected, the row inverts to the
@@ -177,14 +201,13 @@ function RowContents({ item }: { item: CourtNavItem }) {
         <span
           aria-hidden
           className={[
-            "flex shrink-0 items-center gap-1.5",
+            "shrink-0",
             "group-data-[collapsible=icon]:hidden",
             "text-caption tabular-nums",
             RAIL_MUTED,
             "group-data-[active=true]/menu-button:text-(--rail-card-muted)",
           ].join(" ")}
         >
-          <span className="size-1.5 rounded-full bg-(--rail-badge)" />
           {item.count}
         </span>
       ) : null}
@@ -220,12 +243,24 @@ function deadRowNote(item: CourtNavItem, collapsed: boolean): string {
  * and a row promoted out of a group should not also have to remember to bring its folded
  * name with it.
  */
-function CourtNavRow({ item }: { item: CourtNavItem }) {
+function CourtNavRow({
+  item,
+  active,
+}: {
+  item: CourtNavItem;
+  /**
+   * Overrides the row's own href match. The combined layouts' one row is not itself any
+   * page's href — it stands for whatever `isCourtNavCombinedRow` folded into it
+   * (`isCourtNavCombinedActive`) — so its caller passes the answer in rather than leaving
+   * this row to ask a question its own href cannot answer.
+   */
+  active?: boolean;
+}) {
   const pathname = usePathname();
   const collapsed = useRailCollapsed();
 
   if (item.href) {
-    const isActive = isCourtNavActive(pathname, item.href);
+    const isActive = active ?? isCourtNavActive(pathname, item.href);
     return (
       <SidebarMenuItem>
         <SidebarMenuButton
@@ -379,6 +414,163 @@ function CourtNavGroupMark({
           can see the strip; this names it and its consequence for someone who cannot. */}
       <span className="sr-only">{group.label}, expands the navigation</span>
     </SidebarMenuButton>
+  );
+}
+
+/**
+ * The way into the search, at the head of the rail under every layout.
+ *
+ * A **row, not a field**. It opens a spotlight over the page rather than filtering the
+ * column in place, and a text input that does not narrow what is under it as you type
+ * into it is lying about itself. The advocate rail states the same control the same way
+ * (`shell/app-sidebar.tsx`'s `Search` row), so this is one control the product already
+ * has rather than a second idea about what search looks like.
+ *
+ * The shortcut is printed on the row instead of being taught somewhere: a keystroke
+ * nobody can see is not an affordance. It is decorative — `aria-keyshortcuts` carries it
+ * for anyone who cannot read the glyph, and the row's own label carries the rest.
+ *
+ * Folded, the keycap leaves with the labels and the 40px square is the whole row; the
+ * DS tooltip on `SidebarMenuButton` names it there, which is what every other folded row
+ * in this rail relies on.
+ */
+function CourtSearchRow() {
+  const { open, shortcut } = useCourtSearch();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        type="button"
+        tooltip="Search this court"
+        aria-keyshortcuts="Meta+K Control+K"
+        className={RAIL_ROW}
+        onClick={open}
+      >
+        {/* The same two inks every other row's mark carries: muted while there is a
+            label beside it to stay under, and the row's own ink once the strip has taken
+            the labels away. Without the second half this was the one glyph in the folded
+            column still painted muted while the other twenty-one had gone to full ink. */}
+        <SearchIcon
+          aria-hidden
+          className={`${RAIL_MUTED} group-data-[collapsible=icon]:text-current`}
+        />
+        {/* **Leaves the layout when the rail folds**, which is the whole of why the
+            folded search square looked wrong. This span had `flex-1` and no folded rule,
+            so in a 40px square with `justify-center gap-0 p-0!` it still claimed every
+            spare pixel and pushed the glyph off centre. Both rails already carry the
+            warning — `RowContents` here and `LABEL` in the advocate's — that a flex child
+            of zero visible width is still a flex child; this row was written fresh and did
+            not inherit it. */}
+        <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">
+          Search
+        </span>
+        {/* The advocate rail's own treatment (`SearchShortcut`), on the owner's call that
+            the two should match: plain muted caption pushed to the trailing edge, not a
+            bordered mono keycap. A stroked box in a rail whose only other strokes are its
+            seams read as a control inside a control. `tabular-nums` is the one thing left
+            behind — there are no numerals in "⌘K" for it to line up. */}
+        <span
+          aria-hidden
+          className={`${RAIL_MUTED} ml-auto shrink-0 text-caption group-data-[collapsible=icon]:hidden`}
+        >
+          {shortcut}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+/**
+ * The break between one section of the rail and the next.
+ *
+ * **Air when the rail is open, a rule when it is folded** (owner, 2026-09-23: *"remove
+ * the rules"*). Expanded, 24px of clean space above a muted caption label is the whole
+ * separation — which is what the owner's reference screen does, and what `ui-craft` asks
+ * for in that order: spacing, then fill, then a justified divider. Five rules in a
+ * twenty-two row column read as ruling rather than grouping.
+ *
+ * Folded, that inverts exactly, and this is the one place the rule still earns itself:
+ * `SidebarGroupLabel` takes itself out of the strip, so there is no label left to do the
+ * grouping and the rule is the only thing holding twenty-two marks apart. It insets to the
+ * width of the squares so it underlines its group instead of cutting the strip.
+ *
+ * It is one component rather than a class string repeated five times, because the four
+ * families and Configurations have to break the same way — the moment they are written
+ * out separately, one of them drifts.
+ */
+function CourtNavBreak() {
+  return (
+    <div
+      aria-hidden
+      className={[
+        "mt-6",
+        /* Folded, the rule has to be exactly a square wide, and it is stated rather than
+           inferred. `mx-3` looked right and was not: this sits inside `SidebarGroup`'s
+           `p-2`, so a 12px-a-side margin measures against a 48px content box and drew a
+           24px rule under a 40px square — narrower than the thing it was underlining,
+           which is the near-miss that reads as a mistake. `w-10 mx-auto` matches the
+           squares by construction, whatever padding the parent grows. */
+        "group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mt-4",
+        "group-data-[collapsible=icon]:w-10",
+        /* And matching space *below* the rule, so a group of squares is centred between
+           its two rules rather than pressed against the one above it (owner, 2026-09-23:
+           "it feels cramped otherwise"). The 16px above came from this element's own
+           margin; the 16px below has to come from here too, because the label that would
+           otherwise sit in the gap has no height once the strip takes it — so `pb` on the
+           break is the one place that keeps all five sections symmetric by construction. */
+        "group-data-[collapsible=icon]:pb-4",
+        `group-data-[collapsible=icon]:border-t ${RAIL_SEAM}`,
+      ].join(" ")}
+    />
+  );
+}
+
+/**
+ * One family under the `"open"` layout: a rule, a label that stays put, and every row.
+ *
+ * There is no disclosure and therefore no state — which is the whole of what this layout
+ * answers. `"grouped"` shuts whatever you had open on every navigation, so the second
+ * visit to a queue costs what the first did; nothing here can shut.
+ *
+ * **The label is the DS `SidebarGroupLabel`, used as designed** — a 32px row, the
+ * caption size at weight 500, in the sidebar's own muted ink, and it takes itself out of
+ * the column when the rail folds. The grouped layout has to override all of that (`RAIL_GROUP_LABEL`)
+ * because there the label is a 40px disclosure control carrying a glyph and a chevron.
+ * Here it is a label and nothing else, so the primitive already is the thing. It also
+ * carries no mark: every row below it has one now, and a nineteenth glyph on the header
+ * would put the label back into the list it is supposed to be naming.
+ *
+ * It pins. Twenty rows run past the fold, so the column scrolls, and a family label that
+ * scrolled away with its rows would leave the reader in an unnamed middle. `SidebarContent`
+ * is the scrollport and carries no padding of its own, so `top-0` sits flush against it —
+ * worth knowing, because the same thing written against a padded scroller leaves a band
+ * above the pinned label that rows scroll through.
+ *
+ * The rule is its own element rather than a border on the label, for two reasons. The
+ * break belongs *between* families and the label belongs to the family under it, so a
+ * border-top would travel with the label and, once pinned, sit as a doubled line under
+ * the header's own seam. And as a flow element it scrolls away when the label pins, which
+ * is right: a pinned label has stopped being a break in the column and become its header.
+ * Folded it insets to the width of the squares, because there the labels are gone and it
+ * is the only thing left holding twenty marks in groups.
+ */
+function CourtNavOpenSection({ group }: { group: CourtNavGroup }) {
+  return (
+    /* `gap-0` folded, because the label is still a flex child there. The DS takes it out
+       of view with `-mt-8 opacity-0` rather than `display:none` — so its height cancels
+       but it keeps its two 4px gaps, an invisible 8px per section and 32px down a strip
+       that is already taller than the window. Spacing that works by accident breaks on
+       the next edit; folded, the break's own margin is the whole separation. */
+    <div className="flex flex-col gap-1 group-data-[collapsible=icon]:gap-0">
+      <CourtNavBreak />
+      <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
+        {group.label}
+      </SidebarGroupLabel>
+      <SidebarMenu className={RAIL_MENU}>
+        {group.items.map((item) => (
+          <CourtNavRow key={item.id} item={item} />
+        ))}
+      </SidebarMenu>
+    </div>
   );
 }
 
@@ -567,8 +759,30 @@ function CourtNavGroupSection({
  * *render*, and nothing depends on it being right before hydration — the sheet is shut at
  * first paint, and the column this also empties is `hidden` below `md`.
  */
+/**
+ * The mark at the page origin, and which court this is.
+ *
+ * The court used to be the third line of the rail's foot, under the person and the seat.
+ * It is not a fact about the person: `CURRENT_STAFF.court` is one value for the whole
+ * deployment and `session.ts` carries it as a single string spelled the way a court
+ * document prints it. Three facts will not fit two lines in a 148px column — the seat and
+ * the court together run past 180px at caption size — so the one that is a constant moves
+ * to the chrome and is stated once, beside the mark, where a constant belongs. The foot is
+ * then exactly two lines and cannot grow a third however long a name or a seat's title
+ * gets (owner, 2026-09-18).
+ *
+ * **A deviation worth recording.** The foot deliberately never truncated this string —
+ * "an ellipsis here has nothing behind it", and every order the sign queues produce is
+ * headed with the court — so it wrapped and the footer grew. This row is a fixed 56px
+ * matched to the top bar, so it cannot grow, and the column here is no wider. The demo
+ * value fits ("JMFC Court 1, Kollam" measures ~133px against ~152px available); a longer
+ * bench truncates, and `title` is what stands behind the ellipsis that the foot had
+ * nothing to offer. Folded, it goes `sr-only` rather than disappearing — the same trade
+ * every other label in this rail makes when the strip takes over.
+ */
 function CourtRailHeader() {
   const { isMobile } = useSidebar();
+  const { court } = useCourtSession();
   const handoff = useFoldFocusHandoff(
     useRailCollapsed(),
     focusChromeFoldTrigger,
@@ -576,6 +790,12 @@ function CourtRailHeader() {
   return (
     <div className={RAIL_BRAND_ROW}>
       <BrandGlyph className="h-6 shrink-0" onDark={CHARCOAL_PLATE.darkPlate} />
+      <span
+        title={court}
+        className="min-w-0 flex-1 truncate text-body-compact font-medium group-data-[collapsible=icon]:sr-only"
+      >
+        {court}
+      </span>
       {isMobile ? null : (
         <SidebarTrigger
           {...CHROME_FOLD_TRIGGER}
@@ -607,13 +827,14 @@ function initialsOf(name: string): string {
 }
 
 /**
- * Settings — which seat the court side is being worked from.
+ * Settings — which seat the court side is being worked from, and which shape its rail
+ * takes.
  *
  * It used to be a dead control with a tooltip saying so, because there is no court
  * settings route: the one `/settings` this app has belongs to the citizen half, and a
  * stub route would have been a promise this branch cannot keep. That is still true, and
- * this is still not a route — it is a menu, because the one setting the court side
- * actually has is small enough to answer in place.
+ * this is still not a route — it is a menu, because what the court side actually has to
+ * set is small enough to answer in place.
  *
  * **Four seats** (`COURT_SEATS`) — the same four `/employee/login` signs in to, so the
  * menu can always name the seat the person arrived in. Same rail, same queues, same
@@ -623,8 +844,17 @@ function initialsOf(name: string): string {
  * typist's work is as against a bench clerk's comes from product, and this build must not
  * answer that by quietly showing a different app. The menu is honest by being small.
  *
- * A radio group rather than plain items: the seats are one mutually exclusive answer, and
- * the menu has to show which one is being worked in without being opened twice. `w-auto
+ * **Rail layout** (`nav-layout.ts`) — four shapes for the same rail, kept side by side
+ * (owner, 2026-09-21 and 2026-09-23) rather than settled on one: "All queues" is the
+ * default and shows every queue with no disclosures at all; "Grouped by type" is the rail
+ * as it was, four disclosures with one open at a time; "Today's actions" keeps hearings a
+ * tab of its own and folds the rest into one row; "Today's schedule" folds hearings in
+ * with that same rest instead — see `courtNavRowsFor`. A second section rather than a
+ * second control, because both are one person's preference about how their own rail looks,
+ * not two different kinds of setting.
+ *
+ * Both sections are radio groups rather than plain items: each is one mutually exclusive
+ * answer, and the menu has to show which one is live without being opened twice. `w-auto
  * min-w-48` because the primitive otherwise inherits the trigger's width, and a 40px
  * trigger would pinch "Bench clerk" to a column of letters.
  *
@@ -636,6 +866,7 @@ function initialsOf(name: string): string {
  */
 function CourtSettingsControl() {
   const seat = useCourtRole();
+  const [layout, setLayout] = useCourtNavLayout();
   return (
     <DropdownMenu>
       <Tooltip>
@@ -670,6 +901,23 @@ function CourtSettingsControl() {
               {COURT_ROLE_LABEL[role]}
             </DropdownMenuRadioItem>
           ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Rail layout</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={layout}
+          onValueChange={(next) => setLayout(next as CourtNavLayout)}
+        >
+          <DropdownMenuRadioItem value="open">All queues</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="grouped">
+            Grouped by type
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="actions">
+            Today’s actions
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="schedule">
+            Today’s schedule
+          </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -707,7 +955,7 @@ function CourtSettingsControl() {
  * person's name off a hover the keyboard cannot reach.
  */
 function CourtIdentityFooter() {
-  const { name, court } = useCourtSession();
+  const { name } = useCourtSession();
   const role = useCourtRole();
   /* The settings control leaves the layout with the labels, so folding while it holds
      focus drops the keyboard the same way a section's rows do. Its fallback is the fold
@@ -729,26 +977,21 @@ function CourtIdentityFooter() {
       >
         {initialsOf(name)}
       </span>
-      {/* Nothing in this block truncates. "JMFC Court 1, Kollam" fits the 147px column and
-          "JMFC Court 1, Thiruvananthapuram" does not, nor will a Malayalam rendering of
-          either — and an ellipsis here has nothing behind it: there is no tooltip to open,
-          and folded the whole block is `sr-only`, so there is no second place to read it.
-          That matters more than an ordinary clipped label for the reason the court is here
-          at all: every order and form the sign queues produce is headed with it. So the
-          lines wrap and the footer grows, per `ACCESSIBILITY.md` §10 and §13, and
-          `wrap-break-word` catches the long unspaced compounds an Indic script produces
-          that a space-based wrap would push past the rail's edge. */}
+      {/* Two lines, and it cannot grow a third: the court moved to the brand row (see
+          `CourtRailHeader`), so what is left is one person and one seat, both short by
+          nature. Neither truncates — the lines still wrap and the footer still grows, per
+          `ACCESSIBILITY.md` §10 and §13, and `wrap-break-word` still catches the long
+          unspaced compounds an Indic script produces that a space-based wrap would push
+          past the rail's edge. A wrapped name costs a line here; it does not cost the
+          court, which is the thing that had nowhere to be clipped to. */}
       <div className="flex min-w-0 flex-1 flex-col leading-tight group-data-[collapsible=icon]:sr-only">
         <span className="wrap-break-word text-body-compact font-medium">
           {name}
         </span>
-        {/* One weight down the whole block, so a long court name never starts competing
-            with the person's; the step between them is size and ink. */}
+        {/* One weight down, so a long seat title never starts competing with the
+            person's name; the step between them is size and ink. */}
         <span className={`wrap-break-word text-caption font-medium ${RAIL_MUTED}`}>
           {COURT_ROLE_LABEL[role]}
-        </span>
-        <span className={`wrap-break-word text-caption font-medium ${RAIL_MUTED}`}>
-          {court}
         </span>
       </div>
       <CourtSettingsControl />
@@ -758,6 +1001,8 @@ function CourtIdentityFooter() {
 
 export function EmployeeNav() {
   const { openId, setOpenId, currentId } = useCourtNavDisclosure();
+  const [layout] = useCourtNavLayout();
+  const pathname = usePathname();
   return (
     /* Rows that go nowhere explain themselves on hover and on focus; at the DS default of
        0ms that turns a sweep down the rail into a strobe. */
@@ -774,22 +1019,58 @@ export function EmployeeNav() {
             same vertical rhythm instead of each section padding itself. */}
         <SidebarGroup className="gap-1">
           <SidebarMenu className={RAIL_MENU}>
+            <CourtSearchRow />
             {COURT_NAV_LINKS.map((item) => (
               <CourtNavRow key={item.id} item={item} />
             ))}
           </SidebarMenu>
-          {COURT_NAV_GROUPS.map((group) => (
-            <CourtNavGroupSection
-              key={group.id}
-              group={group}
-              isCurrent={currentId === group.id}
-              open={openId === group.id}
-              /* Opening one closes whichever was open; closing the open one leaves none.
-                 Both fall out of storing the id rather than four booleans — there is no
-                 state here that could represent two sections open at once. */
-              onOpenChange={(next) => setOpenId(next ? group.id : null)}
-            />
-          ))}
+          {layout === "open" ? (
+            COURT_NAV_GROUPS.map((group) => (
+              <CourtNavOpenSection key={group.id} group={group} />
+            ))
+          ) : layout === "grouped" ? (
+            COURT_NAV_GROUPS.map((group) => (
+              <CourtNavGroupSection
+                key={group.id}
+                group={group}
+                isCurrent={currentId === group.id}
+                open={openId === group.id}
+                /* Opening one closes whichever was open; closing the open one leaves
+                   none. Both fall out of storing the id rather than four booleans —
+                   there is no state here that could represent two sections open at
+                   once. */
+                onOpenChange={(next) => setOpenId(next ? group.id : null)}
+              />
+            ))
+          ) : (
+            /* The two combined layouts have no groups left to disclose: the rows
+               `courtNavKeptApart` stands apart, and the one row everything else folds
+               into (`courtNavRowsFor`), flat — the same list primitive the standalone
+               links above already use. */
+            <SidebarMenu className={RAIL_MENU}>
+              {courtNavRowsFor(layout).map((item) => (
+                <CourtNavRow
+                  key={item.id}
+                  item={item}
+                  active={
+                    isCourtNavCombinedRow(item)
+                      ? isCourtNavCombinedActive(pathname, layout)
+                      : undefined
+                  }
+                />
+              ))}
+            </SidebarMenu>
+          )}
+          {/* Configurations, last under every layout — it is the one row here that is
+              not somewhere the bench works, so it closes the rail rather than heading
+              it (owner, 2026-09-23). The seam is what says it is a different species
+              from the queues above it; without one it reads as a fifth kind of work. */}
+          <CourtNavBreak />
+          <SidebarMenu className={RAIL_MENU}>
+            {COURT_NAV_TRAILING.map((item) => (
+              <CourtNavRow key={item.id} item={item} />
+            ))}
+          </SidebarMenu>
         </SidebarGroup>
       </ChromeRail>
     </TooltipProvider>

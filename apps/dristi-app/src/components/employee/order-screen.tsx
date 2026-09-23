@@ -22,6 +22,7 @@ import {
   useStagedFlow,
 } from "@/components/chrome/staged-overlay";
 import { ListingApplicationDialog } from "@/components/employee/listing-application-dialog";
+import { OrderCaseFile } from "@/components/employee/order-case-file";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import {
   SignatureActions,
@@ -466,6 +467,17 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   const [bodyWrites, setBodyWrites] = React.useState(0);
   const [signOpen, setSignOpen] = React.useState(false);
   const [announcement, setAnnouncement] = React.useState("");
+  /**
+   * Reading the case file while writing the order.
+   *
+   * **Rearranges the screen rather than opening over it** (owner, 2026-09-22): the
+   * sheet — attendance, next hearing, the passage itself — moves down into the left
+   * column, under the applications and orders catalogue, and the right column turns
+   * over to the case file's own index-plus-PDF pane (`order-case-file.tsx`). Nothing
+   * is unmounted by the toggle: the draft, the open section and every mark on the
+   * roll are exactly where they were when the typist switches back.
+   */
+  const [caseFileOpen, setCaseFileOpen] = React.useState(false);
   /**
    * Open a section and put the reader in it.
    *
@@ -1150,13 +1162,36 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           </h1>
           <MatterFacts hearing={hearing} />
         </div>
-        <Button
-          type="button"
-          className="w-full shrink-0 sm:w-fit"
-          onClick={advance}
-        >
-          {upNext ? "Next hearing" : "End hearing"}
-        </Button>
+        {/* **Outline beside the primary, the same bargain `ViewCaseAction` makes on
+            the overview page** (`hearing-overview-screen.tsx`): a promise and an act
+            share a band, and the act keeps the one teal. Unlike that button this one
+            is not dead — there is no case file to connect there, and there is one
+            here, read straight off the tree the advocate's case file already uses. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full shrink-0 sm:w-fit"
+            onClick={() => {
+              const next = !caseFileOpen;
+              setCaseFileOpen(next);
+              setAnnouncement(
+                next
+                  ? "Case file open. The order has moved below the applications and orders catalogue."
+                  : "Case file closed. The order is back on its own page.",
+              );
+            }}
+          >
+            {caseFileOpen ? "Back to order" : "View a case"}
+          </Button>
+          <Button
+            type="button"
+            className="w-full shrink-0 sm:w-fit"
+            onClick={advance}
+          >
+            {upNext ? "Next hearing" : "End hearing"}
+          </Button>
+        </div>
       </header>
 
       {/* The split the owner drew. Left: what the court did at this sitting and what it
@@ -1261,19 +1296,35 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
             row hidden under the footer.
 
             Below `lg` the columns are stacked and nothing is pinned or clamped: the page
-            scroll is the right one on a phone, and the `50svh` cap still applies there. */}
-        <div className="flex min-w-0 flex-col gap-4 self-start lg:sticky lg:top-(--order-panel-top) lg:h-(--order-panel-height) lg:overflow-y-auto">
+            scroll is the right one on a phone, and the `50svh` cap still applies there.
+
+            **Not pinned or clamped at any width once the case file is open.** The
+            column now also carries the sheet (below), and the fixed height was sized
+            for two section cards — the sheet's own well and passage want the page's
+            scroll, not a second scroller nested inside this one. The catalogue's own
+            `max-h-(--order-panel-height)` belt (`OrderItems`) is a plain CSS value, not
+            dependent on this column's height, so it keeps the catalogue scrolling in
+            place either way. */}
+        <div
+          className={cn(
+            "flex min-w-0 flex-col gap-4 self-start",
+            !caseFileOpen &&
+              "lg:sticky lg:top-(--order-panel-top) lg:h-(--order-panel-height) lg:overflow-y-auto",
+          )}
+        >
           {SECTIONS.map((entry) => {
             const Icon = entry.icon;
             const open = entry.id === section;
             const headingId = `order-section-${entry.id}`;
             /* **Only the catalogue takes the leftover height, and only while it is
-               open.** The applications are a short list, and a card stretched past its
-               rows is the tall pale container with its content bunched at the top that
-               the sheet itself was pulled out of (owner, 2026-09-15). The fill has to be
-               declared at every box between the column and the scroller: a flex child
-               cannot inherit a definite height through a box that has none. */
-            const fills = open && entry.id === "orders";
+               open** — and only while the column is the one pinned to it. The
+               applications are a short list, and a card stretched past its rows is the
+               tall pale container with its content bunched at the top that the sheet
+               itself was pulled out of (owner, 2026-09-15). The fill has to be declared
+               at every box between the column and the scroller: a flex child cannot
+               inherit a definite height through a box that has none — and with the case
+               file open there is no such height to inherit. */
+            const fills = !caseFileOpen && open && entry.id === "orders";
             const FILL = "lg:flex lg:min-h-0 lg:flex-1 lg:flex-col";
             return (
               <Card
@@ -1388,25 +1439,51 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
               </Card>
             );
           })}
+
+          {/* **The sheet, moved rather than hidden.** With the right column given
+              over to the case file, attendance, the next hearing and the passage
+              itself have nowhere else to be — they come to rest here, under the
+              catalogue, in the same order the sitting already works them. Same
+              component, same props, same draft: only its column changed. */}
+          {caseFileOpen ? (
+            <OrderPaper
+              compact
+              document={orderDocument}
+              appearances={appearances}
+              marks={draft.marks}
+              draft={draft}
+              bodyRevision={bodyWrites}
+              onBody={setBody}
+              suggestion={suggestion}
+              onMark={mark}
+              onSkip={(skip) => postNext({ next: skip ? "none" : "list" })}
+              onPurpose={(nextPurpose) => postNext({ nextPurpose })}
+              onDate={(nextDate) => postNext({ nextDate })}
+            />
+          ) : null}
         </div>
 
         {/* No surround. The page lies on the canvas directly and carries its own lift,
             which it could not do inside the old panel — a raised sheet inside a raised
             card flattens both. */}
-        <OrderPaper
-          className="lg:col-span-2"
-          document={orderDocument}
-          appearances={appearances}
-          marks={draft.marks}
-          draft={draft}
-          bodyRevision={bodyWrites}
-          onBody={setBody}
-          suggestion={suggestion}
-          onMark={mark}
-          onSkip={(skip) => postNext({ next: skip ? "none" : "list" })}
-          onPurpose={(nextPurpose) => postNext({ nextPurpose })}
-          onDate={(nextDate) => postNext({ nextDate })}
-        />
+        {caseFileOpen ? (
+          <OrderCaseFile className="lg:sticky lg:top-(--order-panel-top) lg:col-span-2 lg:h-(--order-panel-height)" />
+        ) : (
+          <OrderPaper
+            className="lg:col-span-2"
+            document={orderDocument}
+            appearances={appearances}
+            marks={draft.marks}
+            draft={draft}
+            bodyRevision={bodyWrites}
+            onBody={setBody}
+            suggestion={suggestion}
+            onMark={mark}
+            onSkip={(skip) => postNext({ next: skip ? "none" : "list" })}
+            onPurpose={(nextPurpose) => postNext({ nextPurpose })}
+            onDate={(nextDate) => postNext({ nextDate })}
+          />
+        )}
       </div>
 
       <footer
@@ -2512,6 +2589,7 @@ function OrderPaper({
   onSkip,
   onPurpose,
   onDate,
+  compact,
 }: {
   className?: string;
   document: OrderDocument;
@@ -2527,6 +2605,16 @@ function OrderPaper({
   onSkip: (skip: boolean) => void;
   onPurpose: (purpose: CourtHearingPurposeId | "") => void;
   onDate: (day: string | null) => void;
+  /**
+   * The sheet at a third of the page rather than two-thirds — the width it gets in
+   * the left column once the case file has taken the right one. `md:grid-cols-2`
+   * reads the *viewport*, not this column: at a desktop width it fired anyway and
+   * paired Attendance with Next hearing in a track too narrow for either, which is
+   * what wrapped every office's name one letter to a line. This keeps the pair
+   * stacked regardless of viewport, which is what the column's own width actually
+   * calls for here.
+   */
+  compact?: boolean;
 }) {
   return (
     <article
@@ -2573,7 +2661,7 @@ function OrderPaper({
           wells fill it, so the pair reads as one band of the sheet's furniture rather
           than as two boxes that happen to be adjacent. Nothing is stretched *inside*
           them — the controls keep their own sizes and sit at the top. */}
-      <div className="grid min-w-0 gap-4 md:grid-cols-2">
+      <div className={cn("grid min-w-0 gap-4", !compact && "md:grid-cols-2")}>
         <PaperBlock id="order-attendance" label="Attendance">
           <PaperAttendance
             appearances={appearances}
