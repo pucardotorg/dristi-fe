@@ -445,7 +445,14 @@ function CourtSearchRow() {
         className={RAIL_ROW}
         onClick={open}
       >
-        <SearchIcon aria-hidden className={RAIL_MUTED} />
+        {/* The same two inks every other row's mark carries: muted while there is a
+            label beside it to stay under, and the row's own ink once the strip has taken
+            the labels away. Without the second half this was the one glyph in the folded
+            column still painted muted while the other twenty-one had gone to full ink. */}
+        <SearchIcon
+          aria-hidden
+          className={`${RAIL_MUTED} group-data-[collapsible=icon]:text-current`}
+        />
         <span className="min-w-0 flex-1 truncate">Search</span>
         <span
           aria-hidden
