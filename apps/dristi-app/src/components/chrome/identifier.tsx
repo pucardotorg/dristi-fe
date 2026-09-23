@@ -27,13 +27,21 @@ import { cn } from "@/lib/utils";
  * ## The copy affordance
  *
  * No button beside the value — the value *is* the control. At rest it reads as text; on
- * hover or focus it takes a sunken pill and the copy glyph slides open beside it, which
- * is the signal that it can be taken. The glyph holds no room at rest (owner,
- * 2026-09-21): a reserved box left a hole after every identifier, most visibly mid
- * sentence, "ST 412/2025   · 24×7 ON Court". Whatever follows now sits tight against
- * the value and eases aside by the glyph's width while the pointer is on it. The move
- * is 14px over 180ms and only happens under the pointer, so a column of these never
- * shifts on its own.
+ * hover or focus it takes a sunken pill and the copy glyph fades in beside it, which is
+ * the signal that it can be taken. The glyph holds no room at rest (owner, 2026-09-21):
+ * a reserved box left a hole after every identifier, most visibly mid sentence,
+ * "ST 412/2025   · 24×7 ON Court".
+ *
+ * **It holds no room on hover either, and that is a correction.** The glyph used to
+ * animate from `w-0` to `w-3.5`, and the note here claimed "a column of these never
+ * shifts on its own" — true of prose and false of a table, which is where most of these
+ * live. A table with automatic layout sizes each column to its widest cell, so one cell
+ * growing 14px under the pointer widens *the whole column for every row* and shoves the
+ * columns after it sideways (owner, 2026-09-23). The glyph is now positioned out of flow
+ * at the value's trailing edge and only fades, so the button's width is identical in
+ * every state and nothing can reflow. A table cell's own `px-4` is where it lands, so it
+ * overlaps nothing; the resting hole the owner rejected does not come back, because the
+ * reserved width is zero rather than 14px.
  *
  * Clicking copies and says so twice, at two ranges. On the number itself the glyph
  * becomes a tick for a moment — that is the affordance confirming itself, in place. And
@@ -140,21 +148,24 @@ export function Identifier({
         face,
         /* Negative inline margin against the pill's padding, so the resting text sits
            exactly where plain text would and the fill grows outside it. */
-        "group/id -mx-1 inline-flex cursor-pointer items-center rounded-sm px-1 text-left align-baseline",
+        "group/id relative -mx-1 inline-flex cursor-pointer items-center rounded-sm px-1 text-left align-baseline",
         "outline-none transition-colors hover:bg-surface-sunken focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         className
       )}
     >
       <span>{value}</span>
-      {/* Closed at rest, so nothing trails the value. It opens to the glyph's width on
-          hover, focus and for the moment the tick shows, and the row eases with it. */}
+      {/* Out of flow at the value's trailing edge, so the control measures the same in
+          every state and no table column can resize under the pointer. `pointer-events-
+          none` because it renders outside the button's own box: without it the hit area
+          would reach into whatever sits alongside, which in a table is the next cell. */}
       <span
         aria-hidden
         className={cn(
-          "flex shrink-0 justify-end overflow-hidden transition-[width,opacity] duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+          "pointer-events-none absolute top-1/2 left-full flex -translate-y-1/2 items-center pl-0.5",
+          "transition-opacity duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
           copied
-            ? "w-3.5 opacity-100"
-            : "w-0 opacity-0 group-hover/id:w-3.5 group-hover/id:opacity-100 group-focus-visible/id:w-3.5 group-focus-visible/id:opacity-100"
+            ? "opacity-100"
+            : "opacity-0 group-hover/id:opacity-100 group-focus-visible/id:opacity-100"
         )}
       >
         {copied ? (
