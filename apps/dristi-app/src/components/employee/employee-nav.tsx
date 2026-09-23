@@ -497,6 +497,13 @@ function CourtNavBreak() {
            squares by construction, whatever padding the parent grows. */
         "group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mt-4",
         "group-data-[collapsible=icon]:w-10",
+        /* And matching space *below* the rule, so a group of squares is centred between
+           its two rules rather than pressed against the one above it (owner, 2026-09-23:
+           "it feels cramped otherwise"). The 16px above came from this element's own
+           margin; the 16px below has to come from here too, because the label that would
+           otherwise sit in the gap has no height once the strip takes it — so `pb` on the
+           break is the one place that keeps all five sections symmetric by construction. */
+        "group-data-[collapsible=icon]:pb-4",
         `group-data-[collapsible=icon]:border-t ${RAIL_SEAM}`,
       ].join(" ")}
     />
