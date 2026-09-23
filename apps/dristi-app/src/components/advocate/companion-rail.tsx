@@ -7,7 +7,7 @@ import {
   ChevronRight,
   FileClock,
   FileUp,
-  Gavel,
+  CalendarClock,
   IndianRupee,
   ListChecks,
   MailQuestion,
@@ -145,7 +145,7 @@ const KIND_ICON: Record<TaskKind, LucideIcon> = {
   file: FileUp,
   returned: Undo2,
   review: MailQuestion,
-  hearing: Gavel,
+  hearing: CalendarClock,
   draft: FileClock,
 };
 

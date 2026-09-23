@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { GavelIcon } from "lucide-react";
+import { FolderSearchIcon } from "lucide-react";
 
 import {
   CourtCaseItemList,
@@ -196,7 +196,7 @@ export function CourtCasesScreen() {
           <Empty className="px-0 py-6">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <GavelIcon aria-hidden />
+                <FolderSearchIcon aria-hidden />
               </EmptyMedia>
               <EmptyTitle className="text-body font-semibold">
                 No case matches

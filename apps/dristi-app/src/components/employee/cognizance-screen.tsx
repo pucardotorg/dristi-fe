@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { GavelIcon, SearchXIcon } from "lucide-react";
+import { SearchXIcon, StampIcon } from "lucide-react";
 
 import { ARRIVAL } from "@/components/chrome/motion";
 import {
@@ -230,7 +230,7 @@ function CognizanceEmpty({
     <Empty className="border-0 p-0">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          {isFiltered ? <SearchXIcon aria-hidden /> : <GavelIcon aria-hidden />}
+          {isFiltered ? <SearchXIcon aria-hidden /> : <StampIcon aria-hidden />}
         </EmptyMedia>
         <EmptyTitle className="text-title-s font-semibold">
           {isFiltered ? "No complaints match these filters" : "Nothing waiting"}

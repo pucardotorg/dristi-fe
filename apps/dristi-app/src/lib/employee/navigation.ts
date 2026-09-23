@@ -1,12 +1,29 @@
 import {
   CalendarClockIcon,
   CalendarDaysIcon,
+  CalendarIcon,
+  CalendarXIcon,
+  CopyIcon,
+  EllipsisIcon,
+  FileCheckIcon,
+  FilePenIcon,
+  FilePlusIcon,
   FileSearchIcon,
   FolderIcon,
+  HourglassIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  MessageSquareIcon,
+  NotebookPenIcon,
+  PaperclipIcon,
+  RefreshCwIcon,
+  ScanIcon,
+  SendIcon,
   SettingsIcon,
   SignatureIcon,
+  StampIcon,
+  UserCheckIcon,
+  UserPenIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -87,8 +104,25 @@ export type CourtNavItem = {
    */
   href?: string;
   /**
-   * A leading mark. Only the two standalone links above the groups carry one — they are
-   * destinations in their own right, not items in a list of work.
+   * A leading mark. **Every row carries one** (owner, 2026-09-18).
+   *
+   * It used to be the two standalone links alone, on the argument that marking a group's
+   * rows would flatten its header back into the list. That argument was sound while the
+   * header was a 40px disclosure control wearing a glyph of its own; it is not sound now.
+   * The header is a quiet caption label (`SidebarGroupLabel`) with no mark, so nothing is
+   * left for a row's glyph to compete with — and eighteen same-size labels in one column
+   * had to be *read* rather than scanned, which was the owner's complaint.
+   *
+   * It also makes the folded 4rem strip worth having: it used to show six squares, none
+   * of which was a queue you could reach.
+   *
+   * **Five of these are not on the DS icon allowlist** (`{DS}/src/lib/icons.ts`, 146
+   * names mirroring the Figma Icons page): `calendar-clock`, `file-pen`, `user-pen`,
+   * `notebook-pen` here, and `folder-search` in `court-cases-screen.tsx`. The owner's own
+   * picks, kept deliberately with an upstream request to add them — the allowlist's
+   * nearest substitutes are less precise, and two of them collide with each other at
+   * 20px (`pen-line` for Sign orders against `pencil` for the A-Diary). Every other mark
+   * below is on the allowlist. Owner's call, 2026-09-23.
    */
   icon?: LucideIcon;
   /** The destination lives outside DRISTI. Spoken, not marked — see `RowContents`. */
@@ -106,9 +140,10 @@ export type CourtNavGroup = {
    * An addition to the reference, which left the headers bare — asked for so the four
    * kinds of work are findable without reading.
    *
-   * The rows inside a group stay unmarked: giving every row a glyph would flatten the
-   * header back into the list. The two standalone links above the groups are the
-   * exception — they are destinations, not work items.
+   * **It is the disclosure header's mark, and only the disclosure layouts have one.**
+   * `"grouped"` renders this beside the section label; `"open"` does not — there the
+   * label is a quiet caption and every row below it carries its own glyph, so a header
+   * mark would read as a nineteenth row. See `CourtNavItem.icon`.
    */
   icon: LucideIcon;
   items: CourtNavItem[];
@@ -217,18 +252,21 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "todays-hearings",
         label: "Today’s hearings",
+        icon: CalendarClockIcon,
         href: "/employee/hearings",
         count: TODAYS_HEARING_COUNT,
       },
       {
         id: "schedule-hearing",
         label: "Schedule hearing",
+        icon: CalendarIcon,
         href: "/employee/hearings/schedule",
         count: SCHEDULING_QUEUE_COUNT,
       },
       {
         id: "bulk-reschedule",
         label: "Bulk reschedule hearings",
+        icon: RefreshCwIcon,
         href: "/employee/hearings/bulk-reschedule",
       },
     ],
@@ -245,12 +283,14 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "scrutiny",
         label: "Scrutinise submitted cases",
+        icon: ScanIcon,
         href: "/employee/scrutiny",
         count: SCRUTINY_QUEUE_COUNT,
       },
       {
         id: "register-cases",
         label: "Register cases",
+        icon: FilePlusIcon,
         href: "/employee/register-cases",
         count: REGISTER_QUEUE_COUNT,
       },
@@ -267,12 +307,14 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "cognizance",
         label: "Take cognizance",
+        icon: StampIcon,
         href: "/employee/cognizance",
         count: COGNIZANCE_QUEUE_COUNT,
       },
       {
         id: "approve-copy",
         label: "Approve copy application",
+        icon: CopyIcon,
         href: "/employee/approve-copy-application",
         count: APPROVE_COPY_QUEUE_COUNT,
       },
@@ -284,6 +326,7 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "approve-registrations",
         label: APPROVE_REGISTRATIONS_TITLE,
+        icon: UserCheckIcon,
         href: "/employee/approve-registrations",
         count: REGISTRATIONS_QUEUE_COUNT,
       },
@@ -297,18 +340,21 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "rescheduling-request",
         label: "Rescheduling request",
+        icon: CalendarXIcon,
         href: "/employee/rescheduling-request",
         count: RESCHEDULING_QUEUE_COUNT,
       },
       {
         id: "delay-condonation",
         label: "Delay condonation",
+        icon: HourglassIcon,
         href: "/employee/delay-condonation",
         count: DELAY_CONDONATION_QUEUE_COUNT,
       },
       {
         id: "other-applications",
         label: "Others",
+        icon: EllipsisIcon,
         href: "/employee/other-applications",
         count: OTHER_APPLICATIONS_QUEUE_COUNT,
       },
@@ -322,12 +368,14 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "sign-forms",
         label: "Sign forms",
+        icon: FileCheckIcon,
         href: "/employee/sign-forms",
         count: SIGN_FORM_QUEUE_COUNT,
       },
       {
         id: "sign-orders",
         label: "Sign orders",
+        icon: FilePenIcon,
         href: "/employee/sign-orders",
         /* The pending rows, not the whole queue: the screen also holds the orders
            this bench has already signed, and a badge that counted those would send
@@ -337,6 +385,7 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "sign-process",
         label: "Sign process",
+        icon: SendIcon,
         href: "/employee/sign-process",
         /* The three stages of the line that still need an act, not its whole length:
            that screen also holds what has been sent and what has come back, and a badge
@@ -346,18 +395,21 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "sign-bail-bonds",
         label: "Sign bail bonds",
+        icon: UserPenIcon,
         href: "/employee/sign-bail-bonds",
         count: SIGN_BAIL_BOND_QUEUE_COUNT,
       },
       {
         id: "sign-deposition",
         label: "Sign witness deposition",
+        icon: MessageSquareIcon,
         href: "/employee/sign-witness-deposition",
         count: WITNESS_DEPOSITION_QUEUE_COUNT,
       },
       {
         id: "sign-evidence",
         label: "Sign evidence",
+        icon: PaperclipIcon,
         href: "/employee/sign-evidence",
         count: SIGN_EVIDENCE_QUEUE_COUNT,
       },
@@ -365,6 +417,7 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
         // The A-Diary is the court's own register — a proper name, so it keeps its case.
         id: "sign-a-diary",
         label: "Sign A-Diary",
+        icon: NotebookPenIcon,
         href: "/employee/sign-a-diary",
         /* The whole unsigned register, every day of it, not just the day the screen
            opens on: a bench a day behind should be able to see that from the rail. The
@@ -454,20 +507,6 @@ const COURT_NAV_COMBINED_ROW: Record<CombinedCourtNavLayout, CourtNavItem> = {
 };
 
 /**
- * A mark for a row a combined layout keeps apart, folded rail only — `COURT_NAV_GROUPS`
- * leaves it unmarked (`CourtNavItem.icon`'s own comment: a group's rows stay bare, the
- * header carries the glyph). Promoted to a standalone row, it is a destination in its
- * own right the way `COURT_NAV_LINKS`' rows are, and the folded strip has nothing else
- * to show for it — `CourtNavGroupMark` is what the grouped layout's rows lean on
- * instead, and these rows no longer sit inside a group for it to mark.
- */
-const COURT_NAV_KEPT_APART_ICON: Record<string, LucideIcon> = {
-  "todays-hearings": CalendarDaysIcon,
-  "bulk-reschedule": CalendarClockIcon,
-  "sign-process": SignatureIcon,
-};
-
-/**
  * The rail's rows under a combined layout: the leading kept-apart rows, then the one
  * row everything else folds into (its count derived rather than restated), then the
  * trailing kept-apart rows. `"grouped"` has no use for this — it renders
@@ -477,19 +516,19 @@ export function courtNavRowsFor(
   layout: CombinedCourtNavLayout,
 ): CourtNavItem[] {
   const spec = COURT_NAV_KEPT_APART[layout];
-  const withIcon = (item: CourtNavItem): CourtNavItem => ({
-    ...item,
-    icon: COURT_NAV_KEPT_APART_ICON[item.id],
-  });
+  /* A promoted row keeps the mark it already carries in its group. It used to be given a
+     different one here, because a group's rows were bare and a standalone row could not
+     be — now that every row is marked, overriding would draw one destination two ways
+     depending on which layout the rail is in. */
   const combined: CourtNavItem = {
     ...COURT_NAV_COMBINED_ROW[layout],
     icon: CalendarDaysIcon,
     count: courtNavClubbedTotal(layout),
   };
   return [
-    ...courtNavItemsByIds(spec.leading).map(withIcon),
+    ...courtNavItemsByIds(spec.leading),
     combined,
-    ...courtNavItemsByIds(spec.trailing).map(withIcon),
+    ...courtNavItemsByIds(spec.trailing),
   ];
 }
 

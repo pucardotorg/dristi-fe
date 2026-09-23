@@ -122,34 +122,34 @@ function RowContents({ item }: { item: CourtNavItem }) {
   const note = spokenNote(item);
   return (
     <>
-      {/* The glyph column is reserved on every row, not just the rows that fill it, so
-          all 17 labels in the rail start at the same x. Only the two standalone links
-          carry a mark; a group's rows hold the space and show nothing. Without the
-          placeholder the two marked rows indent past the fifteen unmarked ones, which is
-          the misalignment this rail was pulled up on. `size-4` matches the icon box above, so the two branches are the same width by construction. */}
+      {/* The placeholder survives for a row that has no mark — nothing in
+          `COURT_NAV_GROUPS` is bare any more, but `courtNavRowsFor` synthesises a
+          combined row and a row promoted out of a group could lose its icon on some
+          future edit. A row without one still has to start its label at the same x as
+          the rest, which is the misalignment this rail was pulled up on. */}
       {Icon ? (
-        /* Matched to the group headers' mark, not to this row's text: the same 16px box
-           the DS gives a `SidebarGroupLabel` glyph, and the same `--rail-muted` ink.
-           `RAIL_ROW` sizes row glyphs at 20px for a rail whose every row is marked; here
-           only two rows are, and at 20px in full-strength ink they read as a louder
-           species of icon than the four section marks they sit above. Muted also keeps
-           the mark under its own label, which stays at the row's ink.
+        /* 20px, which is what `RAIL_ROW` already declares for this rail's glyphs — the
+           `size-4!` override that used to sit here was written for a rail where only two
+           of twenty rows were marked, and where a 20px mark in full ink read as a louder
+           species than the four section glyphs it sat above. Both halves of that are
+           gone: every row is marked now, and the section label carries no glyph at all
+           (`SidebarGroupLabel`), so there is nothing left for a row's mark to shout over.
+           A 16px glyph in a 40px row is the lost mark `RAIL_ROW` sizes against.
 
-           Folded, that reasoning inverts exactly. The labels are gone, every square left
-           in the strip is a mark, and a 16px glyph in a 40px square is the lost mark
-           `RAIL_ROW` sizes against in the first place — so it returns to 20px and hands
-           its ink back to the row, which is what lets the selected card's teal keep
-           winning over it. */
+           The ink stays muted while the label keeps the row's own, so the column reads
+           label-first and the glyphs are a texture you scan rather than nineteen things
+           competing with their own text. Folded there is no label left to be under, so
+           the mark hands its ink back to the row — which is what lets the selected
+           card's teal keep winning over it. */
         <Icon
           aria-hidden
           className={[
-            "size-4! text-(--rail-muted)",
-            "group-data-[collapsible=icon]:size-5!",
+            "text-(--rail-muted)",
             "group-data-[collapsible=icon]:text-current",
           ].join(" ")}
         />
       ) : (
-        <span aria-hidden className="size-4 shrink-0" />
+        <span aria-hidden className="size-5 shrink-0" />
       )}
       {/* The label leaves the layout rather than being clipped by the strip's overflow: a
           flex child of zero visible width is still a flex child, and it holds a centred
