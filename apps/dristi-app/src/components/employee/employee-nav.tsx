@@ -458,6 +458,37 @@ function CourtSearchRow() {
 }
 
 /**
+ * The break between one section of the rail and the next.
+ *
+ * **Air when the rail is open, a rule when it is folded** (owner, 2026-09-23: *"remove
+ * the rules"*). Expanded, 24px of clean space above a muted caption label is the whole
+ * separation — which is what the owner's reference screen does, and what `ui-craft` asks
+ * for in that order: spacing, then fill, then a justified divider. Five rules in a
+ * twenty-two row column read as ruling rather than grouping.
+ *
+ * Folded, that inverts exactly, and this is the one place the rule still earns itself:
+ * `SidebarGroupLabel` takes itself out of the strip, so there is no label left to do the
+ * grouping and the rule is the only thing holding twenty-two marks apart. It insets to the
+ * width of the squares so it underlines its group instead of cutting the strip.
+ *
+ * It is one component rather than a class string repeated five times, because the four
+ * families and Configurations have to break the same way — the moment they are written
+ * out separately, one of them drifts.
+ */
+function CourtNavBreak() {
+  return (
+    <div
+      aria-hidden
+      className={[
+        "mt-6",
+        "group-data-[collapsible=icon]:mx-3 group-data-[collapsible=icon]:mt-4",
+        `group-data-[collapsible=icon]:border-t ${RAIL_SEAM}`,
+      ].join(" ")}
+    />
+  );
+}
+
+/**
  * One family under the `"open"` layout: a rule, a label that stays put, and every row.
  *
  * There is no disclosure and therefore no state — which is the whole of what this layout
@@ -489,19 +520,7 @@ function CourtSearchRow() {
 function CourtNavOpenSection({ group }: { group: CourtNavGroup }) {
   return (
     <div className="flex flex-col gap-1">
-      {/* The break is air first and a rule second. It was 4px of margin, a 1px rule and
-          two 4px gaps — 45px of which only 8 was space — and at four families in a
-          twenty-two row column that read as ruling rather than grouping. `mt-6` puts 24px
-          of clean space above the label, which is about 1.3 row-pitches: the same
-          proportion the owner's reference screen uses, and that one carries no rules at
-          all. `ui-craft` says the same thing in the same order — spacing, then fill, then
-          a justified divider. The rule stays because the owner asked for it outright
-          (2026-09-18); it is now the quieter half of the break rather than the whole of
-          it. Folded it insets to the width of the squares, where the labels are gone and
-          it is the only thing left holding the marks in groups. */}
-      <div
-        className={`mt-6 border-t ${RAIL_SEAM} group-data-[collapsible=icon]:mx-3 group-data-[collapsible=icon]:mt-4`}
-      />
+      <CourtNavBreak />
       <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
         {group.label}
       </SidebarGroupLabel>
@@ -1005,7 +1024,8 @@ export function EmployeeNav() {
               not somewhere the bench works, so it closes the rail rather than heading
               it (owner, 2026-09-23). The seam is what says it is a different species
               from the queues above it; without one it reads as a fifth kind of work. */}
-          <SidebarMenu className={`${RAIL_MENU} mt-6 border-t ${RAIL_SEAM} pt-2`}>
+          <CourtNavBreak />
+          <SidebarMenu className={RAIL_MENU}>
             {COURT_NAV_TRAILING.map((item) => (
               <CourtNavRow key={item.id} item={item} />
             ))}
