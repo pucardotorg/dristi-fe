@@ -189,7 +189,9 @@ export function signatories(
   draft: FilingDraft,
   profile: UserProfile | null
 ): { complainants: Signatory[]; advocates: Signatory[] } {
-  const signedOf = (id: string): Signatory["status"] => (draft.sign.signed[id] ? "signed" : "pending");
+  const signedOf = (id: string): Signatory["status"] =>
+    draft.sign.signed[id] ? "signed" : "pending";
+  const signedWith = (id: string) => draft.sign.signed[id]?.with;
 
   const complainants: Signatory[] = draft.complainants.map((c, i) => {
     const n = i + 1;
@@ -207,7 +209,14 @@ export function signatories(
       role = `Complainant ${n} · Individual`;
     }
     const you = !!profile?.mobile && sameMobile(profile.mobile, c.mobile);
-    return { id: `sig-c-${c.id}`, name, role, status: signedOf(`sig-c-${c.id}`), you };
+    return {
+      id: `sig-c-${c.id}`,
+      name,
+      role,
+      status: signedOf(`sig-c-${c.id}`),
+      signedWith: signedWith(`sig-c-${c.id}`),
+      you,
+    };
   });
 
   const myBar = profile?.barNumber.trim().toUpperCase() ?? "";
@@ -229,6 +238,7 @@ export function signatories(
         name: `Advocate for Complainant ${i + 1}`,
         role,
         status: signedOf(`sig-a-${c.id}`),
+        signedWith: signedWith(`sig-a-${c.id}`),
         you,
       },
     ];

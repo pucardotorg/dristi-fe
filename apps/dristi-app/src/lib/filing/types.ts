@@ -350,6 +350,8 @@ export type Signatory = {
   name: string;
   role: string;
   status: "pending" | "signed";
+  /** What made the signature, once there is one — Aadhaar OTP, a DSC, or paper. */
+  signedWith?: SignInstrument;
   you?: boolean;
 };
 
@@ -402,15 +404,42 @@ export type AccusedProcessChoice = {
   addresses?: number[];
 };
 
+/**
+ * What one signature was made with. Aadhaar OTP and a DSC are both *digital* — the
+ * difference is the instrument in the signer's own hands, which is theirs to pick and
+ * need not match anyone else's. `paper` is a signature on the uploaded copy.
+ */
+export type SignInstrument = "aadhaar" | "dsc" | "paper";
+
+/** One signature, as the record will have to state it later. */
+export type SignatureRecord = {
+  /** ISO timestamp — IST in the live service. */
+  at: string;
+  with: SignInstrument;
+};
+
 export type SignState = {
   /**
-   * How the complaint was signed: an Aadhaar OTP e-signature, a Digital Signature
-   * Certificate held on the signer's own machine, or one uploaded copy that already
-   * carries every signature on paper.
+   * How this complaint is signed, at the level of the filing: every party signs in the
+   * system ("digital"), or the complaint is printed, signed by hand and brought back as
+   * one file ("upload"). It is *not* a personal choice — it decides what the court's
+   * system asks of every other party — so it is presumed "digital" and changed
+   * deliberately, never left unset (owner, 2026-09-23).
    */
-  mode: "esign" | "dsc" | "upload" | null;
-  /** Signatory id → signed. Signatories themselves are derived, not stored. */
-  signed: Record<string, boolean>;
+  mode: "digital" | "upload";
+  /**
+   * When the signature requests went out: the moment this stopped being a private draft
+   * and became work in other people's queues. `null` means nobody has been asked yet,
+   * and nothing has left the building.
+   */
+  requestedAt: string | null;
+  /**
+   * Signatory id → when their link was last sent. Kept per party because a reminder is
+   * about one of them, and because "asked at 14:02" is a fact the row has to state.
+   */
+  notified: Record<string, string>;
+  /** Signatory id → their signature. Signatories themselves are derived, not stored. */
+  signed: Record<string, SignatureRecord>;
   /** The signed copy, when signing by upload. */
   signedCopy: StoredFileRef | null;
   /**
@@ -444,7 +473,7 @@ export type DismissedNotices = {
 };
 
 export type FilingDraft = {
-  version: 5;
+  version: 6;
   id: string;
   caseType: "s138";
   status: "draft" | "filed";

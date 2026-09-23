@@ -70,7 +70,61 @@ describe("migrateDraft — drafts written by another branch", () => {
       delete (gutted as unknown as Record<string, unknown>)[key];
     }
     const draft = migrateDraft(gutted);
-    assert.equal(draft.version, 5);
+    assert.equal(draft.version, 6);
     assert.equal(typeof draftProgress(draft), "number");
+  });
+});
+
+/**
+ * Signing used to be one flat choice recorded only once somebody had signed. It is now
+ * a decision about the filing — digital or a copy signed on paper — plus the instrument
+ * each signature was actually made with.
+ */
+describe("migrateDraft — the two-level signing model", () => {
+  /** A draft as the previous signing lineage leaves it. */
+  function signShaped(mode: string | null, signed: Record<string, unknown>): FilingDraft {
+    const draft = createBlankDraft("draft-sign");
+    const sign = draft.sign as unknown as Record<string, unknown>;
+    sign.mode = mode;
+    sign.signed = signed;
+    delete sign.requestedAt;
+    delete sign.notified;
+    return draft;
+  }
+
+  it("presumes digital signing when nothing was ever chosen", () => {
+    const draft = migrateDraft(signShaped(null, {}));
+    assert.equal(draft.sign.mode, "digital");
+    assert.equal(draft.sign.requestedAt, null);
+    assert.deepEqual(draft.sign.notified, {});
+  });
+
+  it("keeps both old digital routes as digital, and remembers which instrument signed", () => {
+    const esign = migrateDraft(signShaped("esign", { "sig-a-1": true }));
+    assert.equal(esign.sign.mode, "digital");
+    assert.equal(esign.sign.signed["sig-a-1"].with, "aadhaar");
+
+    const dsc = migrateDraft(signShaped("dsc", { "sig-a-1": true }));
+    assert.equal(dsc.sign.mode, "digital");
+    assert.equal(dsc.sign.signed["sig-a-1"].with, "dsc");
+  });
+
+  it("reads an uploaded copy's signatures as made on paper", () => {
+    const draft = migrateDraft(signShaped("upload", { "sig-c-1": true }));
+    assert.equal(draft.sign.mode, "upload");
+    assert.equal(draft.sign.signed["sig-c-1"].with, "paper");
+  });
+
+  it("treats a draft that already holds signatures as one that was sent for signature", () => {
+    const asked = migrateDraft(signShaped("esign", { "sig-a-1": true }));
+    assert.equal(asked.sign.requestedAt, asked.updatedAt);
+
+    const untouched = migrateDraft(signShaped("esign", {}));
+    assert.equal(untouched.sign.requestedAt, null);
+  });
+
+  it("drops a signatory whose signature was recorded as false", () => {
+    const draft = migrateDraft(signShaped("esign", { "sig-a-1": false }));
+    assert.equal("sig-a-1" in draft.sign.signed, false);
   });
 });
