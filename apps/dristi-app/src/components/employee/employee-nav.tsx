@@ -408,9 +408,9 @@ function CourtNavGroupMark({
  * answers. `"grouped"` shuts whatever you had open on every navigation, so the second
  * visit to a queue costs what the first did; nothing here can shut.
  *
- * **The label is the DS `SidebarGroupLabel`, used as designed** — `h-8 px-2 text-xs
- * font-medium` in the sidebar's own muted ink, and it takes itself out of the column when
- * the rail folds. The grouped layout has to override all of that (`RAIL_GROUP_LABEL`)
+ * **The label is the DS `SidebarGroupLabel`, used as designed** — a 32px row, the
+ * caption size at weight 500, in the sidebar's own muted ink, and it takes itself out of
+ * the column when the rail folds. The grouped layout has to override all of that (`RAIL_GROUP_LABEL`)
  * because there the label is a 40px disclosure control carrying a glyph and a chevron.
  * Here it is a label and nothing else, so the primitive already is the thing. It also
  * carries no mark: every row below it has one now, and a nineteenth glyph on the header
@@ -633,8 +633,30 @@ function CourtNavGroupSection({
  * *render*, and nothing depends on it being right before hydration — the sheet is shut at
  * first paint, and the column this also empties is `hidden` below `md`.
  */
+/**
+ * The mark at the page origin, and which court this is.
+ *
+ * The court used to be the third line of the rail's foot, under the person and the seat.
+ * It is not a fact about the person: `CURRENT_STAFF.court` is one value for the whole
+ * deployment and `session.ts` carries it as a single string spelled the way a court
+ * document prints it. Three facts will not fit two lines in a 148px column — the seat and
+ * the court together run past 180px at caption size — so the one that is a constant moves
+ * to the chrome and is stated once, beside the mark, where a constant belongs. The foot is
+ * then exactly two lines and cannot grow a third however long a name or a seat's title
+ * gets (owner, 2026-09-18).
+ *
+ * **A deviation worth recording.** The foot deliberately never truncated this string —
+ * "an ellipsis here has nothing behind it", and every order the sign queues produce is
+ * headed with the court — so it wrapped and the footer grew. This row is a fixed 56px
+ * matched to the top bar, so it cannot grow, and the column here is no wider. The demo
+ * value fits ("JMFC Court 1, Kollam" measures ~133px against ~152px available); a longer
+ * bench truncates, and `title` is what stands behind the ellipsis that the foot had
+ * nothing to offer. Folded, it goes `sr-only` rather than disappearing — the same trade
+ * every other label in this rail makes when the strip takes over.
+ */
 function CourtRailHeader() {
   const { isMobile } = useSidebar();
+  const { court } = useCourtSession();
   const handoff = useFoldFocusHandoff(
     useRailCollapsed(),
     focusChromeFoldTrigger,
@@ -642,6 +664,12 @@ function CourtRailHeader() {
   return (
     <div className={RAIL_BRAND_ROW}>
       <BrandGlyph className="h-6 shrink-0" onDark={CHARCOAL_PLATE.darkPlate} />
+      <span
+        title={court}
+        className="min-w-0 flex-1 truncate text-body-compact font-medium group-data-[collapsible=icon]:sr-only"
+      >
+        {court}
+      </span>
       {isMobile ? null : (
         <SidebarTrigger
           {...CHROME_FOLD_TRIGGER}
@@ -801,7 +829,7 @@ function CourtSettingsControl() {
  * person's name off a hover the keyboard cannot reach.
  */
 function CourtIdentityFooter() {
-  const { name, court } = useCourtSession();
+  const { name } = useCourtSession();
   const role = useCourtRole();
   /* The settings control leaves the layout with the labels, so folding while it holds
      focus drops the keyboard the same way a section's rows do. Its fallback is the fold
@@ -823,26 +851,21 @@ function CourtIdentityFooter() {
       >
         {initialsOf(name)}
       </span>
-      {/* Nothing in this block truncates. "JMFC Court 1, Kollam" fits the 147px column and
-          "JMFC Court 1, Thiruvananthapuram" does not, nor will a Malayalam rendering of
-          either — and an ellipsis here has nothing behind it: there is no tooltip to open,
-          and folded the whole block is `sr-only`, so there is no second place to read it.
-          That matters more than an ordinary clipped label for the reason the court is here
-          at all: every order and form the sign queues produce is headed with it. So the
-          lines wrap and the footer grows, per `ACCESSIBILITY.md` §10 and §13, and
-          `wrap-break-word` catches the long unspaced compounds an Indic script produces
-          that a space-based wrap would push past the rail's edge. */}
+      {/* Two lines, and it cannot grow a third: the court moved to the brand row (see
+          `CourtRailHeader`), so what is left is one person and one seat, both short by
+          nature. Neither truncates — the lines still wrap and the footer still grows, per
+          `ACCESSIBILITY.md` §10 and §13, and `wrap-break-word` still catches the long
+          unspaced compounds an Indic script produces that a space-based wrap would push
+          past the rail's edge. A wrapped name costs a line here; it does not cost the
+          court, which is the thing that had nowhere to be clipped to. */}
       <div className="flex min-w-0 flex-1 flex-col leading-tight group-data-[collapsible=icon]:sr-only">
         <span className="wrap-break-word text-body-compact font-medium">
           {name}
         </span>
-        {/* One weight down the whole block, so a long court name never starts competing
-            with the person's; the step between them is size and ink. */}
+        {/* One weight down, so a long seat title never starts competing with the
+            person's name; the step between them is size and ink. */}
         <span className={`wrap-break-word text-caption font-medium ${RAIL_MUTED}`}>
           {COURT_ROLE_LABEL[role]}
-        </span>
-        <span className={`wrap-break-word text-caption font-medium ${RAIL_MUTED}`}>
-          {court}
         </span>
       </div>
       <CourtSettingsControl />
