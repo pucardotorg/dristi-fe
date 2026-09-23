@@ -160,15 +160,22 @@ function RowContents({ item }: { item: CourtNavItem }) {
       </span>
       {note ? <span className="sr-only">, {note}</span> : null}
       {item.count !== undefined && item.count > 0 ? (
-        /* How much is waiting: a quiet numeral with a small spark beside it.
-           This is the advocate rail's `TasksCount` treatment, adopted rather than
-           re-derived. That rail was deliberately pulled back from a full red pill —
-           it "read as an alarm bolted to the nav" — and this rail had twelve of them at
-           rest, since every group opens by default. The red also claimed the wrong thing:
-           `--rail-badge` resolves to `--destructive-solid`, and the DS reserves that
-           family for irreversible or dangerous actions. A signing queue is workload.
-           The red survives as the 6px spark — enough to say "live obligation" without
-           shouting a number that is already legible as text.
+        /* How much is waiting: a quiet numeral, and nothing else.
+           **The red spark is gone** (owner, 2026-09-23: the rail "adds a lot of visual
+           noise now"). It was adopted from the advocate rail's `TasksCount`, which had
+           already been pulled back from a full red pill because that "read as an alarm
+           bolted to the nav" — and the comment that stood here admitted the rest: that
+           `--rail-badge` resolves to `--destructive-solid`, which the DS reserves for
+           irreversible or dangerous actions, and that a signing queue is workload, not
+           danger. The 6px dot was the concession that kept the red anyway.
+
+           It does not survive the open layout. That concession was priced against a rail
+           where one family disclosed at a time, so about seven sparks were on screen; with
+           every queue visible there are seventeen, and a mark that appears on every row
+           with work discriminates between nothing. This rail already makes that exact
+           argument against four red dots on the folded strip (`CourtNavGroupMark`) — it
+           was simply never applied to the expanded state. The numeral was always the
+           thing carrying the count.
 
            The ink has to change with the row's ground. Idle, the numeral sits on the
            charcoal plate at `--rail-muted` (6.28:1). Selected, the row inverts to the
@@ -185,14 +192,13 @@ function RowContents({ item }: { item: CourtNavItem }) {
         <span
           aria-hidden
           className={[
-            "flex shrink-0 items-center gap-1.5",
+            "shrink-0",
             "group-data-[collapsible=icon]:hidden",
             "text-caption tabular-nums",
             RAIL_MUTED,
             "group-data-[active=true]/menu-button:text-(--rail-card-muted)",
           ].join(" ")}
         >
-          <span className="size-1.5 rounded-full bg-(--rail-badge)" />
           {item.count}
         </span>
       ) : null}
