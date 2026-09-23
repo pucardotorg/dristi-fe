@@ -15,9 +15,9 @@ describe("the court rail layout", () => {
     clearCourtNavLayout();
   });
 
-  it("stands on \"grouped\" with nothing chosen yet", () => {
-    assert.equal(readCourtNavLayout(), "grouped");
-    assert.equal(DEFAULT_COURT_NAV_LAYOUT, "grouped");
+  it("stands on \"open\" with nothing chosen yet", () => {
+    assert.equal(readCourtNavLayout(), "open");
+    assert.equal(DEFAULT_COURT_NAV_LAYOUT, "open");
   });
 
   /* The server snapshot is what hydration compares against, so it must not move when
@@ -26,7 +26,7 @@ describe("the court rail layout", () => {
   it("keeps the server snapshot fixed while the live one changes", () => {
     setCourtNavLayout("schedule");
     assert.equal(readCourtNavLayout(), "schedule");
-    assert.equal(serverCourtNavLayout(), "grouped");
+    assert.equal(serverCourtNavLayout(), "open");
   });
 
   it("tells subscribers about a change and not about a no-op", () => {
@@ -46,6 +46,6 @@ describe("the court rail layout", () => {
   it("goes back to the default when cleared", () => {
     setCourtNavLayout("actions");
     clearCourtNavLayout();
-    assert.equal(readCourtNavLayout(), "grouped");
+    assert.equal(readCourtNavLayout(), "open");
   });
 });

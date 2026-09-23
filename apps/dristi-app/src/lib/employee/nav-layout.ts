@@ -1,14 +1,25 @@
 /**
  * Which shape the court rail takes — a per-browser preference, not a product decision.
  *
- * Three options, kept side by side (owner, 2026-09-21) so they can be judged against
- * each other rather than from memory: `"grouped"` is the rail as it stands, four
- * disclosures transcribed from the reference; `"actions"` keeps Today's hearings a tab
- * of its own and folds everything else except Bulk reschedule hearings and Sign process
- * into one "Today's actions" row; `"schedule"` folds hearings in with that same
- * everything-else instead, and gives them a prominent block inside the one combined
- * screen rather than a row of their own. The rows any of them renders are derived from
- * `COURT_NAV_GROUPS` in `navigation.ts`, never a second copy of what a rail row is.
+ * Four options, kept side by side (owner, 2026-09-21 and 2026-09-23) so they can be
+ * judged against each other rather than from memory:
+ *
+ * - `"open"` shows every queue at once — no disclosures at all, the four families reduced
+ *   to quiet caption labels that stay in view while their rows scroll past. It is the
+ *   answer to the complaint the other three were also reaching for: the rail used to shut
+ *   whatever section you had open on *every* navigation, so reaching a queue twice cost
+ *   the same two presses both times. Nothing here can be in a wrong state because there
+ *   is no state. The cost is honest — twenty rows run past the fold, so the column
+ *   scrolls, and the pinned label is what keeps you oriented while it does.
+ * - `"grouped"` is the rail as it was: four disclosures transcribed from the reference,
+ *   one open at a time, re-derived from the route on every navigation.
+ * - `"actions"` keeps Today's hearings a tab of its own and folds everything else except
+ *   Bulk reschedule hearings and Sign process into one "Today's actions" row.
+ * - `"schedule"` folds hearings in with that same everything-else instead, and gives them
+ *   a prominent block inside the one combined screen rather than a row of their own.
+ *
+ * The rows any of them renders are derived from `COURT_NAV_GROUPS` in `navigation.ts`,
+ * never a second copy of what a rail row is.
  *
  * Modelled on `session.ts`: an in-memory value, restored from `localStorage` once and
  * lazily — this module is imported by the server render too, and only the browser side
@@ -23,13 +34,26 @@
 
 const KEY = "dristi.court-nav-layout";
 
-export type CourtNavLayout = "grouped" | "actions" | "schedule";
+export type CourtNavLayout = "open" | "grouped" | "actions" | "schedule";
 
-/** Where the rail stands with nothing stored yet — also the server's own snapshot. */
-export const DEFAULT_COURT_NAV_LAYOUT: CourtNavLayout = "grouped";
+/**
+ * Where the rail stands with nothing stored yet — also the server's own snapshot.
+ *
+ * `"open"` on the owner's choice of it as the direction (2026-09-23). The other three
+ * stay reachable rather than being deleted: a layout nobody can select any more is not a
+ * comparison, and this is a preference the bench is meant to be able to disagree with.
+ */
+export const DEFAULT_COURT_NAV_LAYOUT: CourtNavLayout = "open";
+
+const COURT_NAV_LAYOUTS: readonly CourtNavLayout[] = [
+  "open",
+  "grouped",
+  "actions",
+  "schedule",
+];
 
 function isCourtNavLayout(value: string | null): value is CourtNavLayout {
-  return value === "grouped" || value === "actions" || value === "schedule";
+  return (COURT_NAV_LAYOUTS as readonly (string | null)[]).includes(value);
 }
 
 let layout: CourtNavLayout = DEFAULT_COURT_NAV_LAYOUT;

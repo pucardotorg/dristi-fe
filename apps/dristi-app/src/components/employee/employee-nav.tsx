@@ -402,6 +402,53 @@ function CourtNavGroupMark({
 }
 
 /**
+ * One family under the `"open"` layout: a rule, a label that stays put, and every row.
+ *
+ * There is no disclosure and therefore no state — which is the whole of what this layout
+ * answers. `"grouped"` shuts whatever you had open on every navigation, so the second
+ * visit to a queue costs what the first did; nothing here can shut.
+ *
+ * **The label is the DS `SidebarGroupLabel`, used as designed** — `h-8 px-2 text-xs
+ * font-medium` in the sidebar's own muted ink, and it takes itself out of the column when
+ * the rail folds. The grouped layout has to override all of that (`RAIL_GROUP_LABEL`)
+ * because there the label is a 40px disclosure control carrying a glyph and a chevron.
+ * Here it is a label and nothing else, so the primitive already is the thing. It also
+ * carries no mark: every row below it has one now, and a nineteenth glyph on the header
+ * would put the label back into the list it is supposed to be naming.
+ *
+ * It pins. Twenty rows run past the fold, so the column scrolls, and a family label that
+ * scrolled away with its rows would leave the reader in an unnamed middle. `SidebarContent`
+ * is the scrollport and carries no padding of its own, so `top-0` sits flush against it —
+ * worth knowing, because the same thing written against a padded scroller leaves a band
+ * above the pinned label that rows scroll through.
+ *
+ * The rule is its own element rather than a border on the label, for two reasons. The
+ * break belongs *between* families and the label belongs to the family under it, so a
+ * border-top would travel with the label and, once pinned, sit as a doubled line under
+ * the header's own seam. And as a flow element it scrolls away when the label pins, which
+ * is right: a pinned label has stopped being a break in the column and become its header.
+ * Folded it insets to the width of the squares, because there the labels are gone and it
+ * is the only thing left holding twenty marks in groups.
+ */
+function CourtNavOpenSection({ group }: { group: CourtNavGroup }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className={`mt-1 border-t ${RAIL_SEAM} group-data-[collapsible=icon]:mx-3`}
+      />
+      <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
+        {group.label}
+      </SidebarGroupLabel>
+      <SidebarMenu className={RAIL_MENU}>
+        {group.items.map((item) => (
+          <CourtNavRow key={item.id} item={item} />
+        ))}
+      </SidebarMenu>
+    </div>
+  );
+}
+
+/**
  * A group of rows behind its own disclosure. One section open at a time; the whole header
  * toggles. Which one that is belongs to the rail — see `useCourtNavDisclosure` — because
  * a section can no longer decide it alone.
@@ -643,13 +690,14 @@ function initialsOf(name: string): string {
  * typist's work is as against a bench clerk's comes from product, and this build must not
  * answer that by quietly showing a different app. The menu is honest by being small.
  *
- * **Rail layout** (`nav-layout.ts`) — three shapes for the same rail, kept side by side
- * (owner, 2026-09-21) rather than settled on one: "Grouped by type" is the rail as it
- * stands; "Today's actions" keeps hearings a tab of its own and folds the rest into one
- * row; "Today's schedule" folds hearings in with that same rest instead — see
- * `courtNavRowsFor`. A second section rather than a second control, because both are one
- * person's preference about how their own rail looks, not two different kinds of
- * setting.
+ * **Rail layout** (`nav-layout.ts`) — four shapes for the same rail, kept side by side
+ * (owner, 2026-09-21 and 2026-09-23) rather than settled on one: "All queues" is the
+ * default and shows every queue with no disclosures at all; "Grouped by type" is the rail
+ * as it was, four disclosures with one open at a time; "Today's actions" keeps hearings a
+ * tab of its own and folds the rest into one row; "Today's schedule" folds hearings in
+ * with that same rest instead — see `courtNavRowsFor`. A second section rather than a
+ * second control, because both are one person's preference about how their own rail looks,
+ * not two different kinds of setting.
  *
  * Both sections are radio groups rather than plain items: each is one mutually exclusive
  * answer, and the menu has to show which one is live without being opened twice. `w-auto
@@ -706,6 +754,7 @@ function CourtSettingsControl() {
           value={layout}
           onValueChange={(next) => setLayout(next as CourtNavLayout)}
         >
+          <DropdownMenuRadioItem value="open">All queues</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="grouped">
             Grouped by type
           </DropdownMenuRadioItem>
@@ -825,7 +874,11 @@ export function EmployeeNav() {
               <CourtNavRow key={item.id} item={item} />
             ))}
           </SidebarMenu>
-          {layout === "grouped" ? (
+          {layout === "open" ? (
+            COURT_NAV_GROUPS.map((group) => (
+              <CourtNavOpenSection key={group.id} group={group} />
+            ))
+          ) : layout === "grouped" ? (
             COURT_NAV_GROUPS.map((group) => (
               <CourtNavGroupSection
                 key={group.id}
