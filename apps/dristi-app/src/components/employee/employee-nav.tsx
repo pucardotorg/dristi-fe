@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDownIcon, SettingsIcon } from "lucide-react";
+import { ChevronDownIcon, SearchIcon, SettingsIcon } from "lucide-react";
 
 import {
   useCourtRole,
@@ -29,6 +29,7 @@ import {
 import { useCourtNavLayout } from "@/components/employee/use-court-nav-layout";
 import type { CourtNavLayout } from "@/lib/employee/nav-layout";
 import { BrandGlyph } from "@/components/brand-lockup";
+import { useCourtSearch } from "@/components/employee/court-search";
 import {
   CHROME_FOLD_TRIGGER,
   ChromeRail,
@@ -398,6 +399,47 @@ function CourtNavGroupMark({
           can see the strip; this names it and its consequence for someone who cannot. */}
       <span className="sr-only">{group.label}, expands the navigation</span>
     </SidebarMenuButton>
+  );
+}
+
+/**
+ * The way into the search, at the head of the rail under every layout.
+ *
+ * A **row, not a field**. It opens a spotlight over the page rather than filtering the
+ * column in place, and a text input that does not narrow what is under it as you type
+ * into it is lying about itself. The advocate rail states the same control the same way
+ * (`shell/app-sidebar.tsx`'s `Search` row), so this is one control the product already
+ * has rather than a second idea about what search looks like.
+ *
+ * The shortcut is printed on the row instead of being taught somewhere: a keystroke
+ * nobody can see is not an affordance. It is decorative — `aria-keyshortcuts` carries it
+ * for anyone who cannot read the glyph, and the row's own label carries the rest.
+ *
+ * Folded, the keycap leaves with the labels and the 40px square is the whole row; the
+ * DS tooltip on `SidebarMenuButton` names it there, which is what every other folded row
+ * in this rail relies on.
+ */
+function CourtSearchRow() {
+  const { open, shortcut } = useCourtSearch();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        type="button"
+        tooltip="Search this court"
+        aria-keyshortcuts="Meta+K Control+K"
+        className={RAIL_ROW}
+        onClick={open}
+      >
+        <SearchIcon aria-hidden className={RAIL_MUTED} />
+        <span className="min-w-0 flex-1 truncate">Search</span>
+        <span
+          aria-hidden
+          className={`shrink-0 rounded-sm border ${RAIL_SEAM} px-1 py-0.5 font-mono text-caption leading-none ${RAIL_MUTED} group-data-[collapsible=icon]:hidden`}
+        >
+          {shortcut}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -893,6 +935,7 @@ export function EmployeeNav() {
             same vertical rhythm instead of each section padding itself. */}
         <SidebarGroup className="gap-1">
           <SidebarMenu className={RAIL_MENU}>
+            <CourtSearchRow />
             {COURT_NAV_LINKS.map((item) => (
               <CourtNavRow key={item.id} item={item} />
             ))}

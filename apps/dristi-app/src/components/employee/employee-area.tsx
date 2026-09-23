@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 
 import { ChromeShell } from "@/components/chrome/app-chrome";
+import { CourtSearchProvider } from "@/components/employee/court-search";
 import { EmployeeNav } from "@/components/employee/employee-nav";
 import { EmployeeTopBar } from "@/components/employee/employee-top-bar";
 import { AppToaster } from "@/components/shell/app-toaster";
@@ -58,9 +59,14 @@ export function EmployeeArea({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    /* The rail folds to a 4rem strip. The prop is the shell's rather than the rail's
-       because the page column's overlays measure their left edge from it too, and one of
-       them is portalled out of this tree — see `ChromeShell`. */
+    /* The search is the area's, not the rail's: the rail is where it is *opened* from,
+       but ⌘K works on any court screen and the dialog portals out of the rail's tree.
+       Wrapping here is also what lets a screen offer its own way in later without the
+       rail having to hand the opener down. */
+    <CourtSearchProvider>
+    {/* The rail folds to a 4rem strip. The prop is the shell's rather than the rail's
+        because the page column's overlays measure their left edge from it too, and one of
+        them is portalled out of this tree — see `ChromeShell`. */}
     <ChromeShell
       rail={<EmployeeNav />}
       topBar={<EmployeeTopBar />}
@@ -82,5 +88,6 @@ export function EmployeeArea({ children }: { children: React.ReactNode }) {
           centres on the bench's workspace rather than on the window. */}
       <AppToaster />
     </ChromeShell>
+    </CourtSearchProvider>
   );
 }
