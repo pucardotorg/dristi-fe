@@ -453,10 +453,24 @@ function CourtSearchRow() {
           aria-hidden
           className={`${RAIL_MUTED} group-data-[collapsible=icon]:text-current`}
         />
-        <span className="min-w-0 flex-1 truncate">Search</span>
+        {/* **Leaves the layout when the rail folds**, which is the whole of why the
+            folded search square looked wrong. This span had `flex-1` and no folded rule,
+            so in a 40px square with `justify-center gap-0 p-0!` it still claimed every
+            spare pixel and pushed the glyph off centre. Both rails already carry the
+            warning — `RowContents` here and `LABEL` in the advocate's — that a flex child
+            of zero visible width is still a flex child; this row was written fresh and did
+            not inherit it. */}
+        <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">
+          Search
+        </span>
+        {/* The advocate rail's own treatment (`SearchShortcut`), on the owner's call that
+            the two should match: plain muted caption pushed to the trailing edge, not a
+            bordered mono keycap. A stroked box in a rail whose only other strokes are its
+            seams read as a control inside a control. `tabular-nums` is the one thing left
+            behind — there are no numerals in "⌘K" for it to line up. */}
         <span
           aria-hidden
-          className={`shrink-0 rounded-sm border ${RAIL_SEAM} px-1 py-0.5 font-mono text-caption leading-none ${RAIL_MUTED} group-data-[collapsible=icon]:hidden`}
+          className={`${RAIL_MUTED} ml-auto shrink-0 text-caption group-data-[collapsible=icon]:hidden`}
         >
           {shortcut}
         </span>
