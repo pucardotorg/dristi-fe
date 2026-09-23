@@ -141,12 +141,31 @@ function Results({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-/** ⌘ on a Mac, Ctrl everywhere else — read after mount so the markup matches the server. */
+/**
+ * ⌘ on a Mac, Ctrl everywhere else.
+ *
+ * The platform is only knowable in the browser, and the server has to render *something*
+ * — so this is the same server-snapshot problem `nav-layout.ts` has, solved the same way.
+ * `useSyncExternalStore` lets the server and the first client paint agree on "⌘K" and then
+ * hand over, without a state write inside an effect: that pattern re-renders every mount
+ * of every court screen for a string that cannot change afterwards, and the lint rule that
+ * caught it (`react-hooks/set-state-in-effect`) is right to.
+ *
+ * `subscribe` returns a no-op teardown because the platform does not change under a live
+ * page. React still requires the argument.
+ */
+const KEEP = () => () => {};
+
+function readShortcut(): string {
+  return navigator.userAgent.includes("Mac") ? "\u2318K" : "Ctrl K";
+}
+
+function serverShortcut(): string {
+  return "\u2318K";
+}
+
 function useShortcutLabel() {
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
-  if (!mounted) return "⌘K";
-  return navigator.userAgent.includes("Mac") ? "⌘K" : "Ctrl K";
+  return React.useSyncExternalStore(KEEP, readShortcut, serverShortcut);
 }
 
 type CourtSearchValue = { open: () => void; shortcut: string };
