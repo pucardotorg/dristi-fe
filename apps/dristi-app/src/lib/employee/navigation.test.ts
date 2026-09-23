@@ -6,6 +6,7 @@ import {
   COURT_DASHBOARD,
   COURT_NAV_GROUPS,
   COURT_NAV_LINKS,
+  COURT_NAV_TRAILING,
   courtNavClubbed,
   courtNavClubbedTotal,
   courtNavKeptApart,
@@ -166,14 +167,15 @@ describe("courtTrail", () => {
 
 describe("the court's standalone rows", () => {
   /* Dashboard and All cases were dead external rows transcribed from the reference and
-     are now built and internal. Configurations joined them ahead of Dashboard as the
-     one other standalone destination above the grouped work. */
-  it("are configurations, the dashboard and the register, all internal and built", () => {
+     are now built and internal. Configurations used to lead them; it now closes the rail
+     instead (`COURT_NAV_TRAILING`, owner 2026-09-23), because it is the one row here that
+     is not somewhere the bench works. */
+  it("are the dashboard and the register, all internal and built", () => {
     assert.deepEqual(
       COURT_NAV_LINKS.map((row) => row.href),
-      ["/employee/configurations", COURT_DASHBOARD.href, COURT_CASES_PAGE.href],
+      [COURT_DASHBOARD.href, COURT_CASES_PAGE.href],
     );
-    for (const row of COURT_NAV_LINKS) {
+    for (const row of [...COURT_NAV_LINKS, ...COURT_NAV_TRAILING]) {
       assert.ok(row.href, `${row.id} still goes nowhere`);
       assert.equal(row.external, undefined, `${row.id} still leaves the app`);
       /* The rail paints its counts in destructive red, and none of these numbers is

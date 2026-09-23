@@ -153,11 +153,11 @@ export const COURT_CASES_PAGE = {
 /**
  * The rows that stand on their own, above the grouped work.
  *
- * Configurations is the one row here still open in a placeholder sense elsewhere in the
- * app — it opens the order-template configuration screen for the magistrate. Dashboard
- * and All cases were transcribed from the reference as `Dashboards` and `All cases`,
- * both then marked `external`; both are built now and both are internal — see
- * `COURT_DASHBOARD` and `COURT_CASES_PAGE` above.
+ * Dashboard and All cases were transcribed from the reference as `Dashboards` and
+ * `All cases`, both then marked `external`; both are built now and both are internal —
+ * see `COURT_DASHBOARD` and `COURT_CASES_PAGE` above.
+ *
+ * **Configurations is no longer one of them** — see `COURT_NAV_TRAILING` below.
  *
  * **None carries a count.** Every other number in this rail is work waiting on the
  * bench, and the rail prints them in the destructive red its badge is painted in. Forty
@@ -165,12 +165,6 @@ export const COURT_CASES_PAGE = {
  * problems — so these rows stay bare and each screen's own line says its number.
  */
 export const COURT_NAV_LINKS: CourtNavItem[] = [
-  {
-    id: "configurations",
-    label: "Configurations",
-    icon: SettingsIcon,
-    href: "/employee/configurations",
-  },
   {
     id: "dashboard",
     label: COURT_DASHBOARD.label,
@@ -182,6 +176,29 @@ export const COURT_NAV_LINKS: CourtNavItem[] = [
     label: COURT_CASES_PAGE.label,
     href: COURT_CASES_PAGE.href,
     icon: FolderIcon,
+  },
+];
+
+/**
+ * The rows that close the rail, under every layout (owner, 2026-09-23).
+ *
+ * Configurations opens the order-template configuration screen for the magistrate. It
+ * sat at the head of `COURT_NAV_LINKS`, above Dashboard, and it is the one row in this
+ * rail that is not a destination the bench works *in*: everything above it is either a
+ * place to look at this court or a queue with work waiting, and a settings-shaped screen
+ * read as the first of those by sitting first. Last is where it belongs, for the same
+ * reason the person and the seat sit at the foot rather than the top.
+ *
+ * It is a list of its own rather than a flag on the item, because the rail renders the
+ * leading links, then whatever the layout puts in the middle, then this — and a layout
+ * must not be able to lose it by choosing a different middle.
+ */
+export const COURT_NAV_TRAILING: CourtNavItem[] = [
+  {
+    id: "configurations",
+    label: "Configurations",
+    icon: SettingsIcon,
+    href: "/employee/configurations",
   },
 ];
 

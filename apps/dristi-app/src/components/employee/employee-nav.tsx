@@ -18,6 +18,7 @@ import { setCourtRole } from "@/lib/employee/court-role";
 import {
   COURT_NAV_GROUPS,
   COURT_NAV_LINKS,
+  COURT_NAV_TRAILING,
   courtNavRowsFor,
   isCourtNavActive,
   isCourtNavCombinedActive,
@@ -857,6 +858,15 @@ export function EmployeeNav() {
               ))}
             </SidebarMenu>
           )}
+          {/* Configurations, last under every layout — it is the one row here that is
+              not somewhere the bench works, so it closes the rail rather than heading
+              it (owner, 2026-09-23). The seam is what says it is a different species
+              from the queues above it; without one it reads as a fifth kind of work. */}
+          <SidebarMenu className={`${RAIL_MENU} mt-1 border-t ${RAIL_SEAM} pt-1`}>
+            {COURT_NAV_TRAILING.map((item) => (
+              <CourtNavRow key={item.id} item={item} />
+            ))}
+          </SidebarMenu>
         </SidebarGroup>
       </ChromeRail>
     </TooltipProvider>
