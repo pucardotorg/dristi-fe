@@ -31,6 +31,7 @@ import {
   CopyIcon,
   FileTextIcon,
   PrinterIcon,
+  ShieldCheckIcon,
   SignatureIcon,
   UploadIcon,
 } from "lucide-react";
@@ -98,6 +99,7 @@ import { Identifier } from "@/components/chrome/identifier";
 type ModalKey =
   | "choose"
   | "esign"
+  | "dsc"
   | "upload"
   | "payment"
   | "procaddr"
@@ -175,6 +177,52 @@ function SignatureList({ title, rows }: { title: string; rows: Signatory[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * One route through signing, inside the dialog that commits to it. Each card names what
+ * the route asks of the person at the keyboard *and* what it does to everyone else on
+ * the complaint, because one click settles both (owner, 2026-08-19).
+ */
+function SignChoice({
+  icon,
+  tone,
+  title,
+  onClick,
+  children,
+}: {
+  icon: React.ReactNode;
+  /** The tile's fill/foreground pair — a category mark, never a status. */
+  tone: string;
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-lg",
+          tone
+        )}
+      >
+        {icon}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-body font-semibold text-foreground">{title}</span>
+        <span className="text-body-compact text-muted-foreground">{children}</span>
+      </span>
+      <ChevronRightIcon
+        aria-hidden
+        className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+      />
+    </button>
   );
 }
 
@@ -433,6 +481,8 @@ export function SignSection() {
   const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
   const [otp, setOtp] = React.useState("");
   const [resent, setResent] = React.useState(false);
+  /** Whether the signing utility has answered with a certificate yet — DSC path. */
+  const [dscFound, setDscFound] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   /** The one confirmation row open for its OTP — one at a time, so the list stays a list. */
@@ -453,6 +503,17 @@ export function SignSection() {
     },
     []
   );
+
+  /*
+   * A DSC is read off the signer's own machine, not from us, and the utility takes a
+   * beat to answer. The screen says what it is doing while it looks rather than
+   * presenting a certificate it never went to find.
+   */
+  React.useEffect(() => {
+    if (modal !== "dsc" || dscFound) return;
+    const timer = window.setTimeout(() => setDscFound(true), 1100);
+    return () => window.clearTimeout(timer);
+  }, [modal, dscFound]);
 
   const filed = draft.status === "filed";
   const sign = draft.sign;
@@ -493,8 +554,11 @@ export function SignSection() {
   const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
   const anySigned = everyone.some((s) => s.status === "signed");
   const pending = everyone.filter((s) => s.status === "pending").length;
-  /** Everyone the E-Sign path hands a link to, once "you" have signed your own rows. */
+  /** Everyone a personal route hands a link to, once "you" have signed your own rows. */
   const otherSigners = Math.max(0, everyone.length - yous.length);
+  /** "The other party" / "The other 3 parties" — and never "the other 0 parties". */
+  const others =
+    otherSigners === 1 ? "The other party gets" : `The other ${otherSigners} parties get`;
 
   /*
    * Everyone who has to sign the uploaded copy and has a number of their own: each
@@ -564,6 +628,8 @@ export function SignSection() {
   }, [filed, flush]);
 
   const mobileTail = (profile?.mobile ?? "").replace(/\D/g, "").slice(-4);
+  /** Whose certificate the DSC card names — the session's own name, or nobody's. */
+  const certHolder = (profile?.name ?? "").trim();
 
   const printFile = () => {
     if (typeof window !== "undefined") window.print();
@@ -571,12 +637,16 @@ export function SignSection() {
 
   const closeModal = () => setModal(null);
 
-  /** E-Sign records one person's signature; the other parties still have to sign. */
-  const signYou = () => {
+  /**
+   * The two personal paths — Aadhaar OTP and a DSC — record one person's signature and
+   * nothing more: the other parties still have to sign, the same way, from the link this
+   * hands them. Which route was taken is kept, because it is what the record says later.
+   */
+  const signYou = (mode: "esign" | "dsc") => {
     if (yous.length === 0) return;
     update((d) => {
       for (const s of yous) d.sign.signed[s.id] = true;
-      d.sign.mode = "esign";
+      d.sign.mode = mode;
     });
     setOtp("");
     setModal(null);
@@ -987,10 +1057,15 @@ export function SignSection() {
 
       {/*
         ── How will this complaint be signed? ──
-        The commitment point. Neither path is one person's action — E-Sign hands the
-        rest of the parties a link the moment you pick it, and an uploaded copy is only
-        accepted once it already carries every signature — so both options say who else
-        it reaches before either one is clickable, not after (owner, 2026-08-19).
+        The commitment point. No route here is one person's private action — the two
+        personal ones, Aadhaar OTP and a DSC, hand the rest of the parties a link the
+        moment you pick them, and an uploaded copy is only accepted once it already
+        carries every signature by hand — so each option says who else it reaches before
+        any of them is clickable, not after (owner, 2026-08-19).
+
+        A DSC lives on the signer's own machine, so it is its own route rather than a
+        footnote on the upload card, which is where it used to be mentioned and where
+        nobody who had one would look for it (owner, 2026-09-23).
       */}
       <Dialog open={modal === "choose"} onOpenChange={(open) => !open && closeModal()}>
         <ChromeDialogContent className="sm:max-w-lg">
@@ -1004,65 +1079,45 @@ export function SignSection() {
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
-            <button
-              type="button"
+            <SignChoice
+              title="E-Sign with Aadhaar OTP"
+              tone="bg-info-muted text-info-muted-foreground"
+              icon={<SignatureIcon className="size-5" />}
               onClick={() => {
                 setOtp("");
                 setModal("esign");
               }}
-              className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <span
-                aria-hidden
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-info-muted text-info-muted-foreground"
-              >
-                <SignatureIcon className="size-5" />
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-body font-semibold text-foreground">
-                  E-Sign with Aadhaar OTP
-                </span>
-                <span className="text-body-compact text-muted-foreground">
-                  You sign now.{" "}
-                  {otherSigners === 1
-                    ? "The other party gets"
-                    : `The other ${otherSigners} parties get`}{" "}
-                  a link to sign the same way.
-                </span>
-              </span>
-              <ChevronRightIcon
-                aria-hidden
-                className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-              />
-            </button>
+              You get a one-time password on the mobile number registered with your
+              Aadhaar.{otherSigners > 0 ? ` ${others} a link to sign the same way.` : ""}
+            </SignChoice>
 
-            <button
-              type="button"
-              onClick={() => setModal("upload")}
-              className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            <SignChoice
+              title="Sign with your DSC"
+              tone="bg-brand-muted text-brand-muted-foreground"
+              icon={<ShieldCheckIcon className="size-5" />}
+              onClick={() => {
+                setDscFound(false);
+                setModal("dsc");
+              }}
             >
-              <span
-                aria-hidden
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-warning-muted text-warning-muted-foreground"
-              >
-                <UploadIcon className="size-5" />
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-body font-semibold text-foreground">
-                  Upload a signed copy
-                </span>
-                <span className="text-body-compact text-muted-foreground">
-                  One file that already carries{" "}
-                  {everyone.length > 1 ? `all ${everyone.length} signatures` : "the signature"}
-                  , on paper or by DSC. Everyone on the complaint then confirms by
-                  OTP.
-                </span>
-              </span>
-              <ChevronRightIcon
-                aria-hidden
-                className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-              />
-            </button>
+              You sign with the Digital Signature Certificate already set up on this
+              computer.
+              {otherSigners > 0
+                ? ` ${others} a link to sign with their own certificate.`
+                : ""}
+            </SignChoice>
+
+            <SignChoice
+              title="Upload a signed copy"
+              tone="bg-warning-muted text-warning-muted-foreground"
+              icon={<UploadIcon className="size-5" />}
+              onClick={() => setModal("upload")}
+            >
+              A printed copy signed by hand, carrying{" "}
+              {everyone.length > 1 ? `all ${everyone.length} signatures` : "the signature"},
+              uploaded as one file. Everyone on the complaint then confirms by OTP.
+            </SignChoice>
           </div>
 
           <p className="flex flex-wrap items-center gap-1 text-caption text-muted-foreground">
@@ -1140,9 +1195,21 @@ export function SignSection() {
             size="lg"
             className="w-full"
             disabled={otp.length < 6}
-            onClick={signYou}
+            onClick={() => signYou("esign")}
           >
             Verify and sign
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setOtp("");
+              setModal("choose");
+            }}
+          >
+            Choose another way to sign
           </Button>
 
           {otherSigners > 0 ? (
@@ -1155,6 +1222,92 @@ export function SignSection() {
 
           <p className="text-center text-caption text-muted-foreground">
             Sandbox — any six digits work.
+          </p>
+        </ChromeDialogContent>
+      </Dialog>
+
+      {/*
+        ── Sign with a DSC ──
+        The certificate is on the signer's machine, not on our side: the utility is asked
+        for it, and the screen says it is asking rather than showing a certificate it
+        never went to find. The card that comes back is the whole decision — you either
+        recognise that certificate as yours or you leave by another route.
+      */}
+      <Dialog open={modal === "dsc"} onOpenChange={(open) => !open && closeModal()}>
+        <ChromeDialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sign with your DSC</DialogTitle>
+            <DialogDescription>
+              Your Digital Signature Certificate has to be plugged in, with the signing
+              utility running on this computer.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* The height is held across both states so the button below does not jump. */}
+          <div
+            aria-live="polite"
+            className="flex min-h-20 flex-col justify-center py-2"
+          >
+            {dscFound ? (
+              <div className="flex items-start gap-3 rounded-lg bg-surface-sunken p-4">
+                <ShieldCheckIcon
+                  aria-hidden
+                  className="mt-0.5 size-5 shrink-0 text-success-ink"
+                />
+                {/*
+                  A certificate is named by its holder, and the only name we can stand
+                  behind is the one on the session. The signatory row deliberately names
+                  the advocate *slot* rather than a person, so it is not borrowed here:
+                  with no profile name, the card says what was found and nothing more.
+                */}
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <p className="truncate text-body-compact font-medium">
+                    {certHolder || "Certificate found on this computer"}
+                  </p>
+                  <p className="text-caption text-muted-foreground">
+                    {certHolder
+                      ? "Class 3 individual certificate, found on this computer"
+                      : "Class 3 individual certificate"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="flex items-center gap-3 text-body-compact text-muted-foreground">
+                <Spinner className="size-4 shrink-0" aria-hidden />
+                Looking for a certificate on this computer&hellip;
+              </p>
+            )}
+          </div>
+
+          <Button
+            type="button"
+            size="lg"
+            className="w-full"
+            disabled={!dscFound}
+            onClick={() => signYou("dsc")}
+          >
+            Sign with this certificate
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => setModal("choose")}
+          >
+            Choose another way to sign
+          </Button>
+
+          {otherSigners > 0 ? (
+            <p className="text-center text-caption text-muted-foreground">
+              {otherSigners === 1
+                ? "The other party signs next."
+                : `The other ${otherSigners} parties sign next.`}
+            </p>
+          ) : null}
+
+          <p className="text-center text-caption text-muted-foreground">
+            Sandbox — no certificate store is read.
           </p>
         </ChromeDialogContent>
       </Dialog>
@@ -1179,7 +1332,7 @@ export function SignSection() {
           <DialogHeader>
             <DialogTitle>Upload signed complaint</DialogTitle>
             <DialogDescription>
-              Upload the complaint once every party has signed it.
+              Upload the printed complaint once every party has signed it by hand.
             </DialogDescription>
           </DialogHeader>
 
@@ -1187,12 +1340,10 @@ export function SignSection() {
               the content edge rather than reserving space for itself. */}
           <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pe-2">
             <SectionNotice variant="warning" title="Ensure all parties have signed">
-              Each complainant, and one advocate for each complainant, must sign
-              this document. The file may be signed on paper or with a{" "}
-              <strong className="font-semibold">
-                Digital Signature Certificate (DSC)
-              </strong>
-              .
+              Each complainant, and one advocate for each complainant, must have signed
+              this printed copy by hand. To sign on screen instead, go back and choose
+              <strong className="font-semibold"> E-Sign with Aadhaar OTP</strong> or
+              <strong className="font-semibold"> Sign with your DSC</strong>.
             </SectionNotice>
 
             {sign.signedCopy ? (
@@ -1302,6 +1453,18 @@ export function SignSection() {
           </div>
 
           <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setUploadError(null);
+                setOtpFor(null);
+                setRowOtp("");
+                setModal("choose");
+              }}
+            >
+              Choose another way to sign
+            </Button>
             <Button
               type="button"
               disabled={!sign.signedCopy || !allConfirmed}

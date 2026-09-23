@@ -403,7 +403,12 @@ export type AccusedProcessChoice = {
 };
 
 export type SignState = {
-  mode: "esign" | "upload" | null;
+  /**
+   * How the complaint was signed: an Aadhaar OTP e-signature, a Digital Signature
+   * Certificate held on the signer's own machine, or one uploaded copy that already
+   * carries every signature on paper.
+   */
+  mode: "esign" | "dsc" | "upload" | null;
   /** Signatory id → signed. Signatories themselves are derived, not stored. */
   signed: Record<string, boolean>;
   /** The signed copy, when signing by upload. */
