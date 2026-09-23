@@ -340,7 +340,7 @@ export function SignSection() {
   const [modal, setModal] = React.useState<ModalKey>(null);
   /** The signing window, and the stage the complaint is actually at when it opens. */
   const [flowOpen, setFlowOpen] = React.useState(false);
-  const [flowStart, setFlowStart] = React.useState<SignFlowStart>("commit");
+  const [flowStart, setFlowStart] = React.useState<SignFlowStart>("choose");
   /** Where the person asked to go while this version is out for signature. */
   const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
   /** The "switch to paper" question, which recalls requests other people already have. */
@@ -474,6 +474,53 @@ export function SignSection() {
   const openFlow = (at: SignFlowStart) => {
     setFlowStart(at);
     setFlowOpen(true);
+  };
+
+  /*
+   * ── The question asks itself on arrival ──
+   *
+   * Walking Review → Sign is walking towards a decision, so the step shows the document
+   * and then puts the decision in front of the reader rather than waiting to be asked
+   * (owner, 2026-09-23). Three guards keep it from becoming a wall:
+   *
+   * - it only asks while nothing has been decided (`requestedAt === null`, still digital)
+   *   and there is somebody to ask about, so a signed or paper-bound complaint is never
+   *   interrupted;
+   * - closing it is remembered for this draft for the rest of the session, so a reader
+   *   who wanted to read the complaint first is not asked again on every return;
+   * - and the window itself sends nothing until a card is pressed, so dismissing it
+   *   costs nothing.
+   *
+   * The short delay is the point of it: the screen paints, the reader sees where they
+   * are, and then the question arrives over it.
+   */
+  const askedKey = `dristi:sign-intro:${draft.id}`;
+  const shouldAsk =
+    !filed && !requested && !onPaper && everyone.length > 0 && !allSigned;
+  React.useEffect(() => {
+    if (!shouldAsk) return;
+    try {
+      if (sessionStorage.getItem(askedKey)) return;
+    } catch {
+      /* private mode — ask, and let the close below fail just as quietly */
+    }
+    const timer = window.setTimeout(() => {
+      setFlowStart("choose");
+      setFlowOpen(true);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [shouldAsk, askedKey]);
+
+  /** Closing the window is an answer of its own: do not ask again this session. */
+  const setFlowOpenRemembering = (next: boolean) => {
+    if (!next) {
+      try {
+        sessionStorage.setItem(askedKey, "1");
+      } catch {
+        /* private mode; the worst case is being asked again on the next visit */
+      }
+    }
+    setFlowOpen(next);
   };
 
   /** Ask again, for everyone still waiting. The link itself does not change. */
@@ -756,7 +803,7 @@ export function SignSection() {
             : `${otherSigners === 1 ? "One other party" : `${otherSigners} other parties`} must sign this complaint. Read it below, then send it to them.`}
         </p>
       </div>
-      <Button type="button" size="lg" className="self-start" onClick={() => openFlow("commit")}>
+      <Button type="button" size="lg" className="self-start" onClick={() => openFlow("choose")}>
         <SignatureIcon data-icon="inline-start" aria-hidden />
         Continue to signing
       </Button>
@@ -964,7 +1011,7 @@ export function SignSection() {
       <SignFlowDialog
         open={flowOpen}
         start={flowStart}
-        onOpenChange={setFlowOpen}
+        onOpenChange={setFlowOpenRemembering}
         onPrint={printFile}
       />
 
