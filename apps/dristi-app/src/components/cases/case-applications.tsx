@@ -338,7 +338,9 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         </Empty>
       ) : (
         <ApplicationsTable
+          caseId={record.id}
           rows={rows}
+          onAct={act}
           onOpen={setRecordOpen}
           recentId={recentId}
           recentRowRef={recentRowRef}
@@ -349,6 +351,12 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         caseId={record.id}
         application={openApplication}
         onOpenLinked={setRecordOpen}
+        onAct={(application) => {
+          // The record steps aside for the signing or payment dialog.
+          openedHere.current = false;
+          setRecordOpen(null);
+          act([application]);
+        }}
         onOpenChange={(open) => {
           if (open) return;
           if (recordOpen && !openedHere.current) markRecent(recordOpen);
@@ -561,7 +569,7 @@ const STEP_COPY = {
 /** Who raised it, when the list is not only the viewer's own filings. */
 function filedLine(application: ApplicationRecord): string {
   return application.draftedBy
-    ? `${application.filedBy} · Drafted by ${application.draftedBy}`
+    ? `${application.filedBy} ${bracketed(`Drafted by ${application.draftedBy}`)}`
     : application.filedBy;
 }
 
@@ -961,19 +969,25 @@ function TouchObjectionCard({
  * waiting on. Nothing when the badge says it all.
  */
 function statusNote(item: ApplicationRecord): string | undefined {
-  if (item.waitingOn) return item.waitingOn;
+  if (item.waitingOn) return bracketed(item.waitingOn);
   if (item.status === "pending-decision" && item.decisionShort) {
-    return `Decision on ${item.decisionShort}`;
+    return bracketed(`Decision on ${item.decisionShort}`);
   }
   return undefined;
 }
 
-/** A date note never breaks mid-date; a longer note may wrap (owner, Sept 24). */
-function noteClass(item: ApplicationRecord): string {
-  return cn(
-    "text-caption text-muted-foreground tabular-nums",
-    !item.waitingOn && "whitespace-nowrap"
-  );
+/**
+ * Every side note in this register reads the way the forms mark "(optional)":
+ * in brackets, lower case at the front, muted (owner, Sept 24). "(temporary)",
+ * "(drafted by Vinod Kumar)", "(waiting for Anjali Nair to sign)".
+ */
+function bracketed(note: string): string {
+  return `(${note.charAt(0).toLowerCase()}${note.slice(1)})`;
+}
+
+/** A bracketed note stays on one line (owner, Sept 24). */
+function noteClass(): string {
+  return "text-caption whitespace-nowrap text-muted-foreground tabular-nums";
 }
 
 /**
@@ -1026,13 +1040,71 @@ function ApplicationNumber({
   return <Dash label="Not allotted" />;
 }
 
+/**
+ * The row's own action: the viewer's step where they have one (continue a
+ * draft, sign, pay), otherwise View. The table used to offer only View, so a
+ * filing the viewer could act on had to be found again in Needs attention
+ * (owner, Sept 24). The row itself still opens the record.
+ */
+function RowAction({
+  caseId,
+  item,
+  onAct,
+  onOpen,
+}: {
+  caseId: string;
+  item: ApplicationRecord;
+  onAct: (applications: ApplicationRecord[]) => void;
+  onOpen: (id: string) => void;
+}) {
+  const draftHref = resumeDraftHref(caseId, item.source);
+  if (item.step === "continue" && draftHref) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="-my-1.5"
+        asChild
+        onClick={(event) => event.stopPropagation()}
+      >
+        <Link href={draftHref}>
+          {STEP_COPY.continue}
+          <span className="sr-only">: {item.typeLabel}</span>
+        </Link>
+      </Button>
+    );
+  }
+  if (item.step === "sign" || item.step === "pay") {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="-my-1.5"
+        onClick={(event) => {
+          event.stopPropagation();
+          onAct([item]);
+        }}
+      >
+        {STEP_COPY[item.step]}
+        <span className="sr-only">: {item.typeLabel}</span>
+      </Button>
+    );
+  }
+  return <RowViewButton label={item.typeLabel} onClick={() => onOpen(item.id)} />;
+}
+
 function ApplicationsTable({
+  caseId,
   rows,
+  onAct,
   onOpen,
   recentId,
   recentRowRef,
 }: {
+  caseId: string;
   rows: ApplicationRecord[];
+  onAct: (applications: ApplicationRecord[]) => void;
   onOpen: (id: string) => void;
   recentId: string | null;
   recentRowRef: (node: HTMLTableRowElement | null) => void;
@@ -1051,9 +1123,16 @@ function ApplicationsTable({
             onOpenChange={tray.toggle(item.id)}
             className={cn(recentId === item.id && RECENT_ROW)}
             actions={
-              <Button type="button" onClick={() => onOpen(item.id)}>
-                View application
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant={item.step ? "outline" : "default"}
+                  onClick={() => onOpen(item.id)}
+                >
+                  {item.step ? "View" : "View application"}
+                </Button>
+                <StepAction caseId={caseId} application={item} onAct={onAct} />
+              </>
             }
           >
             <p className="-mt-2 text-caption text-muted-foreground">
@@ -1078,14 +1157,14 @@ function ApplicationsTable({
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
-              {note ? <span className={noteClass(item)}>{note}</span> : null}
+              {note ? <span className={noteClass()}>{note}</span> : null}
             </div>
             <div className="flex flex-col gap-0.5 border-t border-hairline pt-3">
               <p className="text-body-compact text-foreground">
                 {item.filedBy}
                 {item.draftedBy ? (
                   <span className="text-caption text-muted-foreground">
-                    {` · Drafted by ${item.draftedBy}`}
+                    {` ${bracketed(`Drafted by ${item.draftedBy}`)}`}
                   </span>
                 ) : null}
               </p>
@@ -1109,9 +1188,7 @@ function ApplicationsTable({
           <TableHead className={TABLE_HEAD}>Filed by</TableHead>
           <TableHead className={TABLE_HEAD}>Created on</TableHead>
           <TableHead className={TABLE_HEAD}>Submitted on</TableHead>
-          <TableHead className={cn(TABLE_HEAD, "w-24")}>
-            Action
-          </TableHead>
+          <TableHead className={TABLE_HEAD}>Action</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody className={tableBodyClass()}>
@@ -1141,7 +1218,7 @@ function ApplicationsTable({
             <TableCell className={cn(TABLE_CELL, "whitespace-normal")}>
               <span className="flex flex-col items-start gap-1">
                 <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
-                {note ? <span className={noteClass(item)}>{note}</span> : null}
+                {note ? <span className={noteClass()}>{note}</span> : null}
               </span>
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>
@@ -1151,8 +1228,8 @@ function ApplicationsTable({
               <span className="flex flex-col gap-0.5">
                 <span>{item.filedBy}</span>
                 {item.draftedBy ? (
-                  <span className="text-caption text-muted-foreground">
-                    Drafted by {item.draftedBy}
+                  <span className={noteClass()}>
+                    {bracketed(`Drafted by ${item.draftedBy}`)}
                   </span>
                 ) : null}
               </span>
@@ -1164,9 +1241,11 @@ function ApplicationsTable({
               {item.submittedShort ?? <Dash label="Not submitted" />}
             </TableCell>
             <TableCell className={TABLE_CELL}>
-              <RowViewButton
-                label={item.typeLabel}
-                onClick={() => onOpen(item.id)}
+              <RowAction
+                caseId={caseId}
+                item={item}
+                onAct={onAct}
+                onOpen={onOpen}
               />
             </TableCell>
           </TableRow>

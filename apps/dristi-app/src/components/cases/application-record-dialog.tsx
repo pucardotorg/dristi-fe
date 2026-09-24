@@ -38,6 +38,7 @@ import {
   type LinkedApplication,
 } from "@/lib/cases/application-record";
 import { orderHref } from "@/lib/cases/sections";
+import { resumeDraftHref } from "@/lib/cases/applications";
 import { cn } from "@/lib/utils";
 
 /**
@@ -50,12 +51,15 @@ export function ApplicationRecordDialog({
   application,
   onOpenChange,
   onOpenLinked,
+  onAct,
 }: {
   caseId: string;
   application: ApplicationRecord | null;
   onOpenChange: (open: boolean) => void;
   /** Open another application in this dialog: an objection and what it objects to. */
   onOpenLinked?: (id: string) => void;
+  /** Take the viewer's step on it (sign, pay) from the record itself. */
+  onAct?: (application: ApplicationRecord) => void;
 }) {
   return (
     <Dialog open={application !== null} onOpenChange={onOpenChange}>
@@ -69,6 +73,7 @@ export function ApplicationRecordDialog({
             caseId={caseId}
             application={application}
             onOpenLinked={onOpenLinked}
+            onAct={onAct}
           />
         ) : null}
       </FlowDialogContent>
@@ -80,11 +85,14 @@ function RecordBody({
   caseId,
   application,
   onOpenLinked,
+  onAct,
 }: {
   caseId: string;
   application: ApplicationRecord;
   onOpenLinked?: (id: string) => void;
+  onAct?: (application: ApplicationRecord) => void;
 }) {
+  const draftHref = resumeDraftHref(caseId, application.source);
   const viewable = application.documents.filter((doc) => doc.src);
   const [openSrc, setOpenSrc] = useState(viewable[0]?.src);
   const open = viewable.find((doc) => doc.src === openSrc);
@@ -104,6 +112,17 @@ function RecordBody({
             Application record, documents and linked order
           </DialogDescription>
         </div>
+        {/* The viewer's step, where they have one: reading a filing that
+            waits on you should not mean going back to the list to act. */}
+        {application.step === "continue" && draftHref ? (
+          <Button size="sm" asChild>
+            <Link href={draftHref}>Continue draft</Link>
+          </Button>
+        ) : application.step && application.step !== "continue" && onAct ? (
+          <Button size="sm" type="button" onClick={() => onAct(application)}>
+            {application.step === "sign" ? "Add signature" : "Complete payment"}
+          </Button>
+        ) : null}
         {pdf ? (
           <TooltipProvider>
             <Tooltip>
