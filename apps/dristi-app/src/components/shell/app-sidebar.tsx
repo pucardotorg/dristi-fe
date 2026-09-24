@@ -556,25 +556,6 @@ function ProfileFooter() {
                     ) : null}
                   </Button>
                 ) : null}
-                {/* Demo: the clerk in the advocate's office, so the Application
-                    Lifecycle roles can be walked through. Only where the account
-                    holds an advocate profile, since the clerk works for it. */}
-                {advocateProfileAvailable ? (
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    onClick={() => switchTo("clerk")}
-                  >
-                    <span
-                      aria-hidden
-                      className="flex size-6 items-center justify-center rounded-full bg-surface-sunken text-caption font-semibold"
-                    >
-                      C
-                    </span>
-                    <span className="flex-1 text-left">Clerk</span>
-                    {profileRole === "clerk" ? <CheckIcon aria-hidden /> : null}
-                  </Button>
-                ) : null}
 
                 {/* Only in an area that has a filing profile to edit. */}
                 <YourDetailsItem />
@@ -587,19 +568,50 @@ function ProfileFooter() {
                   <p className="px-2 py-1.5 text-caption font-semibold text-muted-foreground">
                     Viewing as
                   </p>
-                  {people.map((p) => (
-                    <Button
-                      key={p.id}
-                      variant="ghost"
-                      className="w-full justify-start font-normal"
-                      disabled={state !== "ready"}
-                      onClick={() => void setUser(p.id)}
-                    >
-                      <span className="flex-1 truncate text-left">
-                        {p.name}
-                      </span>
-                      {p.id === user.id ? <CheckIcon aria-hidden /> : null}
-                    </Button>
+                  {people.map((p, index) => (
+                    <React.Fragment key={p.id}>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start font-normal"
+                        disabled={state !== "ready"}
+                        onClick={() => {
+                          // Everyone in the sandbox is an advocate; picking one
+                          // leaves the clerk's seat.
+                          if (profileRole === "clerk") setProfileRole("advocate");
+                          void setUser(p.id);
+                        }}
+                      >
+                        <span className="flex-1 truncate text-left">
+                          {p.name}
+                        </span>
+                        {profileRole !== "clerk" && p.id === user.id ? (
+                          <CheckIcon aria-hidden />
+                        ) : null}
+                      </Button>
+                      {/* The signed-in advocate's clerk, right under the
+                          advocate: a different person, so here among the
+                          people to view as, not among the account's own
+                          profiles (owner, Sept 24). Acting as him shows the
+                          clerk's side of Applications: drafts and pays,
+                          never signs. */}
+                      {index === 0 ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start font-normal"
+                          onClick={() => setProfileRole("clerk")}
+                        >
+                          <span className="flex-1 truncate text-left">
+                            {VIEWER_CLERK_NAME}
+                          </span>
+                          <span className="text-caption text-muted-foreground">
+                            Clerk
+                          </span>
+                          {profileRole === "clerk" ? (
+                            <CheckIcon aria-hidden />
+                          ) : null}
+                        </Button>
+                      ) : null}
+                    </React.Fragment>
                   ))}
                   <Button
                     variant="ghost"

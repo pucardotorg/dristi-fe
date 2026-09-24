@@ -101,14 +101,6 @@ export function ProfileSettings({ locale, profileName, idSubmitted, submittedId,
                     {profileRole === "advocate" ? <CheckIcon aria-hidden /> : null}
                   </Button>
                 ) : null}
-                {/* Demo clerk profile, beside the advocate it works for (see profile.tsx). */}
-                {advocateProfileAvailable ? (
-                  <Button variant="ghost" className="w-full justify-start" onClick={() => onSwitchProfile("clerk")}>
-                    <Avatar size="sm"><AvatarFallback>C</AvatarFallback></Avatar>
-                    <span className="flex-1 text-left">Clerk</span>
-                    {profileRole === "clerk" ? <CheckIcon aria-hidden /> : null}
-                  </Button>
-                ) : null}
               </PopoverContent>
             </Popover>
           </div>

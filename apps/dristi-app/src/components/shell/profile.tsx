@@ -26,9 +26,10 @@ import {
  * **Clerk is a demo profile.** A clerk is a different person from the advocate, so on a
  * real account this is not a profile the same human switches to. It sits here because
  * the Application Lifecycle PRD gives the clerk (or junior advocate) its own rights on
- * applications (drafts and pays, never signs), and the owner asked for the switcher to
- * show them (Sept 24). The clerk acts in the signed-in advocate's office, as
- * `VIEWER_CLERK_NAME`.
+ * applications (drafts and pays, never signs), and the owner asked to be able to act as
+ * one (Sept 24). The clerk acts in the signed-in advocate's office, as
+ * `VIEWER_CLERK_NAME`, and is picked from the rail's "Viewing as" people, not from the
+ * account's own profiles: he is someone else, not another profile of Anjali.
  */
 export type ProfileRole = "litigant" | "advocate" | "clerk";
 
