@@ -44,7 +44,6 @@ import {
   othersTitle,
   resumeDraftHref,
 } from "@/lib/cases/applications";
-import { DocumentPreview } from "@/components/cases/document-preview";
 import { GeneratedApplicationDocument } from "@/components/cases/generated-application-dialog";
 import { buildGeneratedApplication } from "@/lib/cases/application-document";
 import { applicationDraftFrom } from "@/lib/cases/application-draft";
@@ -175,8 +174,12 @@ function RecordBody({
         </DialogClose>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <div className="flex shrink-0 flex-col gap-0 overflow-y-auto border-hairline p-4 max-md:max-h-72 max-md:border-b md:w-80 md:border-r">
+      {/* Side by side only when the dialog itself is wide enough. Keyed to
+          the screen, a tablet (the rail open beside the dialog) set the
+          application out in a strip about 180px wide and cut it off. */}
+      <div className="@container/record flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col @3xl/record:flex-row">
+        <div className="flex max-h-72 shrink-0 flex-col gap-0 overflow-y-auto border-b border-hairline p-4 @3xl/record:max-h-none @3xl/record:w-80 @3xl/record:border-r @3xl/record:border-b-0">
           {/* Grouped so the panel can be skimmed (owner, Sept 24): what is
               happening first, then numbers, dates, people, objections and the
               order, each group parted by a hairline. Dates and people run two
@@ -396,22 +399,18 @@ function RecordBody({
         </div>
 
         {openSrc === COMPOSED && composed ? (
-          <div className="flex min-h-64 flex-1 flex-col overflow-y-auto bg-surface-sunken p-4">
-            <DocumentPreview
-              title={composed.document.title}
-              variant="quiet"
-              height="fill"
-              source={{
-                kind: "composed",
-                content: (
-                  <GeneratedApplicationDocument
-                    document={composed.document}
-                    generatedOn={composed.dated}
-                    signedBy={composed.signedBy}
-                  />
-                ),
-              }}
-            />
+          /* Set out the way this dialog shows a filed PDF (owner, Sept 24:
+             one preview pattern, not a second frame with its own bar): the
+             page on the sunken margin, filling the pane and scrolling in it.
+             No download: there is no file behind it. */
+          <div className="min-h-64 min-w-0 flex-1 overflow-y-auto bg-surface-sunken p-4">
+            <div className="mx-auto max-w-3xl">
+              <GeneratedApplicationDocument
+                document={composed.document}
+                generatedOn={composed.dated}
+                signedBy={composed.signedBy}
+              />
+            </div>
           </div>
         ) : pdf && open ? (
           <PdfViewer
@@ -445,6 +444,7 @@ function RecordBody({
             </Empty>
           </div>
         )}
+      </div>
       </div>
 
       {/* The viewer's step, where they have one: read it, then act on it, in the
