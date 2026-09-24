@@ -3,28 +3,26 @@
 /**
  * Preview — everything the filing contains, twice over.
  *
- * "Synopsis" is the readable summary, one card per section with an Edit affordance that
- * opens a read-only panel beside the source document it came from. "Court document" is the
- * same filing as the court will receive it (shared with Sign — see ./preview/court-document).
+ * "Synopsis" is the readable summary, one card per section, each with a Review control
+ * that takes you to that section to change it. "Court document" is the same filing as the
+ * court will receive it (shared with Sign — see ./preview/court-document).
  */
 
 import * as React from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CheckIcon,
-  FileTextIcon,
   PencilLineIcon,
   PrinterIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 
-import { formatBytes, useFilePreview } from "@/lib/filing/files";
 import { joinDot } from "@/lib/filing/format";
 import { CASE_TYPE, COURT } from "@/lib/filing/options";
-import { intakeSlots, sectionComplete } from "@/lib/filing/selectors";
+import { sectionComplete } from "@/lib/filing/selectors";
 import { neighbours, type StepId } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
-import type { FilingDraft, IntakeDocType, StoredFileRef } from "@/lib/filing/types";
+import type { FilingDraft } from "@/lib/filing/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,15 +31,16 @@ import {
   DescriptionRow,
   DescriptionTerm,
 } from "@/components/ui/description-list";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FilingFooter } from "@/components/filing/filing-footer";
 import { FilingPageHeader } from "@/components/filing/filing-page-header";
@@ -145,6 +144,28 @@ function CardActions({
 
 /* ───────────────────────────── Edit panel data ─────────────────────── */
 
+/**
+ * "Don't ask me again" for the Review question, kept per browser rather than per draft:
+ * it is a preference about how this person works, not a fact about one complaint.
+ */
+const SKIP_REVIEW_PROMPT = "dristi:filing:skip-review-prompt";
+
+function skipReviewPrompt(): boolean {
+  try {
+    return localStorage.getItem(SKIP_REVIEW_PROMPT) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberSkipReviewPrompt(): void {
+  try {
+    localStorage.setItem(SKIP_REVIEW_PROMPT, "1");
+  } catch {
+    /* private mode — the question simply gets asked again next time */
+  }
+}
+
 type PanelKey =
   | "complainant"
   | "advocate"
@@ -156,18 +177,12 @@ type PanelKey =
   | "witnesses"
   | "documents";
 
-/** An upload from Case documents that backs this section. */
-type PanelFile = { key: string; label: string; file: StoredFileRef };
-
+/** A section of the filing, as this screen names it and navigates to it. */
 type EditPanel = {
   title: string;
   step: StepId;
   /** What was actually entered — rows the person has not filled are left out. */
   fields: { label: string; value: string }[];
-  /** The uploads this section was read from, as they were uploaded. */
-  files: PanelFile[];
-  /** Shown instead of files when this section has no document behind it. */
-  noSourceText?: string;
 };
 
 /** Drop the rows that would only say "Not provided" — an empty panel says that once. */
@@ -186,14 +201,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
   const witnesses = witnessSummaries(draft);
   const documents = documentSummary(draft);
 
-  /** Every upload of the given kinds, in intake order — labels are the slots' own. */
-  const uploads = (...types: IntakeDocType[]): PanelFile[] =>
-    intakeSlots(draft.intake).flatMap((s) =>
-      s.file && types.includes(s.docType)
-        ? [{ key: s.key, label: s.label, file: s.file }]
-        : []
-    );
-
   return {
     complainant: {
       title: "Complainant",
@@ -207,7 +214,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
         { label: "Permanent address", value: complainant.permanentAddress },
         { label: "Power of attorney", value: complainant.poa },
       ]),
-      files: uploads("id-proof", "poa"),
     },
     advocate: {
       title: "Advocates",
@@ -218,7 +224,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
           { label: "Appearing for", value: a.appearingFor },
         ])
       ),
-      files: uploads("vakalatnama"),
     },
     accused: {
       title: "Accused",
@@ -229,7 +234,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
           { label: "Address", value: a.address },
         ])
       ),
-      files: uploads("cheque-front"),
     },
     cheque: {
       title: "Cheque & return memo",
@@ -241,7 +245,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
           { label: "Returned", value: c.returned },
         ])
       ),
-      files: uploads("cheque-front", "return-memo"),
     },
     demand: {
       title: "Demand notice & debt",
@@ -254,7 +257,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
         // Statutory, not entered: S-138 gives the drawer 15 days from the notice.
         { label: "Demand", value: "Pay within 15 days" },
       ]),
-      files: uploads("demand-notice", "dispatch-proof", "delivery-proof", "notice-reply"),
     },
     jurisdiction: {
       title: "Jurisdiction & limitation",
@@ -267,7 +269,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
         { label: "Cause of action", value: jurisdiction.causeDate },
         { label: "Complaint filing", value: jurisdiction.filingDate },
       ]),
-      files: uploads("return-memo"),
     },
     adr: {
       title: "ADR, other details & prayer",
@@ -277,9 +278,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
         { label: "Interim relief", value: INTERIM_RELIEF_SUMMARY },
         { label: "Final relief", value: finalReliefSummary(draft) },
       ]),
-      files: [],
-      noSourceText:
-        "Drafted from your case — there is no uploaded source document for this section.",
     },
     witnesses: {
       title: "Witnesses",
@@ -290,8 +288,6 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
           { label: "Will prove", value: w.prove },
         ])
       ),
-      files: [],
-      noSourceText: "Witness details are entered by hand — there is no source document.",
     },
     documents: {
       title: "Documents",
@@ -310,65 +306,23 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
             : "All required documents uploaded",
         },
       ]),
-      files: uploads(
-        "cheque-front",
-        "return-memo",
-        "demand-notice",
-        "dispatch-proof",
-        "delivery-proof",
-        "notice-reply",
-        "id-proof",
-        "poa",
-        "vakalatnama",
-        "supporting",
-        "other"
-      ),
-      noSourceText: "Manage files in the Documents section.",
     },
   };
 }
 
 /* ───────────────────────────── Source files ────────────────────────── */
 
-/**
- * One uploaded file in the edit panel — the page itself as a thumbnail, not an icon
- * standing in for it. PDFs render their first page (see `useFilePreview`).
- */
-function SourceFile({ item }: { item: PanelFile }) {
-  const preview = useFilePreview(item.file);
-  const imageUrl = preview.status === "ready" ? preview.imageUrl : null;
-  const size = formatBytes(item.file.size);
-
-  return (
-    <li className="flex items-center gap-3 py-3">
-      <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-sunken text-muted-foreground">
-        {preview.status === "loading" ? (
-          <Skeleton className="size-full rounded-md" />
-        ) : imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt="" className="size-full object-cover" />
-        ) : (
-          <FileTextIcon className="size-5" aria-hidden />
-        )}
-      </span>
-      <span className="flex min-w-0 flex-col">
-        <span className="text-body-compact font-medium text-foreground">{item.label}</span>
-        <span className="truncate text-caption text-muted-foreground">
-          {item.file.name}
-          {size ? ` · ${size}` : ""}
-        </span>
-      </span>
-    </li>
-  );
-}
-
 /* ───────────────────────────── Screen ──────────────────────────────── */
 
 export function PreviewSection() {
   const { draft, hrefFor } = useFiling();
   const { prev, next } = neighbours("preview");
+  const router = useRouter();
   const [view, setView] = React.useState("synopsis");
+  /** The section Review was pressed on, while the question about leaving is open. */
   const [editKey, setEditKey] = React.useState<PanelKey | null>(null);
+  /** Ticked in the question itself — remembered for this browser, not this draft. */
+  const [dontAsk, setDontAsk] = React.useState(false);
 
   const complainant = complainantSummary(draft.complainants[0]);
   const advocates = advocateSummaries(draft);
@@ -381,6 +335,35 @@ export function PreviewSection() {
 
   const panels = buildPanels(draft);
   const panel = editKey ? panels[editKey] : null;
+
+  /**
+   * **Review is a way out of this screen, so it says so before it takes you.**
+   *
+   * It used to open a read-only peek beside the document — a third place a section's
+   * values could be read, which could not be edited and therefore always ended in
+   * "Open full section" anyway (owner, 2026-09-24). Now it asks once, and a person who
+   * does not want to be asked again says so in the question itself.
+   */
+  const goTo = React.useCallback(
+    (key: PanelKey) => router.push(hrefFor(panels[key].step)),
+    [router, hrefFor, panels]
+  );
+
+  const review = (key: PanelKey) => {
+    if (skipReviewPrompt()) {
+      goTo(key);
+      return;
+    }
+    setDontAsk(false);
+    setEditKey(key);
+  };
+
+  const confirmReview = () => {
+    const key = editKey;
+    if (dontAsk) rememberSkipReviewPrompt();
+    setEditKey(null);
+    if (key) goTo(key);
+  };
 
   // Completeness per section, from the same rule the sidebar counts with.
   const done = (key: PanelKey) => sectionComplete(draft, panels[key].step);
@@ -401,7 +384,7 @@ export function PreviewSection() {
             <>
               Check everything you have filed. Use{" "}
               <strong className="font-semibold text-foreground">Review</strong> on any
-              section to see what it holds, and open the full section to change it.
+              section to open it and change what it holds.
             </>
           }
         />
@@ -439,7 +422,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("complainant")}
                   section="complainant"
-                  onEdit={() => setEditKey("complainant")}
+                  onEdit={() => review("complainant")}
                 />
               }
             >
@@ -462,7 +445,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("advocate")}
                   section="advocates"
-                  onEdit={() => setEditKey("advocate")}
+                  onEdit={() => review("advocate")}
                 />
               }
             >
@@ -491,7 +474,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("accused")}
                   section="accused"
-                  onEdit={() => setEditKey("accused")}
+                  onEdit={() => review("accused")}
                 />
               }
             >
@@ -514,7 +497,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("cheque")}
                   section="cheque and return memo"
-                  onEdit={() => setEditKey("cheque")}
+                  onEdit={() => review("cheque")}
                 />
               }
             >
@@ -538,7 +521,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("demand")}
                   section="demand notice and debt"
-                  onEdit={() => setEditKey("demand")}
+                  onEdit={() => review("demand")}
                 />
               }
             >
@@ -559,7 +542,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("jurisdiction")}
                   section="jurisdiction and limitation"
-                  onEdit={() => setEditKey("jurisdiction")}
+                  onEdit={() => review("jurisdiction")}
                 />
               }
             >
@@ -593,7 +576,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("adr")}
                   section="ADR, other details and prayer"
-                  onEdit={() => setEditKey("adr")}
+                  onEdit={() => review("adr")}
                 />
               }
             >
@@ -612,7 +595,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("witnesses")}
                   section="witnesses"
-                  onEdit={() => setEditKey("witnesses")}
+                  onEdit={() => review("witnesses")}
                 />
               }
             >
@@ -634,7 +617,7 @@ export function PreviewSection() {
                 <CardActions
                   complete={done("documents")}
                   section="documents"
-                  onEdit={() => setEditKey("documents")}
+                  onEdit={() => review("documents")}
                 />
               }
               contentClassName="gap-0"
@@ -674,69 +657,43 @@ export function PreviewSection() {
         </Tabs>
       </FilingMain>
 
-      {/* Review panel — the section's details beside the document they were read from. */}
-      <Sheet
+      {/* ── Review takes you to the section ── */}
+      <Dialog
         open={!!panel}
         onOpenChange={(open) => {
           if (!open) setEditKey(null);
         }}
       >
-        <SheetContent side="right" className="w-full gap-0 sm:max-w-md">
-          <SheetHeader className="gap-1 border-b border-hairline p-6 pr-12">
-            <p className="text-caption font-medium text-primary">Review section</p>
-            <SheetTitle className="text-title-s font-semibold">
-              {panel?.title ?? ""}
-            </SheetTitle>
-            <SheetDescription className="sr-only">
-              What this section holds, and the documents it was read from. Open the full
-              section to change it.
-            </SheetDescription>
-          </SheetHeader>
+        <ChromeDialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Open the {panel?.title ?? ""} section?</DialogTitle>
+            <DialogDescription>
+              Changes are made in the section itself. You will come back here from its
+              Continue.
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
-            <div className="flex flex-col gap-2">
-              <p className="text-caption font-medium text-muted-foreground">Details</p>
-              {/* Read-only values are key-value rows, not fields dressed as disabled inputs. */}
-              {panel?.fields.length ? (
-                <KeyValues
-                  rows={panel.fields.map((f) => ({ term: f.label, value: f.value }))}
-                />
-              ) : (
-                <p className="text-body-compact text-muted-foreground">
-                  Nothing has been filled in this section yet.
-                </p>
-              )}
-            </div>
+          <Field orientation="horizontal">
+            <Checkbox
+              id="skip-review-prompt"
+              checked={dontAsk}
+              onCheckedChange={(checked) => setDontAsk(checked === true)}
+            />
+            <FieldLabel htmlFor="skip-review-prompt" className="font-normal">
+              Don&rsquo;t ask me again
+            </FieldLabel>
+          </Field>
 
-            {panel?.files.length ? (
-              <div className="flex flex-col gap-2">
-                <p className="text-caption font-medium text-muted-foreground">
-                  {panel.files.length === 1 ? "Source document" : "Source documents"}
-                </p>
-                <ul className="flex flex-col divide-y divide-hairline">
-                  {panel.files.map((f) => (
-                    <SourceFile key={f.key} item={f} />
-                  ))}
-                </ul>
-              </div>
-            ) : panel ? (
-              <p className="rounded-lg bg-surface-sunken p-4 text-body-compact text-muted-foreground">
-                {panel.noSourceText ??
-                  "Nothing has been uploaded for this section yet — you can add it in Case documents."}
-              </p>
-            ) : null}
-          </div>
-
-          <SheetFooter className="flex-row gap-3 border-t border-hairline p-6">
-            <Button asChild variant="outline" className="flex-1">
-              <Link href={panel ? hrefFor(panel.step) : "#"}>Open full section</Link>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEditKey(null)}>
+              Stay here
             </Button>
-            <Button type="button" onClick={() => setEditKey(null)}>
-              Done
+            <Button type="button" onClick={confirmReview}>
+              Open section
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </DialogFooter>
+        </ChromeDialogContent>
+      </Dialog>
 
       <FilingFooter
         backHref={prev ? hrefFor(prev) : undefined}
