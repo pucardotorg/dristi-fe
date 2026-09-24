@@ -3,22 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  CircleCheckIcon,
   EyeIcon,
   FileQuestionIcon,
   InfoIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { ARRIVAL } from "@/components/chrome/motion";
-import { markCognizanceTab } from "@/components/employee/cognizance-return";
 import { COGNIZANCE_PATH } from "@/components/employee/cognizance-table";
 import { DocumentScroller } from "@/components/employee/document-scroller";
 import { markArrival, useArrival } from "@/components/employee/use-arrival";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -27,13 +23,6 @@ import {
   DescriptionRow,
   DescriptionTerm,
 } from "@/components/ui/description-list";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Empty,
   EmptyContent,
@@ -47,13 +36,10 @@ import {
   cnrFor,
   COGNIZANCE_ACTS,
   COGNIZANCE_DOCUMENTS,
-  COGNIZANCE_PENDING_LABEL,
   cognizanceCaseById,
   findingsFor,
-  nextCognizanceCase,
   primaryActFor,
   summaryChunksFor,
-  tabFor,
   type CognizanceAct,
   type CognizanceCase,
   type CognizanceChunk,
@@ -106,6 +92,21 @@ export function CognizanceCaseScreen({ caseId }: { caseId: string }) {
 
 /** Section labels above a surface — scaffolding, so it reads as scaffolding. */
 const EYEBROW = "text-caption font-semibold text-muted-foreground";
+
+/**
+ * Where an act goes: the order it would draw up, on this complaint.
+ *
+ * The act rides in the query string because it is not a second thing the URL names —
+ * one complaint has one order being drawn at a time (`cognizance/[caseId]/order`).
+ */
+function orderHref(matter: CognizanceCase, act: CognizanceAct): string {
+  return `${COGNIZANCE_PATH}/${matter.id}/order?act=${act}`;
+}
+
+/** Forward, so the order slides in the way the complaint did. */
+function openOrder(): void {
+  markArrival("next");
+}
 
 /** A lifted white panel whose children draw their own padding and dividers. */
 const SHEET = "gap-0 overflow-hidden border-hairline py-0 shadow-raised";
@@ -236,7 +237,6 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
   );
   const findings = React.useMemo(() => findingsFor(matter), [matter]);
 
-  const next = nextCognizanceCase(matter.id) ?? null;
   const primary = primaryActFor(matter);
 
   /* Which field is lit, and the document and region it opened. `fieldId` is what lights
@@ -303,15 +303,6 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
     }
   }, [setDocWidth]);
 
-  /** Which act is being asked about, and whether it has settled. `null` — neither. */
-  const [act, setAct] = React.useState<CognizanceAct | null>(null);
-  const [settled, setSettled] = React.useState(false);
-
-  const ask = (nextAct: CognizanceAct) => {
-    setSettled(false);
-    setAct(nextAct);
-  };
-
   /* The scroller cares only which document and region — not which field opened it. */
   const documentActive = active ? { doc: active.doc, zone: active.zone } : null;
 
@@ -345,12 +336,21 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
             <h1 className="min-w-0 truncate font-semibold text-title-s">
               {causeTitle(matter)}
             </h1>
+            {/* Each act opens the order it would draw up, with its items already
+                loaded — the PRD's own shape (§6): an act is never performed from here,
+                it is composed, read and sent. They were confirmation dialogs naming the
+                items in words; a list of item names is a worse version of the order
+                itself, which is one click away and editable. */}
             <div className="flex shrink-0 items-center gap-3">
-              <Button type="button" variant="outline" onClick={() => ask("dismiss")}>
-                {COGNIZANCE_ACTS.dismiss.label}
+              <Button asChild variant="outline">
+                <Link href={orderHref(matter, "dismiss")} onClick={openOrder}>
+                  {COGNIZANCE_ACTS.dismiss.label}
+                </Link>
               </Button>
-              <Button type="button" onClick={() => ask(primary)}>
-                {COGNIZANCE_ACTS[primary].label}
+              <Button asChild>
+                <Link href={orderHref(matter, primary)} onClick={openOrder}>
+                  {COGNIZANCE_ACTS[primary].label}
+                </Link>
               </Button>
             </div>
           </div>
@@ -414,24 +414,6 @@ function CaseBody({ matter }: { matter: CognizanceCase }) {
           </aside>
         </div>
       </div>
-
-      <Dialog
-        open={act !== null}
-        onOpenChange={(open) => {
-          if (!open) setAct(null);
-        }}
-      >
-        {act ? (
-          <ActBody
-            act={act}
-            matter={matter}
-            next={next}
-            settled={settled}
-            onClose={() => setAct(null)}
-            onConfirm={() => setSettled(true)}
-          />
-        ) : null}
-      </Dialog>
     </>
   );
 }
@@ -631,136 +613,6 @@ function FindingAlert({ finding }: { finding: CognizanceFinding }) {
         {finding.consequence}
       </AlertDescription>
     </Alert>
-  );
-}
-
-/* ─────────────────────────────────── the act ────────────────────────────────── */
-
-/**
- * The question, and then the outcome, in one overlay — Register cases' act dialog.
- *
- * The act settles in place rather than closing: the outcome is what the bench came for,
- * and a dialog that vanishes leaves them looking at the file they just decided. The chip
- * carries the state, the heading what follows from it; nothing else moves.
- */
-function ActBody({
-  act,
-  matter,
-  next,
-  settled,
-  onClose,
-  onConfirm,
-}: {
-  act: CognizanceAct;
-  matter: CognizanceCase;
-  next: CognizanceCase | null;
-  settled: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  const titleRef = React.useRef<HTMLHeadingElement>(null);
-  const spec = COGNIZANCE_ACTS[act];
-
-  return (
-    <ChromeDialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-lg">
-      <DialogHeader className="shrink-0 items-start gap-2 border-b border-hairline p-6 pr-16">
-        <Badge
-          variant={settled ? spec.badge : "secondary"}
-          className="gap-1.5 transition-colors duration-500 motion-reduce:transition-none"
-        >
-          {settled ? (
-            <CircleCheckIcon
-              aria-hidden
-              className="size-3.5 shrink-0 animate-in fade-in-0 zoom-in-50 duration-500 motion-reduce:animate-none"
-            />
-          ) : null}
-          <span
-            key={settled ? "settled" : "asking"}
-            role={settled ? "status" : undefined}
-            className="animate-in fade-in-0 slide-in-from-bottom-1 duration-500 motion-reduce:animate-none"
-          >
-            {settled ? spec.settled : COGNIZANCE_PENDING_LABEL}
-          </span>
-        </Badge>
-        <DialogTitle
-          ref={titleRef}
-          tabIndex={-1}
-          className="text-title-s font-semibold outline-none"
-        >
-          <span
-            key={settled ? "settled" : "asking"}
-            className="inline-block animate-in fade-in-0 slide-in-from-bottom-1 duration-500 motion-reduce:animate-none"
-          >
-            {settled ? spec.outcome : spec.asking}
-          </span>
-        </DialogTitle>
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          {/* No copy control inside the dialog's accessible description. */}
-          <Identifier value={matter.caseNumber} label="case number" copyable={false} />
-          {" · "}
-          {causeTitle(matter)}
-        </DialogDescription>
-      </DialogHeader>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-6">
-        <p className="text-body-compact text-pretty">
-          {settled
-            ? "The order is drafted and waiting to be signed. Nothing has been issued from this screen."
-            : "An order will be drawn up with these items. It cannot be undone from this screen."}
-        </p>
-        <ul className="flex flex-col gap-1 rounded-lg bg-surface-sunken p-3">
-          {spec.items.map((item) => (
-            <li key={item} className="text-body-compact">
-              {item}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <DialogFooter className="mx-0 mb-0 shrink-0 border-hairline bg-card">
-        {settled ? (
-          <>
-            <Button asChild variant={next ? "ghost" : "default"}>
-              <Link
-                href={COGNIZANCE_PATH}
-                onClick={() => {
-                  markArrival("back");
-                  /* Back to the half of the register this complaint stands on — a
-                     bench working the late ones should not be handed the timely
-                     ones after every decision. */
-                  markCognizanceTab(tabFor(matter));
-                }}
-              >
-                Back to take cognizance
-              </Link>
-            </Button>
-            {next ? (
-              <Button asChild>
-                <Link
-                  href={`${COGNIZANCE_PATH}/${next.id}`}
-                  onClick={() => markArrival("next")}
-                >
-                  Next complaint
-                </Link>
-              </Button>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant={act === "dismiss" ? "destructive" : "default"}
-              onClick={onConfirm}
-            >
-              {spec.label}
-            </Button>
-          </>
-        )}
-      </DialogFooter>
-    </ChromeDialogContent>
   );
 }
 

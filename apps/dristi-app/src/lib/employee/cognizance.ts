@@ -1097,6 +1097,11 @@ export function filterCognizanceCases(
  */
 export type CognizanceAct = "cognizance" | "notice" | "dismiss";
 
+/** Whether a string off a URL names one of the three acts. */
+export function isCognizanceAct(value: string | undefined): value is CognizanceAct {
+  return value === "cognizance" || value === "notice" || value === "dismiss";
+}
+
 /** The positive action configured for one tab. */
 export function positiveActForTab(tab: CognizanceTab): CognizanceAct {
   return COGNIZANCE_TABS.find((entry) => entry.id === tab)!.positiveAct;
