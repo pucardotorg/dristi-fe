@@ -126,6 +126,7 @@ export function RaiseApplicationForm({
   resume = null,
   backHref,
   objectTo,
+  inPlace,
 }: {
   record: CaseRecord;
   /** A saved draft reopened from the register; null starts a new filing. */
@@ -138,6 +139,14 @@ export function RaiseApplicationForm({
    * picker (ALC-12), so this is its only way in.
    */
   objectTo?: string;
+  /**
+   * Opened over the page the filer is already on (the case's Applications
+   * tab: Continue draft, File objection) rather than on its own page. Only
+   * the dialogs render, and every way out calls `onClose`, so the page under
+   * the dialog never changes (owner, Sept 24: "a dialog box shouldn't change
+   * the page underneath").
+   */
+  inPlace?: { onClose: () => void };
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const formId = useId();
@@ -433,6 +442,10 @@ export function RaiseApplicationForm({
    *  Applications, where its task lives. */
   function closeForm() {
     setDiscardOpen(false);
+    if (inPlace) {
+      inPlace.onClose();
+      return;
+    }
     if (objecting) {
       router.push(caseHref);
       return;
@@ -525,6 +538,7 @@ export function RaiseApplicationForm({
 
   return (
     <>
+      {inPlace ? null : (
       <div className="flex w-full flex-col gap-6">
         {/* Keyed to the column, not the viewport: on a portrait tablet the rail
             is still open, and a viewport rule put the search beside a heading
@@ -572,6 +586,7 @@ export function RaiseApplicationForm({
           onChoose={chooseType}
         />
       </div>
+      )}
 
       {/*
         Every type files from a dialog over the chooser, in the shell the bail

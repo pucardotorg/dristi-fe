@@ -52,14 +52,17 @@ export function ApplicationRecordDialog({
   onOpenChange,
   onOpenLinked,
   onAct,
+  onObject,
 }: {
   caseId: string;
   application: ApplicationRecord | null;
   onOpenChange: (open: boolean) => void;
   /** Open another application in this dialog: an objection and what it objects to. */
   onOpenLinked?: (id: string) => void;
-  /** Take the viewer's step on it (sign, pay) from the record itself. */
+  /** Take the viewer's step on it (continue, sign, pay) from the record itself. */
   onAct?: (application: ApplicationRecord) => void;
+  /** File an objection to it, over the page the record was opened on. */
+  onObject?: (applicationId: string) => void;
 }) {
   return (
     <Dialog open={application !== null} onOpenChange={onOpenChange}>
@@ -74,6 +77,7 @@ export function ApplicationRecordDialog({
             application={application}
             onOpenLinked={onOpenLinked}
             onAct={onAct}
+            onObject={onObject}
           />
         ) : null}
       </FlowDialogContent>
@@ -86,13 +90,20 @@ function RecordBody({
   application,
   onOpenLinked,
   onAct,
+  onObject,
 }: {
   caseId: string;
   application: ApplicationRecord;
   onOpenLinked?: (id: string) => void;
   onAct?: (application: ApplicationRecord) => void;
+  onObject?: (applicationId: string) => void;
 }) {
-  const draftHref = resumeDraftHref(caseId, application.source);
+  /* An application draft reopens over this page (onAct); only a document
+     draft still has its own page to go to. */
+  const draftHref =
+    application.source.kind === "application" && onAct
+      ? null
+      : resumeDraftHref(caseId, application.source);
   const viewable = application.documents.filter((doc) => doc.src);
   const [openSrc, setOpenSrc] = useState(viewable[0]?.src);
   const open = viewable.find((doc) => doc.src === openSrc);
@@ -388,11 +399,21 @@ function RecordBody({
             {application.objectionInvite.due}.
           </p>
           {application.objectionInvite.canFile ? (
-            <Button asChild className="w-full sm:w-auto">
-              <Link href={objectionHref(caseId, application.id)}>
+            onObject ? (
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                onClick={() => onObject(application.id)}
+              >
                 File objection
-              </Link>
-            </Button>
+              </Button>
+            ) : (
+              <Button asChild className="w-full sm:w-auto">
+                <Link href={objectionHref(caseId, application.id)}>
+                  File objection
+                </Link>
+              </Button>
+            )
           ) : null}
         </footer>
       ) : null}
@@ -405,13 +426,17 @@ function RecordBody({
             <Button asChild className="w-full sm:w-auto">
               <Link href={draftHref}>Continue draft</Link>
             </Button>
-          ) : application.step !== "continue" && onAct ? (
+          ) : onAct ? (
             <Button
               type="button"
               className="w-full sm:w-auto"
               onClick={() => onAct(application)}
             >
-              {application.step === "sign" ? "Add signature" : "Complete payment"}
+              {application.step === "continue"
+                ? "Continue draft"
+                : application.step === "sign"
+                  ? "Add signature"
+                  : "Complete payment"}
             </Button>
           ) : null}
         </footer>

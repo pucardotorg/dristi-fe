@@ -13,6 +13,7 @@ import {
 
 import { ApplicationPaymentDialog } from "@/components/cases/application-payment-dialog";
 import { ApplicationRecordDialog } from "@/components/cases/application-record-dialog";
+import { RaiseApplicationForm } from "@/components/cases/raise-application-form";
 import { RestingCard } from "@/components/cases/case-overview-card";
 import {
   RECENT_ROW,
@@ -72,10 +73,10 @@ import { resolveApplicationViewer } from "@/lib/cases/application-access";
 import {
   FILING_STATUSES,
   applicationsFile,
-  objectionHref,
   quotedOthersTitle,
   resumeDraftHref,
   type FilingStatus,
+  type Submission,
 } from "@/lib/cases/applications";
 import { FIXTURE_TODAY } from "@/lib/cases/fixtures";
 import { isViewer, viewerRepresentation } from "@/lib/cases/viewer";
@@ -171,6 +172,13 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
      otherwise flips to "Application signed" as it animates out. */
   const [signCount, setSignCount] = useState(0);
   const [paying, setPaying] = useState<ApplicationRecord[]>([]);
+  /* The Raise application form, opened over this tab for a draft or an
+     objection: the page under it never changes (owner, Sept 24). */
+  const [formFor, setFormFor] = useState<{
+    key: string;
+    resume?: Submission;
+    objectTo?: string;
+  } | null>(null);
 
   if (!register) {
     return (
@@ -246,12 +254,19 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
    *  open their dialog. One application signs through the same flow as many. */
   function act(applications: ApplicationRecord[]) {
     const [lead] = applications;
-    if (lead.step === "pay") {
+    if (lead.step === "continue" && lead.source.kind === "application") {
+      setFormFor({ key: `draft-${lead.id}`, resume: lead.source });
+    } else if (lead.step === "pay") {
       setPaying(applications);
     } else if (lead.step === "sign") {
       setSigning(applications);
       setSignCount(applications.length);
     }
+  }
+
+  /** File objection, over this tab. */
+  function object(applicationId: string) {
+    setFormFor({ key: `object-${applicationId}`, objectTo: applicationId });
   }
 
   return (
@@ -261,6 +276,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           caseId={record.id}
           entries={actions}
           onAct={act}
+          onObject={object}
           onOpen={setRecordOpen}
         />
       ) : null}
@@ -364,6 +380,11 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           setRecordOpen(null);
           act([application]);
         }}
+        onObject={(applicationId) => {
+          openedHere.current = false;
+          setRecordOpen(null);
+          object(applicationId);
+        }}
         onOpenChange={(open) => {
           if (open) return;
           if (recordOpen && !openedHere.current) markRecent(recordOpen);
@@ -420,6 +441,15 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       {/* Paid means submitted (ALC-01): the court has it, and the court's
           Review application task starts. An objection ends at Submitted
           instead: it is read with the application it objects to. */}
+      {formFor ? (
+        <RaiseApplicationForm
+          key={formFor.key}
+          record={record}
+          resume={formFor.resume ?? null}
+          objectTo={formFor.objectTo}
+          inPlace={{ onClose: () => setFormFor(null) }}
+        />
+      ) : null}
       <ApplicationPaymentDialog
         applications={paying}
         onOpenChange={(open) => {
@@ -492,11 +522,13 @@ function NeedsAction({
   caseId,
   entries,
   onAct,
+  onObject,
   onOpen,
 }: {
   caseId: string;
   entries: ActionEntry[];
   onAct: (applications: ApplicationRecord[]) => void;
+  onObject: (applicationId: string) => void;
   onOpen: (id: string) => void;
 }) {
   const count = entries.reduce(
@@ -546,11 +578,11 @@ function NeedsAction({
               />
             ) : (
               <TouchObjectionCard
-                caseId={caseId}
                 task={entry.task}
                 open={tray.isOpen(entry.key)}
                 onOpenChange={tray.toggle(entry.key)}
                 onOpen={onOpen}
+                onObject={onObject}
               />
             )}
           </li>
@@ -574,13 +606,31 @@ function NeedsAction({
                 onOpen={onOpen}
               />
             ) : (
-              <ObjectionRow caseId={caseId} task={entry.task} onOpen={onOpen} />
+              <ObjectionRow
+                task={entry.task}
+                onOpen={onOpen}
+                onObject={onObject}
+              />
             )}
           </li>
         ))}
       </ul>
     </section>
   );
+}
+
+/**
+ * Where a draft's Continue draft goes when it leaves this tab: only a
+ * document draft does, to its own page. An application draft reopens its
+ * form over this tab (`act`), so the page under the dialog never changes.
+ */
+function documentDraftHref(
+  caseId: string,
+  application: ApplicationRecord
+): string | null {
+  return application.source.kind === "application"
+    ? null
+    : resumeDraftHref(caseId, application.source);
 }
 
 const STEP_COPY = {
@@ -661,7 +711,7 @@ function StepAction({
 }) {
   if (!application.step) return null;
   const step = STEP_COPY[application.step];
-  const draftHref = resumeDraftHref(caseId, application.source);
+  const draftHref = documentDraftHref(caseId, application);
   return application.step === "continue" && draftHref ? (
     <Button asChild>
       <Link href={draftHref}>{step}</Link>
@@ -884,7 +934,7 @@ function ActionRow({
   nested?: boolean;
 }) {
   const step = application.step ? STEP_COPY[application.step] : null;
-  const draftHref = resumeDraftHref(caseId, application.source);
+  const draftHref = documentDraftHref(caseId, application);
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5">
       <div className="flex min-w-0 flex-1 flex-col gap-1 max-sm:basis-full">
@@ -1084,13 +1134,13 @@ function ObjectionDue({ task }: { task: ObjectionTask }) {
 }
 
 function ObjectionRow({
-  caseId,
   task,
   onOpen,
+  onObject,
 }: {
-  caseId: string;
   task: ObjectionTask;
   onOpen: (id: string) => void;
+  onObject: (applicationId: string) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5">
@@ -1110,13 +1160,15 @@ function ObjectionRow({
         </p>
       </div>
       {task.canFile ? (
-        <Button variant="outline" size="sm" className="max-sm:h-10" asChild>
-          <Link href={objectionHref(caseId, task.application.id)}>
-            File objection
-            <span className="sr-only">
-              : {task.application.typeLabel}
-            </span>
-          </Link>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="max-sm:h-10"
+          onClick={() => onObject(task.application.id)}
+        >
+          File objection
+          <span className="sr-only">: {task.application.typeLabel}</span>
         </Button>
       ) : (
         <Button
@@ -1135,17 +1187,17 @@ function ObjectionRow({
 }
 
 function TouchObjectionCard({
-  caseId,
   task,
   open,
   onOpenChange,
   onOpen,
+  onObject,
 }: {
-  caseId: string;
   task: ObjectionTask;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpen: (id: string) => void;
+  onObject: (applicationId: string) => void;
 }) {
   return (
     <RegisterTrayCard
@@ -1162,10 +1214,11 @@ function TouchObjectionCard({
             View
           </Button>
           {task.canFile ? (
-            <Button asChild>
-              <Link href={objectionHref(caseId, task.application.id)}>
-                File objection
-              </Link>
+            <Button
+              type="button"
+              onClick={() => onObject(task.application.id)}
+            >
+              File objection
             </Button>
           ) : null}
         </>
