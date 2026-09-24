@@ -668,22 +668,27 @@ function TouchActionCard({
         </>
       }
     >
-      <div className="-mt-1 flex flex-wrap items-center gap-2">
+      <div className="-mt-1 flex flex-col items-start gap-2">
         {nested ? null : (
           <Badge variant={application.statusVariant}>
             {application.statusLabel}
           </Badge>
         )}
-        <p className="flex flex-wrap items-center gap-x-1 text-caption text-muted-foreground">
-          <span>{`${filedLine(application)} ·`}</span>
-          <span className="tabular-nums">Created {application.created}</span>
-          {expiryText(application) ? (
-            <>
-              <span aria-hidden>·</span>
-              <ExpiryNote text={expiryText(application)!} />
-            </>
-          ) : null}
-        </p>
+        {/* One fact a line on a card, 4px apart: wrapped at whatever width was
+            left, the line crammed two captions together and stranded a "·"
+            at its end (owner, Sept 24). */}
+        <div className="flex flex-col gap-1 text-caption text-muted-foreground">
+          <span>{filedLine(application)}</span>
+          <span className="flex flex-wrap items-center gap-x-1 gap-y-1 tabular-nums">
+            <span>Created {application.created}</span>
+            {expiryText(application) ? (
+              <>
+                <span aria-hidden>·</span>
+                <ExpiryNote text={expiryText(application)!} />
+              </>
+            ) : null}
+          </span>
+        </div>
       </div>
     </RegisterTrayCard>
   );
@@ -804,7 +809,7 @@ function ActionRow({
             </Badge>
           )}
         </div>
-        <p className="flex flex-wrap items-center gap-x-1 text-caption font-medium text-muted-foreground">
+        <p className="flex flex-wrap items-center gap-x-1 gap-y-1 text-caption font-medium text-muted-foreground">
           <span>{`${filedLine(application)} ·`}</span>
           <span className="tabular-nums">Created {application.created}</span>
           {expiryText(application) ? (
@@ -994,7 +999,7 @@ function ObjectionRow({
             {objectionTitle(task)}
           </button>
         </div>
-        <p className="flex flex-wrap items-center gap-x-1 text-caption font-medium text-muted-foreground tabular-nums">
+        <p className="flex flex-wrap items-center gap-x-1 gap-y-1 text-caption font-medium text-muted-foreground tabular-nums">
           <span>{objectionLine(task)} ·</span>
           <ObjectionDue task={task} />
         </p>
@@ -1046,10 +1051,10 @@ function TouchObjectionCard({
         </>
       }
     >
-      <p className="-mt-1 flex flex-wrap items-center gap-x-1 text-caption text-muted-foreground tabular-nums">
-        <span>{objectionLine(task)} ·</span>
+      <div className="-mt-1 flex flex-col items-start gap-1 text-caption text-muted-foreground tabular-nums">
+        <span>{objectionLine(task)}</span>
         <ObjectionDue task={task} />
-      </p>
+      </div>
     </RegisterTrayCard>
   );
 }
@@ -1198,10 +1203,14 @@ function ApplicationsTable({
                   />
                   {awaitingNumber(item) ? " (temporary)" : null}
                 </>
-              ) : (
+              ) : objectionTarget(item) ? null : (
+                /* An objection never gets a court number; its line says what
+                   it objects to instead. */
                 "Number not allotted yet"
               )}
-              {objectionTarget(item) ? ` ${objectionTarget(item)}` : null}
+              {objectionTarget(item)
+                ? `${item.temporaryId ? " " : ""}${objectionTarget(item)}`
+                : null}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
@@ -1209,7 +1218,7 @@ function ApplicationsTable({
                   <span className={noteClass(!item.waitingOn)}>{note}</span>
                 ) : null}
             </div>
-            <div className="flex flex-col gap-0.5 border-t border-hairline pt-3">
+            <div className="flex flex-col gap-1 border-t border-hairline pt-3">
               <p className="text-body-compact text-foreground">
                 {item.filedBy}
                 {item.fromOtherSide ? (
