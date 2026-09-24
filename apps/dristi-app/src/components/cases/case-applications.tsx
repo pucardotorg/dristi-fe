@@ -572,22 +572,33 @@ const STEP_COPY = {
  * of the line, never amber: amber in this list is a court deadline (an
  * objection), and an expiry is the lower priority (owner, Sept 24).
  */
-function expiryNote(application: ApplicationRecord): string {
-  if (!expiringSoon(application)) return "";
-  const days = application.expiresInDays!;
-  const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
-  return ` · (expires ${when})`;
+function whenIn(days: number): string {
+  return days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
 }
 
-function groupExpiryNote(applications: ApplicationRecord[]): string | null {
+/** Muted, with the clock the objection's amber line carries, and no brackets:
+ *  it is a deadline, just the lower one (owner, Sept 24). */
+function ExpiryNote({ text }: { text: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums">
+      <ClockIcon className="size-3.5 shrink-0" aria-hidden />
+      {text}
+    </span>
+  );
+}
+
+function expiryText(application: ApplicationRecord): string | null {
+  if (!expiringSoon(application)) return null;
+  return `Expires ${whenIn(application.expiresInDays!)}`;
+}
+
+function groupExpiryText(applications: ApplicationRecord[]): string | null {
   const soon = applications.filter(expiringSoon);
   if (soon.length === 0) return null;
   if (soon.length > 1) {
-    return `(${soon.length} expire within ${EXPIRY_NOTICE_DAYS} days)`;
+    return `${soon.length} expire within ${EXPIRY_NOTICE_DAYS} days`;
   }
-  const days = soon[0].expiresInDays!;
-  const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
-  return `(1 expires ${when})`;
+  return `1 expires ${whenIn(soon[0].expiresInDays!)}`;
 }
 
 /** Who raised it, when the list is not only the viewer's own filings. */
@@ -662,12 +673,15 @@ function TouchActionCard({
             {application.statusLabel}
           </Badge>
         )}
-        <p className="text-caption text-muted-foreground">
-          {`${filedLine(application)} · `}
-          <span className="tabular-nums">
-            Created {application.created}
-            {expiryNote(application)}
-          </span>
+        <p className="flex flex-wrap items-center gap-x-1 text-caption text-muted-foreground">
+          <span>{`${filedLine(application)} ·`}</span>
+          <span className="tabular-nums">Created {application.created}</span>
+          {expiryText(application) ? (
+            <>
+              <span aria-hidden>·</span>
+              <ExpiryNote text={expiryText(application)!} />
+            </>
+          ) : null}
         </p>
       </div>
     </RegisterTrayCard>
@@ -728,9 +742,9 @@ function TouchActionGroup({
       >
         <div className="-mt-1 flex flex-wrap items-center gap-2">
           <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
-          {groupExpiryNote(entry.applications) ? (
-            <span className="text-caption text-muted-foreground tabular-nums">
-              {groupExpiryNote(entry.applications)}
+          {groupExpiryText(entry.applications) ? (
+            <span className="text-caption text-muted-foreground">
+              <ExpiryNote text={groupExpiryText(entry.applications)!} />
             </span>
           ) : null}
         </div>
@@ -789,12 +803,15 @@ function ActionRow({
             </Badge>
           )}
         </div>
-        <p className="text-caption font-medium text-muted-foreground">
-          {`${filedLine(application)} · `}
-          <span className="tabular-nums">
-            Created {application.created}
-            {expiryNote(application)}
-          </span>
+        <p className="flex flex-wrap items-center gap-x-1 text-caption font-medium text-muted-foreground">
+          <span>{`${filedLine(application)} ·`}</span>
+          <span className="tabular-nums">Created {application.created}</span>
+          {expiryText(application) ? (
+            <>
+              <span aria-hidden>·</span>
+              <ExpiryNote text={expiryText(application)!} />
+            </>
+          ) : null}
         </p>
       </div>
       {step ? (
@@ -849,9 +866,9 @@ function ActionGroup({
             {groupTitle(entry)}
           </p>
           <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
-          {groupExpiryNote(entry.applications) ? (
-            <span className="text-caption font-medium text-muted-foreground tabular-nums">
-              {groupExpiryNote(entry.applications)}
+          {groupExpiryText(entry.applications) ? (
+            <span className="text-caption font-medium text-muted-foreground">
+              <ExpiryNote text={groupExpiryText(entry.applications)!} />
             </span>
           ) : null}
         </div>
@@ -1043,6 +1060,11 @@ function TouchObjectionCard({
  */
 function statusNote(item: ApplicationRecord): string | undefined {
   if (item.waitingOn) return bracketed(item.waitingOn);
+  /* The other side's application the viewer may still object to: the date
+     that matters to them is the objection's, not the decision's. */
+  if (item.objectionInvite) {
+    return bracketed(`Object by ${item.objectionInvite.dueShort}`);
+  }
   if (item.status === "pending-decision" && item.decisionShort) {
     return bracketed(`Decision on ${item.decisionShort}`);
   }
@@ -1056,6 +1078,16 @@ function statusNote(item: ApplicationRecord): string | undefined {
  */
 function bracketed(note: string): string {
   return `(${note.charAt(0).toLowerCase()}${note.slice(1)})`;
+}
+
+/**
+ * For an objection row: what it objects to, so the viewer's own objections
+ * and the other side's read apart at a glance (owner, Sept 24).
+ */
+function objectionTarget(item: ApplicationRecord): string | null {
+  if (!item.objectionTo) return null;
+  const target = item.objectionTo.number ?? item.objectionTo.typeLabel;
+  return bracketed(`To ${target}`);
 }
 
 /**
@@ -1168,6 +1200,7 @@ function ApplicationsTable({
               ) : (
                 "Number not allotted yet"
               )}
+              {objectionTarget(item) ? ` ${objectionTarget(item)}` : null}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
@@ -1224,7 +1257,14 @@ function ApplicationsTable({
             <TableCell
               className={cn(TABLE_CELL, "font-medium whitespace-normal")}
             >
-              {item.typeLabel}
+              <span className="flex flex-col gap-0.5">
+                <span>{item.typeLabel}</span>
+                {objectionTarget(item) ? (
+                  <span className="text-caption font-normal text-muted-foreground">
+                    {objectionTarget(item)}
+                  </span>
+                ) : null}
+              </span>
             </TableCell>
             <TableCell
               className={cn(TABLE_CELL, "text-caption text-muted-foreground")}

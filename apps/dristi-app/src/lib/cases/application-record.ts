@@ -117,7 +117,7 @@ export type ApplicationRecord = {
    * application, and has not started its one objection: the File objection
    * task, seen from the record.
    */
-  objectionInvite?: { dueOn: string; due: string };
+  objectionInvite?: { dueOn: string; due: string; dueShort: string };
   /** The order's operative line, once decided or dismissed. */
   courtResult?: string;
   linkedOrder?: { id: string; label: string };
@@ -379,7 +379,11 @@ function recordFor(
       ? daysBetween(today, source.expiresOn)
       : undefined,
     objectionInvite: inviteDueOn
-      ? { dueOn: inviteDueOn, due: formatCaseDate(inviteDueOn) }
+      ? {
+          dueOn: inviteDueOn,
+          due: formatCaseDate(inviteDueOn),
+          dueShort: shortDate(inviteDueOn),
+        }
       : undefined,
     courtResult: source.courtResult ?? undefined,
     linkedOrder: source.linkedOrder ?? undefined,
