@@ -679,15 +679,10 @@ function TouchActionCard({
             at its end (owner, Sept 24). */}
         <div className="flex flex-col gap-1 text-caption text-muted-foreground">
           <span>{filedLine(application)}</span>
-          <span className="flex flex-wrap items-center gap-x-1 gap-y-1 tabular-nums">
-            <span>Created {application.created}</span>
-            {expiryText(application) ? (
-              <>
-                <span aria-hidden>·</span>
-                <ExpiryNote text={expiryText(application)!} />
-              </>
-            ) : null}
-          </span>
+          <span className="tabular-nums">Created {application.created}</span>
+          {expiryText(application) ? (
+            <ExpiryNote text={expiryText(application)!} />
+          ) : null}
         </div>
       </div>
     </RegisterTrayCard>
@@ -703,6 +698,14 @@ function groupTitle(
     : `${count} applications need payment`;
 }
 
+/**
+ * A group on a touch screen (owner, Sept 24): tapping the card slides its tray
+ * out from under it, and the tray holds the group. Each member is a small
+ * white card with its own View and step; the group's one action (Sign all,
+ * Pay all) sits under the last of them. The members live inside the group's
+ * own tray, so they read as the group's, not as more cards in the list; there
+ * is no separate Show each / Hide each.
+ */
 function TouchActionGroup({
   entry,
   open,
@@ -717,61 +720,97 @@ function TouchActionGroup({
   onOpen: (id: string) => void;
 }) {
   const [lead] = entry.applications;
+  const count = entry.applications.length;
   const signing = entry.step === "sign";
+  /* Bulk signing is only for a filer with the tool set up; everyone else
+     signs each on its own card. */
   const bulk = !signing || HAS_BULK_SIGNING_TOOL;
-  const [showEach, setShowEach] = useState(!bulk);
-  const each = useOneOpen<string>();
 
   return (
-    <div className="flex flex-col gap-2">
-      <RegisterTrayCard
-        title={groupTitle(entry)}
-        open={open}
-        onOpenChange={onOpenChange}
-        actions={
-          <>
+    <RegisterTrayCard
+      title={groupTitle(entry)}
+      open={open}
+      onOpenChange={onOpenChange}
+      tray={
+        <>
+          <ul className="flex flex-col gap-2" aria-label={groupTitle(entry)}>
+            {entry.applications.map((application) => (
+              <li key={application.id}>
+                <GroupMemberCard
+                  application={application}
+                  onAct={onAct}
+                  onOpen={onOpen}
+                />
+              </li>
+            ))}
+          </ul>
+          {bulk ? (
             <Button
               type="button"
-              variant="outline"
-              aria-expanded={showEach}
-              onClick={() => setShowEach((value) => !value)}
+              className="w-full"
+              onClick={() => onAct(entry.applications)}
             >
-              {showEach ? "Hide each" : "Show each"}
+              {signing ? `Sign all ${count}` : `Pay all ${count}`}
             </Button>
-            {bulk ? (
-              <Button type="button" onClick={() => onAct(entry.applications)}>
-                {signing ? "Sign all" : "Pay all"}
-              </Button>
-            ) : null}
-          </>
-        }
-      >
-        <div className="-mt-1 flex flex-wrap items-center gap-2">
-          <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
-          {groupExpiryText(entry.applications) ? (
-            <span className="text-caption text-muted-foreground">
-              <ExpiryNote text={groupExpiryText(entry.applications)!} />
-            </span>
+          ) : null}
+        </>
+      }
+    >
+      <div className="-mt-1 flex flex-wrap items-center gap-2">
+        <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
+        {groupExpiryText(entry.applications) ? (
+          <span className="text-caption text-muted-foreground">
+            <ExpiryNote text={groupExpiryText(entry.applications)!} />
+          </span>
+        ) : null}
+      </div>
+    </RegisterTrayCard>
+  );
+}
+
+/** One application inside a group's tray: what it is, and its two ways in. */
+function GroupMemberCard({
+  application,
+  onAct,
+  onOpen,
+}: {
+  application: ApplicationRecord;
+  onAct: (applications: ApplicationRecord[]) => void;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-card p-3">
+      <div className="flex flex-col gap-1">
+        <p className="text-body-compact font-semibold text-foreground">
+          {application.typeLabel}
+        </p>
+        <div className="flex flex-col gap-1 text-caption text-muted-foreground">
+          <span>{filedLine(application)}</span>
+          <span className="tabular-nums">Created {application.created}</span>
+          {expiryText(application) ? (
+            <ExpiryNote text={expiryText(application)!} />
           ) : null}
         </div>
-      </RegisterTrayCard>
-      {showEach ? (
-        <ul className="flex flex-col gap-2 border-l border-hairline pl-3">
-          {entry.applications.map((application) => (
-            <li key={application.id}>
-              <TouchActionCard
-                caseId=""
-                application={application}
-                open={each.isOpen(application.id)}
-                onOpenChange={each.toggle(application.id)}
-                onAct={onAct}
-                onOpen={onOpen}
-                nested
-              />
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      </div>
+      <div className="flex gap-2 [&>*]:flex-1">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onOpen(application.id)}
+        >
+          View<span className="sr-only">: {application.typeLabel}</span>
+        </Button>
+        {application.step && application.step !== "continue" ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onAct([application])}
+          >
+            {STEP_COPY[application.step]}
+            <span className="sr-only">: {application.typeLabel}</span>
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
