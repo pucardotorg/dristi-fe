@@ -38,13 +38,17 @@ import {
   type SuretyDraft,
   type YesNo,
 } from "@/lib/cases/application-draft";
+import { applicationsFile, submissionTypeLabel } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 
 /** Formatting markup renders the same in the editor and in the review pane. */
 export const RICH_TEXT_CLASSES =
   "[&_ol]:list-decimal [&_ol]:ps-6 [&_ul]:list-disc [&_ul]:ps-6";
 
-type ListKey = "supportingDocuments" | "submissionDocuments";
+type ListKey =
+  | "supportingDocuments"
+  | "submissionDocuments"
+  | "objectionDocuments";
 
 export type FieldActions = {
   update: <Key extends keyof ApplicationDraft>(
@@ -101,6 +105,8 @@ export function ApplicationTypeFields(props: FieldsProps) {
       return <TransferFields {...props} />;
     case "withdrawal":
       return <WithdrawalFields {...props} />;
+    case "objection":
+      return <ObjectionFields {...props} />;
     default:
       return null;
   }
@@ -953,6 +959,62 @@ function WithdrawalFields(props: FieldsProps) {
           onChange={(value) => actions.update("comments", value)}
         />
       </SectionCard>
+    </div>
+  );
+}
+
+/* ------------------------------------------------ 9 · objection ---------- */
+
+/**
+ * Raised from the File objection task, against one application of the other
+ * side (ALC-12, ALC-24). What it objects to is fixed, so it is shown locked
+ * rather than chosen. The PRD lists no fields for Objection yet: grounds and
+ * any documents relied on are the working guess.
+ */
+function ObjectionFields(props: FieldsProps) {
+  const { draft, errors, record, actions } = props;
+  const target = applicationsFile(record).submissions.find(
+    (item) => item.id === draft.objectionToId
+  );
+  const targetLabel = target
+    ? [
+        submissionTypeLabel(target.type),
+        target.applicationNumber ?? target.temporaryId,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PrefilledField
+        label="Objection to"
+        value={targetLabel}
+        description={
+          target?.decisionOn
+            ? `The court decides it on ${formatCaseDate(target.decisionOn)}.`
+            : undefined
+        }
+      />
+
+      <RichField
+        label="Grounds of objection"
+        value={draft.objectionGrounds}
+        error={errors.fields.objectionGrounds}
+        onChange={(value) => actions.update("objectionGrounds", value)}
+      />
+
+      <DocumentRowsSection
+        listKey="objectionDocuments"
+        heading="Documents relied on"
+        optional
+        addLabel="Add a document"
+        rowLabel="Document"
+        rows={draft.objectionDocuments}
+        errors={errors}
+        actions={actions}
+        onRowsChange={(rows) => actions.update("objectionDocuments", rows)}
+      />
     </div>
   );
 }

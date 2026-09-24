@@ -13,6 +13,7 @@
  * the last place to guess one.
  */
 import { type ApplicationDraft } from "./application-draft";
+import { applicationsFile, submissionTypeLabel } from "./applications";
 import { counselFor, formatCaseDate, type CaseRecord } from "./types";
 
 export type GeneratedApplication = {
@@ -68,7 +69,27 @@ export function buildGeneratedApplication(
 
   const complainant = record.parties.complainant;
   const accused = record.parties.accused;
-  const filedFor = draft.type === "bail" ? accused : complainant;
+  /* An objection answers the other side's application, so it is filed for
+     whichever side did not raise that one. */
+  const objectionTarget =
+    draft.type === "objection"
+      ? applicationsFile(record).submissions.find(
+          (item) => item.id === draft.objectionToId
+        )
+      : undefined;
+  const targetFiler = objectionTarget
+    ? applicationsFile(record).people.find(
+        (person) => person.id === objectionTarget.submittedById
+      )
+    : undefined;
+  const filedFor =
+    draft.type === "bail"
+      ? accused
+      : objectionTarget
+        ? targetFiler?.side === "accused"
+          ? complainant
+          : accused
+        : complainant;
 
   const facts: { term: string; value: string }[] = [
     { term: "Complainant", value: complainant },
@@ -287,6 +308,42 @@ export function buildGeneratedApplication(
       }
       prayer =
         "It is therefore prayed that the complainant be permitted to withdraw the complaint.";
+      break;
+    }
+
+    case "objection": {
+      const target = objectionTarget
+        ? [
+            `application ${
+              objectionTarget.applicationNumber ??
+              objectionTarget.temporaryId ??
+              ""
+            }`.trim(),
+            `for ${submissionTypeLabel(objectionTarget.type).toLowerCase()}`,
+          ].join(" ")
+        : "the application";
+      const objector = filedFor === accused ? "The accused" : "The complainant";
+      title = "Objection";
+      facts.push({ term: "Objection to", value: target });
+      paragraphs.push(`${objector} objects to ${target}.`);
+      if (trimmed(draft.objectionGrounds.text)) {
+        paragraphs.push(
+          `The grounds of objection are as follows: ${trimmed(
+            draft.objectionGrounds.text
+          )}`
+        );
+      }
+      const documents = draft.objectionDocuments.filter(
+        (row) => row.files.length > 0
+      ).length;
+      if (documents) {
+        paragraphs.push(
+          documents === 1
+            ? "1 document relied on accompanies this objection."
+            : `${documents} documents relied on accompany this objection.`
+        );
+      }
+      prayer = `It is therefore prayed that ${target} be rejected.`;
       break;
     }
   }

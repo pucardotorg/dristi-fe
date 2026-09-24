@@ -22,6 +22,29 @@ function findCase(caseId: string) {
  * the type picker. Resolving it here rather than in the form keeps the
  * register the one place that knows how a draft is stored.
  */
+/**
+ * ?objectTo=<application id> comes from a File objection task. Honoured only
+ * for an application that is waiting on the court's decision and invited
+ * objections; anything else starts at the type picker, as a stale draft id
+ * does.
+ */
+function objectionTarget(caseId: string, applicationId: string | undefined) {
+  const record = findCase(caseId);
+  if (!record || !applicationId) return undefined;
+  try {
+    const target = applicationsFile(record).submissions.find(
+      (item) => item.id === applicationId
+    );
+    return target &&
+      target.status === "pending-decision" &&
+      target.objectionsInvited === true
+      ? target.id
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function resumedDraft(caseId: string, draftId: string | undefined) {
   const record = findCase(caseId);
   if (!record || !draftId) return null;
@@ -49,10 +72,10 @@ export default async function RaiseApplicationPage({
   searchParams,
 }: {
   params: Promise<{ caseId: string }>;
-  searchParams: Promise<{ draft?: string; from?: string }>;
+  searchParams: Promise<{ draft?: string; from?: string; objectTo?: string }>;
 }) {
   const { caseId } = await params;
-  const { draft, from } = await searchParams;
+  const { draft, from, objectTo } = await searchParams;
   const record = findCase(caseId);
   if (!record) notFound();
 
@@ -83,6 +106,7 @@ export default async function RaiseApplicationPage({
         <RaiseApplicationForm
           record={record}
           resume={resumedDraft(caseId, draft)}
+          objectTo={draft ? undefined : objectionTarget(caseId, objectTo)}
           // The door this was opened from: the rail's case list records itself
           // here, so the way back returns to it rather than to the case.
           backHref={safeOrigin(from) ?? undefined}

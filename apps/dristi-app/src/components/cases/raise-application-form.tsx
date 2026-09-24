@@ -65,6 +65,15 @@ import {
 } from "@/lib/cases/applications";
 import { caseSectionHref } from "@/lib/cases/sections";
 import {
+  objectionDeadline,
+  resolveApplicationViewer,
+} from "@/lib/cases/application-access";
+import { applicationsFile, submissionTypeLabel } from "@/lib/cases/applications";
+import { displayName } from "@/lib/cases/names";
+import { isViewer, viewerRepresentation } from "@/lib/cases/viewer";
+import { useProfile } from "@/components/shell/profile";
+import { useRouter } from "next/navigation";
+import {
   formatCaseDate,
   partiesLabel,
   stageLabel,
@@ -97,15 +106,55 @@ export function RaiseApplicationForm({
   record,
   resume = null,
   backHref,
+  objectTo,
 }: {
   record: CaseRecord;
   /** A saved draft reopened from the register; null starts a new filing. */
   resume?: Submission | null;
   /** Set when the filer came from the rail's case list; absent, back is the case. */
   backHref?: string;
+  /**
+   * The other side's application a File objection task points at. Opens
+   * straight on an Objection against it: Objection is never offered in the
+   * picker (ALC-12), so this is its only way in.
+   */
+  objectTo?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const formId = useId();
+  const router = useRouter();
+  const { profileRole, accountName } = useProfile();
+  /* Who is filing decides two things here (PRD "Users and actions"): a
+     litigant or PoA holder does not raise applications at all, and a clerk
+     drafts but never signs, so their chain ends on the hand-off. */
+  const seat = useMemo(() => {
+    try {
+      const file = applicationsFile(record);
+      const viewer = resolveApplicationViewer({
+        file,
+        profile: profileRole,
+        accountName,
+        isSignedInAdvocate: isViewer,
+        fallbackSide: viewerRepresentation(record)[0] ?? "complainant",
+      });
+      const self = viewer?.personId
+        ? file.people.find((person) => person.id === viewer.personId)
+        : undefined;
+      const advocate = self?.officeOf
+        ? file.people.find((person) => person.id === self.officeOf)
+        : undefined;
+      return {
+        role: viewer?.role ?? null,
+        signer: advocate ? displayName(advocate.name) : undefined,
+      };
+    } catch {
+      return { role: null, signer: undefined };
+    }
+  }, [record, profileRole, accountName]);
+  const handoffTo =
+    seat.role === "clerk" ? (seat.signer ?? "your advocate") : undefined;
+  const canRaise =
+    seat.role === "advocate" || seat.role === "pip" || seat.role === "clerk";
   /*
     A resumed draft arrives with its type already chosen, so it opens on the
     fields — asking someone to re-pick the type they picked yesterday is the
@@ -113,15 +162,41 @@ export function RaiseApplicationForm({
     click away on the Change type button.
   */
   const [draft, setDraft] = useState<ApplicationDraft>(() =>
-    resume ? applicationDraftFrom(resume) : EMPTY_APPLICATION_DRAFT
+    resume
+      ? applicationDraftFrom(resume)
+      : objectTo
+        ? { ...EMPTY_APPLICATION_DRAFT, type: "objection", objectionToId: objectTo }
+        : EMPTY_APPLICATION_DRAFT
   );
   const [errors, setErrors] = useState<ApplicationErrors>(
     EMPTY_APPLICATION_ERRORS
   );
   /** Choosing the type is step one; its fields are step two. */
   const [stage, setStage] = useState<"type" | "details">(
-    resume && draft.type ? "details" : "type"
+    (resume || objectTo) && draft.type ? "details" : "type"
   );
+  const objecting = draft.type === "objection";
+  /* The application an objection answers, for the dialog's header. */
+  const objectionTarget = useMemo(() => {
+    if (!objecting) return null;
+    const target = applicationsFile(record).submissions.find(
+      (item) => item.id === draft.objectionToId
+    );
+    if (!target) return null;
+    return {
+      label: [
+        submissionTypeLabel(target.type),
+        target.applicationNumber ?? target.temporaryId,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      typeLabel: `${submissionTypeLabel(target.type)} application`,
+      decision: target.decisionOn ? formatCaseDate(target.decisionOn) : undefined,
+      due: target.decisionOn
+        ? formatCaseDate(objectionDeadline(target.decisionOn))
+        : undefined,
+    };
+  }, [objecting, record, draft.objectionToId]);
   const [generatedOpen, setGeneratedOpen] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
   /** What the filer typed into the header search; it re-orders the cards. */
@@ -240,9 +315,15 @@ export function RaiseApplicationForm({
 
   const [discardOpen, setDiscardOpen] = useState(false);
 
-  /** Back to the chooser with a clean slate. */
+  /** Back to the chooser with a clean slate. An objection has no chooser to
+   *  return to (it is never picked there), so it goes back to the case's
+   *  Applications, where its task lives. */
   function closeForm() {
     setDiscardOpen(false);
+    if (objecting) {
+      router.push(caseHref);
+      return;
+    }
     setDraft(EMPTY_APPLICATION_DRAFT);
     setErrors(EMPTY_APPLICATION_ERRORS);
     setStage("type");
@@ -269,12 +350,48 @@ export function RaiseApplicationForm({
     } else if (generatedOpen) setGeneratedOpen(false);
     else requestCloseForm();
   });
-  const formTitle =
-    draft.type === "application-others"
+  const formTitle = objecting
+    ? "Objection"
+    : draft.type === "application-others"
       ? "Other application"
       : /application$/i.test(chosen.label)
         ? chosen.label
         : `${chosen.label} application`;
+  const formDescription = objecting
+    ? objectionTarget?.due
+      ? `Object to the other side's ${objectionTarget.typeLabel.toLowerCase()}. File it by the end of ${objectionTarget.due}.`
+      : "Object to the other side's application."
+    : chosen.description;
+
+  if (!canRaise) {
+    return (
+      <div className="flex w-full flex-col gap-6">
+        <div className={PAGE_BACK_ROW}>
+          <div className={PAGE_BACK_COLUMN}>
+            <PageBackButton
+              href={backHref ?? caseHref}
+              label={backHref ? "Back to cases list" : "Back to case"}
+            />
+          </div>
+          <h1 className={cn(PAGE_TITLE, "flex min-h-8 items-center")}>
+            Raise application
+          </h1>
+        </div>
+        <Empty className="border border-dashed border-border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HourglassIcon aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>Your advocate raises applications for you</EmptyTitle>
+            <EmptyDescription>
+              When one is filed on your behalf, you can pay its court fee from
+              the case&apos;s Applications tab.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -352,7 +469,7 @@ export function RaiseApplicationForm({
               {resume ? <Badge variant="warning">Draft</Badge> : null}
             </div>
             <DialogDescription className="text-pretty">
-              {chosen.description}
+              {formDescription}
             </DialogDescription>
             <p className="text-caption text-muted-foreground">
               <Identifier value={record.caseNumber} label="case number" />
@@ -399,7 +516,7 @@ export function RaiseApplicationForm({
             </Button>
             {unbuilt ? null : (
               <Button type="submit" form={formId}>
-                Generate application
+                {objecting ? "Generate objection" : "Generate application"}
               </Button>
             )}
           </footer>
@@ -416,6 +533,7 @@ export function RaiseApplicationForm({
           setSignatureOpen(true);
         }}
         onReturnFocus={returnFocusToGenerate}
+        signLabel={handoffTo ? "Send for signature" : undefined}
       />
 
       <AddSignatureDialog
@@ -435,6 +553,15 @@ export function RaiseApplicationForm({
           closeForm();
         }}
         onReturnFocus={returnFocusToGenerate}
+        handoffTo={handoffTo}
+        objection={
+          objecting && objectionTarget
+            ? {
+                target: objectionTarget.typeLabel,
+                decision: objectionTarget.decision,
+              }
+            : undefined
+        }
       />
 
       <BailApplicationDialog

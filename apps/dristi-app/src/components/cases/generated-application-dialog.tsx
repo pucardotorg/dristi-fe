@@ -41,6 +41,7 @@ export function GeneratedApplicationDialog({
   draft,
   record,
   onAddSignature,
+  signLabel = "Add signature",
   onReturnFocus,
 }: {
   open: boolean;
@@ -49,6 +50,8 @@ export function GeneratedApplicationDialog({
   record: CaseRecord;
   onAddSignature: () => void;
   onReturnFocus: () => void;
+  /** The CTA's words. A clerk sends it to be signed rather than signing it. */
+  signLabel?: string;
 }) {
   const document = useMemo(
     () => buildGeneratedApplication(draft, record),
@@ -73,7 +76,7 @@ export function GeneratedApplicationDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-title-s font-semibold">
-            Generated application
+            {draft.type === "objection" ? "Generated objection" : "Generated application"}
           </DialogTitle>
           <DialogDescription className="text-body-compact">
             Check the generated document before adding a signature.
@@ -84,7 +87,7 @@ export function GeneratedApplicationDialog({
             without a border (elevation: the box-in-box ban). */}
         <div className="rounded-lg bg-surface-sunken p-4">
           <DescriptionList>
-            <ReviewRow term="Application type">
+            <ReviewRow term={draft.type === "objection" ? "Filing" : "Application type"}>
               {submissionTypeLabel(draft.type)}
             </ReviewRow>
             <ReviewRow term="Case">
@@ -119,7 +122,7 @@ export function GeneratedApplicationDialog({
 
         <DialogFooter>
           <Button type="button" onClick={onAddSignature}>
-            Add signature
+            {signLabel}
           </Button>
         </DialogFooter>
       </FlowDialogContent>

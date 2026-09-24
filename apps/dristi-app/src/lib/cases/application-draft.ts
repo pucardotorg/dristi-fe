@@ -91,6 +91,16 @@ export type ApplicationDraft = {
 
   /** Withdrawal. */
   withdrawalReason: RichTextValue;
+
+  /**
+   * Objection (Application Lifecycle PRD, ALC-12). The PRD specifies no
+   * fields yet; these are the least an objection needs: what it objects to
+   * (fixed by the File objection task, never chosen here), the grounds, and
+   * anything relied on. WORKING GUESS, flagged for the PM.
+   */
+  objectionToId: string;
+  objectionGrounds: RichTextValue;
+  objectionDocuments: DocumentRowDraft[];
 };
 
 type ScalarErrors = Partial<Record<keyof ApplicationDraft, string>>;
@@ -132,6 +142,9 @@ export const EMPTY_APPLICATION_DRAFT: ApplicationDraft = {
   requestedCourt: "",
   transferGrounds: "",
   withdrawalReason: EMPTY_RICH_TEXT,
+  objectionToId: "",
+  objectionGrounds: EMPTY_RICH_TEXT,
+  objectionDocuments: [],
 };
 
 export function emptySurety(): SuretyDraft {
@@ -195,7 +208,11 @@ export function applicationDraftFrom(submission: Submission): ApplicationDraft {
   }
 
   const type = submission.type;
-  const draft: ApplicationDraft = { ...EMPTY_APPLICATION_DRAFT, type };
+  const draft: ApplicationDraft = {
+    ...EMPTY_APPLICATION_DRAFT,
+    type,
+    objectionToId: submission.objectionToId ?? "",
+  };
   const ask = submission.request?.trim() ?? "";
   if (!ask) return draft;
 
@@ -222,6 +239,9 @@ export function applicationDraftFrom(submission: Submission): ApplicationDraft {
       break;
     case "withdrawal":
       draft.withdrawalReason = rich;
+      break;
+    case "objection":
+      draft.objectionGrounds = rich;
       break;
     case "application-others": {
       draft.details = rich;
@@ -258,9 +278,11 @@ function richTextFromPlain(value: string): string {
 }
 
 export function isApplicationDirty(draft: ApplicationDraft): boolean {
-  const { type, partiesAgreed, addSureties, ...rest } = draft;
+  const { type, partiesAgreed, addSureties, objectionToId, ...rest } = draft;
   void partiesAgreed;
   void addSureties;
+  // Set by the File objection task, not typed: opening the form is not work.
+  void objectionToId;
   return Boolean(
     type ||
       Object.values(rest).some((value) => {
@@ -460,6 +482,14 @@ export function validateApplication(
       if (!rich(draft.withdrawalReason)) {
         errors.fields.withdrawalReason = "Enter the reason for withdrawal.";
       }
+      break;
+    }
+
+    case "objection": {
+      if (!rich(draft.objectionGrounds)) {
+        errors.fields.objectionGrounds = "Enter the grounds of objection.";
+      }
+      validateDocumentRows(draft.objectionDocuments, errors);
       break;
     }
   }

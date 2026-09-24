@@ -81,6 +81,11 @@ type SignatureStep =
  * Payment is deliberately not designed: Make payment marks the fee paid on
  * the spot (product's ask), and Skip leaves the submission pending payment —
  * the same state the Applications register already models.
+ *
+ * Submitted means signed and paid (Application Lifecycle PRD, ALC-01), so
+ * only a paid filing is called submitted and only a paid filing gets its
+ * temporary ID (ALC-02). A clerk never signs: for them the chain ends on the
+ * hand-off to the advocate who will.
  */
 export function AddSignatureDialog({
   open,
@@ -90,11 +95,20 @@ export function AddSignatureDialog({
   onBack,
   onComplete,
   onReturnFocus,
+  handoffTo,
+  objection,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: ApplicationDraft;
   record: CaseRecord;
+  /**
+   * Set when the person filing may not sign (a clerk): the advocate who will.
+   * The chain skips the signing cards and ends on the hand-off.
+   */
+  handoffTo?: string;
+  /** Set when the filing is an objection: what it objects to, and when that is decided. */
+  objection?: { target: string; decision?: string };
   /** Return to the generated-application dialog. */
   onBack: () => void;
   /** The chain is done — leave for the Applications register. */
@@ -102,7 +116,10 @@ export function AddSignatureDialog({
   onReturnFocus: () => void;
 }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const [step, setStep] = useState<SignatureStep>("method");
+  const firstStep: SignatureStep = handoffTo ? "pending" : "method";
+  const [step, setStep] = useState<SignatureStep>(firstStep);
+  const noun = objection ? "objection" : "application";
+  const Noun = objection ? "Objection" : "Application";
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | undefined>(undefined);
   const [paid, setPaid] = useState(false);
@@ -124,11 +141,11 @@ export function AddSignatureDialog({
   }, [open, step, aadhaar]);
 
   /**
-   * The next application number this case would allot — existing
+   * The temporary ID this case would allot on submission (ALC-02) — existing
    * applications plus one, in the legacy's {case}-AP{n} shape. Dummy, but
    * grounded in what the register already holds rather than invented.
    */
-  const submissionId = useMemo(() => {
+  const temporaryId = useMemo(() => {
     const count = applicationsFile(record).submissions.filter(
       (submission) => submission.kind === "application",
     ).length;
@@ -146,7 +163,7 @@ export function AddSignatureDialog({
 
   /** Every path out of the dialog runs through an event handler — reset there. */
   function reset() {
-    setStep("method");
+    setStep(firstStep);
     setFile(null);
     setFileError(undefined);
     setPaid(false);
@@ -179,16 +196,16 @@ export function AddSignatureDialog({
         ? "Upload a signed copy"
         : step === "signed"
           ? "Your signature"
-          : "How is this application signed?";
+          : `How is this ${noun} signed?`;
 
   const stepDescription =
     step === "method"
-      ? "An unsigned application cannot be submitted to the court."
+      ? `An unsigned ${noun} cannot be submitted to the court.`
       : step === "upload"
-        ? "The application, signed on paper or with a Digital Signature Certificate."
+        ? `The ${noun}, signed on paper or with a Digital Signature Certificate.`
         : step === "signed"
-          ? "The application is signed and ready to file."
-          : "Court fee for filing this application.";
+          ? `The ${noun} is signed and ready to file.`
+          : `Court fee for filing this ${noun}.`;
 
   const FOOTER =
     "flex shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between";
@@ -215,7 +232,9 @@ export function AddSignatureDialog({
             <SuccessContent
               titleRef={titleRef}
               paid={paid}
-              submissionId={submissionId}
+              temporaryId={temporaryId}
+              noun={Noun}
+              objection={objection}
             />
           </div>
         ) : step === "pending" ? (
@@ -239,23 +258,26 @@ export function AddSignatureDialog({
                   tabIndex={-1}
                   className="text-body font-semibold text-balance outline-none"
                 >
-                  Saved. Waiting for your signature
+                  {handoffTo
+                    ? `Saved. Waiting for ${handoffTo} to sign`
+                    : "Saved. Waiting for your signature"}
                 </DialogTitle>
                 <DialogDescription>
-                  Nothing has gone to the court yet. Sign it from the
-                  case&apos;s Applications tab when you are ready.
+                  {handoffTo
+                    ? "Nothing has gone to the court yet. They sign it from the case's Applications tab."
+                    : "Nothing has gone to the court yet. Sign it from the case's Applications tab when you are ready."}
                 </DialogDescription>
               </div>
             </div>
 
             <dl className="flex flex-col rounded-lg bg-surface-sunken px-4 py-1 text-body-compact">
               <div className="flex items-baseline justify-between gap-4 border-b border-hairline py-2.5">
-                <dt className="text-muted-foreground">Application</dt>
+                <dt className="text-muted-foreground">{Noun}</dt>
                 <dd className="min-w-0 text-right font-medium">
-                  {
-                    applicationTypeGuide(draft.type || "application-others")
-                      .label
-                  }
+                  {objection
+                    ? objection.target
+                    : applicationTypeGuide(draft.type || "application-others")
+                        .label}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-4 border-b border-hairline py-2.5">
@@ -405,7 +427,7 @@ export function AddSignatureDialog({
                     onClick={() => downloadGeneratedApplication(draft, record)}
                   >
                     <DownloadIcon data-icon="inline-start" aria-hidden />
-                    Download this application
+                    Download this {noun}
                   </Button>
                 </>
               ) : null}
@@ -414,10 +436,10 @@ export function AddSignatureDialog({
                 <>
                   <Field data-invalid={Boolean(fileError) && !file}>
                     <FieldLabel className="block w-full font-semibold leading-snug">
-                      Signed application
+                      Signed {noun}
                     </FieldLabel>
                     <UploadedDocField
-                      label="Signed application"
+                      label={`Signed ${noun}`}
                       required
                       file={file}
                       onFileChange={(next) => {
@@ -433,7 +455,7 @@ export function AddSignatureDialog({
 
               {step === "signed" ? (
                 <Banner variant="success">
-                  Signature added to this application.
+                  Signature added to this {noun}.
                 </Banner>
               ) : null}
 
@@ -469,7 +491,7 @@ export function AddSignatureDialog({
               type="button"
               onClick={() => {
                 if (!file) {
-                  setFileError("Upload the signed application to continue.");
+                  setFileError(`Upload the signed ${noun} to continue.`);
                   return;
                 }
                 setStep("signed");
@@ -493,10 +515,15 @@ export function AddSignatureDialog({
 
         {step === "pending" ? (
           <footer className={FOOTER}>
-            {/* Changing your mind is one click: back to the ways of signing. */}
-            <Button type="button" variant="outline" onClick={backToMethods}>
-              Sign now
-            </Button>
+            {/* Changing your mind is one click: back to the ways of signing.
+                Not for a clerk, who has no way of signing to go back to. */}
+            {handoffTo ? (
+              <span aria-hidden />
+            ) : (
+              <Button type="button" variant="outline" onClick={backToMethods}>
+                Sign now
+              </Button>
+            )}
             <Button type="button" onClick={finish}>
               Done
             </Button>
@@ -554,19 +581,32 @@ export function AddSignatureDialog({
 }
 
 /**
- * The submission confirmation, mirroring the legacy's final modal: solid
- * success banner, payment note, and the allotted submission ID. The banner
- * carries the DialogTitle so the confirmation is what a screen reader hears.
+ * The submission confirmation, mirroring the legacy's final modal: the mark,
+ * what happened, and the allotted ID. The heading carries the DialogTitle so
+ * the confirmation is what a screen reader hears.
+ *
+ * Only a paid filing is submitted (ALC-01), so an unpaid one ends amber, on
+ * what it is still waiting for, and has no ID yet: the temporary ID is
+ * allotted on submission (ALC-02).
  */
 function SuccessContent({
   titleRef,
   paid,
-  submissionId,
+  temporaryId,
+  noun,
+  objection,
 }: {
   titleRef: React.Ref<HTMLHeadingElement>;
   paid: boolean;
-  submissionId: string;
+  temporaryId: string;
+  noun: string;
+  objection?: { target: string; decision?: string };
 }) {
+  const next = objection
+    ? `It is read with the ${objection.target.toLowerCase()} when the court decides it${
+        objection.decision ? ` on ${objection.decision}` : ""
+      }.`
+    : "It is with the court now. The court takes it up next and gives it an application number.";
   return (
     <div className="flex flex-col gap-4">
       {/* The bail dialog's done header: the mark in a tinted disc, then what
@@ -575,9 +615,18 @@ function SuccessContent({
       <div className="flex items-center gap-4 pr-8">
         <span
           aria-hidden
-          className="flex size-14 shrink-0 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground"
+          className={cn(
+            "flex size-14 shrink-0 items-center justify-center rounded-full",
+            paid
+              ? "bg-success-muted text-success-muted-foreground"
+              : "bg-warning-muted text-warning-muted-foreground",
+          )}
         >
-          <CheckCircle2Icon className="size-7" />
+          {paid ? (
+            <CheckCircle2Icon className="size-7" />
+          ) : (
+            <ClockIcon className="size-7" />
+          )}
         </span>
         <div className="flex min-w-0 flex-col gap-1.5">
           <DialogTitle
@@ -585,43 +634,48 @@ function SuccessContent({
             tabIndex={-1}
             className="text-body font-semibold text-balance outline-none"
           >
-            Application submitted
+            {paid ? `${noun} submitted` : "Signed. Waiting for payment"}
           </DialogTitle>
           <DialogDescription>
-            It is with the court now. Track it in the case&apos;s Applications
-            tab.
+            {paid
+              ? next
+              : "Nothing reaches the court until the court fee is paid. Pay it here, or later from the case's Applications tab."}
           </DialogDescription>
         </div>
       </div>
 
       {paid ? (
         <Banner variant="success">Court fee of {COURT_FEE} paid.</Banner>
-      ) : (
-        <Banner variant="warning">
-          Payment pending — this application moves forward once the court fee is
-          paid.
-        </Banner>
-      )}
+      ) : null}
 
       <DescriptionList className="rounded-lg bg-surface-sunken px-4 py-1">
         <DescriptionRow className="grid-cols-[1fr_auto] items-center">
           <DescriptionTerm className="text-body-compact">
-            Submission date
+            {paid ? "Submission date" : "Signed on"}
           </DescriptionTerm>
           <DescriptionDetails className="text-body-compact">
             {formatCaseDate(new Date().toISOString())}
           </DescriptionDetails>
         </DescriptionRow>
-        <DescriptionRow className="grid-cols-[1fr_auto] items-center">
-          <DescriptionTerm className="text-body-compact">
-            Submission ID
-          </DescriptionTerm>
-          {/* The value is its own copy control now, so the icon button beside it
-              went with the conversion — same confirmation, one thing to hit. */}
-          <DescriptionDetails className="flex items-center gap-2 text-body-compact font-medium">
-            <Identifier value={submissionId} label="submission id" />
-          </DescriptionDetails>
-        </DescriptionRow>
+        {paid ? (
+          <DescriptionRow className="grid-cols-[1fr_auto] items-center">
+            <DescriptionTerm className="text-body-compact">
+              {objection ? "Filing ID" : "Temporary ID"}
+            </DescriptionTerm>
+            {/* The value is its own copy control now, so the icon button beside it
+                went with the conversion — same confirmation, one thing to hit. */}
+            <DescriptionDetails className="flex items-center gap-2 text-body-compact font-medium">
+              <Identifier value={temporaryId} label="temporary id" />
+            </DescriptionDetails>
+          </DescriptionRow>
+        ) : (
+          <DescriptionRow className="grid-cols-[1fr_auto] items-center">
+            <DescriptionTerm className="text-body-compact">Status</DescriptionTerm>
+            <DescriptionDetails>
+              <Badge variant="warning">Pending payment</Badge>
+            </DescriptionDetails>
+          </DescriptionRow>
+        )}
       </DescriptionList>
     </div>
   );
