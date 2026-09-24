@@ -818,7 +818,7 @@ function PaperStage({
   return (
     <div className="flex flex-col gap-4">
       <SectionNotice variant="warning" title="Every party's signature should be on the PDF">
-        Each complainant and their advocate on record must have signed it.
+        Each complainant, and their advocate on record.
       </SectionNotice>
 
       {file ? (
@@ -865,17 +865,22 @@ function PaperStage({
         Upload .jpg, .png, .jpeg, .webp or .pdf. Maximum upload size of 15 MB.
       </p>
 
-      <div className="flex flex-col gap-2 rounded-xl border border-hairline bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-body font-semibold">Verify phone numbers</h3>
-          <span className="text-body-compact font-medium text-muted-foreground tabular-nums">
-            {confirmedCount} of {rows.length} confirmed
-          </span>
+      {/* The rows carry their own dividers, so the header keeps the card's padding and
+          the list sits inside it — a `gap` between the two left the first row 20px from
+          the sentence above it and the last one 28px from the edge (owner, 2026-09-24). */}
+      <div className="rounded-xl border border-hairline bg-card">
+        <div className="flex flex-col gap-1 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-body font-semibold">Confirm each complainant</h3>
+            <span className="text-body-compact font-medium text-muted-foreground tabular-nums">
+              {confirmedCount} of {rows.length} confirmed
+            </span>
+          </div>
+          <p className="text-body-compact text-muted-foreground">
+            Each one confirms by OTP, on their own number, that they signed this copy.
+          </p>
         </div>
-        <p className="text-body-compact text-muted-foreground">
-          This ensures the litigant has access to their case file.
-        </p>
-        <ul>
+        <ul className="border-t border-hairline px-4">
           {rows.map((person, i) => (
             <ConfirmRow
               key={person.id}
@@ -968,11 +973,13 @@ function ConfirmRow({
             {person.name}
           </p>
           <p className="text-body-compact text-muted-foreground">
-            {person.role} ·{" "}
+            {/* A party with no name of their own is already called "Complainant 1" above;
+                repeating the role would say it twice in one row. */}
+            {person.role.startsWith(person.name) ? null : `${person.role} · `}
             {tail ? (
               <span className="tabular-nums">•••• {tail}</span>
             ) : (
-              "No mobile number"
+              "No number on file"
             )}
           </p>
         </div>

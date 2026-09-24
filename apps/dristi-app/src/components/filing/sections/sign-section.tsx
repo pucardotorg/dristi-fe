@@ -245,7 +245,7 @@ function stateChip(
   if (all.length > 0 && signed === all.length) {
     return { variant: "success", label: `${signed} of ${all.length} signed` };
   }
-  if (onPaper) return { variant: "secondary", label: "On paper" };
+  if (onPaper) return { variant: "secondary", label: "Physical document" };
   if (!requested) return { variant: "secondary", label: "Not sent" };
   return { variant: "info", label: `${signed} of ${all.length} signed` };
 }
@@ -287,8 +287,8 @@ function SignatureSummary({
         {requested || onPaper ? (
           <p className="text-body-compact text-muted-foreground">
             {onPaper
-              ? "Physically signed copy — one PDF carrying every signature"
-              : "E-signature — each party signs with their own Aadhaar OTP or DSC"}
+              ? "One PDF carrying every party's signature"
+              : "Each party e-signs with their own Aadhaar OTP or DSC"}
           </p>
         ) : null}
       </div>
@@ -377,6 +377,8 @@ export function SignSection() {
   const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
   /** The "switch to paper" question, which recalls requests other people already have. */
   const [switchOpen, setSwitchOpen] = React.useState(false);
+  /** The other way round, asked only when there is an uploaded copy to discard. */
+  const [digitalSwitchOpen, setDigitalSwitchOpen] = React.useState(false);
   /** A reminder just went out — said once, then it goes quiet again. */
   const [reminded, setReminded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -595,6 +597,26 @@ export function SignSection() {
   };
 
   /**
+   * Back to e-signing. Nothing goes out until the choice is made in the window, so this
+   * only has something to undo when a copy was already uploaded or confirmed.
+   */
+  const backToDigital = () => {
+    const copy = sign.signedCopy;
+    update((d) => {
+      d.sign.mode = "digital";
+      d.sign.signed = {};
+      d.sign.confirmed = {};
+      d.sign.signedCopy = null;
+    });
+    if (copy) {
+      forgetFile(copy.id);
+      void getRepository().deleteFile(copy.id);
+    }
+    setDigitalSwitchOpen(false);
+    openFlow("choose");
+  };
+
+  /**
    * Sandbox only — the other parties' links go nowhere, so this stands in for them
    * opening theirs and signing. It is the one way to walk the rest of the flow here, and
    * it says what it is on the button.
@@ -806,10 +828,10 @@ export function SignSection() {
       ) : null}
     </div>
   ) : onPaper ? (
-    /* ── On paper ── */
+    /* ── A physical document ── */
     <div className="flex flex-col gap-3">
       <p className="text-body-compact text-muted-foreground">
-        Upload the PDF once every party has signed it.
+        Print it, collect every signature, then upload the PDF.
       </p>
       <Button
         type="button"
@@ -819,6 +841,21 @@ export function SignSection() {
       >
         <UploadIcon data-icon="inline-start" aria-hidden />
         Upload signed copy
+      </Button>
+      {/* Either mode can be chosen from the other: a filer who picked paper and then
+          found everyone can e-sign was stuck with the printer (owner, 2026-09-24). */}
+      <Button
+        type="button"
+        variant="ghost"
+        className="w-full"
+        onClick={() => {
+          /* Only worth a question when there is something to discard. */
+          if (sign.signedCopy || anySigned) setDigitalSwitchOpen(true);
+          else backToDigital();
+        }}
+      >
+        <SignatureIcon data-icon="inline-start" aria-hidden />
+        E-sign instead
       </Button>
     </div>
   ) : !requested ? (
@@ -883,6 +920,7 @@ export function SignSection() {
           className="w-full"
           onClick={() => setSwitchOpen(true)}
         >
+          <UploadIcon data-icon="inline-start" aria-hidden />
           Upload a signed copy instead
         </Button>
       </div>
@@ -1474,6 +1512,21 @@ export function SignSection() {
         confirmLabel="Upload a signed copy"
         cancelLabel="Keep e-signing"
         onConfirm={switchToUpload}
+      />
+
+      {/* ── And back the other way ── */}
+      <ConfirmDialog
+        open={digitalSwitchOpen}
+        onOpenChange={setDigitalSwitchOpen}
+        title="E-sign instead?"
+        description={
+          sign.signedCopy
+            ? "The copy you uploaded is removed, and every confirmation taken against it goes with it. Each party e-signs with their own Aadhaar OTP or DSC."
+            : "The signatures collected on the copy are discarded. Each party e-signs with their own Aadhaar OTP or DSC."
+        }
+        confirmLabel="E-sign instead"
+        cancelLabel="Keep the physical document"
+        onConfirm={backToDigital}
       />
     </>
   );
