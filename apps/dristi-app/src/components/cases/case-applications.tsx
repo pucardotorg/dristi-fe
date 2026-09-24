@@ -379,6 +379,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
 
       <ApplicationRecordDialog
         caseId={record.id}
+        record={record}
         application={openApplication}
         onOpenLinked={setRecordOpen}
         onAct={(application) => {

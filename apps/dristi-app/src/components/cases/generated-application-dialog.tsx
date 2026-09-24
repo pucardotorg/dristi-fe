@@ -135,12 +135,15 @@ export function GeneratedApplicationDialog({
  * and full view render the same markup — a second copy would be a second
  * document to keep in step with the draft.
  */
-function GeneratedApplicationDocument({
+export function GeneratedApplicationDocument({
   document,
   generatedOn,
+  signedBy,
 }: {
   document: GeneratedApplication;
   generatedOn: string;
+  /** Who signed it, once it is signed; the slot stays empty until then. */
+  signedBy?: string;
 }) {
   return (
     /*
@@ -193,11 +196,18 @@ function GeneratedApplicationDocument({
         <p className="text-body-compact text-paper-muted-foreground">
           Filed for {document.filedFor}
         </p>
-        <div className="flex h-16 w-56 max-w-full items-center justify-center rounded-lg border border-dashed border-paper-border">
-          <p className="text-body-compact text-paper-muted-foreground">
-            Signature pending
-          </p>
-        </div>
+        {signedBy ? (
+          <div className="flex h-16 w-56 max-w-full flex-col items-center justify-center rounded-lg border border-paper-border">
+            <p className="text-body-compact font-semibold">{signedBy}</p>
+            <p className="text-caption text-paper-muted-foreground">Signed</p>
+          </div>
+        ) : (
+          <div className="flex h-16 w-56 max-w-full items-center justify-center rounded-lg border border-dashed border-paper-border">
+            <p className="text-body-compact text-paper-muted-foreground">
+              Signature pending
+            </p>
+          </div>
+        )}
       </footer>
     </article>
   );

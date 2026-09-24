@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { DownloadIcon, FileTextIcon, FileXIcon, XIcon } from "lucide-react";
 
@@ -38,7 +38,17 @@ import {
   type LinkedApplication,
 } from "@/lib/cases/application-record";
 import { orderHref } from "@/lib/cases/sections";
-import { objectionHref, resumeDraftHref } from "@/lib/cases/applications";
+import {
+  isSubmittedToCourt,
+  objectionHref,
+  othersTitle,
+  resumeDraftHref,
+} from "@/lib/cases/applications";
+import { DocumentPreview } from "@/components/cases/document-preview";
+import { GeneratedApplicationDocument } from "@/components/cases/generated-application-dialog";
+import { buildGeneratedApplication } from "@/lib/cases/application-document";
+import { applicationDraftFrom } from "@/lib/cases/application-draft";
+import type { CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -48,6 +58,7 @@ import { cn } from "@/lib/utils";
  */
 export function ApplicationRecordDialog({
   caseId,
+  record,
   application,
   onOpenChange,
   onOpenLinked,
@@ -55,6 +66,8 @@ export function ApplicationRecordDialog({
   onObject,
 }: {
   caseId: string;
+  /** The case, to set the application out as the court would read it. */
+  record: CaseRecord;
   application: ApplicationRecord | null;
   onOpenChange: (open: boolean) => void;
   /** Open another application in this dialog: an objection and what it objects to. */
@@ -74,6 +87,7 @@ export function ApplicationRecordDialog({
           <RecordBody
             key={application.id}
             caseId={caseId}
+            record={record}
             application={application}
             onOpenLinked={onOpenLinked}
             onAct={onAct}
@@ -87,12 +101,14 @@ export function ApplicationRecordDialog({
 
 function RecordBody({
   caseId,
+  record,
   application,
   onOpenLinked,
   onAct,
   onObject,
 }: {
   caseId: string;
+  record: CaseRecord;
   application: ApplicationRecord;
   onOpenLinked?: (id: string) => void;
   onAct?: (application: ApplicationRecord) => void;
@@ -105,7 +121,21 @@ function RecordBody({
       ? null
       : resumeDraftHref(caseId, application.source);
   const viewable = application.documents.filter((doc) => doc.src);
-  const [openSrc, setOpenSrc] = useState(viewable[0]?.src);
+  /* The application itself, set out from its details when its file is not
+     on record (the demo has few): the page the filer saw before signing.
+     The other side sees it only once the court has taken it up (ALC-17),
+     which is when this record first reaches them. */
+  const composed = useMemo(
+    () => composedApplication(application, record),
+    [application, record]
+  );
+  const [openSrc, setOpenSrc] = useState(
+    viewable[0]?.src ?? (composed ? COMPOSED : undefined)
+  );
+  const documents =
+    composed && application.documents.length === 0
+      ? [{ label: composed.label }]
+      : application.documents;
   const open = viewable.find((doc) => doc.src === openSrc);
   const pdf = open?.src && isPdfSrc(open.src) ? parsePdfSrc(open.src) : null;
 
@@ -317,20 +347,29 @@ function RecordBody({
             <h3 className="text-caption font-medium text-muted-foreground">
               Documents
             </h3>
-            {application.documents.length === 0 ? (
+            {documents.length === 0 ? (
               <Muted>None attached</Muted>
             ) : (
               <ul className="-mx-2 flex flex-col gap-0.5">
-                {application.documents.map((doc) => (
+                {documents.map((doc, index) => {
+                  /* The application is always listed first; with no file of
+                     its own, it opens set out from its details. */
+                  const key =
+                    "src" in doc && doc.src
+                      ? doc.src
+                      : index === 0 && composed
+                        ? COMPOSED
+                        : undefined;
+                  return (
                   <li key={doc.label}>
-                    {doc.src ? (
+                    {key ? (
                       <button
                         type="button"
-                        aria-pressed={doc.src === openSrc}
-                        onClick={() => setOpenSrc(doc.src)}
+                        aria-pressed={key === openSrc}
+                        onClick={() => setOpenSrc(key)}
                         className={cn(
                           "flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-body-compact outline-none transition-colors hover:bg-surface-sunken focus-visible:ring-3 focus-visible:ring-ring/50",
-                          doc.src === openSrc && "bg-accent font-medium"
+                          key === openSrc && "bg-accent font-medium"
                         )}
                       >
                         <FileTextIcon
@@ -349,13 +388,32 @@ function RecordBody({
                       </span>
                     )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </div>
         </div>
 
-        {pdf && open ? (
+        {openSrc === COMPOSED && composed ? (
+          <div className="flex min-h-64 flex-1 flex-col overflow-y-auto bg-surface-sunken p-4">
+            <DocumentPreview
+              title={composed.document.title}
+              variant="quiet"
+              height="fill"
+              source={{
+                kind: "composed",
+                content: (
+                  <GeneratedApplicationDocument
+                    document={composed.document}
+                    generatedOn={composed.dated}
+                    signedBy={composed.signedBy}
+                  />
+                ),
+              }}
+            />
+          </div>
+        ) : pdf && open ? (
           <PdfViewer
             key={open.src}
             src={pdf.url}
@@ -447,6 +505,45 @@ function RecordBody({
       ) : null}
     </>
   );
+}
+
+/** The composed application's place in the documents list. */
+const COMPOSED = "composed-application";
+
+/**
+ * The application as the court reads it, set out from its details: the same
+ * page the Raise application form generates before signing. Signed from
+ * Pending payment on, by the advocate or party in person who raised it.
+ * Null for a document submission (affidavit, memo), which has no such page.
+ */
+function composedApplication(
+  application: ApplicationRecord,
+  record: CaseRecord
+) {
+  const { source } = application;
+  if (source.kind !== "application") return null;
+  const side = application.side === "court" ? "" : application.side;
+  /* The title as filed. Reading a draft back leaves out a title the form's
+     rule would reject ("PW-1"); a filed page shows what was filed. */
+  const title = othersTitle(source);
+  const document = buildGeneratedApplication(
+    {
+      ...applicationDraftFrom(source),
+      filedForSide: side,
+      ...(title ? { title } : {}),
+    },
+    record
+  );
+  if (!document) return null;
+  const objection = source.type === "objection";
+  const filed = isSubmittedToCourt(source.status);
+  const signed = filed || source.status === "pending-payment";
+  return {
+    document,
+    label: `${filed ? "Filed" : "Draft"} ${objection ? "objection" : "application"}`,
+    dated: application.submitted ?? application.created,
+    signedBy: signed ? application.filedBy : undefined,
+  };
 }
 
 const STEP_NOTE = {
