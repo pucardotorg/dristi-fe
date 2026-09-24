@@ -93,7 +93,8 @@ export type ApplicationRecord = {
   filedById: string;
   /** Raised by: the advocate or party in person who signs it. */
   filedBy: string;
-  /** Who started the draft, when that was someone else (a clerk). */
+  /** Who started the draft, when that was someone else (a clerk); only
+   *  until it is submitted. */
   draftedBy?: string;
   /** The litigant it is raised for. */
   onBehalfOf?: string;
@@ -401,7 +402,13 @@ function recordFor(
     decisionShort: source.decisionOn ? shortDate(source.decisionOn) : undefined,
     filedById: source.submittedById,
     filedBy: displayName(submittedByName(source, peopleById)),
-    draftedBy: drafter ? displayName(drafter.name) : undefined,
+    /* Only until it reaches the court (owner, Sept 24): once submitted it is
+       the signing advocate's application (the PRD's "Raised By"), and who
+       drafted it is theirs to know. */
+    draftedBy:
+      drafter && !isSubmittedToCourt(source.status)
+        ? displayName(drafter.name)
+        : undefined,
     onBehalfOf:
       party && party.id !== source.submittedById
         ? displayName(party.name)

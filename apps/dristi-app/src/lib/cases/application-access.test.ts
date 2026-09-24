@@ -258,3 +258,17 @@ describe("temporary IDs allotted in the session", () => {
     assert.notEqual(allotted[0], allotted[1]);
   });
 });
+
+describe("who drafted it", () => {
+  it("shows only until the application reaches the court", () => {
+    const record = findCaseRecord("c-1001")!;
+    const register = applicationsRegister(record, {
+      viewer: viewerFor("c-1001", "advocate"),
+      today: FIXTURE_TODAY,
+    });
+    const byId = (id: string) =>
+      register.applications.find((item) => item.id === id);
+    assert.equal(byId("sub-1001-clerk-draft")?.draftedBy, "Vinod Kumar");
+    assert.equal(byId("sub-1001-summon-bank")?.draftedBy, undefined);
+  });
+});
