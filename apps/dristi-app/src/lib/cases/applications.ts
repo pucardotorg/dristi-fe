@@ -460,6 +460,12 @@ export type Submission = {
   /** For an objection: the application it objects to. */
   objectionToId: string | null;
   /**
+   * When an unfiled filing (draft, unsigned, unpaid) expires (PRD: "Expire,
+   * System"). The PRD gives no timer, so the demo pack states a day where it
+   * wants one shown; absent means none is known.
+   */
+  expiresOn: string | null;
+  /**
    * The prayer in plain words — what the filer asked the court to do. Only
    * applications ask for something, so document submissions carry null.
    *
@@ -659,6 +665,7 @@ type PackSubmissionRow = {
   decisionOn?: string | null;
   objectionsInvited?: boolean | null;
   objectionToId?: string | null;
+  expiresOn?: string | null;
   request: string | null;
   courtResult: string | null;
   linkedOrder: LinkedOrder | null;
@@ -698,6 +705,7 @@ function submissionFromPack(
     decisionOn: row.decisionOn ?? null,
     objectionsInvited: row.objectionsInvited ?? null,
     objectionToId: row.objectionToId ?? null,
+    expiresOn: submitted ? null : (row.expiresOn ?? null),
     request: row.request,
     courtResult: row.courtResult,
     linkedOrder: row.linkedOrder,

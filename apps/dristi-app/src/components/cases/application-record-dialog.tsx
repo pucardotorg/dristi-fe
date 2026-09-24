@@ -38,7 +38,7 @@ import {
   type LinkedApplication,
 } from "@/lib/cases/application-record";
 import { orderHref } from "@/lib/cases/sections";
-import { resumeDraftHref } from "@/lib/cases/applications";
+import { objectionHref, resumeDraftHref } from "@/lib/cases/applications";
 import { cn } from "@/lib/utils";
 
 /**
@@ -199,6 +199,13 @@ function RecordBody({
                   </span>
                 </Fact>
               ) : null}
+              {application.expiresShort ? (
+                <Fact label="Expires on">
+                  <span className="tabular-nums">
+                    {application.expiresShort}
+                  </span>
+                </Fact>
+              ) : null}
               {application.decisionShort &&
               application.status === "pending-decision" ? (
                 <Fact label="Decision on">
@@ -356,6 +363,21 @@ function RecordBody({
       {/* The viewer's step, where they have one: read it, then act on it, in the
           filing dialogs' own footer band, primary at the far end (owner, Sept
           24). The table only opens; Needs attention stays the shortcut. */}
+      {/* The other side's application the viewer may object to: the File
+          objection task, from the record it is about. */}
+      {!application.step && application.objectionInvite ? (
+        <footer className="flex shrink-0 flex-col gap-3 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-body-compact text-muted-foreground tabular-nums">
+            You can object to this until the end of{" "}
+            {application.objectionInvite.due}.
+          </p>
+          <Button asChild className="w-full sm:w-auto">
+            <Link href={objectionHref(caseId, application.id)}>
+              File objection
+            </Link>
+          </Button>
+        </footer>
+      ) : null}
       {application.step ? (
         <footer className="flex shrink-0 flex-col gap-3 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-body-compact text-muted-foreground">

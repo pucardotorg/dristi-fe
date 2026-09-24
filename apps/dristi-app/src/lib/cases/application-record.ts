@@ -105,6 +105,19 @@ export type ApplicationRecord = {
   objection?: LinkedApplication;
   /** For an objection: the application it objects to. */
   objectionTo?: LinkedApplication;
+  /**
+   * For an unfiled filing with a known expiry: the day, and days left from
+   * today. Needs attention mentions it only within `EXPIRY_NOTICE_DAYS`.
+   */
+  expiresOn?: string;
+  expiresShort?: string;
+  expiresInDays?: number;
+  /**
+   * The viewer's side is invited to object to this (the other side's)
+   * application, and has not started its one objection: the File objection
+   * task, seen from the record.
+   */
+  objectionInvite?: { dueOn: string; due: string };
   /** The order's operative line, once decided or dismissed. */
   courtResult?: string;
   linkedOrder?: { id: string; label: string };
@@ -117,6 +130,18 @@ export function applicationNumberLabel(
   application: Pick<ApplicationRecord, "applicationNumber" | "temporaryId">
 ): string | undefined {
   return application.applicationNumber ?? application.temporaryId;
+}
+
+/** How close an expiry has to be before Needs attention mentions it (owner, Sept 24). */
+export const EXPIRY_NOTICE_DAYS = 3;
+
+/** An expiry worth saying in Needs attention: known, and within the notice window. */
+export function expiringSoon(application: ApplicationRecord): boolean {
+  return (
+    application.expiresInDays !== undefined &&
+    application.expiresInDays >= 0 &&
+    application.expiresInDays <= EXPIRY_NOTICE_DAYS
+  );
 }
 
 /** Whether the viewer has set up the bulk signing tool (APP-10). A working
@@ -208,8 +233,14 @@ export function applicationsRegister(
   if (!viewer) return { applications: [], people: [], objectionTasks: [] };
 
   const byId = new Map(file.submissions.map((item) => [item.id, item]));
+  const invitations = new Map(
+    objectionInvitations(viewer, file, today).map((item) => [
+      item.application.id,
+      item.dueOn,
+    ])
+  );
   const toRecord = (source: Submission): ApplicationRecord =>
-    recordFor(source, file, viewer, byId);
+    recordFor(source, file, viewer, byId, today, invitations.get(source.id));
 
   const applications = file.submissions
     .filter((source) => canSeeApplication(viewer, source, file))
@@ -227,13 +258,11 @@ export function applicationsRegister(
       role: person.role,
     }));
 
-  const objectionTasks = objectionInvitations(viewer, file, today).map(
-    ({ application, dueOn }) => ({
-      application: toRecord(application),
-      dueOn,
-      due: formatCaseDate(dueOn),
-    })
-  );
+  const objectionTasks = [...invitations].map(([id, dueOn]) => ({
+    application: toRecord(byId.get(id)!),
+    dueOn,
+    due: formatCaseDate(dueOn),
+  }));
 
   return { applications, people, objectionTasks };
 }
@@ -271,11 +300,21 @@ function linkedFrom(source: Submission): LinkedApplication {
   };
 }
 
+function daysBetween(from: string, to: string): number {
+  return Math.round(
+    (Date.parse(`${to.slice(0, 10)}T00:00:00Z`) -
+      Date.parse(`${from.slice(0, 10)}T00:00:00Z`)) /
+      86_400_000
+  );
+}
+
 function recordFor(
   source: Submission,
   file: ApplicationsFile,
   viewer: ApplicationViewer,
-  byId: Map<string, Submission>
+  byId: Map<string, Submission>,
+  today: string,
+  inviteDueOn?: string
 ): ApplicationRecord {
   const peopleById = new Map(file.people.map((person) => [person.id, person]));
   const step = applicationStepFor(viewer, source, file);
@@ -334,6 +373,14 @@ function recordFor(
         ? linkedFrom(objection)
         : undefined,
     objectionTo: objectionTarget ? linkedFrom(objectionTarget) : undefined,
+    expiresOn: source.expiresOn ?? undefined,
+    expiresShort: source.expiresOn ? shortDate(source.expiresOn) : undefined,
+    expiresInDays: source.expiresOn
+      ? daysBetween(today, source.expiresOn)
+      : undefined,
+    objectionInvite: inviteDueOn
+      ? { dueOn: inviteDueOn, due: formatCaseDate(inviteDueOn) }
+      : undefined,
     courtResult: source.courtResult ?? undefined,
     linkedOrder: source.linkedOrder ?? undefined,
     documents: source.documents.map((doc) => ({
@@ -394,9 +441,10 @@ export function groupActions(
     key: `objection-${task.application.id}`,
     task,
   }));
+  const rest: ActionEntry[] = [];
   for (const [step, bucket] of buckets) {
     if (bucket.length > 1 && step !== "continue") {
-      entries.push({
+      rest.push({
         kind: "group",
         key: step,
         step: step as Exclude<ApplicationStep, "continue">,
@@ -405,9 +453,26 @@ export function groupActions(
       });
     } else {
       for (const application of bucket) {
-        entries.push({ kind: "single", key: application.id, application });
+        rest.push({ kind: "single", key: application.id, application });
       }
     }
   }
-  return entries;
+  /* Objections keep the top: theirs is a deadline set by the court. Then
+     anything about to expire, soonest first, above the rest, which keep
+     their order (owner, Sept 24). */
+  const soonest = (entry: ActionEntry): number => {
+    const members =
+      entry.kind === "group"
+        ? entry.applications
+        : entry.kind === "single"
+          ? [entry.application]
+          : [];
+    const days = members.filter(expiringSoon).map((item) => item.expiresInDays!);
+    return days.length ? Math.min(...days) : Number.POSITIVE_INFINITY;
+  };
+  const ranked = rest
+    .map((entry, index) => ({ entry, index, soon: soonest(entry) }))
+    .sort((a, b) => a.soon - b.soon || a.index - b.index)
+    .map((item) => item.entry);
+  return [...entries, ...ranked];
 }

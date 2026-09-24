@@ -106,6 +106,7 @@ export function savedDraftSubmission(draft: SavedApplicationDraft): Submission {
     decisionOn: null,
     objectionsInvited: null,
     objectionToId: draft.objectionToId,
+    expiresOn: null,
     request: draft.request || null,
     courtResult: null,
     linkedOrder: null,

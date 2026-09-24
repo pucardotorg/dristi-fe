@@ -56,7 +56,9 @@ import {
 } from "@/components/ui/table";
 import {
   APPLICATION_TYPE_OPTIONS,
+  EXPIRY_NOTICE_DAYS,
   HAS_BULK_SIGNING_TOOL,
+  expiringSoon,
   applicationNumberLabel,
   applicationsRegister,
   groupActions,
@@ -565,6 +567,29 @@ const STEP_COPY = {
   pay: "Complete payment",
 } as const;
 
+/**
+ * "(expires in 2 days)", only inside the notice window. Muted like the rest
+ * of the line, never amber: amber in this list is a court deadline (an
+ * objection), and an expiry is the lower priority (owner, Sept 24).
+ */
+function expiryNote(application: ApplicationRecord): string {
+  if (!expiringSoon(application)) return "";
+  const days = application.expiresInDays!;
+  const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+  return ` · (expires ${when})`;
+}
+
+function groupExpiryNote(applications: ApplicationRecord[]): string | null {
+  const soon = applications.filter(expiringSoon);
+  if (soon.length === 0) return null;
+  if (soon.length > 1) {
+    return `(${soon.length} expire within ${EXPIRY_NOTICE_DAYS} days)`;
+  }
+  const days = soon[0].expiresInDays!;
+  const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+  return `(1 expires ${when})`;
+}
+
 /** Who raised it, when the list is not only the viewer's own filings. */
 function filedLine(application: ApplicationRecord): string {
   return application.draftedBy
@@ -639,7 +664,10 @@ function TouchActionCard({
         )}
         <p className="text-caption text-muted-foreground">
           {`${filedLine(application)} · `}
-          <span className="tabular-nums">Created {application.created}</span>
+          <span className="tabular-nums">
+            Created {application.created}
+            {expiryNote(application)}
+          </span>
         </p>
       </div>
     </RegisterTrayCard>
@@ -700,6 +728,11 @@ function TouchActionGroup({
       >
         <div className="-mt-1 flex flex-wrap items-center gap-2">
           <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
+          {groupExpiryNote(entry.applications) ? (
+            <span className="text-caption text-muted-foreground tabular-nums">
+              {groupExpiryNote(entry.applications)}
+            </span>
+          ) : null}
         </div>
       </RegisterTrayCard>
       {showEach ? (
@@ -758,7 +791,10 @@ function ActionRow({
         </div>
         <p className="text-caption font-medium text-muted-foreground">
           {`${filedLine(application)} · `}
-          <span className="tabular-nums">Created {application.created}</span>
+          <span className="tabular-nums">
+            Created {application.created}
+            {expiryNote(application)}
+          </span>
         </p>
       </div>
       {step ? (
@@ -813,6 +849,11 @@ function ActionGroup({
             {groupTitle(entry)}
           </p>
           <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
+          {groupExpiryNote(entry.applications) ? (
+            <span className="text-caption font-medium text-muted-foreground tabular-nums">
+              {groupExpiryNote(entry.applications)}
+            </span>
+          ) : null}
         </div>
         <CollapsibleTrigger asChild>
           <Button
