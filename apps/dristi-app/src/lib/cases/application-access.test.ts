@@ -11,7 +11,11 @@ import {
   type ViewerProfile,
 } from "./application-access";
 import { applicationsRegister } from "./application-record";
-import { applicationsFile, type ApplicationsFile } from "./applications";
+import {
+  applicationsFile,
+  quotedOthersTitle,
+  type ApplicationsFile,
+} from "./applications";
 import { FIXTURE_TODAY } from "./fixtures";
 import { findCaseRecord } from "./party-cases";
 import { isViewer, viewerRepresentation } from "./viewer";
@@ -212,5 +216,26 @@ describe("the register", () => {
     assert.equal(paid?.status, "pending-review");
     assert.ok(paid?.temporaryId);
     assert.equal(paid?.applicationNumber, undefined);
+  });
+});
+
+describe("naming an Others application in a sentence", () => {
+  it("quotes the filer's own title exactly as typed", () => {
+    assert.equal(
+      quotedOthersTitle({ type: "application-others", title: "PW-2 recall" }),
+      "\u201cPW-2 recall\u201d"
+    );
+  });
+
+  it("leaves every other type to its type name", () => {
+    assert.equal(quotedOthersTitle({ type: "bail", title: "Bail" }), null);
+  });
+
+  it("falls back when an Others filing has no title of its own", () => {
+    assert.equal(
+      quotedOthersTitle({ type: "application-others", title: "Others" }),
+      null
+    );
+    assert.equal(quotedOthersTitle({ type: "application-others", title: " " }), null);
   });
 });

@@ -73,6 +73,7 @@ import {
   FILING_STATUSES,
   applicationsFile,
   objectionHref,
+  quotedOthersTitle,
   resumeDraftHref,
   type FilingStatus,
 } from "@/lib/cases/applications";
@@ -1009,12 +1010,12 @@ function ActionGroup({
  * plain to-do, not a warning.
  */
 function objectionTitle(task: ObjectionTask): string {
-  /* "Others" names no ask ("object to others"); its own title does. */
+  /* "Others" names no ask ("object to others"); the filer's own title
+     does, quoted as typed. */
   const { application } = task;
   const type =
-    application.source.type === "application-others"
-      ? application.title.charAt(0).toLowerCase() + application.title.slice(1)
-      : application.typeLabel.toLowerCase();
+    quotedOthersTitle(application.source) ??
+    application.typeLabel.toLowerCase();
   /* A litigant or PoA holder is told, not tasked: their advocate files it
      (owner, Sept 24). */
   return task.canFile

@@ -13,7 +13,11 @@
  * the last place to guess one.
  */
 import { type ApplicationDraft } from "./application-draft";
-import { applicationsFile, submissionTypeLabel } from "./applications";
+import {
+  applicationsFile,
+  quotedOthersTitle,
+  submissionTypeLabel,
+} from "./applications";
 import { counselFor, formatCaseDate, type CaseRecord } from "./types";
 
 export type GeneratedApplication = {
@@ -330,6 +334,9 @@ export function buildGeneratedApplication(
     }
 
     case "objection": {
+      /* An Others application is named by its own title, quoted as typed;
+         "for others" would name nothing. */
+      const quoted = objectionTarget ? quotedOthersTitle(objectionTarget) : null;
       const target = objectionTarget
         ? [
             `application ${
@@ -337,8 +344,9 @@ export function buildGeneratedApplication(
               objectionTarget.temporaryId ??
               ""
             }`.trim(),
-            `for ${submissionTypeLabel(objectionTarget.type).toLowerCase()}`,
-          ].join(" ")
+            quoted ??
+              `for ${submissionTypeLabel(objectionTarget.type).toLowerCase()}`,
+          ].join(quoted ? ", " : " ")
         : "the application";
       const objector = filedFor === accused ? "The accused" : "The complainant";
       title = "Objection";

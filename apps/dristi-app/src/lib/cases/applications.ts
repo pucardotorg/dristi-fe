@@ -230,6 +230,23 @@ export function submissionTypeLabel(id: SubmissionTypeId): string {
   return SUBMISSION_DOCUMENT_TYPES.find((item) => item.id === id)?.label ?? id;
 }
 
+/**
+ * An Others application's own title, quoted exactly as the filer typed it
+ * (the PRD's "Application Title" field), for a sentence that names it:
+ * "File objection to “Addition of the firm's accountant as a witness”".
+ * Every other type is named by its type, so this is null for them, and for
+ * an Others filing with no title of its own. Never re-cased: it is free text,
+ * and "PW-2 recall" must not become "pW-2 recall" (owner, Sept 24).
+ */
+export function quotedOthersTitle(
+  submission: Pick<Submission, "type" | "title">
+): string | null {
+  if (submission.type !== "application-others") return null;
+  const title = submission.title.trim();
+  if (!title || title.toLowerCase() === "others") return null;
+  return `\u201c${title}\u201d`;
+}
+
 export function filingStatusLabel(status: FilingStatus): string {
   return FILING_STATUSES.find((item) => item.id === status)?.label ?? status;
 }

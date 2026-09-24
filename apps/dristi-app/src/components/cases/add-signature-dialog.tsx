@@ -114,7 +114,7 @@ export function AddSignatureDialog({
    */
   handoffTo?: string;
   /** Set when the filing is an objection: what it objects to, and when that is decided. */
-  objection?: { target: string; decision?: string };
+  objection?: { target: string; inSentence: string; decision?: string };
   /** Return to the generated-application dialog. */
   onBack: () => void;
   /**
@@ -617,10 +617,10 @@ function SuccessContent({
   paid: boolean;
   temporaryId: string;
   noun: string;
-  objection?: { target: string; decision?: string };
+  objection?: { target: string; inSentence: string; decision?: string };
 }) {
   const next = objection
-    ? `It is read with the ${objection.target.toLowerCase()} when the court decides it${
+    ? `It is read with the other side's ${objection.inSentence} when the court decides it${
         objection.decision ? ` on ${objection.decision}` : ""
       }.`
     : "It is with the court now. The court takes it up next and gives it an application number.";

@@ -74,7 +74,11 @@ import {
   objectionDeadline,
   resolveApplicationViewer,
 } from "@/lib/cases/application-access";
-import { applicationsFile, submissionTypeLabel } from "@/lib/cases/applications";
+import {
+  applicationsFile,
+  quotedOthersTitle,
+  submissionTypeLabel,
+} from "@/lib/cases/applications";
 import { displayName } from "@/lib/cases/names";
 import { isViewer, viewerRepresentation } from "@/lib/cases/viewer";
 import { useProfile } from "@/components/shell/profile";
@@ -231,7 +235,14 @@ export function RaiseApplicationForm({
       ]
         .filter(Boolean)
         .join(" · "),
-      typeLabel: `${submissionTypeLabel(target.type)} application`,
+      typeLabel:
+        quotedOthersTitle(target) ??
+        `${submissionTypeLabel(target.type)} application`,
+      /* How a sentence names it: "the other side's bail application", or an
+         Others application by its own title, never re-cased. */
+      inSentence: quotedOthersTitle(target)
+        ? `application ${quotedOthersTitle(target)}`
+        : `${submissionTypeLabel(target.type).toLowerCase()} application`,
       decision: target.decisionOn ? formatCaseDate(target.decisionOn) : undefined,
       due: target.decisionOn
         ? formatCaseDate(objectionDeadline(target.decisionOn))
@@ -461,7 +472,7 @@ export function RaiseApplicationForm({
         : `${chosen.label} application`;
   const formDescription = objecting
     ? objectionTarget?.due
-      ? `Object to the other side's ${objectionTarget.typeLabel.toLowerCase()}. File it by the end of ${objectionTarget.due}.`
+      ? `Object to the other side's ${objectionTarget.inSentence}. File it by the end of ${objectionTarget.due}.`
       : "Object to the other side's application."
     : chosen.description;
 
@@ -704,6 +715,7 @@ export function RaiseApplicationForm({
           objecting && objectionTarget
             ? {
                 target: objectionTarget.typeLabel,
+                inSentence: objectionTarget.inSentence,
                 decision: objectionTarget.decision,
               }
             : undefined
