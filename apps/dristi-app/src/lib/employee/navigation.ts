@@ -301,9 +301,9 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
 
          One row, not two. The reference split this queue into *With Delay* and *Without
          delay* as two counted children opening two screens that differed by three lines.
-         Whether a complaint was late changes nothing about how cognizance is taken — the
-         condonation application came with it either way — so delay narrows the one list
-         instead of forking the rail (owner, 2026-09-14). */
+         The PRD (v6, §2) keeps the split — it decides which positive action the bench is
+         offered — but keeps it inside the screen, as two tabs. The rail carries the act,
+         and the act is one: take cognizance. */
       {
         id: "cognizance",
         label: "Take cognizance",

@@ -604,11 +604,18 @@ export function cognizanceCaseById(id: string): CognizanceCase | undefined {
   return COGNIZANCE_QUEUE.find((entry) => entry.id === id);
 }
 
-/** The row after this one, for the file's own "Next case". Nothing at the end. */
+/**
+ * The row after this one, for the file's own "Next complaint". Nothing at the end.
+ *
+ * **On the same tab.** Since the queue split in two, the complaint after a late one is
+ * the next late one — walking into the other tab would hand the bench a different act
+ * on a complaint they had not chosen to look at.
+ */
 export function nextCognizanceCase(id: string): CognizanceCase | undefined {
-  const at = COGNIZANCE_QUEUE.findIndex((entry) => entry.id === id);
-  if (at < 0) return undefined;
-  return COGNIZANCE_QUEUE[at + 1];
+  const matter = cognizanceCaseById(id);
+  if (!matter) return undefined;
+  const siblings = casesOnTab(COGNIZANCE_QUEUE, tabFor(matter));
+  return siblings[siblings.findIndex((entry) => entry.id === id) + 1];
 }
 
 /* ───────────────────────────────── the delay ────────────────────────────────── */
@@ -979,36 +986,75 @@ export const COGNIZANCE_DOCUMENTS: {
   { key: "demand-notice", no: 3, title: "Demand notice", kind: "letter" },
 ];
 
-/* ───────────────────────────────── the filters ──────────────────────────────── */
+/* ─────────────────────────────────── the tabs ───────────────────────────────── */
 
 /**
- * Delay is a filter here and not a destination.
+ * Delay splits the queue in two, and the split is what carries the act.
  *
- * The reference split it into two rail rows with their own counts, opening two screens
- * that differed by three rows. It makes no difference to *how* cognizance is taken — the
- * condonation application was filed either way — so it is the kind of thing you narrow a
- * list by, not the kind of thing you navigate to (owner, 2026-09-14).
+ * This was one list with a delay filter until the PRD (v6, §2) made the two tabs load
+ * bearing: the positive action is configured **per tab**, and a state may swap Take
+ * cognizance for Issue notice on either one. A filter narrows a list without changing
+ * what you can do at the end of it; a tab here decides that, so it is a tab.
+ *
+ * Both tabs stay inside the one *Take cognizance* row in the rail — the reference's two
+ * counted rail rows opening two near-identical screens is still the wrong shape, and the
+ * PRD does not ask for it either.
  */
-export type CognizanceDelayFilter = "any" | "with" | "without";
+export type CognizanceTab = "without-delay" | "with-delay";
 
-export const COGNIZANCE_DELAY_FILTERS: {
-  id: CognizanceDelayFilter;
+/**
+ * The two tabs, and the one act that moves a complaint forward on each.
+ *
+ * **The positive action is per-state configuration, not a property of the complaint**
+ * (PRD §6). The values here are the defaults — Kerala's — and a state may replace either
+ * one with the other; `dismiss` is the negative action on both tabs and is never
+ * configurable, so it is not in this table.
+ *
+ * Reading the act off the tab rather than off `hasDelay` is the whole point: when a state
+ * swaps one, everything downstream — the file's own bar, the order it would draw up —
+ * follows from this one line.
+ */
+export const COGNIZANCE_TABS: {
+  id: CognizanceTab;
   label: string;
+  positiveAct: Exclude<CognizanceAct, "dismiss">;
 }[] = [
-  { id: "any", label: "All complaints" },
-  { id: "with", label: "With delay" },
-  { id: "without", label: "Without delay" },
+  { id: "without-delay", label: "Without delay", positiveAct: "cognizance" },
+  { id: "with-delay", label: "With delay", positiveAct: "notice" },
 ];
+
+/** Which tab a complaint stands on. The one fact the split is made of. */
+export function tabFor(matter: CognizanceCase): CognizanceTab {
+  return hasDelay(matter) ? "with-delay" : "without-delay";
+}
+
+/** The complaints on one tab, in queue order. */
+export function casesOnTab(
+  rows: CognizanceCase[],
+  tab: CognizanceTab,
+): CognizanceCase[] {
+  return rows.filter((entry) => tabFor(entry) === tab);
+}
+
+/**
+ * How many complaints stand on one tab.
+ *
+ * Counted over the whole queue and never over what the search box has left, so the
+ * number beside a tab's name does not move as the bench types.
+ */
+export function cognizanceTabCount(tab: CognizanceTab): number {
+  return casesOnTab(COGNIZANCE_QUEUE, tab).length;
+}
+
+/* ───────────────────────────────── the filters ──────────────────────────────── */
 
 export type CognizanceFilters = {
   /** Free text over the cause title, both numbers and counsel. */
   query: string;
-  delay: CognizanceDelayFilter;
 };
 
 export const EMPTY_COGNIZANCE_FILTERS: CognizanceFilters = {
   query: "",
-  delay: "any",
 };
 
 export function filterCognizanceCases(
@@ -1016,10 +1062,8 @@ export function filterCognizanceCases(
   filters: CognizanceFilters,
 ): CognizanceCase[] {
   const query = filters.query.trim().toLowerCase();
+  if (!query) return rows;
   return rows.filter((entry) => {
-    if (filters.delay === "with" && !hasDelay(entry)) return false;
-    if (filters.delay === "without" && hasDelay(entry)) return false;
-    if (!query) return true;
     const haystack = [
       entry.parties.complainant,
       entry.parties.accused,
@@ -1033,19 +1077,17 @@ export function filterCognizanceCases(
   });
 }
 
-/** How many of the queue are late. The filter's own count, derived like the rest. */
-export const COGNIZANCE_DELAY_COUNT = COGNIZANCE_QUEUE.filter(hasDelay).length;
-
 /* ─────────────────────────────────── the act ────────────────────────────────── */
 
 /**
- * What the footer offers on one complaint.
+ * What the file's own bar offers on one complaint.
  *
- * Two acts, never three. `dismiss` is always there; the other is the PRD's: normally
- * *Take cognizance*, and on a late complaint in Kerala *Issue notice* instead — the
- * accused is heard on the delay before the court decides it (BNSS §223 proviso, and the
- * notice this court already writes in `sign-process.ts`). The PRD says the primary
- * action *changes*, so it replaces rather than joins.
+ * Exactly two, never three (PRD §6): one positive action that moves the complaint on,
+ * and `dismiss`, which ends it. Which positive action is the **tab's**, not the
+ * complaint's — `COGNIZANCE_TABS` holds it, and a state may swap it on either tab. The
+ * defaults are Kerala's: Take cognizance on a complaint filed in time, and on a late one
+ * Issue notice, so the accused is heard on the delay before the court decides it (BNSS
+ * §223 proviso, and the notice this court already writes in `sign-process.ts`).
  *
  * This build performs none of them. Each opens a confirmation that names the order it
  * would draft and settles in place — the same bargain every other act on the court side
@@ -1055,8 +1097,14 @@ export const COGNIZANCE_DELAY_COUNT = COGNIZANCE_QUEUE.filter(hasDelay).length;
  */
 export type CognizanceAct = "cognizance" | "notice" | "dismiss";
 
+/** The positive action configured for one tab. */
+export function positiveActForTab(tab: CognizanceTab): CognizanceAct {
+  return COGNIZANCE_TABS.find((entry) => entry.id === tab)!.positiveAct;
+}
+
+/** The positive action a complaint meets, by way of the tab it stands on. */
 export function primaryActFor(matter: CognizanceCase): CognizanceAct {
-  return hasDelay(matter) ? "notice" : "cognizance";
+  return positiveActForTab(tabFor(matter));
 }
 
 /** What the complaint's state is called before any of the three acts is taken. */

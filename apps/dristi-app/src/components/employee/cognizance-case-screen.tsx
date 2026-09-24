@@ -12,6 +12,7 @@ import {
 
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { ARRIVAL } from "@/components/chrome/motion";
+import { markCognizanceTab } from "@/components/employee/cognizance-return";
 import { COGNIZANCE_PATH } from "@/components/employee/cognizance-table";
 import { DocumentScroller } from "@/components/employee/document-scroller";
 import { markArrival, useArrival } from "@/components/employee/use-arrival";
@@ -52,6 +53,7 @@ import {
   nextCognizanceCase,
   primaryActFor,
   summaryChunksFor,
+  tabFor,
   type CognizanceAct,
   type CognizanceCase,
   type CognizanceChunk,
@@ -719,7 +721,16 @@ function ActBody({
         {settled ? (
           <>
             <Button asChild variant={next ? "ghost" : "default"}>
-              <Link href={COGNIZANCE_PATH} onClick={() => markArrival("back")}>
+              <Link
+                href={COGNIZANCE_PATH}
+                onClick={() => {
+                  markArrival("back");
+                  /* Back to the half of the register this complaint stands on — a
+                     bench working the late ones should not be handed the timely
+                     ones after every decision. */
+                  markCognizanceTab(tabFor(matter));
+                }}
+              >
                 Back to take cognizance
               </Link>
             </Button>
