@@ -290,6 +290,7 @@ export function PartySignatureDialog({
   confirmation,
   submitLabel = "Submit application",
   chooseTitle = "How is this application signed?",
+  proceed,
 }: {
   open: boolean;
   /** Dismiss the sign dialog only — the review stays open behind it. */
@@ -301,6 +302,13 @@ export function PartySignatureDialog({
   submitLabel?: string;
   /** The first step's heading; callers signing several at once reword it. */
   chooseTitle?: string;
+  /**
+   * A next step straight from the confirmation, beside a way to leave it for
+   * later: the Applications register signs, then goes on to payment, as the
+   * Raise application chain does ("Proceed to payment"). Without it the
+   * confirmation ends on Done, as every party application does.
+   */
+  proceed?: { label: string; laterLabel: string; onClick: () => void };
 }) {
   const [step, setStep] = useState<SignStep>("choose");
   const [aadhaar, setAadhaar] = useState<AadhaarPhase>("authenticating");
@@ -369,10 +377,21 @@ export function PartySignatureDialog({
                 </div>
               </div>
             </DialogHeader>
-            <footer className={cn(FLOW_FOOTER, "flex shrink-0 justify-end border-t border-hairline px-6 py-4")}>
-              <Button type="button" onClick={onComplete}>
-                Done
-              </Button>
+            <footer className={cn(FLOW_FOOTER, "flex shrink-0 justify-end gap-2 border-t border-hairline px-6 py-4")}>
+              {proceed ? (
+                <>
+                  <Button type="button" variant="outline" onClick={onComplete}>
+                    {proceed.laterLabel}
+                  </Button>
+                  <Button type="button" onClick={proceed.onClick}>
+                    {proceed.label}
+                  </Button>
+                </>
+              ) : (
+                <Button type="button" onClick={onComplete}>
+                  Done
+                </Button>
+              )}
             </footer>
           </>
         ) : step === "aadhaar" && aadhaar === "authenticating" ? (

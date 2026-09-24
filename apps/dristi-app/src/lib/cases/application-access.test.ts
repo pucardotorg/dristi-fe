@@ -239,3 +239,22 @@ describe("naming an Others application in a sentence", () => {
     assert.equal(quotedOthersTitle({ type: "application-others", title: " " }), null);
   });
 });
+
+describe("temporary IDs allotted in the session", () => {
+  it("differ for applications whose ids end alike", () => {
+    const record = findCaseRecord("c-1001")!;
+    const ids = ["sub-1001-objections-advancement-signature", "sub-1001-memo-signature"];
+    const register = applicationsRegister(record, {
+      viewer: viewerFor("c-1001", "advocate"),
+      today: FIXTURE_TODAY,
+      moves: new Map(
+        ids.map((id) => [id, { status: "submitted" as const, submittedOn: FIXTURE_TODAY }])
+      ),
+    });
+    const allotted = register.applications
+      .filter((item) => ids.includes(item.id))
+      .map((item) => item.temporaryId);
+    assert.equal(allotted.length, 2);
+    assert.notEqual(allotted[0], allotted[1]);
+  });
+});

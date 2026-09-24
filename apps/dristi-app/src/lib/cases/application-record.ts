@@ -297,8 +297,14 @@ function applyMove(
  * like the pack's, and stable for the row, so the same filing reads the same
  * after a re-render.
  */
+/* From the whole id, not its tail: ids that end alike ("…-signature")
+   all came out as KL-TMP-ATURE. */
 function sessionTemporaryId(submission: Submission): string {
-  const tail = submission.id.replace(/[^a-z0-9]/gi, "").slice(-5).toUpperCase();
+  let hash = 0;
+  for (const char of submission.id) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  const tail = hash.toString(36).toUpperCase().padStart(5, "0").slice(-5);
   return `KL-TMP-${tail}`;
 }
 

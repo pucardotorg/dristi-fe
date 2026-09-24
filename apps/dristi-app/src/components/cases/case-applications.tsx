@@ -167,6 +167,9 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
   const [signing, setSigning] = useState<ApplicationRecord[]>([]);
+  /* How many are being signed, kept past the close: the dialog's wording
+     otherwise flips to "Application signed" as it animates out. */
+  const [signCount, setSignCount] = useState(0);
   const [paying, setPaying] = useState<ApplicationRecord[]>([]);
 
   if (!register) {
@@ -247,6 +250,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       setPaying(applications);
     } else if (lead.step === "sign") {
       setSigning(applications);
+      setSignCount(applications.length);
     }
   }
 
@@ -380,15 +384,31 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           setSigning([]);
         }}
         chooseTitle={
-          signing.length > 1
-            ? `How are these ${signing.length} applications signed?`
+          signCount > 1
+            ? `How are these ${signCount} applications signed?`
             : undefined
         }
         submitLabel="Submit signed copy"
+        /* Signed goes on to the fee, as it does from the Raise application
+           form; only an advocate or party in person signs, and both may pay
+           (owner, Sept 24: signing stopped short of payment here). */
+        proceed={{
+          label: "Proceed to payment",
+          laterLabel: "Pay later",
+          onClick: () => {
+            const signed = signing;
+            move(
+              signed.map((item) => item.id),
+              () => ({ status: "pending-payment" })
+            );
+            setSigning([]);
+            setPaying(signed);
+          },
+        }}
         confirmation={
-          signing.length > 1
+          signCount > 1
             ? {
-                title: `${signing.length} applications signed`,
+                title: `${signCount} applications signed`,
                 description: "Pay the court fee to submit them to the court.",
               }
             : {
