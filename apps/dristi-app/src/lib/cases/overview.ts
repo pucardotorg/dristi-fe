@@ -549,7 +549,9 @@ function collectRegisterUpdates(
       kind: submission.kind === "document" ? "document" : "application",
       on: dayStamp(submission.addedOn),
       title: submission.title,
-      detail: submission.courtResult ?? filingStatusLabel(submission.status),
+      /* The status, not a gist of the order: only the order says why, and
+         it is its own update in this list (owner, Sept 24). */
+      detail: filingStatusLabel(submission.status),
       href: applicationHref(record.id, submission.id),
     });
   }

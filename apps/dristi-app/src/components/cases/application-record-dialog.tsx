@@ -144,6 +144,20 @@ function RecordBody({
             {courtLine(application) ? (
               <p className="pb-3 text-body-compact text-foreground">
                 {courtLine(application)}
+                {isDecided(application.status) && application.linkedOrder ? (
+                  <>
+                    <span aria-hidden className="text-muted-foreground">
+                      {" · "}
+                    </span>
+                    <Button variant="link" asChild className="h-auto px-0">
+                      <Link
+                        href={orderHref(caseId, application.linkedOrder.id)}
+                      >
+                        View order
+                      </Link>
+                    </Button>
+                  </>
+                ) : null}
               </p>
             ) : null}
 
@@ -433,10 +447,14 @@ function courtLine(application: ApplicationRecord): string | undefined {
       return application.decision
         ? `The court decides it on ${application.decision}.`
         : "Waiting for the court's decision.";
+    /* Only the order says why (owner, Sept 24). The demo used to print a
+       made-up gist of it here, which read as the court's reasons. */
     case "accepted":
     case "rejected":
     case "dismissed":
-      return application.courtResult;
+      return application.decision
+        ? `By order of ${application.decision}`
+        : "By order of the court";
     case "submitted":
       return application.objectionTo
         ? "Read with the application it objects to."
