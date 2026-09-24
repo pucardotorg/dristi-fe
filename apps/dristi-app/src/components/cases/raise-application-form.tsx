@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useRef, useState } from "react";
-import { HourglassIcon } from "lucide-react";
+import { HourglassIcon, UsersIcon } from "lucide-react";
 
 import { AddSignatureDialog } from "@/components/cases/add-signature-dialog";
 import {
@@ -59,10 +59,13 @@ import {
   type ApplicationErrors,
 } from "@/lib/cases/application-draft";
 import {
+  isRaisedFromParties,
   isUnbuiltApplicationType,
   type ApplicationTypeId,
   type Submission,
 } from "@/lib/cases/applications";
+import { AddWitnessDialog } from "@/components/cases/add-witness-form";
+import Link from "next/link";
 import { caseSectionHref } from "@/lib/cases/sections";
 import {
   objectionDeadline,
@@ -145,12 +148,14 @@ export function RaiseApplicationForm({
         : undefined;
       return {
         role: viewer?.role ?? null,
+        side: viewer?.side,
         signer: advocate ? displayName(advocate.name) : undefined,
       };
     } catch {
-      return { role: null, signer: undefined };
+      return { role: null, side: undefined, signer: undefined };
     }
   }, [record, profileRole, accountName]);
+  const filedForSide: ApplicationDraft["filedForSide"] = seat.side ?? "";
   const handoffTo =
     seat.role === "clerk" ? (seat.signer ?? "your advocate") : undefined;
   const canRaise =
@@ -161,13 +166,23 @@ export function RaiseApplicationForm({
     whole reason "Continue draft" was worth wiring. The picker is still one
     click away on the Change type button.
   */
-  const [draft, setDraft] = useState<ApplicationDraft>(() =>
-    resume
+  const [draft, setDraft] = useState<ApplicationDraft>(() => ({
+    ...(resume
       ? applicationDraftFrom(resume)
       : objectTo
         ? { ...EMPTY_APPLICATION_DRAFT, type: "objection", objectionToId: objectTo }
-        : EMPTY_APPLICATION_DRAFT
+        : EMPTY_APPLICATION_DRAFT),
+    filedForSide,
+  }));
+  /* The side is read from who is filing at render time, not frozen into
+     the draft, because the profile settles only after hydration. */
+  const filedDraft = useMemo<ApplicationDraft>(
+    () => ({ ...draft, filedForSide }),
+    [draft, filedForSide]
   );
+  /* Addition of witness has its own application flow (the Parties tab's),
+     which only needs the case; it opens over the chooser as bail does. */
+  const [witnessOpen, setWitnessOpen] = useState(false);
   const [errors, setErrors] = useState<ApplicationErrors>(
     EMPTY_APPLICATION_ERRORS
   );
@@ -211,6 +226,9 @@ export function RaiseApplicationForm({
   /* Some types are cards without a form yet: the details step shows a notice,
      never the fields, and never a Generate button. */
   const unbuilt = draft.type !== "" && isUnbuiltApplicationType(draft.type);
+  /* Edit litigant details and PoA change act on one party, chosen on the
+     Parties tab; the chooser lists them and points there. */
+  const elsewhere = draft.type !== "" && isRaisedFromParties(draft.type);
   const chosen = applicationTypeGuide(
     draft.type || "application-others"
   );
@@ -290,6 +308,10 @@ export function RaiseApplicationForm({
       setBailOpen(true);
       return;
     }
+    if (type === "addition-of-witness") {
+      setWitnessOpen(true);
+      return;
+    }
     actions.update("type", type);
     setStage("details");
   }
@@ -324,7 +346,7 @@ export function RaiseApplicationForm({
       router.push(caseHref);
       return;
     }
-    setDraft(EMPTY_APPLICATION_DRAFT);
+    setDraft({ ...EMPTY_APPLICATION_DRAFT, filedForSide });
     setErrors(EMPTY_APPLICATION_ERRORS);
     setStage("type");
   }
@@ -479,7 +501,28 @@ export function RaiseApplicationForm({
             </p>
           </DialogHeader>
 
-          {unbuilt ? (
+          {elsewhere ? (
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <UsersIcon aria-hidden />
+                  </EmptyMedia>
+                  <EmptyTitle>Raised from the Parties tab</EmptyTitle>
+                  <EmptyDescription>
+                    {draft.type === "poa-change"
+                      ? "Open Parties, choose the litigant, and change their power of attorney holder there."
+                      : "Open Parties, choose the litigant, and edit their details there."}
+                  </EmptyDescription>
+                </EmptyHeader>
+                <Button asChild>
+                  <Link href={caseSectionHref(record.id, "parties")}>
+                    Go to Parties
+                  </Link>
+                </Button>
+              </Empty>
+            </div>
+          ) : unbuilt ? (
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
               <Empty>
                 <EmptyHeader>
@@ -506,15 +549,18 @@ export function RaiseApplicationForm({
                 errors={errors}
                 record={record}
                 actions={actions}
+                filedFor={
+                  filedForSide ? record.parties[filedForSide] : undefined
+                }
               />
             </form>
           )}
 
           <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <Button type="button" variant="outline" onClick={requestCloseForm}>
-              {unbuilt ? "Close" : "Cancel"}
+              {unbuilt || elsewhere ? "Close" : "Cancel"}
             </Button>
-            {unbuilt ? null : (
+            {unbuilt || elsewhere ? null : (
               <Button type="submit" form={formId}>
                 {objecting ? "Generate objection" : "Generate application"}
               </Button>
@@ -526,7 +572,7 @@ export function RaiseApplicationForm({
       <GeneratedApplicationDialog
         open={generatedOpen}
         onOpenChange={setGeneratedOpen}
-        draft={draft}
+        draft={filedDraft}
         record={record}
         onAddSignature={() => {
           setGeneratedOpen(false);
@@ -539,7 +585,7 @@ export function RaiseApplicationForm({
       <AddSignatureDialog
         open={signatureOpen}
         onOpenChange={setSignatureOpen}
-        draft={draft}
+        draft={filedDraft}
         record={record}
         onBack={() => {
           setSignatureOpen(false);
@@ -576,6 +622,16 @@ export function RaiseApplicationForm({
           nextHearing: record.nextHearing?.on ?? "",
         }}
         locale={locale}
+      />
+
+      <AddWitnessDialog
+        open={witnessOpen}
+        onOpenChange={setWitnessOpen}
+        caseRef={{
+          title: partiesLabel(record),
+          caseNumber: record.caseNumber,
+          court: record.court,
+        }}
       />
 
       <DiscardFilingDialog

@@ -53,15 +53,30 @@ export type DocumentRowDraft = {
 
 export type ApplicationDraft = {
   type: ApplicationTypeId | "";
+  /**
+   * The side it is raised for, set from who is filing (never typed). Names
+   * the litigant on the form and in the generated document; empty falls
+   * back to the old rule (bail for the accused, the rest for the
+   * complainant).
+   */
+  filedForSide: "" | "complainant" | "accused";
 
   /** Shared by Production, Settlement, Transfer and Withdrawal. */
   referenceOrderId: string;
   applicationDate: Date | undefined;
   comments: RichTextValue;
 
-  /** Advancement/reschedule. */
+  /**
+   * Advance (prepone) and Postpone: one form for both (PRD). The reason is a
+   * pick from a list and the date is one day from which the hearing can be
+   * held. `availabilityDates` is the earlier form's up-to-five dates, kept so
+   * nothing typed into an old draft is lost, and no longer asked for.
+   */
   availabilityDates: Date[];
+  rescheduleReason: string;
+  rescheduleFrom: Date | undefined;
   partiesAgreed: YesNo;
+  /** The filer's own words on the reason; optional beside the pick. */
   requestReason: string;
   supportingFiles: File[];
 
@@ -77,9 +92,10 @@ export type ApplicationDraft = {
   additionalInformation: RichTextValue;
   supportingDocuments: DocumentRowDraft[];
 
-  /** Others. */
+  /** Others. Each document carries its type and title (PRD "Generic"). */
   title: string;
   details: RichTextValue;
+  otherDocuments: DocumentRowDraft[];
 
   /** Production of documents. */
   submissionDocuments: DocumentRowDraft[];
@@ -89,7 +105,8 @@ export type ApplicationDraft = {
   requestedCourt: string;
   transferGrounds: string;
 
-  /** Withdrawal. */
+  /** Withdrawal: a reason picked from a list (PRD), then the filer's own words. */
+  withdrawalReasonCode: string;
   withdrawalReason: RichTextValue;
 
   /**
@@ -120,10 +137,13 @@ export const EMPTY_APPLICATION_ERRORS: ApplicationErrors = {
 
 export const EMPTY_APPLICATION_DRAFT: ApplicationDraft = {
   type: "",
+  filedForSide: "",
   referenceOrderId: "",
   applicationDate: undefined,
   comments: EMPTY_RICH_TEXT,
   availabilityDates: [],
+  rescheduleReason: "",
+  rescheduleFrom: undefined,
   partiesAgreed: "yes",
   requestReason: "",
   supportingFiles: [],
@@ -137,10 +157,12 @@ export const EMPTY_APPLICATION_DRAFT: ApplicationDraft = {
   supportingDocuments: [],
   title: "",
   details: EMPTY_RICH_TEXT,
+  otherDocuments: [],
   submissionDocuments: [],
   applicationReason: EMPTY_RICH_TEXT,
   requestedCourt: "",
   transferGrounds: "",
+  withdrawalReasonCode: "",
   withdrawalReason: EMPTY_RICH_TEXT,
   objectionToId: "",
   objectionGrounds: EMPTY_RICH_TEXT,
@@ -164,6 +186,30 @@ export function emptySurety(): SuretyDraft {
     otherDocuments: [],
   };
 }
+
+/**
+ * Why a hearing should move. The PRD asks for a single-select reason and
+ * gives no list: WORKING GUESS, flagged for the PM. The same list serves
+ * both directions, as the PRD's fields do.
+ */
+export const RESCHEDULE_REASONS = [
+  "A party or witness cannot attend",
+  "Counsel is engaged in another court",
+  "Illness",
+  "The parties are negotiating a settlement",
+  "Other",
+] as const;
+
+/**
+ * Why the complainant withdraws the case. Single select per the PRD, which
+ * gives no list: WORKING GUESS, flagged for the PM.
+ */
+export const WITHDRAWAL_REASONS = [
+  "The accused has paid the amount",
+  "The parties have settled",
+  "The complainant does not wish to proceed",
+  "Other",
+] as const;
 
 export function emptyDocumentRow(): DocumentRowDraft {
   return { id: `doc-${crypto.randomUUID()}`, type: "", title: "", files: [] };
@@ -220,6 +266,7 @@ export function applicationDraftFrom(submission: Submission): ApplicationDraft {
 
   switch (type) {
     case "advancement-reschedule":
+    case "postpone":
       draft.requestReason = ask;
       break;
     case "bail":
@@ -278,9 +325,11 @@ function richTextFromPlain(value: string): string {
 }
 
 export function isApplicationDirty(draft: ApplicationDraft): boolean {
-  const { type, partiesAgreed, addSureties, objectionToId, ...rest } = draft;
+  const { type, partiesAgreed, addSureties, objectionToId, filedForSide, ...rest } =
+    draft;
   void partiesAgreed;
   void addSureties;
+  void filedForSide;
   // Set by the File objection task, not typed: opening the form is not work.
   void objectionToId;
   return Boolean(
@@ -386,12 +435,16 @@ export function validateApplication(
   }
 
   switch (draft.type) {
-    case "advancement-reschedule": {
-      // Not marked mandatory on the portal, but an advancement application
-      // with no proposed date asks the court for nothing.
-      if (draft.availabilityDates.length === 0) {
-        errors.fields.availabilityDates =
-          "Choose at least one date the party can attend.";
+    case "advancement-reschedule":
+    case "postpone": {
+      if (!draft.rescheduleReason) {
+        errors.fields.rescheduleReason = "Choose the reason for rescheduling.";
+      }
+      // Not marked mandatory in the PRD, but a request to move a hearing
+      // with no date asks the court for nothing.
+      if (!draft.rescheduleFrom) {
+        errors.fields.rescheduleFrom =
+          "Choose the date from which the hearing can be held.";
       }
       break;
     }
@@ -440,6 +493,7 @@ export function validateApplication(
       if (!rich(draft.details)) {
         errors.fields.details = "Enter the application details.";
       }
+      validateDocumentRows(draft.otherDocuments, errors);
       break;
     }
 
@@ -479,8 +533,8 @@ export function validateApplication(
       if (!draft.applicationDate) {
         errors.fields.applicationDate = "Choose the date of application.";
       }
-      if (!rich(draft.withdrawalReason)) {
-        errors.fields.withdrawalReason = "Enter the reason for withdrawal.";
+      if (!draft.withdrawalReasonCode) {
+        errors.fields.withdrawalReasonCode = "Choose the reason for withdrawal.";
       }
       break;
     }

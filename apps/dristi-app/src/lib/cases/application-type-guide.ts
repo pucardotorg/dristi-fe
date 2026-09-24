@@ -28,7 +28,12 @@
  */
 import type { LucideIcon } from "lucide-react";
 import {
+  CalendarClockIcon,
   CalendarDaysIcon,
+  SignatureIcon,
+  StampIcon,
+  UserPenIcon,
+  UserPlusIcon,
   FileSearchIcon,
   FileX2Icon,
   FolderOpenIcon,
@@ -60,7 +65,7 @@ export type ApplicationTypeGuide = {
   keywords: string[];
 };
 
-export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
+const GUIDES: ApplicationTypeGuide[] = [
   {
     id: "absent-application",
     label: "Absent application",
@@ -80,28 +85,86 @@ export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
       "leave of absence",
     ],
   },
+  /* The PRD splits what was one Advancement/reschedule card into two asks.
+     Nothing in its fields tells them apart but the direction, so the two
+     cards share one form (PRD "Advance (Prepone) / Postpone"). */
   {
     id: "advancement-reschedule",
-    label: "Advancement/reschedule",
-    description:
-      "Move a listed hearing earlier or later, with the dates you propose.",
+    label: "Advance (prepone)",
+    description: "Ask for a listed hearing to be moved to an earlier date.",
     icon: CalendarDaysIcon,
     keywords: [
       "advance",
       "advancement",
       "prepone",
-      "postpone",
       "reschedule",
+      "hearing",
+      "earlier date",
+      "sooner",
+      "change the date",
+    ],
+  },
+  {
+    id: "postpone",
+    label: "Postpone",
+    description: "Ask for a listed hearing to be moved to a later date.",
+    icon: CalendarClockIcon,
+    keywords: [
+      "postpone",
+      "postponement",
       "adjourn",
       "adjournment",
       "defer",
+      "reschedule",
       "hearing",
-      "earlier date",
       "later date",
       "another date",
-      "change the date",
       "next date",
     ],
+  },
+  {
+    id: "addition-of-witness",
+    label: "Addition of witness",
+    description: "Ask for a witness to be added to the case.",
+    icon: UserPlusIcon,
+    keywords: ["witness", "add witness", "new witness", "examine", "summon"],
+  },
+  {
+    id: "certified-copy",
+    label: "Certified copy",
+    description:
+      "Ask for a certified true copy of an order, a document or the case record.",
+    icon: StampIcon,
+    keywords: [
+      "certified copy",
+      "true copy",
+      "copy",
+      "attested",
+      "appeal",
+      "revision",
+    ],
+  },
+  {
+    id: "edit-litigant-details",
+    label: "Edit litigant details",
+    description: "Ask for a correction to a litigant's details on the case.",
+    icon: UserPenIcon,
+    keywords: [
+      "correct",
+      "correction",
+      "edit",
+      "change name",
+      "address",
+      "details",
+      "litigant",
+    ],
+  },
+  {
+    id: "poa-change",
+    label: "PoA change",
+    description: "Ask to change who holds a litigant's power of attorney.",
+    icon: SignatureIcon,
+    keywords: ["power of attorney", "poa", "attorney", "holder", "authorise"],
   },
   {
     id: "bail",
@@ -258,8 +321,9 @@ export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
   {
     id: "withdrawal",
     label: "Withdrawal",
-    description:
-      "Take back something already filed, with your reason for withdrawing it.",
+    /* The PRD's "Case withdrawal": the complaint itself, which is what the
+       generated document and the order template already said. */
+    description: "Ask to withdraw the complaint, with your reason.",
     icon: Undo2Icon,
     keywords: [
       "withdraw",
@@ -281,6 +345,19 @@ export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
     keywords: ["other", "others", "something else", "not listed", "general"],
   },
 ];
+
+/**
+ * The catalogue in the order the picker lists it: alphabetical by label,
+ * Others last. Sorted here rather than kept sorted by hand, so a type added
+ * to the list above lands in its place.
+ */
+export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [...GUIDES].sort(
+  (a, b) => {
+    if (a.id === "application-others") return 1;
+    if (b.id === "application-others") return -1;
+    return a.label.localeCompare(b.label);
+  }
+);
 
 const GUIDES_BY_ID = new Map(
   APPLICATION_TYPE_GUIDES.map((guide) => [guide.id, guide])
@@ -315,12 +392,8 @@ const SUGGESTED_BY_STAGE: Record<ActiveStage, ApplicationTypeId[]> = {
   cognizance: ["condonation-of-delay", "advancement-reschedule", "withdrawal"],
   summons: ["warrant-by-hand", "advancement-reschedule", "settlement"],
   appearance: ["bail", "absent-application", "warrant-recall"],
-  evidence: [
-    "absent-application",
-    "production-of-documents",
-    "advancement-reschedule",
-  ],
-  arguments: ["reopen-evidence", "advancement-reschedule", "absent-application"],
+  evidence: ["absent-application", "production-of-documents", "postpone"],
+  arguments: ["reopen-evidence", "postpone", "absent-application"],
   judgment: ["reopen-evidence", "settlement"],
 };
 

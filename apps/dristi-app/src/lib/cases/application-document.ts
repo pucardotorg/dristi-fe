@@ -82,13 +82,14 @@ export function buildGeneratedApplication(
         (person) => person.id === objectionTarget.submittedById
       )
     : undefined;
-  const filedFor =
-    draft.type === "bail"
-      ? accused
-      : objectionTarget
-        ? targetFiler?.side === "accused"
-          ? complainant
-          : accused
+  const filedFor = objectionTarget
+    ? targetFiler?.side === "accused"
+      ? complainant
+      : accused
+    : draft.filedForSide
+      ? record.parties[draft.filedForSide]
+      : draft.type === "bail"
+        ? accused
         : complainant;
 
   const facts: { term: string; value: string }[] = [
@@ -127,8 +128,12 @@ export function buildGeneratedApplication(
   let prayer = "";
 
   switch (draft.type) {
-    case "advancement-reschedule": {
-      title = "Application for advancement or rescheduling of hearing";
+    case "advancement-reschedule":
+    case "postpone": {
+      const later = draft.type === "postpone";
+      title = later
+        ? "Application for postponement of hearing"
+        : "Application for advancement of hearing";
       paragraphs.push(
         record.nextHearing
           ? `This case is listed before this court on ${formatCaseDate(
@@ -137,29 +142,39 @@ export function buildGeneratedApplication(
           : "No hearing is currently listed in this case."
       );
       paragraphs.push(
-        trimmed(draft.requestReason)
-          ? `The applicant seeks a change of the hearing date for the following reason: ${trimmed(
-              draft.requestReason
-            )}`
-          : "The applicant seeks a change of the hearing date."
+        draft.rescheduleReason
+          ? `The applicant seeks ${
+              later ? "a later" : "an earlier"
+            } date for the hearing. Reason: ${draft.rescheduleReason.toLowerCase()}.`
+          : `The applicant seeks ${later ? "a later" : "an earlier"} date for the hearing.`
       );
-      if (draft.availabilityDates.length) {
+      if (trimmed(draft.requestReason)) {
+        paragraphs.push(trimmed(draft.requestReason));
+      }
+      if (draft.rescheduleFrom) {
         paragraphs.push(
-          `The party is available to attend on ${draft.availabilityDates
-            .map((date) => formatCaseDate(date.toISOString()))
-            .join(", ")}.`
+          `The hearing can be held on or after ${formatCaseDate(
+            draft.rescheduleFrom.toISOString()
+          )}.`
         );
       }
       paragraphs.push(
         draft.partiesAgreed === "yes"
-          ? "The other parties in the case have agreed to the proposed dates."
-          : "The other parties in the case have not yet agreed to the proposed dates."
+          ? "The other parties in the case have agreed to this date."
+          : "The other parties in the case have not yet agreed to this date."
       );
       if (draft.supportingFiles.length) {
         paragraphs.push(fileCount(draft.supportingFiles.length));
       }
-      prayer =
-        "It is therefore prayed that this court may advance or reschedule the hearing of this case to one of the dates proposed above.";
+      prayer = draft.rescheduleFrom
+        ? `It is therefore prayed that this court may ${
+            later ? "postpone" : "advance"
+          } the hearing of this case to a date on or after ${formatCaseDate(
+            draft.rescheduleFrom.toISOString()
+          )}.`
+        : `It is therefore prayed that this court may ${
+            later ? "postpone" : "advance"
+          } the hearing of this case.`;
       break;
     }
 
@@ -221,8 +236,8 @@ export function buildGeneratedApplication(
       if (trimmed(draft.details.text)) {
         paragraphs.push(trimmed(draft.details.text));
       }
-      if (draft.supportingFiles.length) {
-        paragraphs.push(fileCount(draft.supportingFiles.length));
+      if (draft.otherDocuments.length) {
+        paragraphs.push(fileCount(draft.otherDocuments.length));
       }
       prayer =
         "It is therefore prayed that this court grant the relief sought in this application.";
@@ -292,6 +307,9 @@ export function buildGeneratedApplication(
 
     case "withdrawal": {
       title = "Application for withdrawal";
+      if (draft.withdrawalReasonCode) {
+        facts.push({ term: "Reason", value: draft.withdrawalReasonCode });
+      }
       if (trimmed(draft.withdrawalReason.text)) {
         paragraphs.push(
           `The complainant seeks permission to withdraw the complaint for the following reason: ${trimmed(

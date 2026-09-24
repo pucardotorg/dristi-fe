@@ -45,14 +45,21 @@ export type FilingStatus =
 
 export type ApplicationTypeId =
   | "absent-application"
+  /** Advance (prepone). The id is kept from when one type covered both ways. */
   | "advancement-reschedule"
+  | "postpone"
+  | "addition-of-witness"
   | "bail"
+  | "certified-copy"
   | "condonation-of-delay"
+  | "edit-litigant-details"
+  | "poa-change"
   | "production-of-documents"
   | "reopen-evidence"
   | "settlement"
   | "transfer"
   | "warrant-by-hand"
+  /** Not one of the PRD's seventeen; kept (owner, Sept 24) and flagged to the PM. */
   | "warrant-recall"
   | "withdrawal"
   | "application-others"
@@ -85,9 +92,14 @@ export const APPLICATION_TYPES: {
   label: string;
 }[] = [
   { id: "absent-application", label: "Absent application" },
-  { id: "advancement-reschedule", label: "Advancement/reschedule" },
+  { id: "addition-of-witness", label: "Addition of witness" },
+  { id: "advancement-reschedule", label: "Advance (prepone)" },
   { id: "bail", label: "Bail" },
+  { id: "certified-copy", label: "Certified copy" },
   { id: "condonation-of-delay", label: "Condonation of delay" },
+  { id: "edit-litigant-details", label: "Edit litigant details" },
+  { id: "poa-change", label: "PoA change" },
+  { id: "postpone", label: "Postpone" },
   { id: "production-of-documents", label: "Production of documents" },
   { id: "reopen-evidence", label: "Reopen evidence" },
   { id: "settlement", label: "Settlement" },
@@ -108,6 +120,9 @@ export const APPLICATION_TYPES: {
 export const UNBUILT_APPLICATION_TYPE_IDS: ReadonlySet<ApplicationTypeId> =
   new Set<ApplicationTypeId>([
     "absent-application",
+    /* The PRD documents no fields for it yet, and it is open to anyone, even
+       without signing in, which is a flow of its own. */
+    "certified-copy",
     "reopen-evidence",
     "warrant-by-hand",
     "warrant-recall",
@@ -115,6 +130,19 @@ export const UNBUILT_APPLICATION_TYPE_IDS: ReadonlySet<ApplicationTypeId> =
 
 export function isUnbuiltApplicationType(id: ApplicationTypeId): boolean {
   return UNBUILT_APPLICATION_TYPE_IDS.has(id);
+}
+
+/**
+ * Types filed from the Parties tab, not from a form here: each acts on one
+ * party the filer picks there first, and the PM put every case addition
+ * behind the one Add people door (Sept 1). The picker still lists them, so
+ * the catalogue is whole, and sends the filer to where they are raised.
+ */
+export const PARTIES_APPLICATION_TYPE_IDS: ReadonlySet<ApplicationTypeId> =
+  new Set<ApplicationTypeId>(["edit-litigant-details", "poa-change"]);
+
+export function isRaisedFromParties(id: ApplicationTypeId): boolean {
+  return PARTIES_APPLICATION_TYPE_IDS.has(id);
 }
 
 /** Submission-flow buckets — the register's document heads live in documents.ts. */
