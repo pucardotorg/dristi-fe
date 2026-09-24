@@ -338,9 +338,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         </Empty>
       ) : (
         <ApplicationsTable
-          caseId={record.id}
           rows={rows}
-          onAct={act}
           onOpen={setRecordOpen}
           recentId={recentId}
           recentRowRef={recentRowRef}
@@ -985,9 +983,15 @@ function bracketed(note: string): string {
   return `(${note.charAt(0).toLowerCase()}${note.slice(1)})`;
 }
 
-/** A bracketed note stays on one line (owner, Sept 24). */
-function noteClass(): string {
-  return "text-caption whitespace-nowrap text-muted-foreground tabular-nums";
+/**
+ * A date never breaks; a note carrying a name may wrap, since names run long
+ * and the 64px row has room for a second caption line (owner, Sept 24).
+ */
+function noteClass(keepWhole = false): string {
+  return cn(
+    "text-caption text-muted-foreground tabular-nums",
+    keepWhole && "whitespace-nowrap"
+  );
 }
 
 /**
@@ -1040,71 +1044,13 @@ function ApplicationNumber({
   return <Dash label="Not allotted" />;
 }
 
-/**
- * The row's own action: the viewer's step where they have one (continue a
- * draft, sign, pay), otherwise View. The table used to offer only View, so a
- * filing the viewer could act on had to be found again in Needs attention
- * (owner, Sept 24). The row itself still opens the record.
- */
-function RowAction({
-  caseId,
-  item,
-  onAct,
-  onOpen,
-}: {
-  caseId: string;
-  item: ApplicationRecord;
-  onAct: (applications: ApplicationRecord[]) => void;
-  onOpen: (id: string) => void;
-}) {
-  const draftHref = resumeDraftHref(caseId, item.source);
-  if (item.step === "continue" && draftHref) {
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        className="-my-1.5"
-        asChild
-        onClick={(event) => event.stopPropagation()}
-      >
-        <Link href={draftHref}>
-          {STEP_COPY.continue}
-          <span className="sr-only">: {item.typeLabel}</span>
-        </Link>
-      </Button>
-    );
-  }
-  if (item.step === "sign" || item.step === "pay") {
-    return (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="-my-1.5"
-        onClick={(event) => {
-          event.stopPropagation();
-          onAct([item]);
-        }}
-      >
-        {STEP_COPY[item.step]}
-        <span className="sr-only">: {item.typeLabel}</span>
-      </Button>
-    );
-  }
-  return <RowViewButton label={item.typeLabel} onClick={() => onOpen(item.id)} />;
-}
-
 function ApplicationsTable({
-  caseId,
   rows,
-  onAct,
   onOpen,
   recentId,
   recentRowRef,
 }: {
-  caseId: string;
   rows: ApplicationRecord[];
-  onAct: (applications: ApplicationRecord[]) => void;
   onOpen: (id: string) => void;
   recentId: string | null;
   recentRowRef: (node: HTMLTableRowElement | null) => void;
@@ -1123,16 +1069,9 @@ function ApplicationsTable({
             onOpenChange={tray.toggle(item.id)}
             className={cn(recentId === item.id && RECENT_ROW)}
             actions={
-              <>
-                <Button
-                  type="button"
-                  variant={item.step ? "outline" : "default"}
-                  onClick={() => onOpen(item.id)}
-                >
-                  {item.step ? "View" : "View application"}
-                </Button>
-                <StepAction caseId={caseId} application={item} onAct={onAct} />
-              </>
+              <Button type="button" onClick={() => onOpen(item.id)}>
+                View application
+              </Button>
             }
           >
             <p className="-mt-2 text-caption text-muted-foreground">
@@ -1157,7 +1096,9 @@ function ApplicationsTable({
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
-              {note ? <span className={noteClass()}>{note}</span> : null}
+              {note ? (
+                  <span className={noteClass(!item.waitingOn)}>{note}</span>
+                ) : null}
             </div>
             <div className="flex flex-col gap-0.5 border-t border-hairline pt-3">
               <p className="text-body-compact text-foreground">
@@ -1216,9 +1157,11 @@ function ApplicationsTable({
               <ApplicationNumber item={item} />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "whitespace-normal")}>
-              <span className="flex flex-col items-start gap-1">
+              <span className="flex flex-col items-start gap-0.5">
                 <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
-                {note ? <span className={noteClass()}>{note}</span> : null}
+                {note ? (
+                  <span className={noteClass(!item.waitingOn)}>{note}</span>
+                ) : null}
               </span>
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>
@@ -1241,11 +1184,12 @@ function ApplicationsTable({
               {item.submittedShort ?? <Dash label="Not submitted" />}
             </TableCell>
             <TableCell className={TABLE_CELL}>
-              <RowAction
-                caseId={caseId}
-                item={item}
-                onAct={onAct}
-                onOpen={onOpen}
+              {/* View on every row: the table is for finding and opening. The
+                  step is taken from the record, after reading it (owner,
+                  Sept 24); Needs attention stays the shortcut. */}
+              <RowViewButton
+                label={item.typeLabel}
+                onClick={() => onOpen(item.id)}
               />
             </TableCell>
           </TableRow>

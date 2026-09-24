@@ -112,17 +112,6 @@ function RecordBody({
             Application record, documents and linked order
           </DialogDescription>
         </div>
-        {/* The viewer's step, where they have one: reading a filing that
-            waits on you should not mean going back to the list to act. */}
-        {application.step === "continue" && draftHref ? (
-          <Button size="sm" asChild>
-            <Link href={draftHref}>Continue draft</Link>
-          </Button>
-        ) : application.step && application.step !== "continue" && onAct ? (
-          <Button size="sm" type="button" onClick={() => onAct(application)}>
-            {application.step === "sign" ? "Add signature" : "Complete payment"}
-          </Button>
-        ) : null}
         {pdf ? (
           <TooltipProvider>
             <Tooltip>
@@ -363,9 +352,39 @@ function RecordBody({
           </div>
         )}
       </div>
+
+      {/* The viewer's step, where they have one: read it, then act on it, in the
+          filing dialogs' own footer band, primary at the far end (owner, Sept
+          24). The table only opens; Needs attention stays the shortcut. */}
+      {application.step ? (
+        <footer className="flex shrink-0 flex-col gap-3 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-body-compact text-muted-foreground">
+            {STEP_NOTE[application.step]}
+          </p>
+          {application.step === "continue" && draftHref ? (
+            <Button asChild className="w-full sm:w-auto">
+              <Link href={draftHref}>Continue draft</Link>
+            </Button>
+          ) : application.step !== "continue" && onAct ? (
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              onClick={() => onAct(application)}
+            >
+              {application.step === "sign" ? "Add signature" : "Complete payment"}
+            </Button>
+          ) : null}
+        </footer>
+      ) : null}
     </>
   );
 }
+
+const STEP_NOTE = {
+  continue: "A draft. Finish it, then sign and pay to file it.",
+  sign: "Needs your signature before it can go to the court.",
+  pay: "Signed. Pay the court fee to submit it to the court.",
+} as const;
 
 /** An objection or a document has no application number; unfiled, no ID either. */
 function hasNumberFacts(application: ApplicationRecord): boolean {
