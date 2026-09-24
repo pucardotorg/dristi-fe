@@ -573,6 +573,25 @@ const STEP_COPY = {
  * of the line, never amber: amber in this list is a court deadline (an
  * objection), and an expiry is the lower priority (owner, Sept 24).
  */
+/**
+ * A card's title with its status beside it rather than on a row of its own:
+ * the badge was a whole line of height for one word (owner, Sept 24).
+ */
+function CardTitle({
+  label,
+  badge,
+}: {
+  label: string;
+  badge?: ReactNode;
+}) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span>{label}</span>
+      {badge}
+    </span>
+  );
+}
+
 function whenIn(days: number): string {
   return days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
 }
@@ -652,7 +671,18 @@ function TouchActionCard({
 }) {
   return (
     <RegisterTrayCard
-      title={application.typeLabel}
+      title={
+        <CardTitle
+          label={application.typeLabel}
+          badge={
+            nested ? null : (
+              <Badge variant={application.statusVariant}>
+                {application.statusLabel}
+              </Badge>
+            )
+          }
+        />
+      }
       open={open}
       onOpenChange={onOpenChange}
       actions={
@@ -668,22 +698,17 @@ function TouchActionCard({
         </>
       }
     >
-      <div className="-mt-1 flex flex-col items-start gap-2">
-        {nested ? null : (
-          <Badge variant={application.statusVariant}>
-            {application.statusLabel}
-          </Badge>
-        )}
-        {/* One fact a line on a card, 4px apart: wrapped at whatever width was
-            left, the line crammed two captions together and stranded a "·"
-            at its end (owner, Sept 24). */}
-        <div className="flex flex-col gap-1 text-caption text-muted-foreground">
-          <span>{filedLine(application)}</span>
-          <span className="tabular-nums">Created {application.created}</span>
+      {/* Two caption lines, 4px apart: who, then when. The clock is the
+          separator on the second line, so it can wrap without stranding a
+          middot (owner, Sept 24). Short dates keep it to one line. */}
+      <div className="-mt-1 flex flex-col gap-1 text-caption text-muted-foreground">
+        <span>{filedLine(application)}</span>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
+          <span>Created {application.createdShort}</span>
           {expiryText(application) ? (
             <ExpiryNote text={expiryText(application)!} />
           ) : null}
-        </div>
+        </span>
       </div>
     </RegisterTrayCard>
   );
@@ -728,7 +753,21 @@ function TouchActionGroup({
 
   return (
     <RegisterTrayCard
-      title={groupTitle(entry)}
+      title={
+        <CardTitle
+          label={groupTitle(entry)}
+          badge={
+            <>
+              <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
+              {groupExpiryText(entry.applications) ? (
+                <span className="text-caption font-normal text-muted-foreground">
+                  <ExpiryNote text={groupExpiryText(entry.applications)!} />
+                </span>
+              ) : null}
+            </>
+          }
+        />
+      }
       open={open}
       onOpenChange={onOpenChange}
       tray={
@@ -756,14 +795,6 @@ function TouchActionGroup({
         </>
       }
     >
-      <div className="-mt-1 flex flex-wrap items-center gap-2">
-        <Badge variant={lead.statusVariant}>{lead.statusLabel}</Badge>
-        {groupExpiryText(entry.applications) ? (
-          <span className="text-caption text-muted-foreground">
-            <ExpiryNote text={groupExpiryText(entry.applications)!} />
-          </span>
-        ) : null}
-      </div>
     </RegisterTrayCard>
   );
 }
@@ -786,10 +817,12 @@ function GroupMemberCard({
         </p>
         <div className="flex flex-col gap-1 text-caption text-muted-foreground">
           <span>{filedLine(application)}</span>
-          <span className="tabular-nums">Created {application.created}</span>
-          {expiryText(application) ? (
-            <ExpiryNote text={expiryText(application)!} />
-          ) : null}
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
+            <span>Created {application.createdShort}</span>
+            {expiryText(application) ? (
+              <ExpiryNote text={expiryText(application)!} />
+            ) : null}
+          </span>
         </div>
       </div>
       <div className="flex gap-2 [&>*]:flex-1">
@@ -1216,7 +1249,14 @@ function ApplicationsTable({
         return (
         <li key={item.id}>
           <RegisterTrayCard
-            title={item.typeLabel}
+            title={
+              <CardTitle
+                label={item.typeLabel}
+                badge={
+                  <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
+                }
+              />
+            }
             open={tray.isOpen(item.id)}
             onOpenChange={tray.toggle(item.id)}
             className={cn(recentId === item.id && RECENT_ROW)}
@@ -1251,12 +1291,11 @@ function ApplicationsTable({
                 ? `${item.temporaryId ? " " : ""}${objectionTarget(item)}`
                 : null}
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
-              {note ? (
-                  <span className={noteClass(!item.waitingOn)}>{note}</span>
-                ) : null}
-            </div>
+            {note ? (
+              <span className={cn("-mt-2", noteClass(!item.waitingOn))}>
+                {note}
+              </span>
+            ) : null}
             <div className="flex flex-col gap-1 border-t border-hairline pt-3">
               <p className="text-body-compact text-foreground">
                 {item.filedBy}
