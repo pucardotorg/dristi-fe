@@ -77,11 +77,11 @@ import {
 } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { useSourceDock } from "@/hooks/use-min-width";
 import { TOP_BAR_HEIGHT } from "@/components/filing/chrome";
 import { ConfirmDialog } from "@/components/filing/confirm-dialog";
+import { SectionNotice } from "@/components/filing/notices";
 import { FilingFooter } from "@/components/filing/filing-footer";
 import { FilingPageHeader } from "@/components/filing/filing-page-header";
 import { FilingMain, useSourceRailSlot } from "@/components/filing/filing-shell";
@@ -226,39 +226,58 @@ function SignatureList({
   );
 }
 
+/**
+ * The state of the signing, as one chip.
+ *
+ * The rail's three states read the same until they are named and coloured, which is what
+ * the owner found on the render (2026-09-24: *"it looks the same to me and does not
+ * communicate one has committed to the signature mode"*). One chip, one meaning: grey
+ * while nothing has been asked, blue while the court's system is waiting on somebody,
+ * green when there is nothing left to collect.
+ */
+function stateChip(
+  all: Signatory[],
+  requested: boolean,
+  onPaper: boolean
+): { variant: "secondary" | "info" | "success"; label: string } {
+  const signed = all.filter((s) => s.status === "signed").length;
+  if (all.length > 0 && signed === all.length) {
+    return { variant: "success", label: `${signed} of ${all.length} signed` };
+  }
+  if (onPaper) return { variant: "secondary", label: "On paper" };
+  if (!requested) return { variant: "secondary", label: "Not sent" };
+  return { variant: "info", label: `${signed} of ${all.length} signed` };
+}
+
+const SIGNATURES_HEADING = "sign-signatures";
+
 function SignatureSummary({
   complainants,
   advocates,
   requested,
+  onPaper,
   notified,
 }: {
   complainants: Signatory[];
   advocates: Signatory[];
   requested: boolean;
+  onPaper: boolean;
   notified: Record<string, string>;
 }) {
   const all = [...complainants, ...advocates];
-  const signed = all.filter((s) => s.status === "signed").length;
-  const pct = all.length ? Math.round((signed / all.length) * 100) : 0;
+  const chip = stateChip(all, requested, onPaper);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-body font-semibold">Signatures</h2>
-          <span className="text-caption font-medium text-muted-foreground tabular-nums">
-            {requested
-              ? `${signed} of ${all.length} signed`
-              : all.length === 1
-                ? "1 to sign"
-                : `${all.length} to sign`}
-          </span>
-        </div>
-        <Progress
-          value={pct}
-          aria-label={`${signed} of ${all.length} signatures collected`}
-          className="h-1.5"
-        />
+    <div className="flex flex-col gap-4">
+      {/* The block header the newer advocate screens use: the title, and the one fact
+          about it opposite (`case-overview`'s `BlockHeader`). */}
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h2 id={SIGNATURES_HEADING} className="text-body font-semibold text-foreground">
+          Signatures
+        </h2>
+        <Badge variant={chip.variant} className="tabular-nums">
+          {chip.label}
+        </Badge>
       </div>
       <SignatureList
         title="Complainant signature"
@@ -410,6 +429,7 @@ export function SignSection() {
   const otherSigners = Math.max(0, everyone.length - yous.length);
   const others =
     otherSigners === 1 ? "The other party" : `The other ${otherSigners} parties`;
+  const have = otherSigners === 1 ? "has" : "have";
 
   /**
    * Every signature on this screen belongs to *this* version of the complaint. Going back
@@ -730,40 +750,34 @@ export function SignSection() {
   );
 
   /**
-   * ── What to do about the signatures, in the main column ──
+   * ── What to do about the signatures ──
    *
-   * The act does not live in the rail. A decision that puts work in other people's
-   * queues is not side navigation, and the owner read it as exactly that (2026-09-23);
-   * the rail is the roster and nothing else now. This panel sits above the document —
-   * the thing the reader is about to commit other people to — and carries one press
-   * into the signing window, which is where the commitment is made.
+   * It lives in the rail, under the roster it is about. It sat over the court document
+   * for one pass and read as exactly that — a card on top of the complaint (owner,
+   * 2026-09-24) — and the reason it left the rail in the first place, that the *decision*
+   * was being made in side navigation, no longer holds: the decision is made in the
+   * signing window now, and this is the handle that opens it.
    */
   const noSignatories = everyone.length === 0;
 
-  const actionPanel = noSignatories ? (
-    <div className="flex flex-col gap-1">
-      <h2 className="text-title-s font-semibold">Signatures</h2>
-      <p className="text-body text-muted-foreground">
-        Add a complainant or an advocate before sending this for signature.
-      </p>
-    </div>
+  const signActions = noSignatories ? (
+    <p className="text-body-compact text-muted-foreground">
+      Add a complainant or an advocate before sending this for signature.
+    </p>
   ) : allSigned ? (
     /* ── Every signature is in ── */
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-title-s font-semibold">Signing complete</h2>
-        <p className="text-body text-muted-foreground">
-          {onPaper
-            ? "The uploaded copy carries every signature, and each complainant has confirmed it on their own number."
-            : `Signed in the system by ${everyone.length === 1 ? "the one signatory" : `all ${everyone.length} parties`}.`}{" "}
-          You can pay the court fee now.
-        </p>
-      </div>
+    <div className="flex flex-col gap-3">
+      <SectionNotice variant="success" announce="polite">
+        {onPaper
+          ? "The uploaded copy carries every signature."
+          : "Every party has signed."}{" "}
+        You can pay the court fee now.
+      </SectionNotice>
       {onPaper ? (
         <Button
           type="button"
-          variant="outline"
-          className="self-start"
+          variant="ghost"
+          className="w-full"
           onClick={() => openFlow("paper")}
         >
           <UploadIcon data-icon="inline-start" aria-hidden />
@@ -773,90 +787,69 @@ export function SignSection() {
     </div>
   ) : onPaper ? (
     /* ── On paper ── */
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-title-s font-semibold">Signed on paper</h2>
-        <p className="text-body text-muted-foreground">
-          Print the complaint, have every party sign it by hand, then upload that copy.
-          Nobody has been asked to sign in the system — paper needs no links.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" size="lg" onClick={() => openFlow("paper")}>
-          <UploadIcon data-icon="inline-start" aria-hidden />
-          Upload signed complaint
-        </Button>
-        <Button type="button" variant="outline" size="lg" onClick={printFile}>
-          <PrinterIcon data-icon="inline-start" aria-hidden />
-          Print or save as PDF
-        </Button>
-      </div>
+    <div className="flex flex-col gap-3">
+      <p className="text-body-compact text-muted-foreground">
+        Upload the PDF once every party has signed it.
+      </p>
+      <Button
+        type="button"
+        size="lg"
+        className="w-full"
+        onClick={() => openFlow("paper")}
+      >
+        <UploadIcon data-icon="inline-start" aria-hidden />
+        Upload signed copy
+      </Button>
     </div>
   ) : !requested ? (
     /* ── Nobody has been asked yet ── */
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-title-s font-semibold">Ready for signature</h2>
-        <p className="text-body text-muted-foreground">
-          {otherSigners === 0
-            ? "You are the only signatory. Sign with your own Aadhaar OTP or DSC."
-            : `${otherSigners === 1 ? "One other party" : `${otherSigners} other parties`} must sign this complaint. Read it below, then send it to them.`}
-        </p>
-      </div>
-      <Button type="button" size="lg" className="self-start" onClick={() => openFlow("choose")}>
-        <SignatureIcon data-icon="inline-start" aria-hidden />
-        Continue to signing
-      </Button>
-      <p className="text-caption text-muted-foreground">
-        Nothing is sent until you say so in the next step. The court fee opens once every
-        signature is in.
-      </p>
-    </div>
+    <Button
+      type="button"
+      size="lg"
+      className="w-full"
+      onClick={() => openFlow("choose")}
+    >
+      <SignatureIcon data-icon="inline-start" aria-hidden />
+      Continue to signing
+    </Button>
   ) : (
     /* ── Asked, and waiting ── */
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-title-s font-semibold">Out for signature</h2>
-        <p className="text-body text-muted-foreground">
-          {youSigned ? (
-            <>
-              You have signed. Waiting on{" "}
-              {pending === 1 ? "one more party" : `${pending} more parties`}, who{" "}
-              {pending === 1 ? "has" : "have"} a link on their registered mobile.
-            </>
-          ) : yous.length > 0 ? (
-            <>
-              The requests are out. Your own signature is still needed — Aadhaar OTP or
-              your DSC, whichever you have.
-            </>
-          ) : (
-            /*
-             * Nobody at this keyboard is a signatory — the clerk. An Aadhaar OTP or a
-             * DSC is personal and cannot be used on someone else's behalf, so there is
-             * no signing action here: the requests are with the people who can actually
-             * sign (owner's colleague, 2026-09-23).
-             */
-            <>
-              Nobody signed in on this device is a signatory. {others}{" "}
-              {otherSigners === 1 ? "has" : "have"} the link and{" "}
-              {otherSigners === 1 ? "signs" : "sign"} with their own Aadhaar OTP or DSC.
-            </>
-          )}
-        </p>
-      </div>
+    <div className="flex flex-col gap-3">
+      <p className="text-body-compact text-muted-foreground">
+        {youSigned ? (
+          <>
+            Waiting on {pending === 1 ? "one more party" : `${pending} more parties`}.
+          </>
+        ) : yous.length > 0 ? (
+          <>Your signature is still needed.</>
+        ) : (
+          /*
+           * Nobody at this keyboard is a signatory — the clerk. An Aadhaar OTP or a DSC
+           * is personal and cannot be used on someone else's behalf, so there is no
+           * signing action here (owner's colleague, 2026-09-23).
+           */
+          <>{others} {have} the link; nobody here is a signatory.</>
+        )}
+      </p>
 
-      <div className="flex flex-wrap items-center gap-3">
-        {yous.length > 0 && !youSigned ? (
-          <Button type="button" size="lg" onClick={() => openFlow("sign")}>
-            <SignatureIcon data-icon="inline-start" aria-hidden />
-            Add your signature
-          </Button>
-        ) : null}
+      {yous.length > 0 && !youSigned ? (
+        <Button
+          type="button"
+          size="lg"
+          className="w-full"
+          onClick={() => openFlow("sign")}
+        >
+          <SignatureIcon data-icon="inline-start" aria-hidden />
+          Add your signature
+        </Button>
+      ) : null}
+
+      <div className="flex flex-col gap-2">
         {otherSigners > 0 ? (
           <Button
             type="button"
-            variant={yous.length > 0 && !youSigned ? "outline" : "default"}
-            size="lg"
+            variant={yous.length > 0 && !youSigned ? "ghost" : "outline"}
+            className="w-full"
             onClick={remindAll}
             disabled={reminded}
           >
@@ -864,18 +857,23 @@ export function SignSection() {
             {reminded ? "Reminder sent" : "Send a reminder"}
           </Button>
         ) : null}
-        <Button type="button" variant="ghost" size="lg" onClick={() => setSwitchOpen(true)}>
-          Switch to a copy signed on paper
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full"
+          onClick={() => setSwitchOpen(true)}
+        >
+          Switch to a signed copy
         </Button>
       </div>
 
       {/* Sandbox — the other parties' links go nowhere, so this stands in for them. */}
       {otherSigners > 0 && pending > (youSigned ? 0 : 1) ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-sunken p-4">
+        <div className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-3">
           <p className="text-caption text-muted-foreground">
             Sandbox — no link is actually sent.
           </p>
-          <Button type="button" variant="outline" onClick={sandboxSignOthers}>
+          <Button type="button" variant="outline" size="sm" onClick={sandboxSignOthers}>
             Mark the other parties as signed
           </Button>
         </div>
@@ -891,12 +889,17 @@ export function SignSection() {
   const railBody = filed ? (
     filedRecord()
   ) : (
-    <SignatureSummary
-      complainants={complainants}
-      advocates={advocates}
-      requested={requested}
-      notified={sign.notified}
-    />
+    <section aria-labelledby={SIGNATURES_HEADING} className="flex flex-col gap-4">
+      <SignatureSummary
+        complainants={complainants}
+        advocates={advocates}
+        requested={requested}
+        onPaper={onPaper}
+        notified={sign.notified}
+      />
+      <div role="separator" className="h-px w-full bg-hairline" />
+      {signActions}
+    </section>
   );
 
   const backHref = filed ? hrefFor("preview") : prev ? hrefFor(prev) : hrefFor("preview");
@@ -914,13 +917,6 @@ export function SignSection() {
               : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${COURT.name}.`
           }
         />
-
-        {/* The act, above the thing it commits other people to. */}
-        {filed ? null : (
-          <Card className={PANEL_CLASS}>
-            <CardContent>{actionPanel}</CardContent>
-          </Card>
-        )}
 
         {/* Below xl there is no width for a rail column, so the roster stacks here. */}
         <Card className={cn(PANEL_CLASS, "xl:hidden")}>

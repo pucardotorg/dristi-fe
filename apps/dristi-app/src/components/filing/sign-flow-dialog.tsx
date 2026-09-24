@@ -40,6 +40,7 @@ import { useRouter } from "next/navigation";
 import {
   CheckIcon,
   ChevronRightIcon,
+  CircleCheckIcon,
   FileTextIcon,
   ShieldCheckIcon,
   SignatureIcon,
@@ -58,6 +59,7 @@ import { useFiling } from "@/lib/filing/store";
 import type {
   PhoneConfirmer,
   SignInstrument,
+  Signatory,
   StoredFileRef,
 } from "@/lib/filing/types";
 import { cn } from "@/lib/utils";
@@ -366,11 +368,7 @@ function SignFlowBody({
     sign: "Add your signature",
     otp: "Enter the OTP",
     dsc: "Sign with your DSC",
-    done: youSigned
-      ? signedWith
-        ? INSTRUMENT_LABEL[signedWith]
-        : "Your signature is recorded"
-      : "Out for signature",
+    done: youSigned ? "Signature added" : "Out for signature",
     paper: "Upload the signed complaint",
     uploaded: "Signed copy accepted",
   }[flow.stage];
@@ -386,7 +384,7 @@ function SignFlowBody({
       : "Sent to your Aadhaar-linked mobile.",
     dsc: "Your certificate has to be plugged in, with the signing utility running on this computer.",
     done: null,
-    paper: "Every party signs the printed copy by hand, and it comes back here as one file.",
+    paper: null,
     uploaded: null,
   }[flow.stage];
 
@@ -467,46 +465,35 @@ function SignFlowBody({
         {flow.stage === "choose" ? (
           <StageColumn>
             <ChoiceCard
-              title="Sign in the system"
+              title="Sign digitally"
               tone="bg-brand-muted text-brand-muted-foreground"
               icon={<SignatureIcon className="size-5" />}
               onClick={chooseDigital}
             >
+              You sign the complaint with your DSC or Aadhaar e-sign.
               {otherSigners > 0 ? (
                 <>
-                  {others} {have === "has" ? "gets" : "get"} a link on their registered
-                  mobile the moment you choose this, and{" "}
-                  {otherSigners === 1 ? "signs" : "sign"} with their own Aadhaar OTP or
-                  DSC. You sign yours next.
+                  {" "}
+                  {others} {have === "has" ? "gets" : "get"} a link on the mobile number
+                  given in the complaint.
                 </>
-              ) : (
-                <>You sign with your own Aadhaar OTP or your DSC, next.</>
-              )}{" "}
-              The complaint is locked for editing until every signature is in.
+              ) : null}
             </ChoiceCard>
 
             <ChoiceCard
-              title="Sign on paper and upload"
+              title="Upload a physically signed copy"
               tone="bg-warning-muted text-warning-muted-foreground"
               icon={<UploadIcon className="size-5" />}
               onClick={choosePaper}
             >
-              Nothing is sent to anyone. Print the complaint, have every party sign it by
-              hand, then upload that one copy — each complainant confirms by OTP that the
-              signature against their name is theirs.
+              Upload one PDF that already carries every party&rsquo;s signature.
             </ChoiceCard>
-
-            <p className="text-caption text-muted-foreground">
-              The court fee opens once every signature is in.
-            </p>
           </StageColumn>
         ) : flow.stage === "sign" ? (
           <StageColumn>
             {otherSigners > 0 ? (
               <SectionNotice variant="success" announce="polite" title="Sent for signature">
-                {others} {have} a link on their registered mobile and{" "}
-                {otherSigners === 1 ? "signs" : "sign"} with their own Aadhaar OTP or DSC.
-                Nothing is filed until every signature is in.
+                {others} {have} a link on the mobile number given in the complaint.
               </SectionNotice>
             ) : null}
 
@@ -605,29 +592,19 @@ function SignFlowBody({
           </StageColumn>
         ) : flow.stage === "done" ? (
           <StageColumn>
-            <div className={RESOLVE_IN_PLACE}>
-              <SectionNotice
-                variant="success"
-                announce="polite"
-                title={youSigned ? "Your signature is on the complaint" : "The requests are out"}
-              >
-                {pending === 0 ? (
-                  <>Every party has signed. You can pay the court fee now.</>
-                ) : otherSigners > 0 ? (
-                  <>
-                    {others} {have} a link on their registered mobile. Nothing is filed
-                    until {pending === 1 ? "that signature is" : "all of them are"} in, and
-                    the court fee opens then.
-                  </>
-                ) : (
-                  <>Nothing is filed until every signature is in.</>
-                )}
-              </SectionNotice>
-            </div>
-            <p className="text-caption text-muted-foreground">
-              You can close this. The step keeps the roster, and this is waiting in your
-              pending tasks until it is done.
-            </p>
+            <SettledCard
+              headline={
+                youSigned && signedWith
+                  ? INSTRUMENT_LABEL[signedWith]
+                  : "Sent for signature"
+              }
+              rows={everyone}
+              footnote={
+                pending === 0
+                  ? "You can pay the court fee now."
+                  : "It waits in your pending tasks until every signature is in."
+              }
+            />
           </StageColumn>
         ) : flow.stage === "paper" ? (
           <PaperStage
@@ -654,24 +631,11 @@ function SignFlowBody({
           />
         ) : (
           <StageColumn>
-            <div className={RESOLVE_IN_PLACE}>
-              <SectionNotice
-                variant="success"
-                announce="polite"
-                title="Every signature is in"
-              >
-                The uploaded copy carries every signature, and each complainant has
-                confirmed it on their own number. You can pay the court fee now.
-              </SectionNotice>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              className="self-start"
-              onClick={onPrint}
-            >
-              Print or save as PDF
-            </Button>
+            <SettledCard
+              headline="Signed copy accepted"
+              rows={everyone}
+              footnote="You can pay the court fee now."
+            />
           </StageColumn>
         )}
       </StagedOverlay>
@@ -686,6 +650,74 @@ function StageColumn({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto my-auto flex w-full max-w-xl flex-col gap-4">
       {children}
+    </div>
+  );
+}
+
+/**
+ * **What just happened, on the thing it happened to.**
+ *
+ * The product settles an act by stamping the record it acted on — a status strip across
+ * the top of the card in the status's own muted pair, with the roster underneath — rather
+ * than by swapping the stage for a green box (`approve-registrations-dialog`'s
+ * `StatusStrip`, owner-approved 2026-09-11). A signature's record is who has signed and
+ * who has not, so that is what the card carries.
+ */
+function SettledCard({
+  headline,
+  rows,
+  footnote,
+}: {
+  headline: string;
+  rows: Signatory[];
+  footnote: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border border-hairline bg-card shadow-raised",
+        RESOLVE_IN_PLACE
+      )}
+    >
+      <div className="flex items-center gap-2 bg-success-muted px-4 py-2.5 text-body-compact text-success-muted-foreground">
+        <CircleCheckIcon aria-hidden className="size-4 shrink-0" />
+        {/* `role="status"` gets the outcome spoken: focus lands on the header title,
+            which announces itself and nothing below it. */}
+        <span role="status" className="font-medium">
+          {headline}
+        </span>
+      </div>
+
+      <ul className="flex flex-col px-4">
+        {rows.map((s) => (
+          <li
+            key={s.id}
+            className="flex items-center gap-3 border-b border-hairline py-3 last:border-b-0"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-body-compact font-semibold text-foreground">
+                {s.name}
+                {s.you ? (
+                  <span className="ps-2 font-medium text-muted-foreground">You</span>
+                ) : null}
+              </p>
+              <p className="text-caption text-muted-foreground">{s.role}</p>
+            </div>
+            {s.status === "signed" ? (
+              <Badge variant="success">
+                <CheckIcon aria-hidden />
+                Signed
+              </Badge>
+            ) : (
+              <Badge variant="secondary">Waiting</Badge>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <p className="border-t border-hairline px-4 py-3 text-caption text-muted-foreground">
+        {footnote}
+      </p>
     </div>
   );
 }
@@ -779,10 +811,8 @@ function PaperStage({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <SectionNotice variant="warning" title="Every signature has to be on the copy">
-        Each complainant, and one advocate for each complainant, must have signed this
-        printed copy by hand. Nothing is filed until the copy carries every signature and
-        each complainant has confirmed by OTP.
+      <SectionNotice variant="warning" title="Every party's signature should be on the PDF">
+        Each complainant and their advocate on record must have signed it.
       </SectionNotice>
 
       {file ? (
