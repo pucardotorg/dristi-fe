@@ -6,6 +6,12 @@ import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useInCorrection } from "@/components/filing/posture";
 import { SavingIndicator } from "@/components/filing/saving-indicator";
 
@@ -23,6 +29,7 @@ export function FilingFooter({
   continueLabel = "Continue",
   continueDisabled = false,
   continueBlocked = false,
+  continueHint,
   continueVariant = "default",
   showSaveState = true,
   leading,
@@ -41,6 +48,12 @@ export function FilingFooter({
    * explain why (aria-disabled + dimmed). Use with `onContinue`.
    */
   continueBlocked?: boolean;
+  /**
+   * Why it is not ready, on the control itself rather than as a sentence beside it — on
+   * hover and on focus (owner, 2026-09-24). It needs `continueBlocked`, because a
+   * `disabled` button fires no pointer events and would never show it.
+   */
+  continueHint?: string;
   /** "outline" when another control on the screen is the focal action (ration teal). */
   continueVariant?: "default" | "outline";
   showSaveState?: boolean;
@@ -71,8 +84,31 @@ export function FilingFooter({
       </Button>
     ) : null;
 
+  const blockedPrimary = (
+    <Button
+      type="button"
+      size="lg"
+      variant={continueVariant}
+      onClick={onContinue}
+      aria-disabled
+      className="opacity-50"
+    >
+      {continueLabel}
+      <ArrowRightIcon data-icon="inline-end" aria-hidden />
+    </Button>
+  );
+
   const primary =
-    continueHref !== undefined && !continueDisabled ? (
+    continueBlocked && continueHint ? (
+      /* Radix opens it on focus as well as hover, and describes the button with it while
+         it is open, so a keyboard reader hears the reason on the way past. */
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>{blockedPrimary}</TooltipTrigger>
+          <TooltipContent side="top">{continueHint}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    ) : continueHref !== undefined && !continueDisabled ? (
       <Button asChild size="lg" variant={continueVariant}>
         <Link href={continueHref}>
           {continueLabel}

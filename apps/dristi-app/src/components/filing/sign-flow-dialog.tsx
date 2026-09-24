@@ -365,7 +365,7 @@ function SignFlowBody({
 
   const title = {
     choose: "How will this complaint be signed?",
-    sign: "Add your signature",
+    sign: "Add your e-signature",
     otp: "Enter the OTP",
     dsc: "Sign with your DSC",
     done: youSigned ? "Signature added" : "Out for signature",
@@ -496,7 +496,7 @@ function SignFlowBody({
               </SectionNotice>
             ) : null}
 
-            <p className="text-body font-medium">How will you sign?</p>
+            <p className="text-body font-medium">How will you e-sign?</p>
 
             <ChoiceCard
               title="Aadhaar OTP"
@@ -552,7 +552,7 @@ function SignFlowBody({
               >
                 {resent ? "Sent again" : "Send it again"}
               </Button>
-              <p className="text-caption text-muted-foreground">
+              <p className="text-body-compact text-muted-foreground">
                 Sandbox — any six digits work.
               </p>
             </div>
@@ -571,12 +571,12 @@ function SignFlowBody({
                     <p className="truncate text-body-compact font-medium">
                       {certHolder || "Certificate found on this computer"}
                     </p>
-                    <p className="text-caption text-muted-foreground">
+                    <p className="text-body-compact text-muted-foreground">
                       {certHolder
                         ? "Class 3 individual certificate, found on this computer"
                         : "Class 3 individual certificate"}
                     </p>
-                    <p className="text-caption text-muted-foreground">
+                    <p className="text-body-compact text-muted-foreground">
                       Sandbox — no certificate store is read.
                     </p>
                   </div>
@@ -707,7 +707,7 @@ function SettledCard({
                   <span className="ps-2 font-medium text-muted-foreground">You</span>
                 ) : null}
               </p>
-              <p className="text-caption text-muted-foreground">{s.role}</p>
+              <p className="text-body-compact text-muted-foreground">{s.role}</p>
             </div>
             {s.status === "signed" ? (
               <Badge variant="success">
@@ -721,7 +721,7 @@ function SettledCard({
         ))}
       </ul>
 
-      <p className="border-t border-hairline px-4 py-3 text-caption text-muted-foreground">
+      <p className="border-t border-hairline px-4 py-3 text-body-compact text-muted-foreground">
         {footnote}
       </p>
     </div>
@@ -826,7 +826,7 @@ function PaperStage({
           <FileTextIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="truncate text-body-compact font-medium">{file.name}</p>
-            <p className="text-caption text-muted-foreground tabular-nums">
+            <p className="text-body-compact text-muted-foreground tabular-nums">
               {file.ext}
               {formatBytes(file.size) ? ` · ${formatBytes(file.size)}` : ""}
             </p>
@@ -868,7 +868,7 @@ function PaperStage({
       <div className="flex flex-col gap-2 rounded-xl border border-hairline bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-body font-semibold">Verify phone numbers</h3>
-          <span className="text-caption font-medium text-muted-foreground tabular-nums">
+          <span className="text-body-compact font-medium text-muted-foreground tabular-nums">
             {confirmedCount} of {rows.length} confirmed
           </span>
         </div>
@@ -967,7 +967,7 @@ function ConfirmRow({
           <p className="text-body-compact font-semibold text-foreground">
             {person.name}
           </p>
-          <p className="text-caption font-medium text-muted-foreground">
+          <p className="text-body-compact text-muted-foreground">
             {person.role} ·{" "}
             {tail ? (
               <span className="tabular-nums">•••• {tail}</span>
@@ -1034,7 +1034,7 @@ function ConfirmRow({
                 ))}
               </InputOTPGroup>
             </InputOTP>
-            <p className="text-caption text-muted-foreground">
+            <p className="text-body-compact text-muted-foreground">
               Sandbox — any 6-digit code is accepted here.
             </p>
           </div>

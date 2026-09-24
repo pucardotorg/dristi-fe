@@ -26,6 +26,7 @@ import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   BellIcon,
   CheckIcon,
@@ -170,7 +171,7 @@ function SignatureList({
   if (!rows.length) return null;
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-caption font-medium text-muted-foreground">{title}</p>
+      <p className="text-body-compact font-medium text-muted-foreground">{title}</p>
       <ul className="flex flex-col">
         {rows.map((s, i) => {
           const sent = timeOf(notified[s.id]);
@@ -192,18 +193,18 @@ function SignatureList({
                   </span>
                   {/* One chip per row — the status. "You" is a caption, not a badge. */}
                   {s.you ? (
-                    <span className="text-caption font-medium text-muted-foreground">
+                    <span className="text-body-compact font-medium text-muted-foreground">
                       You
                     </span>
                   ) : null}
                 </div>
-                <p className="text-caption font-medium text-muted-foreground">{s.role}</p>
+                <p className="text-body-compact text-muted-foreground">{s.role}</p>
                 {s.status === "signed" ? (
-                  <p className="text-caption text-muted-foreground">
+                  <p className="text-body-compact text-muted-foreground">
                     {INSTRUMENT[s.signedWith ?? "aadhaar"]}
                   </p>
                 ) : requested && !s.you ? (
-                  <p className="text-caption text-muted-foreground tabular-nums">
+                  <p className="text-body-compact text-muted-foreground tabular-nums">
                     Link sent{sent ? ` ${sent}` : ""}
                   </p>
                 ) : null}
@@ -284,10 +285,10 @@ function SignatureSummary({
             count alone never said it, and the owner could not tell from the rail that a
             mode had been chosen at all (2026-09-24). */}
         {requested || onPaper ? (
-          <p className="text-caption text-muted-foreground">
+          <p className="text-body-compact text-muted-foreground">
             {onPaper
-              ? "Signed on paper — one PDF carrying every signature"
-              : "Signed digitally — each party with their own Aadhaar OTP or DSC"}
+              ? "Physically signed copy — one PDF carrying every signature"
+              : "E-signature — each party signs with their own Aadhaar OTP or DSC"}
           </p>
         ) : null}
       </div>
@@ -442,6 +443,13 @@ export function SignSection() {
   const others =
     otherSigners === 1 ? "The other party" : `The other ${otherSigners} parties`;
   const have = otherSigners === 1 ? "has" : "have";
+
+  /** Why the court fee is not open yet — said on the button that is shut, not beside it. */
+  const payGate = onPaper
+    ? "The court fee opens once the signed copy is in."
+    : requested
+      ? `The court fee opens once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in.`
+      : "The court fee opens once every signature is in.";
 
   /**
    * Every signature on this screen belongs to *this* version of the complaint. Going back
@@ -707,7 +715,7 @@ export function SignSection() {
 
       <dl className="flex flex-col gap-3 rounded-lg bg-surface-sunken p-4">
         <div className="flex flex-col gap-0.5">
-          <dt className="text-caption font-medium text-muted-foreground">
+          <dt className="text-body-compact font-medium text-muted-foreground">
             Case file number
           </dt>
           <dd className="text-body font-semibold">
@@ -719,19 +727,19 @@ export function SignSection() {
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
-          <dt className="text-caption font-medium text-muted-foreground">Filed on</dt>
+          <dt className="text-body-compact font-medium text-muted-foreground">Filed on</dt>
           <dd className="text-body-compact font-medium tabular-nums">
             {draft.filedAt ? toLongDate(draft.filedAt.slice(0, 10)) : "—"}
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
-          <dt className="text-caption font-medium text-muted-foreground">Amount paid</dt>
+          <dt className="text-body-compact font-medium text-muted-foreground">Amount paid</dt>
           <dd className="text-body-compact font-medium tabular-nums">
             {money(sign.paidAmount ?? bill.total)}
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
-          <dt className="text-caption font-medium text-muted-foreground">
+          <dt className="text-body-compact font-medium text-muted-foreground">
             Payment reference
           </dt>
           <dd className="text-body-compact font-medium break-all">
@@ -852,7 +860,7 @@ export function SignSection() {
           onClick={() => openFlow("sign")}
         >
           <SignatureIcon data-icon="inline-start" aria-hidden />
-          Add your signature
+          Add your e-signature
         </Button>
       ) : null}
 
@@ -875,14 +883,14 @@ export function SignSection() {
           className="w-full"
           onClick={() => setSwitchOpen(true)}
         >
-          Switch to a signed copy
+          Upload a signed copy instead
         </Button>
       </div>
 
       {/* Sandbox — the other parties' links go nowhere, so this stands in for them. */}
       {otherSigners > 0 && pending > (youSigned ? 0 : 1) ? (
         <div className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-3">
-          <p className="text-caption text-muted-foreground">
+          <p className="text-body-compact text-muted-foreground">
             Sandbox — no link is actually sent.
           </p>
           <Button type="button" variant="outline" size="sm" onClick={sandboxSignOthers}>
@@ -985,28 +993,23 @@ export function SignSection() {
             if (!guardLeaving(backHref)) router.push(backHref);
           }}
           continueLabel="Continue to pay fees"
-          // Nothing to pay for until the sheet is signed, so the step's one real action
-          // stays dead until it is — and then it is the focal teal, as on every other step.
-          continueDisabled={!allSigned}
+          /*
+           * Nothing to pay for until the sheet is signed, so the step's one real action
+           * stays dead until it is — and then it is the focal teal, as on every other
+           * step. Blocked rather than disabled, so the reason can live on the control
+           * instead of as a sentence taking a row of the footer beside it (owner,
+           * 2026-09-24); pressing it says the same thing, for a reader who cannot hover.
+           */
+          continueBlocked={!allSigned}
+          continueHint={allSigned ? undefined : payGate}
           showSaveState={false}
-          onContinue={() => setModal("payment")}
-          // A dead primary with no reason beside it is the reader's problem to solve.
-          leading={
-            allSigned ? (
-              <span className="inline-flex items-center gap-2 text-body-compact text-success-ink">
-                <CheckIcon className="size-4 shrink-0" aria-hidden />
-                Every signature is in
-              </span>
-            ) : noSignatories ? null : (
-              <span className="text-body-compact text-muted-foreground">
-                {onPaper
-                  ? "Court fee opens once the signed copy is in"
-                  : requested
-                    ? `Court fee opens once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in`
-                    : "Court fee opens once every signature is in"}
-              </span>
-            )
-          }
+          onContinue={() => {
+            if (!allSigned) {
+              toast(payGate);
+              return;
+            }
+            setModal("payment");
+          }}
         />
       )}
 
@@ -1454,16 +1457,22 @@ export function SignSection() {
       <ConfirmDialog
         open={switchOpen}
         onOpenChange={setSwitchOpen}
-        title="Switch to a copy signed on paper?"
-        description={`${
-          otherSigners === 1 ? "The other party has" : `The other ${otherSigners} parties have`
-        } already been asked to sign in the system. Switching withdraws ${
-          otherSigners === 1 ? "that request" : "those requests"
-        }${
-          anySigned ? " and voids the signatures already collected" : ""
-        } — the printed copy has to carry every signature by hand instead.`}
-        confirmLabel="Switch to paper"
-        cancelLabel="Keep signing in the system"
+        title="Upload a physically signed copy instead?"
+        description={
+          otherSigners === 0
+            ? /* Nobody else was ever asked, so there is no request to withdraw — only
+                 the signature already made, if one was made. */
+              anySigned
+                ? "Your e-signature is voided. The PDF you upload has to carry your signature by hand instead."
+                : "You print the complaint, sign it by hand, and upload it as one PDF."
+            : `${others} ${have} been asked to e-sign. Switching withdraws ${
+                otherSigners === 1 ? "that request" : "those requests"
+              }${
+                anySigned ? " and voids the signatures already collected" : ""
+              } — the PDF you upload has to carry every signature by hand instead.`
+        }
+        confirmLabel="Upload a signed copy"
+        cancelLabel="Keep e-signing"
         onConfirm={switchToUpload}
       />
     </>
