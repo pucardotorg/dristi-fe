@@ -988,13 +988,15 @@ function ApplicationNumber({
   }
   if (item.temporaryId) {
     return awaitingNumber(item) ? (
-      <span className="flex flex-col gap-0.5">
+      /* "(temporary)" the way the forms write "(optional)": muted, lower
+         case, on the value's own line (owner, Sept 24). */
+      <span className="inline-flex flex-wrap items-baseline gap-x-1">
         <Identifier
           value={item.temporaryId}
           label="temporary ID"
           copyable={copyable}
         />
-        <span className="text-caption text-muted-foreground">Temporary</span>
+        <span className="text-muted-foreground">(temporary)</span>
       </span>
     ) : (
       <Identifier value={item.temporaryId} label="ID" copyable={copyable} />
@@ -1047,7 +1049,7 @@ function ApplicationsTable({
                     label="temporary ID"
                     copyable={false}
                   />
-                  {awaitingNumber(item) ? " · Temporary" : null}
+                  {awaitingNumber(item) ? " (temporary)" : null}
                 </>
               ) : (
                 "Number not allotted yet"
