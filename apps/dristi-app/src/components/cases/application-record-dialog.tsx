@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/empty";
 
 import {
+  ComposedDocumentViewer,
   PdfViewer,
   isPdfSrc,
   parsePdfSrc,
@@ -45,7 +46,10 @@ import {
   resumeDraftHref,
 } from "@/lib/cases/applications";
 import { GeneratedApplicationDocument } from "@/components/cases/generated-application-dialog";
-import { buildGeneratedApplication } from "@/lib/cases/application-document";
+import {
+  buildGeneratedApplication,
+  downloadApplicationText,
+} from "@/lib/cases/application-document";
 import { applicationDraftFrom } from "@/lib/cases/application-draft";
 import type { CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
@@ -131,6 +135,7 @@ function RecordBody({
   const [openSrc, setOpenSrc] = useState(
     viewable[0]?.src ?? (composed ? COMPOSED : undefined)
   );
+  const showingComposed = openSrc === COMPOSED && composed !== null;
   const documents =
     composed && application.documents.length === 0
       ? [{ label: composed.label }]
@@ -152,15 +157,33 @@ function RecordBody({
             Application record, documents and linked order
           </DialogDescription>
         </div>
-        {pdf ? (
+        {/* Download whenever a document is open: a filed PDF, or the
+            application set out from its details, which downloads the same
+            text copy the form's preview gives (owner, Sept 24). */}
+        {pdf || showingComposed ? (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" asChild>
-                  <a href={pdf.url} download aria-label="Download">
+                {pdf ? (
+                  <Button variant="ghost" size="icon-sm" asChild>
+                    <a href={pdf.url} download aria-label="Download">
+                      <DownloadIcon aria-hidden />
+                    </a>
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Download"
+                    onClick={() =>
+                      composed &&
+                      downloadApplicationText(composed.document, record)
+                    }
+                  >
                     <DownloadIcon aria-hidden />
-                  </a>
-                </Button>
+                  </Button>
+                )}
               </TooltipTrigger>
               <TooltipContent side="bottom">Download</TooltipContent>
             </Tooltip>
@@ -398,20 +421,21 @@ function RecordBody({
           </div>
         </div>
 
-        {openSrc === COMPOSED && composed ? (
-          /* Set out the way this dialog shows a filed PDF (owner, Sept 24:
-             one preview pattern, not a second frame with its own bar): the
-             page on the sunken margin, filling the pane and scrolling in it.
-             No download: there is no file behind it. */
-          <div className="min-h-64 min-w-0 flex-1 overflow-y-auto bg-surface-sunken p-4">
-            <div className="mx-auto max-w-3xl">
-              <GeneratedApplicationDocument
-                document={composed.document}
-                generatedOn={composed.dated}
-                signedBy={composed.signedBy}
-              />
-            </div>
-          </div>
+        {showingComposed && composed ? (
+          /* The PDF viewer's own frame (same well, margin, scrolling and
+             zoom), with the download in the header as for a PDF (owner,
+             Sept 24: one preview pattern). */
+          <ComposedDocumentViewer
+            key={application.id}
+            title={composed.document.title}
+            className="min-h-64 min-w-0 flex-1 rounded-none"
+          >
+            <GeneratedApplicationDocument
+              document={composed.document}
+              generatedOn={composed.dated}
+              signedBy={composed.signedBy}
+            />
+          </ComposedDocumentViewer>
         ) : pdf && open ? (
           <PdfViewer
             key={open.src}

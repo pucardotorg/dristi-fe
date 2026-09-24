@@ -430,7 +430,14 @@ export function downloadGeneratedApplication(
   record: CaseRecord
 ): void {
   const generated = buildGeneratedApplication(draft, record);
-  if (!generated) return;
+  if (generated) downloadApplicationText(generated, record);
+}
+
+/** The same text copy, for an application already set out (the detail view). */
+export function downloadApplicationText(
+  generated: GeneratedApplication,
+  record: CaseRecord
+): void {
   const url = URL.createObjectURL(
     new Blob([generatedApplicationText(generated)], { type: "text/plain" })
   );
