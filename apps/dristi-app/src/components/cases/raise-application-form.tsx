@@ -1,10 +1,9 @@
 "use client";
 
 import { useId, useMemo, useRef, useState } from "react";
-import { HourglassIcon, UsersIcon } from "lucide-react";
+import { FilePenLineIcon, HourglassIcon, UsersIcon } from "lucide-react";
 
 import { AddSignatureDialog } from "@/components/cases/add-signature-dialog";
-import { AdvocateRaisesForYou } from "@/components/cases/advocate-raises-for-you";
 import {
   ApplicationTypeFields,
   type FieldActions,
@@ -40,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -162,7 +162,6 @@ export function RaiseApplicationForm({
         (person) => person.kind === "party" && person.side === viewer?.side
       );
       return {
-        viewer,
         role: viewer?.role ?? null,
         side: viewer?.side,
         signer: advocate ? displayName(advocate.name) : undefined,
@@ -173,7 +172,6 @@ export function RaiseApplicationForm({
       };
     } catch {
       return {
-        viewer: null,
         role: null,
         side: undefined,
         signer: undefined,
@@ -488,9 +486,28 @@ export function RaiseApplicationForm({
             </p>
           </div>
         </div>
-        {seat.viewer ? (
-          <AdvocateRaisesForYou record={record} viewer={seat.viewer} />
-        ) : null}
+        {/* The copy the owner kept; only the look changed (Sept 24): no
+            dashed box, a larger brand tile, a real heading, and the way to
+            the Applications tab the description points at. */}
+        <Empty className="py-12 sm:py-16">
+          <EmptyHeader className="gap-3">
+            <EmptyMedia className="mb-1 size-14 rounded-2xl bg-brand-muted text-brand-muted-foreground">
+              <FilePenLineIcon className="size-7" aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle className="text-title-s font-semibold text-foreground">
+              Your advocate raises applications for you
+            </EmptyTitle>
+            <EmptyDescription className="text-body-compact">
+              When one is filed on your behalf, you can pay its court fee from
+              the case&apos;s Applications tab.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" asChild>
+              <Link href={caseHref}>Go to Applications</Link>
+            </Button>
+          </EmptyContent>
+        </Empty>
       </div>
     );
   }
