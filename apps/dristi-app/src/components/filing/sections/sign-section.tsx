@@ -271,13 +271,25 @@ function SignatureSummary({
     <div className="flex flex-col gap-4">
       {/* The block header the newer advocate screens use: the title, and the one fact
           about it opposite (`case-overview`'s `BlockHeader`). */}
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <h2 id={SIGNATURES_HEADING} className="text-body font-semibold text-foreground">
-          Signatures
-        </h2>
-        <Badge variant={chip.variant} className="tabular-nums">
-          {chip.label}
-        </Badge>
+      <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <h2 id={SIGNATURES_HEADING} className="text-body font-semibold text-foreground">
+            Signatures
+          </h2>
+          <Badge variant={chip.variant} className="tabular-nums">
+            {chip.label}
+          </Badge>
+        </div>
+        {/* Which way this complaint is being signed, once that has been settled. The
+            count alone never said it, and the owner could not tell from the rail that a
+            mode had been chosen at all (2026-09-24). */}
+        {requested || onPaper ? (
+          <p className="text-caption text-muted-foreground">
+            {onPaper
+              ? "Signed on paper — one PDF carrying every signature"
+              : "Signed digitally — each party with their own Aadhaar OTP or DSC"}
+          </p>
+        ) : null}
       </div>
       <SignatureList
         title="Complainant signature"
@@ -923,6 +935,17 @@ export function SignSection() {
           <CardContent>{railBody}</CardContent>
         </Card>
 
+        {/* Printing belongs to the document, not to the step: the footer carries the
+            walk through the filing, and a control for the paper in the column was
+            competing with it (owner, 2026-09-24). */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-body font-semibold text-foreground">The complaint</h2>
+          <Button type="button" variant="outline" size="sm" onClick={printFile}>
+            <PrinterIcon data-icon="inline-start" aria-hidden />
+            Print or save as PDF
+          </Button>
+        </div>
+
         {/* Scrolls on its own, so it is focusable — a keyboard user must be able to
             reach the scroll region to read the document. */}
         <div
@@ -955,12 +978,6 @@ export function SignSection() {
           continueHref={FILINGS_HOME}
           continueLabel="Back to dashboard"
           showSaveState={false}
-          extra={
-            <Button type="button" variant="outline" size="lg" onClick={printFile}>
-              <PrinterIcon data-icon="inline-start" aria-hidden />
-              Print or save as PDF
-            </Button>
-          }
         />
       ) : (
         <FilingFooter
@@ -989,12 +1006,6 @@ export function SignSection() {
                     : "Court fee opens once every signature is in"}
               </span>
             )
-          }
-          extra={
-            <Button type="button" variant="outline" size="lg" onClick={printFile}>
-              <PrinterIcon data-icon="inline-start" aria-hidden />
-              Print or save as PDF
-            </Button>
           }
         />
       )}

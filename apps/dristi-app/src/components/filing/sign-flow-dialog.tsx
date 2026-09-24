@@ -459,7 +459,6 @@ function SignFlowBody({
         description={description}
         sceneKey={flow.sceneKey}
         motion={flow.motion}
-        floor
         footer={footer}
       >
         {flow.stage === "choose" ? (
@@ -645,12 +644,19 @@ function SignFlowBody({
 
 /* ───────────────────────────── Stages ──────────────────────────────────── */
 
-/** A stage's column: reading width, centred in the canvas while there is room for it. */
+/**
+ * A stage's column: reading width, at the top of the canvas.
+ *
+ * No floor under the canvas and no vertical centring in it. The frame's `floor` holds a
+ * short stage at a comfortable height so the window does not resize between stages —
+ * right where the stages are of a size, wrong here, where "two cards" and "a file plus a
+ * roster of OTP rows" are not. Centring 220px of cards in 448px of canvas left a band of
+ * empty tint above and below them, which is what the owner read as the padding being off
+ * (2026-09-24). Each stage takes its own height now, with the same 24px around it.
+ */
 function StageColumn({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto my-auto flex w-full max-w-xl flex-col gap-4">
-      {children}
-    </div>
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-4">{children}</div>
   );
 }
 
