@@ -4,6 +4,7 @@ import { useId, useMemo, useRef, useState } from "react";
 import { HourglassIcon, UsersIcon } from "lucide-react";
 
 import { AddSignatureDialog } from "@/components/cases/add-signature-dialog";
+import { AdvocateRaisesForYou } from "@/components/cases/advocate-raises-for-you";
 import {
   ApplicationTypeFields,
   type FieldActions,
@@ -161,6 +162,7 @@ export function RaiseApplicationForm({
         (person) => person.kind === "party" && person.side === viewer?.side
       );
       return {
+        viewer,
         role: viewer?.role ?? null,
         side: viewer?.side,
         signer: advocate ? displayName(advocate.name) : undefined,
@@ -171,6 +173,7 @@ export function RaiseApplicationForm({
       };
     } catch {
       return {
+        viewer: null,
         role: null,
         side: undefined,
         signer: undefined,
@@ -474,22 +477,20 @@ export function RaiseApplicationForm({
               label={backHref ? "Back to cases list" : "Back to case"}
             />
           </div>
-          <h1 className={cn(PAGE_TITLE, "flex min-h-8 items-center")}>
-            Raise application
-          </h1>
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className={cn(PAGE_TITLE, "flex min-h-8 items-center")}>
+              Raise application
+            </h1>
+            <p className="text-body-compact text-muted-foreground">
+              <Identifier value={record.caseNumber} label="case number" />
+              <span aria-hidden> · </span>
+              {partiesLabel(record)}
+            </p>
+          </div>
         </div>
-        <Empty className="border border-dashed border-border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <HourglassIcon aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>Your advocate raises applications for you</EmptyTitle>
-            <EmptyDescription>
-              When one is filed on your behalf, you can pay its court fee from
-              the case&apos;s Applications tab.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        {seat.viewer ? (
+          <AdvocateRaisesForYou record={record} viewer={seat.viewer} />
+        ) : null}
       </div>
     );
   }
