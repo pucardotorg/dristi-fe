@@ -751,7 +751,7 @@ function TouchActionCard({
     <RegisterTrayCard
       title={
         <CardTitle
-          label={application.typeLabel}
+          label={application.name}
           badge={
             nested ? null : (
               <Badge variant={application.statusVariant}>
@@ -891,7 +891,7 @@ function GroupMemberCard({
     <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-card p-3">
       <div className="flex flex-col gap-1">
         <p className="text-body-compact font-semibold text-foreground">
-          {application.typeLabel}
+          {application.name}
         </p>
         <div className="flex flex-col gap-1 text-caption text-muted-foreground">
           <span>{filedLine(application)}</span>
@@ -951,7 +951,7 @@ function ActionRow({
             onClick={() => onOpen(application.id)}
             className="rounded-sm text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            {application.typeLabel}
+            {application.name}
           </button>
           {nested ? null : (
             <Badge variant={application.statusVariant}>
@@ -1359,7 +1359,7 @@ function ApplicationsTable({
           <RegisterTrayCard
             title={
               <CardTitle
-                label={item.typeLabel}
+                label={item.name}
                 badge={
                   <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
                 }
@@ -1458,8 +1458,21 @@ function ApplicationsTable({
             <TableCell
               className={cn(TABLE_CELL, "font-medium whitespace-normal")}
             >
-              <span className="flex flex-col gap-0.5">
+              <span className="flex min-w-0 flex-col gap-0.5">
                 <span>{item.typeLabel}</span>
+                {/* Others names no ask; the filer's own title does. One
+                    line, so the row keeps its height; the detail view's
+                    heading has it whole. */}
+                {item.ownTitle ? (
+                  <span
+                    /* w-0 + min-w-full: fills the column without
+                       widening it, so the other columns keep their room. */
+                    className="w-0 min-w-full truncate text-caption font-normal text-muted-foreground"
+                    title={item.ownTitle}
+                  >
+                    {item.ownTitle}
+                  </span>
+                ) : null}
                 {objectionTarget(item) ? (
                   <span className="text-caption font-normal text-muted-foreground">
                     {objectionTarget(item)}
@@ -1511,7 +1524,7 @@ function ApplicationsTable({
                   step is taken from the record, after reading it (owner,
                   Sept 24); Needs attention stays the shortcut. */}
               <RowViewButton
-                label={item.typeLabel}
+                label={item.name}
                 onClick={() => onOpen(item.id)}
               />
             </TableCell>

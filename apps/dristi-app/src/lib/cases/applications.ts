@@ -241,10 +241,24 @@ export function submissionTypeLabel(id: SubmissionTypeId): string {
 export function quotedOthersTitle(
   submission: Pick<Submission, "type" | "title">
 ): string | null {
+  const title = othersTitle(submission);
+  return title ? `\u201c${title}\u201d` : null;
+}
+
+/**
+ * The title an Others filer typed (the PRD's "Application Title"), as typed.
+ * "Others" names no ask, so wherever an application is named this is what
+ * tells two Others apart (owner, Sept 24: "I don't even understand what it
+ * is about"). Null for every other type, and for an Others filing with no
+ * title of its own.
+ */
+export function othersTitle(
+  submission: Pick<Submission, "type" | "title">
+): string | null {
   if (submission.type !== "application-others") return null;
   const title = submission.title.trim();
   if (!title || title.toLowerCase() === "others") return null;
-  return `\u201c${title}\u201d`;
+  return title;
 }
 
 export function filingStatusLabel(status: FilingStatus): string {

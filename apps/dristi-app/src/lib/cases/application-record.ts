@@ -3,6 +3,7 @@ import {
   filingStatusLabel,
   filingStatusVariant,
   isSubmittedToCourt,
+  othersTitle,
   submissionDocumentSrc,
   submissionTypeLabel,
   submittedByName,
@@ -63,6 +64,10 @@ export type ApplicationRecord = {
   type: string;
   typeLabel: string;
   title: string;
+  /** What to call it: an Others filer's own title, else the type's name. */
+  name: string;
+  /** An Others filer's own title (the PRD's "Application Title"). */
+  ownTitle?: string;
   status: FilingStatus;
   statusLabel: string;
   statusVariant: ReturnType<typeof filingStatusVariant>;
@@ -372,6 +377,8 @@ function recordFor(
     type: flatType(source.type),
     typeLabel: submissionTypeLabel(source.type),
     title: source.title,
+    name: othersTitle(source) ?? submissionTypeLabel(source.type),
+    ownTitle: othersTitle(source) ?? undefined,
     status: source.status,
     statusLabel: filingStatusLabel(source.status),
     statusVariant: filingStatusVariant(source.status),
