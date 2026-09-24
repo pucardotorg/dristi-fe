@@ -57,6 +57,7 @@ import {
 import {
   APPLICATION_TYPE_OPTIONS,
   EXPIRY_NOTICE_DAYS,
+  applicationSideLabel,
   HAS_BULK_SIGNING_TOOL,
   expiringSoon,
   applicationNumberLabel,
@@ -1211,6 +1212,11 @@ function ApplicationsTable({
             <div className="flex flex-col gap-0.5 border-t border-hairline pt-3">
               <p className="text-body-compact text-foreground">
                 {item.filedBy}
+                {item.fromOtherSide ? (
+                  <span className="text-caption text-muted-foreground">
+                    {` ${bracketed(applicationSideLabel(item.side))}`}
+                  </span>
+                ) : null}
                 {item.draftedBy ? (
                   <span className="text-caption text-muted-foreground">
                     {` ${bracketed(`Drafted by ${item.draftedBy}`)}`}
@@ -1285,6 +1291,13 @@ function ApplicationsTable({
                   and associated drafts"). */}
               <span className="flex flex-col gap-0.5">
                 <span>{item.filedBy}</span>
+                {/* Only the opponent is marked: the viewer knows their own side,
+                    and the other side's drafts never reach them (owner, Sept 24). */}
+                {item.fromOtherSide ? (
+                  <span className={noteClass()}>
+                    {bracketed(applicationSideLabel(item.side))}
+                  </span>
+                ) : null}
                 {item.draftedBy ? (
                   <span className={noteClass()}>
                     {bracketed(`Drafted by ${item.draftedBy}`)}

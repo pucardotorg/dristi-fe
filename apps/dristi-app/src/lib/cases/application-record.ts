@@ -92,6 +92,8 @@ export type ApplicationRecord = {
   /** The litigant it is raised for. */
   onBehalfOf?: string;
   side: ApplicationSide;
+  /** Filed by the other side (the viewer's opponent). */
+  fromOtherSide: boolean;
   /** Allotted on submission. Shown to the filer, never cited in an order. */
   temporaryId?: string;
   /** Allotted on onboarding: the number the court knows it by. */
@@ -363,6 +365,7 @@ function recordFor(
         ? displayName(party.name)
         : undefined,
     side: submissionSide(source, peopleById),
+    fromOtherSide: submissionSide(source, peopleById) !== viewer.side,
     temporaryId: source.temporaryId ?? undefined,
     applicationNumber: source.applicationNumber ?? undefined,
     objectionsInvited: source.objectionsInvited ?? undefined,
