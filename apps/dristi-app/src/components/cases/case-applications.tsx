@@ -64,6 +64,8 @@ import {
   applicationNumberLabel,
   applicationsRegister,
   groupActions,
+  movesKey,
+  parseMoves,
   type ActionEntry,
   type ApplicationMove,
   type ApplicationRecord,
@@ -81,7 +83,11 @@ import {
 import { FIXTURE_TODAY } from "@/lib/cases/fixtures";
 import { isViewer, viewerRepresentation } from "@/lib/cases/viewer";
 import { useProfile } from "@/components/shell/profile";
-import { useLocalStorageValue } from "@/hooks/use-local-storage-value";
+import {
+  readSessionValue,
+  useSessionValue,
+  writeSessionValue,
+} from "@/lib/cases/demo-session";
 import {
   parseSavedDrafts,
   savedDraftSubmission,
@@ -110,10 +116,10 @@ import { Identifier } from "@/components/chrome/identifier";
  */
 export function CaseApplications({ record }: { record: CaseRecord }) {
   const { profileRole, accountName } = useProfile();
-  /* Signing and paying move a filing on in memory only; this is a prototype. */
-  const [moves, setMoves] = useState<ReadonlyMap<string, ApplicationMove>>(
-    () => new Map()
-  );
+  /* Signing and paying move a filing on for this visit (demo-session.ts):
+     it holds across tabs and pages, and a refresh restores every scenario. */
+  const movesRaw = useSessionValue(movesKey(record.id));
+  const moves = useMemo(() => parseMoves(movesRaw), [movesRaw]);
   const viewer = useMemo(() => {
     try {
       return resolveApplicationViewer({
@@ -127,8 +133,8 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       return null;
     }
   }, [record, profileRole, accountName]);
-  /* Drafts saved from the Raise application form in this browser. */
-  const savedRaw = useLocalStorageValue(savedDraftsKey(record.id));
+  /* What the Raise application form filed during this visit. */
+  const savedRaw = useSessionValue(savedDraftsKey(record.id));
   const saved = useMemo(
     () => parseSavedDrafts(savedRaw).map(savedDraftSubmission),
     [savedRaw]
@@ -240,14 +246,15 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
     viewer.role === "clerk";
 
   function move(ids: string[], next: (item: ApplicationRecord) => ApplicationMove) {
-    setMoves((current) => {
-      const updated = new Map(current);
-      for (const id of ids) {
-        const item = register?.applications.find((entry) => entry.id === id);
-        if (item) updated.set(id, next(item));
-      }
-      return updated;
-    });
+    /* Read fresh, not from this render: signing then paying writes twice
+       before the list re-renders. */
+    const key = movesKey(record.id);
+    const updated = new Map(parseMoves(readSessionValue(key)));
+    for (const id of ids) {
+      const item = register?.applications.find((entry) => entry.id === id);
+      if (item) updated.set(id, next(item));
+    }
+    writeSessionValue(key, JSON.stringify([...updated]));
   }
 
   /** The step a filing is waiting on: a draft resumes in its form, the rest

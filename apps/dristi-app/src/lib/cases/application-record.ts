@@ -207,6 +207,25 @@ export type ApplicationMove = {
   submittedOn?: string;
 };
 
+/** Where this visit's moves on a case are kept (see `demo-session.ts`). */
+export function movesKey(caseId: string): string {
+  return `applications-moves:${caseId}`;
+}
+
+export function parseMoves(
+  raw: string | null
+): ReadonlyMap<string, ApplicationMove> {
+  if (!raw) return new Map();
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value)
+      ? new Map(value as [string, ApplicationMove][])
+      : new Map();
+  } catch {
+    return new Map();
+  }
+}
+
 /**
  * Everything in this section is an application, one kind (§9). The prototype
  * pack still tags some filings as document submissions (affidavits, memos);
@@ -225,7 +244,7 @@ export function applicationsRegister(
     viewer: ApplicationViewer | null;
     today: string;
     moves?: ReadonlyMap<string, ApplicationMove>;
-    /** Drafts saved in this browser (see `saved-application-drafts.ts`). */
+    /** Filed from the form during this visit (see `saved-application-drafts.ts`). */
     saved?: Submission[];
   }
 ): ApplicationsRegister {

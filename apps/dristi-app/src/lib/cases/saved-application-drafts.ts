@@ -1,6 +1,7 @@
 /**
- * Applications filed from the Raise application form in this browser —
- * demo persistence, no backend. Drafts first (Save as draft), and since
+ * Applications filed from the Raise application form during this visit —
+ * demo memory, no backend (see `demo-session.ts`: kept while the viewer
+ * moves around, gone on a refresh so every scenario is back). Drafts first (Save as draft), and since
  * Sept 24 anything the form's chain ends on too: waiting for a signature
  * (signed later, or a clerk's hand-off to the advocate), waiting for
  * payment, or paid. Before that, nothing filed from the form ever reached
@@ -15,11 +16,11 @@
  * `applicationDraftFrom`). Files and dates are not kept, exactly as with the
  * pack's drafts.
  *
- * Read with `useLocalStorageValue(savedDraftsKey(caseId))` and parse with
+ * Read with `useSessionValue(savedDraftsKey(caseId))` and parse with
  * `parseSavedDrafts`, so every reader updates when one is saved.
  */
 
-import { writeLocalStorageValue } from "@/hooks/use-local-storage-value";
+import { readSessionValue, writeSessionValue } from "./demo-session";
 
 import {
   isSubmittedToCourt,
@@ -62,11 +63,7 @@ export function parseSavedDrafts(raw: string | null): SavedApplicationDraft[] {
 }
 
 function readSaved(caseId: string): SavedApplicationDraft[] {
-  try {
-    return parseSavedDrafts(window.localStorage.getItem(savedDraftsKey(caseId)));
-  } catch {
-    return [];
-  }
+  return parseSavedDrafts(readSessionValue(savedDraftsKey(caseId)));
 }
 
 /** Save, or replace the draft with the same id. */
@@ -78,7 +75,7 @@ export function saveApplicationDraft(
     draft,
     ...readSaved(caseId).filter((item) => item.id !== draft.id),
   ];
-  writeLocalStorageValue(savedDraftsKey(caseId), JSON.stringify(next));
+  writeSessionValue(savedDraftsKey(caseId), JSON.stringify(next));
 }
 
 export function newSavedDraftId(): string {

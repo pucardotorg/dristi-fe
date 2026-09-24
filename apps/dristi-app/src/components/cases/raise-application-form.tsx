@@ -84,7 +84,7 @@ import { isViewer, viewerRepresentation } from "@/lib/cases/viewer";
 import { useProfile } from "@/components/shell/profile";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useLocalStorageValue } from "@/hooks/use-local-storage-value";
+import { useSessionValue } from "@/lib/cases/demo-session";
 import {
   newSavedDraftId,
   parseSavedDrafts,
@@ -385,7 +385,7 @@ export function RaiseApplicationForm({
 
   /**
    * Keep what was typed as a Draft the filer can continue from the
-   * Applications register (owner, Sept 24). Saved in this browser only; see
+   * Applications register (owner, Sept 24). Kept for this visit only; see
    * `saved-application-drafts.ts`. A resumed draft keeps its id, so saving it
    * again replaces it rather than adding a second row.
    */
@@ -773,9 +773,9 @@ export function RaiseApplicationForm({
 }
 
 /**
- * The page's entry point. A draft saved in this browser is not known to the
- * server, so `?draft=` that the server could not resolve is looked up here,
- * once localStorage is readable, and the form remounts on it.
+ * The page's entry point. A draft saved during this visit is not known to
+ * the server, so `?draft=` that the server could not resolve is looked up
+ * here, in the visit's memory, and the form remounts on it.
  */
 export function RaiseApplicationEntry({
   draftId,
@@ -785,7 +785,7 @@ export function RaiseApplicationEntry({
   draftId?: string;
   resume?: Submission | null;
 }) {
-  const savedRaw = useLocalStorageValue(savedDraftsKey(props.record.id));
+  const savedRaw = useSessionValue(savedDraftsKey(props.record.id));
   const saved =
     !resume && draftId
       ? parseSavedDrafts(savedRaw).find((item) => item.id === draftId)
