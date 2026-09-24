@@ -12,6 +12,7 @@
 import {
   applicationsFile,
   filingStatusLabel,
+  isOnboardedStatus,
   type FilingStatus,
 } from "./applications";
 import {
@@ -554,8 +555,16 @@ function collectRegisterUpdates(
   }
 }
 
+/**
+ * A filing both sides may see. The overview has no viewer, so it lists only
+ * what the Application Lifecycle PRD shows everyone: an application the court
+ * has onboarded (ALC-17 hides it from the other side until then; a dismissed
+ * one never gets there), and a submission nobody decides (an objection, an
+ * affidavit, a memo). The filer's own not-yet-onboarded filings stay on the
+ * Applications tab, which knows who is looking.
+ */
 function submissionOccurred(status: FilingStatus): boolean {
-  return status === "completed" || status === "rejected";
+  return isOnboardedStatus(status) || status === "submitted";
 }
 
 function inComplaintWindow(

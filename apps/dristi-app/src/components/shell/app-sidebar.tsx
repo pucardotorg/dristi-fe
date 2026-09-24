@@ -28,7 +28,8 @@ import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { YourDetailsItem } from "@/components/filing/your-details-item";
 import { useAppSearch } from "@/components/shell/app-search";
 import { useChrome } from "@/components/shell/chrome";
-import { useProfile } from "@/components/shell/profile";
+import { useProfile, type ProfileRole } from "@/components/shell/profile";
+import { VIEWER_CLERK_NAME } from "@/lib/cases/viewer";
 import { RAIL_THEMES, useRailTheme } from "@/components/shell/rail-theme";
 import { Button } from "@/components/ui/button";
 import {
@@ -425,6 +426,18 @@ function RailThemePicker() {
   );
 }
 
+const PROFILE_LABEL: Record<ProfileRole, string> = {
+  advocate: "Advocate",
+  litigant: "Litigant",
+  clerk: "Clerk",
+};
+
+const PROFILE_HOME: Record<ProfileRole, string> = {
+  advocate: "/advocate",
+  litigant: "/home",
+  clerk: "/cases",
+};
+
 /**
  * The person, at the foot of the rail.
  *
@@ -435,24 +448,27 @@ function RailThemePicker() {
  */
 function ProfileFooter() {
   const { state, people, user, setUser, resetSandbox } = useTasks();
-  const { profileRole, advocateProfileAvailable, accountName, switchProfile } =
+  const { profileRole, advocateProfileAvailable, accountName, setProfileRole } =
     useProfile();
   const router = useRouter();
-  const roleLabel = profileRole === "advocate" ? "Advocate" : "Litigant";
+  const roleLabel = PROFILE_LABEL[profileRole];
 
   // The name is the account's, fixed — switching profile changes the role label, not the
-  // person. So Anjali stays Anjali whether she is acting as advocate or litigant.
-  const displayName = accountName;
+  // person. So Anjali stays Anjali whether she is acting as advocate or litigant. The
+  // demo clerk profile is the exception: a clerk is someone else in her office, so it
+  // shows the clerk's own name (see `profile.tsx`).
+  const displayName = profileRole === "clerk" ? VIEWER_CLERK_NAME : accountName;
   const nameParts = displayName.replace(/^Adv\.\s*/, "").trim().split(/\s+/);
   const displayInitials = (
     (nameParts[0]?.[0] ?? "") + (nameParts[nameParts.length - 1]?.[0] ?? "")
   ).toUpperCase();
 
   // Switching profile re-frames the whole product, so it lands on that profile's home.
-  function switchTo(role: "litigant" | "advocate") {
+  // The clerk lands on Cases: the advocate's home is her own day, not her office's.
+  function switchTo(role: ProfileRole) {
     if (role === profileRole) return;
-    switchProfile();
-    router.push(role === "advocate" ? "/advocate" : "/home");
+    setProfileRole(role);
+    router.push(PROFILE_HOME[role]);
   }
   const [confirmReset, setConfirmReset] = React.useState(false);
   const onResetSandbox = React.useCallback(() => setConfirmReset(true), []);
@@ -538,6 +554,25 @@ function ProfileFooter() {
                     {profileRole === "advocate" ? (
                       <CheckIcon aria-hidden />
                     ) : null}
+                  </Button>
+                ) : null}
+                {/* Demo: the clerk in the advocate's office, so the Application
+                    Lifecycle roles can be walked through. Only where the account
+                    holds an advocate profile, since the clerk works for it. */}
+                {advocateProfileAvailable ? (
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => switchTo("clerk")}
+                  >
+                    <span
+                      aria-hidden
+                      className="flex size-6 items-center justify-center rounded-full bg-surface-sunken text-caption font-semibold"
+                    >
+                      C
+                    </span>
+                    <span className="flex-1 text-left">Clerk</span>
+                    {profileRole === "clerk" ? <CheckIcon aria-hidden /> : null}
                   </Button>
                 ) : null}
 
@@ -657,7 +692,7 @@ export function AppSidebar() {
   // screens on the same shell. The rest of the nav is shared.
   const mainItems = GO.map((item) =>
     item.id === "home"
-      ? { ...item, href: profileRole === "advocate" ? "/advocate" : "/home" }
+      ? { ...item, href: profileRole === "litigant" ? "/home" : "/advocate" }
       : item,
   );
 

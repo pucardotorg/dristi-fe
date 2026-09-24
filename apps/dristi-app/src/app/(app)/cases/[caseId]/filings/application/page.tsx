@@ -8,13 +8,13 @@ import {
   findDraftSubmission,
 } from "@/lib/cases/applications";
 import { PAGE_GROUND, PAGE_GUTTER } from "@/components/shell/page-frame";
-import { CASES } from "@/lib/cases/fixtures";
+import { findCaseRecord } from "@/lib/cases/party-cases";
 import { Breadcrumbs } from "@/components/shell/chrome";
 import { areaOf, originCrumb, safeOrigin } from "@/lib/nav/origin";
 import { cn } from "@/lib/utils";
 
 function findCase(caseId: string) {
-  return CASES.find((record) => record.id === caseId);
+  return findCaseRecord(caseId);
 }
 
 /**

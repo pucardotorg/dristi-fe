@@ -9,7 +9,6 @@
  * written.
  */
 import pack from "./documents-dummy.json";
-import { filingStatusVariant, type FilingStatus } from "./applications";
 import { counselFor, type CaseRecord, type Parties } from "./types";
 
 /** Mutually exclusive populations on the documents register. */
@@ -52,12 +51,21 @@ export type DocumentSourceId =
   | "court";
 
 /**
- * Filing-workflow values — not evidence state. The register shares the
- * Applications workflow but adds the Document Execution step Applications
- * has no equivalent for: every party has signed and the document is with
- * the magistrate.
+ * Filing-workflow values — not evidence state. The register once shared the
+ * Applications workflow outright; Applications now carries the court's
+ * lifecycle (Application Lifecycle PRD), which a document does not go
+ * through, so the two lists are separate. This one keeps the Document
+ * Execution step: every party has signed and the document is with the
+ * magistrate.
  */
-export type DocumentStatus = FilingStatus | "pending-review";
+export type DocumentStatus =
+  | "draft"
+  | "pending-signature"
+  | "pending-review"
+  | "pending-payment"
+  | "completed"
+  | "rejected"
+  | "expired";
 
 /** Court treatment after the document submission workflow is complete. */
 export type EvidenceStatus = "marked" | "void";
@@ -163,9 +171,8 @@ export const DOCUMENT_SOURCES: { id: DocumentSourceId; label: string }[] = [
 ];
 
 /**
- * The register's own status list — Applications' FILING_STATUSES plus
- * Pending review, which sits between signature and the magistrate's
- * decision. Keep it in step with FILING_STATUSES for the shared entries.
+ * The register's own status list: the filing steps, Pending review (between
+ * signature and the magistrate's decision), and the endings.
  */
 export const DOCUMENT_STATUSES: { id: DocumentStatus; label: string }[] = [
   { id: "draft", label: "Draft" },
@@ -214,16 +221,21 @@ export function documentStatusLabel(status: DocumentStatus): string {
 }
 
 /**
- * Completed carries the success tint via the shared filing variant; every
+ * Completed carries the success tint (the same one it had when this list was
+ * shared with Applications); every
  * colour remains paired with text. Pending states stay in the amber family.
  * This register has no Needs-attention pinning the way Applications does,
  * so amber here reads "in flight" rather than "you owe a step" — Pending
  * review is waiting on the magistrate, not on you (Laws: colour is never
  * the only carrier).
  */
-export function documentStatusVariant(status: DocumentStatus) {
-  if (status === "pending-review") return "warning";
-  return filingStatusVariant(status);
+export function documentStatusVariant(
+  status: DocumentStatus
+): "warning" | "destructive" | "secondary" | "success" {
+  if (status === "rejected") return "destructive";
+  if (status === "expired") return "secondary";
+  if (status === "completed") return "success";
+  return "warning";
 }
 
 export type DocumentPerson = {

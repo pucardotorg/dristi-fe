@@ -21,7 +21,7 @@ export default function Page() {
     profileRole,
     advocateProfileAvailable,
     accountName,
-    switchProfile,
+    setProfileRole,
     enableAdvocateProfile,
   } = useProfile();
 
@@ -52,7 +52,7 @@ export default function Page() {
         // switchable. In production this waits on the Bar Council verification.
         window.setTimeout(() => enableAdvocateProfile(), 3000);
       }}
-      onSwitchProfile={switchProfile}
+      onSwitchProfile={setProfileRole}
     />
   );
 }

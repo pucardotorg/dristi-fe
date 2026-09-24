@@ -99,7 +99,7 @@ export function CasesScreen({
     () => new Set(initialBookmarks)
   );
   const { locale } = useLocale();
-  const { profileRole, switchProfile } = useProfile();
+  const { profileRole, setProfileRole } = useProfile();
 
   // Bulk share: select cases in the list, then Share access adds staff to all at once.
   const [selectedCases, setSelectedCases] = React.useState<Set<string>>(
@@ -399,7 +399,7 @@ export function CasesScreen({
         }}
         onJoinAsLitigant={() => {
           setJoinOpen(false);
-          if (profileRole === "advocate") switchProfile();
+          if (profileRole !== "litigant") setProfileRole("litigant");
           router.push("/home?join=manual");
         }}
       />

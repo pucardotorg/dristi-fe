@@ -21,7 +21,7 @@ import { ADVOCATE_JOIN_CASE } from "@/lib/advocate/content";
  */
 function AdvocatePage() {
   const { locale } = useLocale();
-  const { accountName, switchProfile } = useProfile();
+  const { accountName, setProfileRole } = useProfile();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -62,7 +62,7 @@ function AdvocatePage() {
             setDialogOpen(false);
             // Discovering mid-journey that you are a party hands off to the litigant
             // home's own join flow, as the same profile switch the rail's foot offers.
-            switchProfile();
+            setProfileRole("litigant");
             router.push("/home?join=manual");
           }}
         />

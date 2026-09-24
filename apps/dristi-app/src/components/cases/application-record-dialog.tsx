@@ -35,6 +35,7 @@ import {
 import {
   applicationSideLabel,
   type ApplicationRecord,
+  type LinkedApplication,
 } from "@/lib/cases/application-record";
 import { orderHref } from "@/lib/cases/sections";
 import { cn } from "@/lib/utils";
@@ -48,10 +49,13 @@ export function ApplicationRecordDialog({
   caseId,
   application,
   onOpenChange,
+  onOpenLinked,
 }: {
   caseId: string;
   application: ApplicationRecord | null;
   onOpenChange: (open: boolean) => void;
+  /** Open another application in this dialog: an objection and what it objects to. */
+  onOpenLinked?: (id: string) => void;
 }) {
   return (
     <Dialog open={application !== null} onOpenChange={onOpenChange}>
@@ -64,6 +68,7 @@ export function ApplicationRecordDialog({
             key={application.id}
             caseId={caseId}
             application={application}
+            onOpenLinked={onOpenLinked}
           />
         ) : null}
       </FlowDialogContent>
@@ -74,9 +79,11 @@ export function ApplicationRecordDialog({
 function RecordBody({
   caseId,
   application,
+  onOpenLinked,
 }: {
   caseId: string;
   application: ApplicationRecord;
+  onOpenLinked?: (id: string) => void;
 }) {
   const viewable = application.documents.filter((doc) => doc.src);
   const [openSrc, setOpenSrc] = useState(viewable[0]?.src);
@@ -122,13 +129,36 @@ function RecordBody({
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <div className="flex shrink-0 flex-col gap-4 overflow-y-auto border-hairline p-4 max-md:max-h-72 max-md:border-b md:w-80 md:border-r">
           <dl className="flex flex-col gap-3">
-            <Fact label="Application ID">
-              {application.applicationId ? (
-                <span className="font-mono">{application.applicationId}</span>
+            {application.source.kind === "document" ||
+            application.source.type === "objection" ? null : (
+            <Fact label="Application number">
+              {application.applicationNumber ? (
+                <span className="font-mono">{application.applicationNumber}</span>
               ) : (
-                <Muted>Not allotted yet</Muted>
+                <Muted>
+                  {application.status === "dismissed"
+                    ? "Not allotted. Dismissed before the court took it up"
+                    : "Allotted when the court takes it up"}
+                </Muted>
               )}
             </Fact>
+            )}
+            {application.temporaryId ? (
+              <Fact
+                label={
+                  application.status === "pending-review"
+                    ? "Temporary ID"
+                    : "Filing ID"
+                }
+              >
+                <span className="font-mono">{application.temporaryId}</span>
+              </Fact>
+            ) : null}
+            {courtLine(application) ? (
+              <Fact label="With the court">
+                <span className="font-normal">{courtLine(application)}</span>
+              </Fact>
+            ) : null}
             <Fact label="Created on">
               <span className="tabular-nums">{application.created}</span>
             </Fact>
@@ -139,8 +169,46 @@ function RecordBody({
                 <Muted>Not submitted yet</Muted>
               )}
             </Fact>
-            <Fact label="Filed by">{application.filedBy}</Fact>
+            {application.onboarded ? (
+              <Fact label="Taken up on">
+                <span className="tabular-nums">{application.onboarded}</span>
+              </Fact>
+            ) : null}
+            <Fact label="Raised by">{application.filedBy}</Fact>
+            {application.draftedBy ? (
+              <Fact label="Drafted by">{application.draftedBy}</Fact>
+            ) : null}
+            {application.onBehalfOf ? (
+              <Fact label="On behalf of">{application.onBehalfOf}</Fact>
+            ) : null}
             <Fact label="Side">{applicationSideLabel(application.side)}</Fact>
+            {application.objectionsInvited !== undefined ? (
+              <Fact label="Objections">
+                <span className="font-normal tabular-nums">
+                  {application.objectionsInvited
+                    ? application.objectionDue
+                      ? `Invited. Due by the end of ${application.objectionDue}`
+                      : "Invited"
+                    : "Not invited"}
+                </span>
+              </Fact>
+            ) : null}
+            {application.objection ? (
+              <Fact label="Objection filed">
+                <LinkedRecord
+                  linked={application.objection}
+                  onOpen={onOpenLinked}
+                />
+              </Fact>
+            ) : null}
+            {application.objectionTo ? (
+              <Fact label="Objection to">
+                <LinkedRecord
+                  linked={application.objectionTo}
+                  onOpen={onOpenLinked}
+                />
+              </Fact>
+            ) : null}
             <Fact label="Linked order">
               {application.linkedOrder ? (
                 <Button
@@ -153,7 +221,11 @@ function RecordBody({
                   </Link>
                 </Button>
               ) : (
-                <Muted>No order yet</Muted>
+                <Muted>
+                  {isDecided(application.status)
+                    ? "Order not on file yet"
+                    : "No order yet"}
+                </Muted>
               )}
             </Fact>
           </dl>
@@ -234,6 +306,67 @@ function RecordBody({
         )}
       </div>
     </>
+  );
+}
+
+function isDecided(status: ApplicationRecord["status"]): boolean {
+  return status === "accepted" || status === "rejected" || status === "dismissed";
+}
+
+/**
+ * Where the application stands with the court, in the reader's words. The
+ * badge says the status; this says what it means and what comes next.
+ */
+function courtLine(application: ApplicationRecord): string | undefined {
+  switch (application.status) {
+    case "pending-review":
+      return "Waiting for the court to take it up.";
+    case "pending-decision":
+      return application.decision
+        ? `The court decides it on ${application.decision}.`
+        : "Waiting for the court's decision.";
+    case "accepted":
+    case "rejected":
+    case "dismissed":
+      return application.courtResult;
+    case "submitted":
+      return application.objectionTo
+        ? "Read with the application it objects to."
+        : undefined;
+    case "expired":
+      return "Expired before it was submitted.";
+    default:
+      return undefined;
+  }
+}
+
+/** Another application, one press away: its type, number and status. */
+function LinkedRecord({
+  linked,
+  onOpen,
+}: {
+  linked: LinkedApplication;
+  onOpen?: (id: string) => void;
+}) {
+  const label = linked.number
+    ? `${linked.typeLabel} · ${linked.number}`
+    : linked.typeLabel;
+  return (
+    <span className="flex flex-col items-start gap-1">
+      {onOpen ? (
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto justify-start px-0 text-left whitespace-normal"
+          onClick={() => onOpen(linked.id)}
+        >
+          {label}
+        </Button>
+      ) : (
+        <span>{label}</span>
+      )}
+      <Badge variant={linked.statusVariant}>{linked.statusLabel}</Badge>
+    </span>
   );
 }
 
