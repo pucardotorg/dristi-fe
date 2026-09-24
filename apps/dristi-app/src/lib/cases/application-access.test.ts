@@ -173,12 +173,28 @@ describe("objections (ALC-11 to ALC-13, ALC-24)", () => {
     );
   });
 
-  it("is filed by the advocate, not the litigant", () => {
+  it("reminds a litigant, whose advocate files it", () => {
     const file = fileFor("lt-2202");
-    assert.deepEqual(
-      objectionInvitations(viewerFor("lt-2202", "litigant"), file, FIXTURE_TODAY),
-      []
+    const invitations = objectionInvitations(
+      viewerFor("lt-2202", "litigant"),
+      file,
+      FIXTURE_TODAY
     );
+    assert.deepEqual(
+      invitations.map((item) => [item.application.id, item.canFile]),
+      [["sub-lt-2202-complainant-witness", false]]
+    );
+  });
+
+  it("lets an advocate file it", () => {
+    const file = fileFor("c-1001");
+    const invitations = objectionInvitations(
+      viewerFor("c-1001", "advocate"),
+      file,
+      FIXTURE_TODAY
+    );
+    assert.ok(invitations.length > 0);
+    assert.ok(invitations.every((item) => item.canFile));
   });
 });
 

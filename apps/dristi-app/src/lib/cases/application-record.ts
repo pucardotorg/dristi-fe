@@ -18,6 +18,7 @@ import {
   objectionAgainst,
   objectionDeadline,
   objectionInvitations,
+  type ObjectionInvitation,
   submissionSide,
   waitingOn,
   type ApplicationStep,
@@ -119,7 +120,13 @@ export type ApplicationRecord = {
    * application, and has not started its one objection: the File objection
    * task, seen from the record.
    */
-  objectionInvite?: { dueOn: string; due: string; dueShort: string };
+  objectionInvite?: {
+    dueOn: string;
+    due: string;
+    dueShort: string;
+    /** False for a litigant or PoA holder: their advocate files it. */
+    canFile: boolean;
+  };
   /** The order's operative line, once decided or dismissed. */
   courtResult?: string;
   linkedOrder?: { id: string; label: string };
@@ -178,6 +185,8 @@ export type ObjectionTask = {
   application: ApplicationRecord;
   dueOn: string;
   due: string;
+  /** False for a litigant or PoA holder: a reminder, their advocate files. */
+  canFile: boolean;
 };
 
 export type ApplicationsRegister = {
@@ -238,7 +247,7 @@ export function applicationsRegister(
   const invitations = new Map(
     objectionInvitations(viewer, file, today).map((item) => [
       item.application.id,
-      item.dueOn,
+      item,
     ])
   );
   const toRecord = (source: Submission): ApplicationRecord =>
@@ -260,10 +269,11 @@ export function applicationsRegister(
       role: person.role,
     }));
 
-  const objectionTasks = [...invitations].map(([id, dueOn]) => ({
+  const objectionTasks = [...invitations].map(([id, { dueOn, canFile }]) => ({
     application: toRecord(byId.get(id)!),
     dueOn,
     due: formatCaseDate(dueOn),
+    canFile,
   }));
 
   return { applications, people, objectionTasks };
@@ -316,7 +326,7 @@ function recordFor(
   viewer: ApplicationViewer,
   byId: Map<string, Submission>,
   today: string,
-  inviteDueOn?: string
+  invite?: ObjectionInvitation
 ): ApplicationRecord {
   const peopleById = new Map(file.people.map((person) => [person.id, person]));
   const step = applicationStepFor(viewer, source, file);
@@ -381,11 +391,12 @@ function recordFor(
     expiresInDays: source.expiresOn
       ? daysBetween(today, source.expiresOn)
       : undefined,
-    objectionInvite: inviteDueOn
+    objectionInvite: invite
       ? {
-          dueOn: inviteDueOn,
-          due: formatCaseDate(inviteDueOn),
-          dueShort: shortDate(inviteDueOn),
+          dueOn: invite.dueOn,
+          due: formatCaseDate(invite.dueOn),
+          dueShort: shortDate(invite.dueOn),
+          canFile: invite.canFile,
         }
       : undefined,
     courtResult: source.courtResult ?? undefined,

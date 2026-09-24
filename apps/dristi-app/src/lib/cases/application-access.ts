@@ -232,6 +232,12 @@ export type ObjectionInvitation = {
   application: Submission;
   /** Last day to file: the day before the decision date. */
   dueOn: string;
+  /**
+   * Whether this viewer files it. A litigant or PoA holder is told the side
+   * may object (the task goes to "all users on the side") but their advocate
+   * files it (filing is Advocate/PiP only, "Users and actions").
+   */
+  canFile: boolean;
 };
 
 /**
@@ -245,17 +251,18 @@ export type ObjectionInvitation = {
  * started one, the task gives way to that objection's own step (continue,
  * sign or pay).
  *
- * Only those who can file get it here: an advocate, a party in person, or a
- * clerk who drafts for them. A litigant sees the application; their advocate
- * files.
+ * Everyone on the side is told (the PRD raises the task on "all users on
+ * the side"), but only an advocate, a party in person, or a clerk who drafts
+ * for them can file. A litigant or PoA holder gets it as a reminder that
+ * their advocate can object (owner, Sept 24).
  */
 export function objectionInvitations(
   viewer: ApplicationViewer,
   file: ApplicationsFile,
   today: string
 ): ObjectionInvitation[] {
-  if (viewer.role === "litigant" || viewer.role === "poa-holder") return [];
   if (!viewer.personId) return [];
+  const canFile = viewer.role !== "litigant" && viewer.role !== "poa-holder";
   const people = peopleById(file);
   return file.submissions
     .filter(
@@ -271,6 +278,7 @@ export function objectionInvitations(
     .map((application) => ({
       application,
       dueOn: objectionDeadline(application.decisionOn!),
+      canFile,
     }))
     .sort((a, b) => a.dueOn.localeCompare(b.dueOn));
 }

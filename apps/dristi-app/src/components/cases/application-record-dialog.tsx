@@ -382,14 +382,18 @@ function RecordBody({
       {!application.step && application.objectionInvite ? (
         <footer className="flex shrink-0 flex-col gap-3 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-body-compact text-muted-foreground tabular-nums">
-            You can object to this until the end of{" "}
+            {application.objectionInvite.canFile
+              ? "You can object to this until the end of"
+              : "Your advocate can object to this until the end of"}{" "}
             {application.objectionInvite.due}.
           </p>
-          <Button asChild className="w-full sm:w-auto">
-            <Link href={objectionHref(caseId, application.id)}>
-              File objection
-            </Link>
-          </Button>
+          {application.objectionInvite.canFile ? (
+            <Button asChild className="w-full sm:w-auto">
+              <Link href={objectionHref(caseId, application.id)}>
+                File objection
+              </Link>
+            </Button>
+          ) : null}
         </footer>
       ) : null}
       {application.step ? (

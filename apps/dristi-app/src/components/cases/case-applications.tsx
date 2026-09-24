@@ -1009,7 +1009,17 @@ function ActionGroup({
  * plain to-do, not a warning.
  */
 function objectionTitle(task: ObjectionTask): string {
-  return `File objection to ${task.application.typeLabel.toLowerCase()}`;
+  /* "Others" names no ask ("object to others"); its own title does. */
+  const { application } = task;
+  const type =
+    application.source.type === "application-others"
+      ? application.title.charAt(0).toLowerCase() + application.title.slice(1)
+      : application.typeLabel.toLowerCase();
+  /* A litigant or PoA holder is told, not tasked: their advocate files it
+     (owner, Sept 24). */
+  return task.canFile
+    ? `File objection to ${type}`
+    : `Your advocate can object to ${type}`;
 }
 
 function objectionLine(task: ObjectionTask): string {
@@ -1036,7 +1046,9 @@ function ObjectionDue({ task }: { task: ObjectionTask }) {
   );
   const when =
     days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
-  const urgent = days <= 2;
+  /* Amber marks a deadline this reader has to meet; a reminder of their
+     advocate's stays muted. */
+  const urgent = task.canFile && days <= 2;
   return (
     <span
       className={cn(
@@ -1045,7 +1057,7 @@ function ObjectionDue({ task }: { task: ObjectionTask }) {
       )}
     >
       {urgent ? <ClockIcon className="size-3.5 shrink-0" aria-hidden /> : null}
-      Object {when} (by {task.due})
+      {task.canFile ? "Object" : "Due"} {when} (by {task.due})
     </span>
   );
 }
@@ -1076,14 +1088,27 @@ function ObjectionRow({
           <ObjectionDue task={task} />
         </p>
       </div>
-      <Button variant="outline" size="sm" className="max-sm:h-10" asChild>
-        <Link href={objectionHref(caseId, task.application.id)}>
-          File objection
-          <span className="sr-only">
-            : {task.application.typeLabel}
-          </span>
-        </Link>
-      </Button>
+      {task.canFile ? (
+        <Button variant="outline" size="sm" className="max-sm:h-10" asChild>
+          <Link href={objectionHref(caseId, task.application.id)}>
+            File objection
+            <span className="sr-only">
+              : {task.application.typeLabel}
+            </span>
+          </Link>
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="max-sm:h-10"
+          onClick={() => onOpen(task.application.id)}
+        >
+          View
+          <span className="sr-only">: {task.application.typeLabel}</span>
+        </Button>
+      )}
     </div>
   );
 }
@@ -1115,11 +1140,13 @@ function TouchObjectionCard({
           >
             View
           </Button>
-          <Button asChild>
-            <Link href={objectionHref(caseId, task.application.id)}>
-              File objection
-            </Link>
-          </Button>
+          {task.canFile ? (
+            <Button asChild>
+              <Link href={objectionHref(caseId, task.application.id)}>
+                File objection
+              </Link>
+            </Button>
+          ) : null}
         </>
       }
     >
