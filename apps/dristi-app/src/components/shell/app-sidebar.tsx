@@ -517,7 +517,10 @@ function ProfileFooter() {
                 side="top"
                 align="start"
                 collisionPadding={16}
-                className="w-64 p-2"
+                // Taller than a laptop screen once every sandbox person and the
+                // rail plates are listed: held to the room Radix says is left,
+                // and scrolled, so the top of the list is always reachable.
+                className="max-h-(--radix-popover-content-available-height) w-64 overflow-y-auto overscroll-contain p-2"
               >
                 <p className="px-2 py-1.5 text-caption font-semibold text-muted-foreground">
                   Switch profile

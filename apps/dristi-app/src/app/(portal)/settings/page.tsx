@@ -9,6 +9,7 @@ import {
 } from "@/components/home/profile-settings";
 import { useLocale } from "@/components/shell/locale";
 import { useProfile } from "@/components/shell/profile";
+import { VIEWER_CLERK_NAME } from "@/lib/cases/viewer";
 
 /**
  * Settings on the new shell. Profile role + switch come from the shell's ProfileProvider;
@@ -30,7 +31,8 @@ export default function Page() {
   const [advocateRequest, setAdvocateRequest] =
     React.useState<AdvocateRequestDetails | null>(null);
 
-  const profileName = accountName;
+  // The demo clerk is someone else (see `profile.tsx`): his name, as the rail shows it.
+  const profileName = profileRole === "clerk" ? VIEWER_CLERK_NAME : accountName;
 
   return (
     <ProfileSettings
