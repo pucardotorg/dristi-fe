@@ -191,11 +191,15 @@ function RecordBody({
                 </Fact>
               )}
               {application.temporaryId ? (
+                /* One name for it at every status, marked the way forms mark
+                   "(optional)": it stands in until the court's number, and is
+                   never cited in an order (owner, Sept 24). */
                 <Fact
                   label={
-                    application.status === "pending-review"
-                      ? "Temporary ID"
-                      : "Filing ID"
+                    <>
+                      Filing ID{" "}
+                      <span className="font-normal">(temporary)</span>
+                    </>
                   }
                 >
                   <span className="font-mono">{application.temporaryId}</span>
@@ -545,7 +549,7 @@ function FactGroup({
   );
 }
 
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+function Fact({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-caption font-medium text-muted-foreground">
