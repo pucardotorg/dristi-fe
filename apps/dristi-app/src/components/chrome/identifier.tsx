@@ -146,41 +146,49 @@ export function Identifier({
         face,
         /* Negative inline margin against the pill's padding, so the resting text sits
            exactly where plain text would and the fill grows outside it. */
-        "group/id relative -mx-1 inline-flex cursor-pointer items-center rounded-sm px-1 text-left align-baseline",
+        "group/id -mx-1 inline-flex cursor-pointer items-center rounded-sm px-1 text-left align-baseline",
         "outline-none transition-colors hover:bg-surface-sunken focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         className
       )}
     >
-      <span>{value}</span>
-      {/* Two behaviours, one element (owner, Sept 24).
+      {/* The glyph is anchored to the value, not to the button: measured from the
+          button's edge it sat the pill's padding further out in a table than
+          anywhere else (owner, Sept 24). One wrapper, so both behaviours leave the
+          same 2px between the value and the glyph. */}
+      <span className="relative inline-flex items-center">
+        <span>{value}</span>
+        {/* Two behaviours, one element (owner, Sept 24).
 
-          Everywhere but a table: closed at rest, it opens to the glyph's width on
-          hover, focus and while the tick shows, and whatever follows eases aside
-          by 14px over 180ms. That is the motion the header and the case peek were
-          built around; the out-of-flow version (Sept 23) laid the glyph over
-          whatever sat next to the number, e.g. the header's history icon.
+            Everywhere but a table: closed at rest, it opens to the glyph's width on
+            hover, focus and while the tick shows, and whatever follows eases aside
+            by 14px over 180ms. That is the motion the header and the case peek were
+            built around; the out-of-flow version (Sept 23) laid the glyph over
+            whatever sat next to the number, e.g. the header's history icon.
 
-          In a table cell (`in-[td]`): out of flow at the value's trailing edge,
-          over the cell's own padding, so the button measures the same in every
-          state and no auto-sized column can widen under the pointer and shove
-          the columns after it (the Sept 23 finding). `pointer-events-none`
-          keeps its hit area out of the next cell. */}
-      <span
-        aria-hidden
-        className={cn(
-          "flex shrink-0 justify-end overflow-hidden",
-          "transition-[width,opacity] duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-          "in-[td]:pointer-events-none in-[td]:absolute in-[td]:top-1/2 in-[td]:left-full in-[td]:-translate-y-1/2",
-          copied
-            ? "w-3.5 opacity-100"
-            : "w-0 opacity-0 group-hover/id:w-3.5 group-hover/id:opacity-100 group-focus-visible/id:w-3.5 group-focus-visible/id:opacity-100"
-        )}
-      >
-        {copied ? (
-          <CheckIcon className="size-3 shrink-0 text-success-ink" />
-        ) : (
-          <CopyIcon className="size-3 shrink-0 text-muted-foreground" />
-        )}
+            In a table cell (`in-[td]`): out of flow at the value's trailing edge,
+            over the cell's own padding, so the button measures the same in every
+            state and no auto-sized column can widen under the pointer and shove
+            the columns after it (the Sept 23 finding). It still takes the pointer:
+            it is inside the button, so moving onto it keeps the hover and a click
+            on it copies (with pointer events off it vanished as the cursor reached
+            it, owner Sept 24). At 14px it stays inside the cell's 16px padding. */}
+        <span
+          aria-hidden
+          className={cn(
+            "flex shrink-0 justify-end overflow-hidden",
+            "transition-[width,opacity] duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+            "in-[td]:absolute in-[td]:top-1/2 in-[td]:left-full in-[td]:-translate-y-1/2",
+            copied
+              ? "w-3.5 opacity-100"
+              : "w-0 opacity-0 group-hover/id:w-3.5 group-hover/id:opacity-100 group-focus-visible/id:w-3.5 group-focus-visible/id:opacity-100"
+          )}
+        >
+          {copied ? (
+            <CheckIcon className="size-3 shrink-0 text-success-ink" />
+          ) : (
+            <CopyIcon className="size-3 shrink-0 text-muted-foreground" />
+          )}
+        </span>
       </span>
     </button>
   );

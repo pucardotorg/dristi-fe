@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDownIcon,
+  ClockIcon,
   CircleAlertIcon,
   FileSearchIcon,
   FileTextIcon,
@@ -879,7 +880,38 @@ function objectionLine(task: ObjectionTask): string {
   const { application } = task;
   const side = application.side === "accused" ? "the accused" : "the complainant";
   const number = applicationNumberLabel(application);
-  return `${number ? `${number} · ` : ""}Filed by ${side} · Object by ${task.due}`;
+  return `${number ? `${number} · ` : ""}Filed by ${side}`;
+}
+
+/**
+ * When the objection is due, the way Pending tasks words a due date: relative
+ * first, the date in brackets. The PRD gives Needs attention one deadline, the
+ * objection's (midnight the day before the decision, ALC-13); the drafts and
+ * unsigned or unpaid filings expire on a timer it does not specify, so they
+ * carry none. Two days out or less it turns to warning ink with a clock, the
+ * rule the Filings dashboard already uses for "File by". It is never overdue:
+ * the task closes when the date passes.
+ */
+function ObjectionDue({ task }: { task: ObjectionTask }) {
+  const days = Math.round(
+    (Date.parse(`${task.dueOn}T00:00:00Z`) -
+      Date.parse(`${FIXTURE_TODAY}T00:00:00Z`)) /
+      86_400_000
+  );
+  const when =
+    days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+  const urgent = days <= 2;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 whitespace-nowrap tabular-nums",
+        urgent && "font-medium text-warning-ink"
+      )}
+    >
+      {urgent ? <ClockIcon className="size-3.5 shrink-0" aria-hidden /> : null}
+      Object {when} (by {task.due})
+    </span>
+  );
 }
 
 function ObjectionRow({
@@ -903,8 +935,9 @@ function ObjectionRow({
             {objectionTitle(task)}
           </button>
         </div>
-        <p className="text-caption font-medium text-muted-foreground tabular-nums">
-          {objectionLine(task)}
+        <p className="flex flex-wrap items-center gap-x-1 text-caption font-medium text-muted-foreground tabular-nums">
+          <span>{objectionLine(task)} ·</span>
+          <ObjectionDue task={task} />
         </p>
       </div>
       <Button variant="outline" size="sm" className="max-sm:h-10" asChild>
@@ -954,8 +987,9 @@ function TouchObjectionCard({
         </>
       }
     >
-      <p className="-mt-1 text-caption text-muted-foreground tabular-nums">
-        {objectionLine(task)}
+      <p className="-mt-1 flex flex-wrap items-center gap-x-1 text-caption text-muted-foreground tabular-nums">
+        <span>{objectionLine(task)} ·</span>
+        <ObjectionDue task={task} />
       </p>
     </RegisterTrayCard>
   );
