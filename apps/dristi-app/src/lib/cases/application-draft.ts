@@ -550,3 +550,34 @@ export function validateApplication(
 
   return errors;
 }
+
+/**
+ * The ask in the filer's words, for saving a draft: the one field of each
+ * type that `applicationDraftFrom` restores. The inverse of that mapping, so
+ * a saved draft reopens with what was written.
+ */
+export function draftRequestText(draft: ApplicationDraft): string {
+  switch (draft.type) {
+    case "advancement-reschedule":
+    case "postpone":
+      return draft.requestReason.trim();
+    case "bail":
+      return draft.bailGrounds.text.trim();
+    case "condonation-of-delay":
+      return draft.delayReason.text.trim();
+    case "production-of-documents":
+      return draft.applicationReason.text.trim();
+    case "settlement":
+      return draft.comments.text.trim();
+    case "transfer":
+      return draft.transferGrounds.trim();
+    case "withdrawal":
+      return draft.withdrawalReason.text.trim();
+    case "objection":
+      return draft.objectionGrounds.text.trim();
+    case "application-others":
+      return draft.details.text.trim();
+    default:
+      return "";
+  }
+}

@@ -82,6 +82,7 @@ export type ApplicationRecord = {
   /** "8 Sep 2025", for the register, which sets two dates side by side. */
   createdShort: string;
   submittedShort?: string;
+  onboardedShort?: string;
   decisionShort?: string;
   filedById: string;
   /** Raised by: the advocate or party in person who signs it. */
@@ -188,14 +189,20 @@ export function applicationsRegister(
     viewer: ApplicationViewer | null;
     today: string;
     moves?: ReadonlyMap<string, ApplicationMove>;
+    /** Drafts saved in this browser (see `saved-application-drafts.ts`). */
+    saved?: Submission[];
   }
 ): ApplicationsRegister {
   const base = applicationsFile(record);
   const file: ApplicationsFile = {
     ...base,
-    submissions: base.submissions.map((original) =>
-      applyMove(original, options.moves?.get(original.id))
-    ),
+    /* A saved draft that reopened a pack draft carries its id and replaces it. */
+    submissions: [
+      ...(options.saved ?? []),
+      ...base.submissions.filter(
+        (item) => !options.saved?.some((saved) => saved.id === item.id)
+      ),
+    ].map((original) => applyMove(original, options.moves?.get(original.id))),
   };
   const { viewer, today } = options;
   if (!viewer) return { applications: [], people: [], objectionTasks: [] };
@@ -307,6 +314,7 @@ function recordFor(
     decision: source.decisionOn ? formatCaseDate(source.decisionOn) : undefined,
     createdShort: shortDate(source.addedOn),
     submittedShort: source.submittedOn ? shortDate(source.submittedOn) : undefined,
+    onboardedShort: source.onboardedOn ? shortDate(source.onboardedOn) : undefined,
     decisionShort: source.decisionOn ? shortDate(source.decisionOn) : undefined,
     filedById: source.submittedById,
     filedBy: displayName(submittedByName(source, peopleById)),

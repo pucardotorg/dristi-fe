@@ -127,110 +127,149 @@ function RecordBody({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <div className="flex shrink-0 flex-col gap-4 overflow-y-auto border-hairline p-4 max-md:max-h-72 max-md:border-b md:w-80 md:border-r">
-          <dl className="flex flex-col gap-3">
-            {application.source.kind === "document" ||
-            application.source.type === "objection" ? null : (
-            <Fact label="Application number">
-              {application.applicationNumber ? (
-                <span className="font-mono">{application.applicationNumber}</span>
-              ) : (
-                <Muted>
-                  {application.status === "dismissed"
-                    ? "Not allotted. Dismissed before the court took it up"
-                    : "Allotted when the court takes it up"}
-                </Muted>
-              )}
-            </Fact>
-            )}
-            {application.temporaryId ? (
-              <Fact
-                label={
-                  application.status === "pending-review"
-                    ? "Temporary ID"
-                    : "Filing ID"
-                }
-              >
-                <span className="font-mono">{application.temporaryId}</span>
-              </Fact>
-            ) : null}
+        <div className="flex shrink-0 flex-col gap-0 overflow-y-auto border-hairline p-4 max-md:max-h-72 max-md:border-b md:w-80 md:border-r">
+          {/* Grouped so the panel can be skimmed (owner, Sept 24): what is
+              happening first, then numbers, dates, people, objections and the
+              order, each group parted by a hairline. Dates and people run two
+              to a row; they are short. */}
+          <div className="flex flex-col divide-y divide-hairline">
             {courtLine(application) ? (
-              <Fact label="With the court">
-                <span className="font-normal">{courtLine(application)}</span>
-              </Fact>
+              <p className="pb-3 text-body-compact text-foreground">
+                {courtLine(application)}
+              </p>
             ) : null}
-            <Fact label="Created on">
-              <span className="tabular-nums">{application.created}</span>
-            </Fact>
-            <Fact label="Submitted on">
-              {application.submitted ? (
-                <span className="tabular-nums">{application.submitted}</span>
-              ) : (
-                <Muted>Not submitted yet</Muted>
-              )}
-            </Fact>
-            {application.onboarded ? (
-              <Fact label="Taken up on">
-                <span className="tabular-nums">{application.onboarded}</span>
-              </Fact>
-            ) : null}
-            <Fact label="Raised by">{application.filedBy}</Fact>
-            {application.draftedBy ? (
-              <Fact label="Drafted by">{application.draftedBy}</Fact>
-            ) : null}
-            {application.onBehalfOf ? (
-              <Fact label="On behalf of">{application.onBehalfOf}</Fact>
-            ) : null}
-            <Fact label="Side">{applicationSideLabel(application.side)}</Fact>
-            {application.objectionsInvited !== undefined ? (
-              <Fact label="Objections">
-                <span className="font-normal tabular-nums">
-                  {application.objectionsInvited
-                    ? application.objectionDue
-                      ? `Invited. Due by the end of ${application.objectionDue}`
-                      : "Invited"
-                    : "Not invited"}
-                </span>
-              </Fact>
-            ) : null}
-            {application.objection ? (
-              <Fact label="Objection filed">
-                <LinkedRecord
-                  linked={application.objection}
-                  onOpen={onOpenLinked}
-                />
-              </Fact>
-            ) : null}
-            {application.objectionTo ? (
-              <Fact label="Objection to">
-                <LinkedRecord
-                  linked={application.objectionTo}
-                  onOpen={onOpenLinked}
-                />
-              </Fact>
-            ) : null}
-            <Fact label="Linked order">
-              {application.linkedOrder ? (
-                <Button
-                  variant="link"
-                  asChild
-                  className="h-auto justify-start px-0 text-left whitespace-normal"
-                >
-                  <Link href={orderHref(caseId, application.linkedOrder.id)}>
-                    {application.linkedOrder.label}
-                  </Link>
-                </Button>
-              ) : (
-                <Muted>
-                  {isDecided(application.status)
-                    ? "Order not on file yet"
-                    : "No order yet"}
-                </Muted>
-              )}
-            </Fact>
-          </dl>
 
-          <div className="flex flex-col gap-1.5">
+            {hasNumberFacts(application) ? (
+            <FactGroup>
+              {application.source.kind === "document" ||
+              application.source.type === "objection" ? null : (
+                <Fact label="Application number">
+                  {application.applicationNumber ? (
+                    <span className="font-mono">
+                      {application.applicationNumber}
+                    </span>
+                  ) : (
+                    <Muted>
+                      {application.status === "dismissed"
+                        ? "Not allotted. Dismissed before the court took it up"
+                        : "Allotted when the court takes it up"}
+                    </Muted>
+                  )}
+                </Fact>
+              )}
+              {application.temporaryId ? (
+                <Fact
+                  label={
+                    application.status === "pending-review"
+                      ? "Temporary ID"
+                      : "Filing ID"
+                  }
+                >
+                  <span className="font-mono">{application.temporaryId}</span>
+                </Fact>
+              ) : null}
+            </FactGroup>
+            ) : null}
+
+            <FactGroup columns={2}>
+              <Fact label="Created on">
+                <span className="tabular-nums">{application.createdShort}</span>
+              </Fact>
+              <Fact label="Submitted on">
+                {application.submittedShort ? (
+                  <span className="tabular-nums">
+                    {application.submittedShort}
+                  </span>
+                ) : (
+                  <Muted>Not yet</Muted>
+                )}
+              </Fact>
+              {application.onboardedShort ? (
+                <Fact label="Taken up on">
+                  <span className="tabular-nums">
+                    {application.onboardedShort}
+                  </span>
+                </Fact>
+              ) : null}
+              {application.decisionShort &&
+              application.status === "pending-decision" ? (
+                <Fact label="Decision on">
+                  <span className="tabular-nums">
+                    {application.decisionShort}
+                  </span>
+                </Fact>
+              ) : null}
+            </FactGroup>
+
+            <FactGroup columns={2}>
+              <Fact label="Raised by">{application.filedBy}</Fact>
+              <Fact label="Side">{applicationSideLabel(application.side)}</Fact>
+              {application.onBehalfOf ? (
+                <Fact label="On behalf of">{application.onBehalfOf}</Fact>
+              ) : null}
+              {application.draftedBy ? (
+                <Fact label="Drafted by">{application.draftedBy}</Fact>
+              ) : null}
+            </FactGroup>
+
+            {application.objectionsInvited !== undefined ||
+            application.objection ||
+            application.objectionTo ? (
+              <FactGroup>
+                {application.objectionsInvited !== undefined ? (
+                  <Fact label="Objections">
+                    <span className="font-normal tabular-nums">
+                      {application.objectionsInvited
+                        ? application.objectionDue
+                          ? `Invited. Due by the end of ${application.objectionDue}`
+                          : "Invited"
+                        : "Not invited"}
+                    </span>
+                  </Fact>
+                ) : null}
+                {application.objection ? (
+                  <Fact label="Objection filed">
+                    <LinkedRecord
+                      linked={application.objection}
+                      onOpen={onOpenLinked}
+                    />
+                  </Fact>
+                ) : null}
+                {application.objectionTo ? (
+                  <Fact label="Objection to">
+                    <LinkedRecord
+                      linked={application.objectionTo}
+                      onOpen={onOpenLinked}
+                    />
+                  </Fact>
+                ) : null}
+              </FactGroup>
+            ) : null}
+
+            <FactGroup>
+              <Fact label="Linked order">
+                {application.linkedOrder ? (
+                  <Button
+                    variant="link"
+                    asChild
+                    className="h-auto justify-start px-0 text-left whitespace-normal"
+                  >
+                    <Link href={orderHref(caseId, application.linkedOrder.id)}>
+                      {application.linkedOrder.label}
+                    </Link>
+                  </Button>
+                ) : (
+                  <Muted>
+                    {isDecided(application.status)
+                      ? "Order not on file yet"
+                      : "No order yet"}
+                  </Muted>
+                )}
+              </Fact>
+            </FactGroup>
+          </div>
+
+          <div className="flex flex-col gap-1.5 border-t border-hairline pt-3">
             <h3 className="text-caption font-medium text-muted-foreground">
               Documents
             </h3>
@@ -309,6 +348,15 @@ function RecordBody({
   );
 }
 
+/** An objection or a document has no application number; unfiled, no ID either. */
+function hasNumberFacts(application: ApplicationRecord): boolean {
+  const numbered = !(
+    application.source.kind === "document" ||
+    application.source.type === "objection"
+  );
+  return numbered || Boolean(application.temporaryId);
+}
+
 function isDecided(status: ApplicationRecord["status"]): boolean {
   return status === "accepted" || status === "rejected" || status === "dismissed";
 }
@@ -367,6 +415,26 @@ function LinkedRecord({
       )}
       <Badge variant={linked.statusVariant}>{linked.statusLabel}</Badge>
     </span>
+  );
+}
+
+/** One skimmable group of facts; the wrapper's hairline parts it from the next. */
+function FactGroup({
+  columns = 1,
+  children,
+}: {
+  columns?: 1 | 2;
+  children: ReactNode;
+}) {
+  return (
+    <dl
+      className={cn(
+        "grid gap-x-4 gap-y-3 py-3 first:pt-0",
+        columns === 2 && "grid-cols-2"
+      )}
+    >
+      {children}
+    </dl>
   );
 }
 

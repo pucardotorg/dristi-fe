@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CaseBreadcrumbs } from "@/components/cases/case-breadcrumbs";
-import { RaiseApplicationForm } from "@/components/cases/raise-application-form";
+import { RaiseApplicationEntry } from "@/components/cases/raise-application-form";
 import {
   applicationsFile,
   findDraftSubmission,
@@ -103,8 +103,9 @@ export default async function RaiseApplicationPage({
       {/* View Case's ground, so this reads as the same place and the white
           cards stand off it. Dark keeps its own background. */}
       <div className={cn("flex min-w-0 flex-1 flex-col", PAGE_GROUND, PAGE_GUTTER)}>
-        <RaiseApplicationForm
+        <RaiseApplicationEntry
           record={record}
+          draftId={draft}
           resume={resumedDraft(caseId, draft)}
           objectTo={draft ? undefined : objectionTarget(caseId, objectTo)}
           // The door this was opened from: the rail's case list records itself

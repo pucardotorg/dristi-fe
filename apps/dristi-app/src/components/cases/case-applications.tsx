@@ -75,6 +75,12 @@ import {
 import { FIXTURE_TODAY } from "@/lib/cases/fixtures";
 import { isViewer, viewerRepresentation } from "@/lib/cases/viewer";
 import { useProfile } from "@/components/shell/profile";
+import { useLocalStorageValue } from "@/hooks/use-local-storage-value";
+import {
+  parseSavedDrafts,
+  savedDraftSubmission,
+  savedDraftsKey,
+} from "@/lib/cases/saved-application-drafts";
 import { type CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 import { RegisterTrayCard, useOneOpen } from "@/components/cases/register-card";
@@ -115,17 +121,24 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       return null;
     }
   }, [record, profileRole, accountName]);
+  /* Drafts saved from the Raise application form in this browser. */
+  const savedRaw = useLocalStorageValue(savedDraftsKey(record.id));
+  const saved = useMemo(
+    () => parseSavedDrafts(savedRaw).map(savedDraftSubmission),
+    [savedRaw]
+  );
   const register = useMemo(() => {
     try {
       return applicationsRegister(record, {
         viewer,
         today: FIXTURE_TODAY,
         moves,
+        saved,
       });
     } catch {
       return null;
     }
-  }, [record, viewer, moves]);
+  }, [record, viewer, moves, saved]);
   const [types, setTypes] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [filers, setFilers] = useState<string[]>([]);
@@ -955,6 +968,14 @@ function statusNote(item: ApplicationRecord): string | undefined {
   return undefined;
 }
 
+/** A date note never breaks mid-date; a longer note may wrap (owner, Sept 24). */
+function noteClass(item: ApplicationRecord): string {
+  return cn(
+    "text-caption text-muted-foreground tabular-nums",
+    !item.waitingOn && "whitespace-nowrap"
+  );
+}
+
 /**
  * Whether the row's ID is a stand-in for a number still to come. Only while
  * the court has yet to take it up: an objection, an affidavit or a dismissed
@@ -1057,11 +1078,7 @@ function ApplicationsTable({
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
-              {note ? (
-                <span className="text-caption text-muted-foreground tabular-nums">
-                  {note}
-                </span>
-              ) : null}
+              {note ? <span className={noteClass(item)}>{note}</span> : null}
             </div>
             <div className="flex flex-col gap-0.5 border-t border-hairline pt-3">
               <p className="text-body-compact text-foreground">{item.filedBy}</p>
@@ -1117,11 +1134,7 @@ function ApplicationsTable({
             <TableCell className={cn(TABLE_CELL, "whitespace-normal")}>
               <span className="flex flex-col items-start gap-1">
                 <Badge variant={item.statusVariant}>{item.statusLabel}</Badge>
-                {note ? (
-                  <span className="text-caption text-muted-foreground tabular-nums">
-                    {note}
-                  </span>
-                ) : null}
+                {note ? <span className={noteClass(item)}>{note}</span> : null}
               </span>
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>

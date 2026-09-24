@@ -52,6 +52,7 @@ import {
   EMPTY_APPLICATION_DRAFT,
   EMPTY_APPLICATION_ERRORS,
   applicationDraftFrom,
+  draftRequestText,
   hasApplicationErrors,
   isApplicationDirty,
   validateApplication,
@@ -76,6 +77,16 @@ import { displayName } from "@/lib/cases/names";
 import { isViewer, viewerRepresentation } from "@/lib/cases/viewer";
 import { useProfile } from "@/components/shell/profile";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { useLocalStorageValue } from "@/hooks/use-local-storage-value";
+import {
+  newSavedDraftId,
+  parseSavedDrafts,
+  removeSavedDraft,
+  saveApplicationDraft,
+  savedDraftSubmission,
+  savedDraftsKey,
+} from "@/lib/cases/saved-application-drafts";
 import {
   formatCaseDate,
   partiesLabel,
@@ -146,13 +157,27 @@ export function RaiseApplicationForm({
       const advocate = self?.officeOf
         ? file.people.find((person) => person.id === self.officeOf)
         : undefined;
+      const party = file.people.find(
+        (person) => person.kind === "party" && person.side === viewer?.side
+      );
       return {
         role: viewer?.role ?? null,
         side: viewer?.side,
         signer: advocate ? displayName(advocate.name) : undefined,
+        /* Who a saved draft is drafted by, raised by and filed for. */
+        personId: viewer?.personId,
+        signerId: advocate?.id ?? viewer?.personId,
+        partyId: viewer?.partyId ?? party?.id,
       };
     } catch {
-      return { role: null, side: undefined, signer: undefined };
+      return {
+        role: null,
+        side: undefined,
+        signer: undefined,
+        personId: undefined,
+        signerId: undefined,
+        partyId: undefined,
+      };
     }
   }, [record, profileRole, accountName]);
   const filedForSide: ApplicationDraft["filedForSide"] = seat.side ?? "";
@@ -336,6 +361,35 @@ export function RaiseApplicationForm({
   }
 
   const [discardOpen, setDiscardOpen] = useState(false);
+
+  /**
+   * Keep what was typed as a Draft the filer can continue from the
+   * Applications register (owner, Sept 24). Saved in this browser only; see
+   * `saved-application-drafts.ts`. A resumed draft keeps its id, so saving it
+   * again replaces it rather than adding a second row.
+   */
+  function saveDraft() {
+    if (draft.type && seat.personId && seat.signerId) {
+      saveApplicationDraft(record.id, {
+        id: resume?.id ?? newSavedDraftId(),
+        type: draft.type,
+        title:
+          draft.type === "application-others" && draft.title.trim()
+            ? draft.title.trim()
+            : submissionTypeLabel(draft.type),
+        request: draftRequestText(draft),
+        objectionToId: draft.objectionToId || null,
+        createdById: resume?.createdById ?? seat.personId,
+        submittedById: resume?.submittedById ?? seat.signerId,
+        onBehalfOfId: resume?.onBehalfOfId ?? seat.partyId ?? seat.personId,
+        addedOn: resume?.addedOn ?? new Date().toISOString(),
+      });
+      toast("Saved as a draft", {
+        description: "Finish it later from Applications.",
+      });
+    }
+    closeForm();
+  }
 
   /** Back to the chooser with a clean slate. An objection has no chooser to
    *  return to (it is never picked there), so it goes back to the case's
@@ -596,6 +650,8 @@ export function RaiseApplicationForm({
         // the confirmation has already said where this one waits.
         onComplete={() => {
           setSignatureOpen(false);
+          // Filed (or handed on to be signed): no longer a draft to continue.
+          if (resume) removeSavedDraft(record.id, resume.id);
           closeForm();
         }}
         onReturnFocus={returnFocusToGenerate}
@@ -638,8 +694,38 @@ export function RaiseApplicationForm({
         open={discardOpen}
         onOpenChange={setDiscardOpen}
         onDiscard={closeForm}
+        onSaveDraft={seat.personId ? saveDraft : undefined}
+        noun={objecting ? "objection" : "application"}
       />
     </>
+  );
+}
+
+/**
+ * The page's entry point. A draft saved in this browser is not known to the
+ * server, so `?draft=` that the server could not resolve is looked up here,
+ * once localStorage is readable, and the form remounts on it.
+ */
+export function RaiseApplicationEntry({
+  draftId,
+  resume = null,
+  ...props
+}: Omit<React.ComponentProps<typeof RaiseApplicationForm>, "resume"> & {
+  draftId?: string;
+  resume?: Submission | null;
+}) {
+  const savedRaw = useLocalStorageValue(savedDraftsKey(props.record.id));
+  const saved =
+    !resume && draftId
+      ? parseSavedDrafts(savedRaw).find((item) => item.id === draftId)
+      : undefined;
+  const resumed = resume ?? (saved ? savedDraftSubmission(saved) : null);
+  return (
+    <RaiseApplicationForm
+      key={resumed?.id ?? "new"}
+      {...props}
+      resume={resumed}
+    />
   );
 }
 
