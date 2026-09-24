@@ -63,6 +63,7 @@ import {
   isRaisedFromParties,
   isUnbuiltApplicationType,
   type ApplicationTypeId,
+  type FilingStatus,
   type Submission,
 } from "@/lib/cases/applications";
 import { AddWitnessDialog } from "@/components/cases/add-witness-form";
@@ -82,7 +83,6 @@ import { useLocalStorageValue } from "@/hooks/use-local-storage-value";
 import {
   newSavedDraftId,
   parseSavedDrafts,
-  removeSavedDraft,
   saveApplicationDraft,
   savedDraftSubmission,
   savedDraftsKey,
@@ -369,8 +369,30 @@ export function RaiseApplicationForm({
    * again replaces it rather than adding a second row.
    */
   function saveDraft() {
-    if (draft.type && seat.personId && seat.signerId) {
-      saveApplicationDraft(record.id, {
+    if (recordFiling({ status: "draft" })) {
+      toast("Saved as a draft", {
+        description: "Finish it later from Applications.",
+      });
+    }
+    closeForm();
+  }
+
+  /**
+   * Put the filing in the Applications register (this browser only), at the
+   * status it stopped at: a draft, waiting for a signature (the advocate's,
+   * for a clerk), waiting for payment, or paid and with the court. Keeps a
+   * resumed draft's id, so it moves on rather than appearing twice.
+   * Returns whether it could be recorded (the filer must be someone on the
+   * case).
+   */
+  function recordFiling(
+    stop:
+      | { status: "draft" | "pending-signature" | "pending-payment" }
+      | { status: "paid"; temporaryId: string }
+  ): boolean {
+    if (!draft.type || !seat.personId || !seat.signerId) return false;
+    const paid = stop.status === "paid";
+    saveApplicationDraft(record.id, {
         id: resume?.id ?? newSavedDraftId(),
         type: draft.type,
         title:
@@ -383,12 +405,15 @@ export function RaiseApplicationForm({
         submittedById: resume?.submittedById ?? seat.signerId,
         onBehalfOfId: resume?.onBehalfOfId ?? seat.partyId ?? seat.personId,
         addedOn: resume?.addedOn ?? new Date().toISOString(),
+        status: paid
+          ? objecting
+            ? "submitted"
+            : "pending-review"
+          : (stop.status as FilingStatus),
+        submittedOn: paid ? new Date().toISOString().slice(0, 10) : undefined,
+        temporaryId: paid && "temporaryId" in stop ? stop.temporaryId : undefined,
       });
-      toast("Saved as a draft", {
-        description: "Finish it later from Applications.",
-      });
-    }
-    closeForm();
+    return true;
   }
 
   /** Back to the chooser with a clean slate. An objection has no chooser to
@@ -648,10 +673,11 @@ export function RaiseApplicationForm({
         // Finishing returns to the chooser, not the case (owner, Sept 21):
         // someone filing several applications files the next from here, and
         // the confirmation has already said where this one waits.
-        onComplete={() => {
+        onComplete={(outcome) => {
           setSignatureOpen(false);
-          // Filed (or handed on to be signed): no longer a draft to continue.
-          if (resume) removeSavedDraft(record.id, resume.id);
+          // Into the register at the status the chain stopped at; a resumed
+          // draft moves on under the same id.
+          recordFiling(outcome);
           closeForm();
         }}
         onReturnFocus={returnFocusToGenerate}

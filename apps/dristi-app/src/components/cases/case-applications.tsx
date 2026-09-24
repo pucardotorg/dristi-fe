@@ -1010,8 +1010,8 @@ function ApplicationNumber({
   if (item.temporaryId) {
     return awaitingNumber(item) ? (
       /* "(temporary)" the way the forms write "(optional)": muted, lower
-         case, on the value's own line (owner, Sept 24). */
-      <span className="inline-flex flex-wrap items-baseline gap-x-1">
+         case. On its own line under the ID, never beside it (owner, Sept 24). */
+      <span className="flex flex-col gap-0.5">
         <Identifier
           value={item.temporaryId}
           label="temporary ID"
@@ -1081,7 +1081,14 @@ function ApplicationsTable({
               {note ? <span className={noteClass(item)}>{note}</span> : null}
             </div>
             <div className="flex flex-col gap-0.5 border-t border-hairline pt-3">
-              <p className="text-body-compact text-foreground">{item.filedBy}</p>
+              <p className="text-body-compact text-foreground">
+                {item.filedBy}
+                {item.draftedBy ? (
+                  <span className="text-caption text-muted-foreground">
+                    {` · Drafted by ${item.draftedBy}`}
+                  </span>
+                ) : null}
+              </p>
               <p className="text-caption tabular-nums text-muted-foreground">
                 Created {item.createdShort}
                 {item.submittedShort ? ` · Submitted ${item.submittedShort}` : ""}
@@ -1138,7 +1145,17 @@ function ApplicationsTable({
               </span>
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>
-              {item.filedBy}
+              {/* Raised by the signer; a clerk's draft says whose it is, so
+                  the advocate can find their office's drafts (PRD "view own
+                  and associated drafts"). */}
+              <span className="flex flex-col gap-0.5">
+                <span>{item.filedBy}</span>
+                {item.draftedBy ? (
+                  <span className="text-caption text-muted-foreground">
+                    Drafted by {item.draftedBy}
+                  </span>
+                ) : null}
+              </span>
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "tabular-nums")}>
               {item.createdShort}

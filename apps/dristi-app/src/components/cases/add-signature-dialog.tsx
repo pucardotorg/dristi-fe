@@ -51,6 +51,12 @@ import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { Identifier } from "@/components/chrome/identifier";
 import { cn } from "@/lib/utils";
 
+/** Where a filing stopped when the signing chain closed. */
+export type SigningOutcome =
+  | { status: "pending-signature" }
+  | { status: "pending-payment" }
+  | { status: "paid"; temporaryId: string };
+
 type SignatureStep =
   | "method"
   | "aadhaar"
@@ -111,8 +117,13 @@ export function AddSignatureDialog({
   objection?: { target: string; decision?: string };
   /** Return to the generated-application dialog. */
   onBack: () => void;
-  /** The chain is done — leave for the Applications register. */
-  onComplete: () => void;
+  /**
+   * The chain is done — leave for the Applications register. Says where the
+   * filing stopped, so the caller can record it: waiting for a signature
+   * (signed later, or handed to the advocate), waiting for payment, or paid
+   * with its temporary ID.
+   */
+  onComplete: (outcome: SigningOutcome) => void;
   onReturnFocus: () => void;
 }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -171,8 +182,14 @@ export function AddSignatureDialog({
   }
 
   function finish() {
+    const outcome: SigningOutcome =
+      step === "pending"
+        ? { status: "pending-signature" }
+        : paid
+          ? { status: "paid", temporaryId }
+          : { status: "pending-payment" };
     reset();
-    onComplete();
+    onComplete(outcome);
   }
 
   function handleOpenChange(next: boolean) {

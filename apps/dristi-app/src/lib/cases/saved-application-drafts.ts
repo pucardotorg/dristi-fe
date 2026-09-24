@@ -1,5 +1,10 @@
 /**
- * Application drafts saved in this browser — demo persistence, no backend.
+ * Applications filed from the Raise application form in this browser —
+ * demo persistence, no backend. Drafts first (Save as draft), and since
+ * Sept 24 anything the form's chain ends on too: waiting for a signature
+ * (signed later, or a clerk's hand-off to the advocate), waiting for
+ * payment, or paid. Before that, nothing filed from the form ever reached
+ * the register.
  *
  * "Save as draft" on the Raise application form has to leave something the
  * filer can come back to, or the button is a promise the prototype cannot
@@ -16,7 +21,12 @@
 
 import { writeLocalStorageValue } from "@/hooks/use-local-storage-value";
 
-import type { ApplicationTypeId, Submission } from "./applications";
+import {
+  isSubmittedToCourt,
+  type ApplicationTypeId,
+  type FilingStatus,
+  type Submission,
+} from "./applications";
 
 export type SavedApplicationDraft = {
   id: string;
@@ -30,6 +40,11 @@ export type SavedApplicationDraft = {
   onBehalfOfId: string;
   /** ISO timestamp. */
   addedOn: string;
+  /** Absent means a draft. */
+  status?: FilingStatus;
+  /** Set once paid: submitted (ALC-01) and allotted its temporary ID (ALC-02). */
+  submittedOn?: string;
+  temporaryId?: string;
 };
 
 export function savedDraftsKey(caseId: string): string {
@@ -66,35 +81,27 @@ export function saveApplicationDraft(
   writeLocalStorageValue(savedDraftsKey(caseId), JSON.stringify(next));
 }
 
-/** Drop a saved draft once it is filed: it is no longer a draft. */
-export function removeSavedDraft(caseId: string, id: string): void {
-  const current = readSaved(caseId);
-  if (!current.some((item) => item.id === id)) return;
-  writeLocalStorageValue(
-    savedDraftsKey(caseId),
-    JSON.stringify(current.filter((item) => item.id !== id))
-  );
-}
-
 export function newSavedDraftId(): string {
   return `saved-${crypto.randomUUID()}`;
 }
 
-/** A saved draft as a register row: a Draft, nothing allotted yet. */
+/** A saved filing as a register row. A draft has nothing allotted yet. */
 export function savedDraftSubmission(draft: SavedApplicationDraft): Submission {
+  const status = draft.status ?? "draft";
+  const filed = isSubmittedToCourt(status);
   return {
     id: draft.id,
     kind: "application",
     type: draft.type,
     title: draft.title,
-    status: "draft",
+    status,
     addedOn: draft.addedOn,
     submittedById: draft.submittedById,
     createdById: draft.createdById,
     onBehalfOfId: draft.onBehalfOfId,
-    temporaryId: null,
+    temporaryId: filed ? (draft.temporaryId ?? null) : null,
     applicationNumber: null,
-    submittedOn: null,
+    submittedOn: filed ? (draft.submittedOn ?? null) : null,
     onboardedOn: null,
     decisionOn: null,
     objectionsInvited: null,
@@ -103,6 +110,8 @@ export function savedDraftSubmission(draft: SavedApplicationDraft): Submission {
     courtResult: null,
     linkedOrder: null,
     defects: [],
-    documents: [{ label: "Draft application" }],
+    documents: [
+      { label: filed ? "Filed application" : "Draft application" },
+    ],
   };
 }
