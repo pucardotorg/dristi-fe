@@ -22,7 +22,12 @@
  * data does not render; no mode flag decides it, so the two cannot drift apart.
  */
 
-import { tabFor, type CognizanceAct, type CognizanceCase } from "./cognizance";
+import {
+  COGNIZANCE_ACTS,
+  tabFor,
+  type CognizanceAct,
+  type CognizanceCase,
+} from "./cognizance";
 import {
   applicationsForListing,
   type ListingApplication,
@@ -150,8 +155,8 @@ export function subjectTrail(subject: OrderSubject): OrderCrumb[] {
  * A hearing names its serial on the day's list, the stage the case has reached and what
  * it was called for. A complaint at cognizance has no serial (it has not been listed),
  * no purpose (it has not been called) and is still numbered `CMP/…`, because cognizance
- * is the act that renumbers it. What it has instead is the filing it came in as and the
- * tab it stands on — the two facts that decide what this order may be.
+ * is the act that renumbers it. What it has instead is the act being passed, the filing
+ * it came in as, and the tab it stands on — the facts that decide what this order may be.
  */
 export function subjectFacts(
   subject: OrderSubject,
@@ -164,8 +169,12 @@ export function subjectFacts(
       { label: "Purpose", value: courtHearingPurposeLabel(hearing.purpose) },
     ];
   }
-  const { matter } = subject;
+  const { matter, act } = subject;
   return [
+    /* The act leads, because it is what this order *is* — the hearing's own facts row
+       opens on the item number for the same reason. It is a fact of the order rather
+       than a second title: the heading names the cause, as the sibling screen's does. */
+    { label: "Act", value: COGNIZANCE_ACTS[act].label },
     { label: "Case", value: matter.caseNumber, identifier: true },
     { label: "Filing", value: matter.filingNumber, identifier: true },
     {

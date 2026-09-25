@@ -287,7 +287,18 @@ describe("the order's subject", () => {
     const labels = subjectFacts(subject).map((fact) => fact.label);
     assert.ok(!labels.includes("Item"));
     assert.ok(!labels.includes("Purpose"));
-    assert.deepEqual(labels, ["Case", "Filing", "Filed"]);
+    assert.deepEqual(labels, ["Act", "Case", "Filing", "Filed"]);
+  });
+
+  it("leads on the act, because that is what the order is", () => {
+    const [first] = subjectFacts(subject);
+    assert.equal(first.label, "Act");
+    assert.equal(first.value, "Take cognizance");
+    assert.equal(
+      subjectFacts({ kind: "cognizance", matter: late, act: "dismiss" })[0]
+        .value,
+      "Dismiss case",
+    );
   });
 
   it("leads back the way the bench came, not through the hearings list", () => {

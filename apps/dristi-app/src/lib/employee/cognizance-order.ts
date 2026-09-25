@@ -253,11 +253,12 @@ export function cognizanceOrderBlockers(
   if (scheduling && !nextDate) {
     blockers.push("The next hearing needs a date.");
   }
-  /* A date already gone is caught here rather than barred in the picker, because the
-     DS `DatePicker` takes no earliest date — it mounts a bare `Calendar` with no
-     `disabled` matcher. Composing `Popover` + `Calendar` ourselves would be a second
-     copy of a primitive, which is the one thing we do not do, so the rule lives beside
-     the other thing that stands between this order and the queue. Raised with the DS. */
+  /* The calendar already bars a date that has gone — the screen composes `Popover` +
+     `Calendar` as the hearing composer does, and `Calendar` takes a `disabled` matcher
+     (the DS `DatePicker` does not, which is why neither screen uses it here). This is
+     the backstop: a date can also arrive from state the control never saw, and a rule
+     the order is checked against is worth more than a control that happened to be
+     configured correctly. */
   if (scheduling && nextDate && nextDate <= today) {
     blockers.push("The next hearing must be a later date.");
   }
