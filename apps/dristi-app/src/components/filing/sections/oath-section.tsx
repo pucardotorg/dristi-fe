@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Oath — an optional video of each complainant reciting the oath, kept beside the
+ * Oath — a mandatory video of each complainant reciting the oath, kept beside the
  * wording so there is nothing to remember before pressing record.
  *
  * One card per complainant, in the same order as the Complainant screen. An institution
@@ -16,7 +16,14 @@
  */
 
 import * as React from "react";
-import { RefreshCwIcon, Trash2Icon, TriangleAlertIcon, UploadIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  CheckIcon,
+  RefreshCwIcon,
+  Trash2Icon,
+  TriangleAlertIcon,
+  UploadIcon,
+} from "lucide-react";
 
 import { storeUpload, getRepository } from "@/lib/filing/data";
 import {
@@ -26,7 +33,7 @@ import {
   getFileUrl,
   readVideoDuration,
 } from "@/lib/filing/files";
-import { complainantLabel } from "@/lib/filing/selectors";
+import { complainantLabel, oathProgress } from "@/lib/filing/selectors";
 import { neighbours } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
 import type { OathVideoUpload, StoredFileRef } from "@/lib/filing/types";
@@ -38,6 +45,7 @@ import { FilingFooter } from "@/components/filing/filing-footer";
 import { FilingPageHeader } from "@/components/filing/filing-page-header";
 import { FilingMain } from "@/components/filing/filing-shell";
 import { FormCard } from "@/components/filing/form-card";
+import { RequiredMark } from "@/components/filing/form-field";
 import { SectionNotice } from "@/components/filing/notices";
 
 /** Read as an affirmation (Oaths Act, 1969) — religion-neutral, no invocation required. */
@@ -121,8 +129,12 @@ function ComplainantOathCard({
 }) {
   return (
     <FormCard
-      title={`Oath — ${label}`}
-      description="Optional. Read the wording below aloud on camera."
+      title={
+        <>
+          Oath — {label} <RequiredMark />
+        </>
+      }
+      description="Read the wording below aloud on camera."
     >
       <blockquote className="rounded-lg bg-surface-sunken p-4 text-body-compact italic text-foreground">
         {OATH_TEXT}
@@ -171,13 +183,33 @@ function ComplainantOathCard({
 
 export function OathSection() {
   const { draft, update, hrefFor } = useFiling();
+  const router = useRouter();
   const { prev, next } = neighbours("oath");
+  const { remaining } = oathProgress(draft.complainants);
+  const allDone = remaining === 0;
+  const statusText = allDone
+    ? "Every complainant has recorded their oath"
+    : `${remaining} complainant${remaining > 1 ? "s" : ""} still need to record their oath`;
 
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const targetIndex = React.useRef<number | null>(null);
   const [busyIndex, setBusyIndex] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [removeIndex, setRemoveIndex] = React.useState<number | null>(null);
+  const errorTimer = React.useRef<number | null>(null);
+
+  React.useEffect(
+    () => () => {
+      if (errorTimer.current) window.clearTimeout(errorTimer.current);
+    },
+    []
+  );
+
+  const say = React.useCallback((message: string) => {
+    setError(message);
+    if (errorTimer.current) window.clearTimeout(errorTimer.current);
+    errorTimer.current = window.setTimeout(() => setError(null), 3500);
+  }, []);
 
   const pick = (index: number) => {
     targetIndex.current = index;
@@ -186,6 +218,14 @@ export function OathSection() {
     if (!el) return;
     el.value = "";
     el.click();
+  };
+
+  const onContinue = () => {
+    if (!allDone) {
+      say(statusText);
+      return;
+    }
+    if (next) router.push(hrefFor(next));
   };
 
   const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,7 +237,7 @@ export function OathSection() {
     setBusyIndex(index);
     const outcome = await validate(file);
     if (!outcome.ok) {
-      setError(outcome.message);
+      say(outcome.message);
       setBusyIndex(null);
       return;
     }
@@ -207,7 +247,7 @@ export function OathSection() {
     try {
       ref = await storeUpload(outcome.file);
     } catch {
-      setError("We couldn't store that file in this browser. Please try again.");
+      say("We couldn't store that file in this browser. Please try again.");
       setBusyIndex(null);
       return;
     }
@@ -254,12 +294,13 @@ export function OathSection() {
       <FilingMain>
         <FilingPageHeader
           title="Oath"
-          description="Optional — a recorded oath from each complainant, kept with the case file."
+          description="A recorded oath from each complainant, kept with the case file."
         />
 
-        <SectionNotice variant="info">
-          This is optional. If uploaded, the video is stored with your filing and is
-          visible to the court like any other document you submit.
+        <SectionNotice variant="neutral">
+          Every complainant must record this oath before the case can be filed. The
+          video is stored with your filing and is visible to the court like any other
+          document you submit.
         </SectionNotice>
 
         {draft.complainants.map((c, i) => (
@@ -276,7 +317,21 @@ export function OathSection() {
 
       <FilingFooter
         backHref={prev ? hrefFor(prev) : undefined}
-        continueHref={next ? hrefFor(next) : undefined}
+        onContinue={onContinue}
+        continueBlocked={!allDone}
+        leading={
+          allDone ? (
+            <span className="inline-flex items-center gap-2 text-body-compact text-success-ink">
+              <CheckIcon className="size-4 shrink-0" aria-hidden />
+              {statusText}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2 text-body-compact text-muted-foreground">
+              <TriangleAlertIcon className="size-4 shrink-0" aria-hidden />
+              {statusText}
+            </span>
+          )
+        }
       />
 
       <div
