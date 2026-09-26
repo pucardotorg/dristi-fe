@@ -40,11 +40,14 @@ import {
 } from "./hearings";
 import {
   fillGeneralVariables,
+  fillPartyVariables as fillPartyRoleVariables,
+  needsProcessVariables,
   openSlots,
   orderTemplate,
   type OrderTemplateFacts,
   type OrderTemplateId,
 } from "./order-templates";
+import type { ProcessVariables } from "./process-variables";
 
 /* ──────────────────────────── the delay application ─────────────────────────── */
 
@@ -129,6 +132,16 @@ export type CognizanceOrderItem = {
   fixed: boolean;
   /** The item that carries the next hearing date, and the only one that does. */
   schedules?: boolean;
+  /**
+   * The addressee and delivery-channel confirmation this item was given
+   * (`process-variables.ts`), for summons and notice — the two templates
+   * `needsProcessVariables` names. Absent until the judge confirms it: `[Party
+   * Type]`/`[Party Name]` are resolved unconditionally at composite time
+   * (`fillPartyVariables`, below), because who is served is not a choice at
+   * cognizance, but the channels it goes out on still are (`PRC-03`), and this is
+   * where that confirmation is recorded.
+   */
+  variables?: ProcessVariables;
 };
 
 /** Which act each composition is headed by — the item that cannot be removed. */
@@ -173,7 +186,10 @@ function templatesFor(
  *
  * Both tokens repeat in their template with different roles, so they are filled in
  * order of appearance rather than by name: the first `[Party Type]` is the person
- * summoned, the second is the party taking steps.
+ * summoned, the second is the party taking steps. The substitution itself is
+ * `order-templates.ts`'s own `fillPartyVariables` — the hearing composer's catalogue
+ * runs the identical pass once its delivery-channel confirmation is answered
+ * (`order-items.ts`), and one function is what keeps the two doors onto it agreeing.
  */
 function fillPartyVariables(
   text: string,
@@ -183,11 +199,11 @@ function fillPartyVariables(
   if (template !== "issue-of-summons" && template !== "issue-of-notice") {
     return text;
   }
-  const roles = ["accused", matter.parties.accused, "complainant"];
-  let at = 0;
-  return text
-    .replace(/\[Notice Type\]/g, "DCA")
-    .replace(/\[Party Type\]|\[Party Name\]/g, () => roles[at++] ?? "");
+  return fillPartyRoleVariables(
+    text.replace(/\[Notice Type\]/g, "DCA"),
+    matter.parties,
+    template,
+  );
 }
 
 /**
@@ -275,6 +291,21 @@ export function cognizanceOrderBlockers(
       blanks.length === 1
         ? `${blanks[0].label} still has a blank to fill.`
         : `${blanks.length} items still have blanks to fill.`,
+    );
+  }
+  /* `[Party Type]`/`[Party Name]` resolve unconditionally at composite time — who is
+     served is not a choice at cognizance — so a summons or notice item never shows up
+     in `blanks` above. The delivery channels are still the judge's to confirm
+     (`PRC-03`), and nothing else on this screen checks for that, so it is its own
+     blocker rather than a silent gap the "Send to sign order" button would leave. */
+  const unconfirmed = items.filter(
+    (item) => needsProcessVariables(item.template) && !item.variables,
+  );
+  if (unconfirmed.length > 0) {
+    blockers.push(
+      unconfirmed.length === 1
+        ? `${unconfirmed[0].label} needs its delivery channels confirmed.`
+        : `${unconfirmed.length} items need their delivery channels confirmed.`,
     );
   }
   return blockers;

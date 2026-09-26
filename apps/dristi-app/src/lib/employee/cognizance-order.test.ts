@@ -22,9 +22,11 @@ import {
   DELAY_APPLICATION_TYPE,
   delayApplicationNumber,
   itemOpenSlots,
+  type CognizanceOrderItem,
 } from "./cognizance-order";
 import { COURT_HEARING_PURPOSES } from "./hearings";
 import { orderTemplate } from "./order-templates";
+import { defaultProcessVariables } from "./process-variables";
 import {
   subjectAppearances,
   subjectApplications,
@@ -48,6 +50,18 @@ function compose(matter: CognizanceCase, act: CognizanceAct) {
     cognizanceTemplateFacts(matter, TODAY, {
       purpose: defaultNextPurposeLabel(act),
     }),
+  );
+}
+
+/** As a composite arrives, minus the one thing it never carries on its own — the
+ *  delivery-channel confirmation `cognizanceOrderBlockers` now also gates on. */
+function withConfirmedDelivery(
+  items: CognizanceOrderItem[],
+): CognizanceOrderItem[] {
+  return items.map((item) =>
+    item.template === "issue-of-summons" || item.template === "issue-of-notice"
+      ? { ...item, variables: defaultProcessVariables("Anand Traders") }
+      : item,
   );
 }
 
@@ -195,7 +209,11 @@ describe("cognizanceOrderBlockers", () => {
   });
 
   it("does not count the missing date twice, as a date and as a blank", () => {
-    const blockers = cognizanceOrderBlockers(items, null, TODAY);
+    const blockers = cognizanceOrderBlockers(
+      withConfirmedDelivery(items),
+      null,
+      TODAY,
+    );
     assert.equal(blockers.length, 1);
   });
 
@@ -209,8 +227,18 @@ describe("cognizanceOrderBlockers", () => {
     }
   });
 
-  it("clears once a later date is set", () => {
-    assert.deepEqual(cognizanceOrderBlockers(items, "2026-10-12", TODAY), []);
+  it("clears once a later date is set and delivery is confirmed", () => {
+    assert.deepEqual(
+      cognizanceOrderBlockers(withConfirmedDelivery(items), "2026-10-12", TODAY),
+      [],
+    );
+  });
+
+  it("holds the order back until the summons has its delivery channels confirmed", () => {
+    const blockers = cognizanceOrderBlockers(items, "2026-10-12", TODAY);
+    assert.ok(
+      blockers.some((line) => line.includes("delivery channels confirmed")),
+    );
   });
 
   it("names an item that still has a blank in it", () => {

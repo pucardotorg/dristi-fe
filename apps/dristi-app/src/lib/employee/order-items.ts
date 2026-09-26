@@ -30,6 +30,7 @@ import {
   type OrderTemplateFacts,
   type OrderTemplateId,
 } from "./order-templates";
+import type { ProcessVariables } from "./process-variables";
 
 /**
  * A chosen order, or the one escape from the catalogue.
@@ -293,6 +294,38 @@ function unescapeText(value: string): string {
 }
 
 /**
+ * The order with one pulled-in item's passage replaced by a freshly resolved one, in
+ * place — what reopening the delivery-channel confirmation writes.
+ *
+ * The mark is what makes this safe where a disposal has to match on wording
+ * (`upsertRichTextSentence`): an order item's passage is found by its id, exactly, so
+ * correcting the addressee or the channels rewrites just that sentence and does not
+ * reshuffle it to the end of the order the way remove-then-append would. Falls back to
+ * appending when the mark is not there at all — the confirmation's first save, before
+ * anything has been inserted.
+ *
+ * **The limit is the same one `upsertRichTextSentence` states.** Only the marked block
+ * is replaced; if the drafter has since edited the words inside it, those words are
+ * what gets replaced too. A screen that wants to preserve a hand edit instead has to
+ * decide that for itself before calling this — nothing here can tell the difference.
+ */
+export function replaceOrderItemText(
+  body: RichTextValue,
+  id: string,
+  next: RichTextValue,
+): RichTextValue {
+  const mark = `${ORDER_ITEM_ATTRIBUTE}="${escapeForPattern(id)}"`;
+  const block = new RegExp(
+    `<([a-z][a-z0-9]*)\\b[^>]*\\b${mark}[^>]*>[\\s\\S]*?</\\1>`,
+    "i",
+  );
+  const found = block.exec(body.html);
+  if (!found) return appendRichText(body, next);
+  const html = `${body.html.slice(0, found.index)}${next.html}${body.html.slice(found.index + found[0].length)}`;
+  return { html, text: plainTextOfRichText(html) };
+}
+
+/**
  * The order without the passage one pulled-in item wrote — both halves of it.
  *
  * Unchanged when the passage is already gone, so a removal the typist has performed for
@@ -526,6 +559,19 @@ export type OrderItemDraft = {
   id: string;
   type: OrderItemTypeId;
   text: RichTextValue;
+  /**
+   * The addressee and delivery-channel confirmation this item was given, for the
+   * process types that ask for one (`needsProcessVariables`). Absent for every other
+   * type, and absent for a process item added before the confirmation existed — the
+   * catalogue's own "Pulled into this order" row reads this to say whether the
+   * confirmation is still owed.
+   *
+   * Stored as data rather than only as words in `text` (`VAR-08` of
+   * `order-generation.md`): the channels drive the delivery workflow this order
+   * triggers on signature, and that workflow has nothing of its own to parse them back
+   * out of a sentence the drafter is free to edit.
+   */
+  variables?: ProcessVariables;
 };
 
 /*
@@ -548,17 +594,25 @@ export function nextOrderItemId(): string {
  * independently of any case. Every caller that is composing a real order passes them —
  * an order that opens on `[Application Number]` when the application is on the screen
  * beside it is the screen making the typist retype what it already holds.
+ *
+ * `resolve` runs over the auto-filled text before it is marked and returned — the
+ * delivery-channel confirmation's own pass (`fillPartyVariables`), for the one caller
+ * that has just collected an addressee to fill `[Party Name]` with. Left out, a process
+ * item opens the way it always has: `[Party Type]` and `[Party Name]` standing in
+ * brackets for the drafter.
  */
 export function createOrderItem(
   type: OrderItemTypeId,
   id: string = nextOrderItemId(),
   facts?: OrderTemplateFacts,
+  resolve?: (text: string) => string,
 ): OrderItemDraft {
+  const standing = orderItemStandingText(type, facts);
   return {
     id,
     type,
     /* Marked with its own id: the passage has to be findable in the body afterwards,
        both to take it out and to know whether it is still there. */
-    text: richTextFromPlain(orderItemStandingText(type, facts), id),
+    text: richTextFromPlain(resolve ? resolve(standing) : standing, id),
   };
 }
