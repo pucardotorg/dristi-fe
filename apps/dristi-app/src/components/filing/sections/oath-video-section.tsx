@@ -98,24 +98,21 @@ function OathVideoPlayer({ file }: { file: StoredFileRef }) {
 
   if (!url) return <Skeleton className="h-48 w-full max-w-sm rounded-lg" />;
   return (
-    // eslint-disable-next-line jsx-a11y/media-has-caption -- a personal oath recording has no captioning source
     <video
       src={url}
       controls
-      className="h-48 w-full max-w-sm rounded-lg bg-black object-contain"
+      className="h-48 w-full max-w-sm rounded-lg bg-surface-sunken object-contain"
     />
   );
 }
 
 function ComplainantOathCard({
-  index,
   label,
   upload,
   onPick,
   onRemove,
   busy,
 }: {
-  index: number;
   label: string;
   upload: OathVideoUpload | null;
   onPick: () => void;
@@ -268,7 +265,6 @@ export function OathVideoSection() {
         {draft.complainants.map((c, i) => (
           <ComplainantOathCard
             key={c.id}
-            index={i}
             label={complainantLabel(c, i)}
             upload={c.oathVideo}
             onPick={() => pick(i)}

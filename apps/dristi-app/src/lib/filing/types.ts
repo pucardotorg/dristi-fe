@@ -486,7 +486,7 @@ export type DismissedNotices = {
 };
 
 export type FilingDraft = {
-  version: 6;
+  version: 7;
   id: string;
   caseType: "s138";
   status: "draft" | "filed";
