@@ -628,7 +628,7 @@ const NESTED_ROUTES: {
   {
     queue: "/employee/register-cases",
     pattern: /^\/employee\/register-cases\/([^/]+)\/?$/,
-    identify: (id) => registerCaseById(id)?.caseNumber,
+    identify: (id) => registerCaseById(id)?.filingNumber,
   },
   {
     queue: "/employee/cognizance",

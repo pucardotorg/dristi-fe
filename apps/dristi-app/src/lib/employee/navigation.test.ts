@@ -73,7 +73,7 @@ describe("courtTrail", () => {
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840"), [
       { label: "Actions", href: "/employee/register-cases" },
       { label: "Register cases", href: "/employee/register-cases" },
-      { label: "CMP/1840/2025", mono: true },
+      { label: "KL-001840-2025", mono: true },
     ]);
   });
 
@@ -88,7 +88,7 @@ describe("courtTrail", () => {
     const trail = [
       { label: "Actions", href: "/employee/register-cases" },
       { label: "Register cases", href: "/employee/register-cases" },
-      { label: "CMP/1840/2025", mono: true },
+      { label: "KL-001840-2025", mono: true },
     ];
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840"), trail);
     assert.deepEqual(courtTrail("/employee/register-cases/r-1840/"), trail);

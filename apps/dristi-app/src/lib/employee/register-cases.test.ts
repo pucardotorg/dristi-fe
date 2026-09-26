@@ -32,7 +32,7 @@ describe("filterRegisterCases", () => {
       1,
     );
     assert.equal(
-      filterRegisterCases(REGISTER_QUEUE, { query: "CMP/210/2026" })[0]?.id,
+      filterRegisterCases(REGISTER_QUEUE, { query: "KL-000210-2026" })[0]?.id,
       "r-210",
     );
     assert.equal(
