@@ -105,7 +105,7 @@ export function RegisterCasesTable({ rows }: { rows: RegisterCase[] }) {
             Case name
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
-            Case number
+            Filing number
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "min-w-48 whitespace-normal")}>
             Advocates
@@ -144,7 +144,7 @@ export function RegisterCasesTable({ rows }: { rows: RegisterCase[] }) {
               />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
-              <Identifier value={matter.caseNumber} label="case number" />
+              <Identifier value={matter.filingNumber} label="filing number" />
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-normal")}>
               <CounselCell

@@ -165,6 +165,16 @@ export function documentsProgress(groups: DocumentGroup[]) {
   return { total, done, remaining, pct: total ? Math.round((done / total) * 100) : 0 };
 }
 
+/* ───────────────────────────────── Oath ─────────────────────────────── */
+
+/** Mandatory — every complainant record needs an oath video before the case can proceed. */
+export function oathProgress(complainants: Complainant[]) {
+  const total = complainants.length;
+  const done = complainants.filter((c) => !!c.oathVideo).length;
+  const remaining = total - done;
+  return { total, done, remaining, pct: total ? Math.round((done / total) * 100) : 0 };
+}
+
 /* ───────────────────────────── Sign ────────────────────────────────── */
 
 function sameMobile(a: string, b: string): boolean {
@@ -342,6 +352,8 @@ export function sectionComplete(draft: FilingDraft, step: StepId): boolean {
       return !!draft.adr.finalRelief.trim();
     case "witnesses":
       return true; // optional
+    case "oath":
+      return oathProgress(draft.complainants).remaining === 0;
     case "documents":
       return documentsProgress(draft.documents).remaining === 0;
     case "preview":

@@ -23,6 +23,34 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** "1:07" from seconds. */
+export function formatDuration(seconds: number): string {
+  const total = Math.round(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * A video file's own duration, read from its metadata via a throwaway `<video>` element.
+ * `null` when the browser cannot determine it (unsupported codec, corrupt file) — the
+ * caller falls back to a file-size cap in that case, since duration cannot be enforced.
+ */
+export function readVideoDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    const done = (value: number | null) => {
+      URL.revokeObjectURL(url);
+      resolve(value);
+    };
+    video.preload = "metadata";
+    video.onloadedmetadata = () => done(Number.isFinite(video.duration) ? video.duration : null);
+    video.onerror = () => done(null);
+    video.src = url;
+  });
+}
+
 const blobCache = new Map<string, Promise<Blob | null>>();
 
 export function getFileBlob(id: string): Promise<Blob | null> {

@@ -273,7 +273,7 @@ function RegisterCasesItemList({ rows }: { rows: RegisterCase[] }) {
             className="flex min-h-10 min-w-0 items-center"
           />
           <p className="text-caption text-muted-foreground">
-            <Identifier value={matter.caseNumber} label="case number" />
+            <Identifier value={matter.filingNumber} label="filing number" />
             {" · "}
             <span className="tabular-nums text-warning-ink">
               {matter.daysSinceSubmitted}

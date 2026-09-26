@@ -70,7 +70,7 @@ describe("migrateDraft — drafts written by another branch", () => {
       delete (gutted as unknown as Record<string, unknown>)[key];
     }
     const draft = migrateDraft(gutted);
-    assert.equal(draft.version, 6);
+    assert.equal(draft.version, 7);
     assert.equal(typeof draftProgress(draft), "number");
   });
 });
