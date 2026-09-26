@@ -136,6 +136,12 @@ export function DemandNoticeSection() {
    * uploads actually gave up rather than on a fixed field that may be empty.
    */
   const [chosenField, setChosenField] = React.useState<SourceField | null>(null);
+  /**
+   * Whether the rail is answering "where did *this field* come from?" or simply showing
+   * a document. A field entry point is a question about that field; a document chip is a
+   * question about the document, and the header follows whichever was asked.
+   */
+  const [explaining, setExplaining] = React.useState(false);
 
   const index = Math.min(active, notices.length - 1);
   const notice = notices[index];
@@ -191,6 +197,7 @@ export function DemandNoticeSection() {
 
   const openSource = (field: NoticeField) => {
     setChosenField(field);
+    setExplaining(true);
     setSourceOpen(true);
     if (field === "dispatchDate") setDispatchText(toDisplayDate(notice.dispatchDate));
   };
@@ -478,7 +485,8 @@ export function DemandNoticeSection() {
       <SourcePanel
         open={sourceOpen}
         onOpenChange={setSourceOpen}
-        title={FIELD_LABELS[sourceField]}
+        title={sourceSlot?.label ?? DOC_LABELS[sourceDoc]}
+        field={explaining ? FIELD_LABELS[sourceField] : undefined}
         // Only the dispatch date has no other way to be corrected once machine-read
         // (its field opens this panel instead of a picker), so it gets the value box.
         value={sourceField === "dispatchDate" ? dispatchText : undefined}
@@ -494,7 +502,10 @@ export function DemandNoticeSection() {
         chips={uploadedDocs.map((doc) => ({
           label: slots[doc]?.file?.name ?? slots[doc]?.label ?? DOC_LABELS[doc],
           active: doc === sourceDoc,
-          onClick: () => setChosenField(entryFieldFor(doc)),
+          onClick: () => {
+            setChosenField(entryFieldFor(doc));
+            setExplaining(false);
+          },
         }))}
         file={sourceSlot?.file ?? null}
         uploadHref={hrefFor("upload")}

@@ -84,7 +84,10 @@ import { initials } from "@/components/access/access-list";
 import { VakalatnamaPicker } from "@/components/advocate/vakalatnama-picker";
 import { FlowStepper } from "@/components/cases/flow-stepper";
 import { usePartiesLive } from "@/components/cases/parties-live";
-import { ChromeDialogContent, ChromeAlertDialogContent } from "@/components/chrome/app-chrome";
+import {
+  ChromeAlertDialogContent,
+} from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import {
   ReviewDocValue,
   UPLOAD_HELP,
@@ -291,7 +294,7 @@ export function AddAdvocateDialog({
           else requestExit();
         }}
       >
-        <ChromeDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <FlowDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
           {done ? (
             /* The join dialog's done stage: icon, outcome, one action. A
                dead disabled button asked the reader to imagine the ending
@@ -770,7 +773,7 @@ export function AddAdvocateDialog({
           </footer>
             </>
           )}
-        </ChromeDialogContent>
+        </FlowDialogContent>
       </Dialog>
 
       <AlertDialog

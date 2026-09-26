@@ -3,14 +3,11 @@
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemTitle,
-} from "@/components/ui/item";
-import { DueStatusLine } from "@/components/cases/case-overview-card";
+  DueStatusLine,
+  PendingTaskRow,
+  TaskNote,
+} from "@/components/cases/case-overview-card";
 import { BailApplicationDialog } from "@/components/filing/bail-application-dialog";
 import {
   BailBondDialog,
@@ -177,9 +174,11 @@ export function useBondTaskVisible(): boolean {
 export function BondTaskRow({
   nextHearingOn,
   now,
+  onArchive,
 }: {
   nextHearingOn: string | null | undefined;
   now: number;
+  onArchive?: () => void;
 }) {
   const { locale } = useLocale();
   const value = React.useContext(CaseBailContext);
@@ -188,74 +187,40 @@ export function BondTaskRow({
 
   if (bondPhase === "task") {
     return (
-      <Item
-        role="listitem"
-        size="sm"
-        className="min-h-10 items-start px-0 hover:bg-transparent"
+      <PendingTaskRow
+        title={pick(bondCopy.taskRaiseBond, locale)}
+        respond={{ onClick: openBondTask }}
+        onArchive={onArchive}
       >
-        <ItemContent className="gap-2">
-          <ItemTitle className="line-clamp-none min-w-0 text-body font-medium text-foreground">
-            {pick(bondCopy.taskRaiseBond, locale)}
-          </ItemTitle>
-          <div className="flex min-w-0 flex-col gap-1">
-            <DueStatusLine
-              {...dueStatusView(BOND_TASK_DUE_ON, nextHearingOn, now)}
-            />
-            <p className="text-body text-muted-foreground">
-              {pick(bondCopy.taskNote, locale)}
-            </p>
-          </div>
-        </ItemContent>
-        <ItemActions className="shrink-0 max-sm:basis-full">
-          <Button
-            type="button"
-            variant="outline"
-            className="max-sm:w-full"
-            onClick={openBondTask}
-          >
-            {pick(bondCopy.taskRaiseBond, locale)}
-          </Button>
-        </ItemActions>
-      </Item>
+        <DueStatusLine
+          {...dueStatusView(BOND_TASK_DUE_ON, nextHearingOn, now)}
+        />
+        <TaskNote>{pick(bondCopy.taskNote, locale)}</TaskNote>
+      </PendingTaskRow>
     );
   }
 
   return (
-    <Item
-      role="listitem"
-      size="sm"
-      className="min-h-10 items-start px-0 hover:bg-transparent"
+    <PendingTaskRow
+      title={pick(bondCopy.bondTypeSurety, locale)}
+      respond={{ onClick: openStatus }}
+      onArchive={onArchive}
     >
-      <ItemContent className="gap-2">
-        <ItemTitle className="line-clamp-none min-w-0 text-body font-medium text-foreground">
-          {pick(bondCopy.bondTypeSurety, locale)}
-        </ItemTitle>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="warning">
-            {pick(
-              bondPhase === "signing"
-                ? bondCopy.statusPendingSign
-                : bondCopy.statusPendingReview,
-              locale,
-            )}
-          </Badge>
-          <Identifier
-            value={BOND_ID}
-            label="bond number"
-            className="text-caption text-muted-foreground"
-          />
-        </div>
-      </ItemContent>
-      <ItemActions className="shrink-0 max-sm:basis-full">
-        <Button
-          type="button"
-          variant="outline"
-          className="max-sm:w-full"
-          onClick={openStatus}
-        >
-          Open
-        </Button>
-      </ItemActions>
-    </Item>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="warning">
+          {pick(
+            bondPhase === "signing"
+              ? bondCopy.statusPendingSign
+              : bondCopy.statusPendingReview,
+            locale,
+          )}
+        </Badge>
+        <Identifier
+          value={BOND_ID}
+          label="bond number"
+          className="text-caption text-muted-foreground"
+        />
+      </div>
+    </PendingTaskRow>
   );
 }

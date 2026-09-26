@@ -15,10 +15,11 @@ import { type CasesPageSize, type CasesSelection } from "@/lib/cases/query";
 import { cn } from "@/lib/utils";
 
 import { CasesItemList } from "./cases-item-list";
+import { CARDS_ONLY, TABLE_ONLY } from "./cases-layout";
 import { CasesPageSizeSelect } from "./cases-page-size";
 import { CasesTable } from "./cases-table";
 
-type PageLink = {
+export type PageLink = {
   href: string;
   onClick: (event: MouseEvent<HTMLAnchorElement>) => void;
 };
@@ -77,7 +78,7 @@ export function CasesListResults({
           !framed && "overflow-x-auto"
         )}
       >
-        <div className="hidden md:block">
+        <div className={TABLE_ONLY}>
           <CasesTable
             rows={selection.rows}
             allIds={selection.ids}
@@ -87,7 +88,7 @@ export function CasesListResults({
             hideLongPendingFlag={hideLongPendingFlag}
           />
         </div>
-        <div className={cn(framed ? "p-4 md:hidden" : "md:hidden")}>
+        <div className={cn(CARDS_ONLY, framed && "p-4")}>
           <CasesItemList
             rows={selection.rows}
             bookmarks={bookmarks}
@@ -98,55 +99,96 @@ export function CasesListResults({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* The page's slice of the matched set. The card heading above says how
-              many matched out of the whole book, so this line only names rows. */}
-          <p
-            className="text-body-compact text-muted-foreground tabular-nums"
-            aria-live="polite"
-          >
-            Rows {selection.from}–{selection.to} of {selection.total}
-          </p>
-          <CasesPageSizeSelect
-            value={pageSize}
-            onChange={onPageSizeChange}
-          />
-        </div>
-        {selection.pageCount > 1 ? (
-          <Pagination className="mx-0 w-auto justify-start md:justify-end">
-            <PaginationContent>
-              {selection.page > 1 ? (
-                <PaginationItem>
-                  <PaginationPrevious {...pageLink(selection.page - 1)} />
-                </PaginationItem>
-              ) : null}
-              {pageWindow(selection.page, selection.pageCount).map(
-                (entry, index) => (
-                  <PaginationItem key={`${entry}-${index}`}>
-                    {entry === "gap" ? (
-                      <PaginationEllipsis />
-                    ) : (
-                      <PaginationLink
-                        {...pageLink(entry)}
-                        isActive={entry === selection.page}
-                        aria-label={`Go to page ${entry}`}
-                      >
-                        {entry}
-                      </PaginationLink>
-                    )}
-                  </PaginationItem>
-                )
-              )}
-              {selection.page < selection.pageCount ? (
-                <PaginationItem>
-                  <PaginationNext {...pageLink(selection.page + 1)} />
-                </PaginationItem>
-              ) : null}
-            </PaginationContent>
-          </Pagination>
-        ) : null}
+      <CasesPager
+        from={selection.from}
+        to={selection.to}
+        total={selection.total}
+        page={selection.page}
+        pageCount={selection.pageCount}
+        pageSize={pageSize}
+        onPageSizeChange={onPageSizeChange}
+        pageLink={pageLink}
+      />
+    </div>
+  );
+}
+
+/**
+ * The foot of a list of cases: which rows these are, how many to a page, and the
+ * pager. Its own component so every list of cases pages the same way. The Cases
+ * page and the Raise application case chooser both end in it.
+ */
+export function CasesPager({
+  from,
+  to,
+  total,
+  page,
+  pageCount,
+  pageSize,
+  onPageSizeChange,
+  pageLink,
+}: {
+  from: number;
+  to: number;
+  total: number;
+  page: number;
+  pageCount: number;
+  pageSize: CasesPageSize;
+  onPageSizeChange: (pageSize: CasesPageSize) => void;
+  pageLink: (page: number) => PageLink;
+}) {
+  // On a phone the count and the page size hold the two ends of one line and
+  // the pager centres under them. Left-stacked, the three read as dropped there
+  // (owner, Sept 21).
+  return (
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 md:justify-start">
+        {/* The page's slice of the matched set. The card heading above says how
+            many matched out of the whole book, so this line only names rows. */}
+        <p
+          className="text-body-compact text-muted-foreground tabular-nums"
+          aria-live="polite"
+        >
+          Rows {from}–{to} of {total}
+        </p>
+        <CasesPageSizeSelect
+          value={pageSize}
+          onChange={onPageSizeChange}
+        />
       </div>
+      {pageCount > 1 ? (
+        <Pagination className="mx-0 w-full justify-center md:w-auto md:justify-end">
+          <PaginationContent>
+            {page > 1 ? (
+              <PaginationItem>
+                <PaginationPrevious {...pageLink(page - 1)} />
+              </PaginationItem>
+            ) : null}
+            {pageWindow(page, pageCount).map(
+              (entry, index) => (
+                <PaginationItem key={`${entry}-${index}`}>
+                  {entry === "gap" ? (
+                    <PaginationEllipsis />
+                  ) : (
+                    <PaginationLink
+                      {...pageLink(entry)}
+                      isActive={entry === page}
+                      aria-label={`Go to page ${entry}`}
+                    >
+                      {entry}
+                    </PaginationLink>
+                  )}
+                </PaginationItem>
+              )
+            )}
+            {page < pageCount ? (
+              <PaginationItem>
+                <PaginationNext {...pageLink(page + 1)} />
+              </PaginationItem>
+            ) : null}
+          </PaginationContent>
+        </Pagination>
+      ) : null}
     </div>
   );
 }

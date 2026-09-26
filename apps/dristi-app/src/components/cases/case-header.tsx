@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 
+import { PAGE_BACK_COLUMN, PAGE_BACK_ROW } from "@/components/shell/page-back-button";
 import { derivedAccessPeople } from "@/lib/access/derived";
-import { peekExtras } from "@/lib/cases/peek";
+import {
+  caseNumberHistory,
+  secondaryStageLabel,
+  secondaryStages,
+} from "@/lib/cases/header";
 import { viewerAccess } from "@/lib/cases/viewer";
 import {
   counselFor,
@@ -14,11 +19,15 @@ import {
 import { CaseAdvocates } from "./case-advocates";
 import { CaseHeaderActions } from "./case-header-actions";
 import { CaseFlags, CaseStage } from "./case-identity";
-import { Identifier } from "@/components/chrome/identifier";
+import {
+  CaseBackButton,
+  CaseNumberLine,
+  CaseStageBadges,
+} from "./case-header-parts";
 
 const COUNSEL_LABEL: Record<CounselSide, string> = {
-  complainant: "Complainant counsel",
-  accused: "Accused counsel",
+  complainant: "Complainant advocates",
+  accused: "Accused advocates",
 };
 
 /**
@@ -55,7 +64,7 @@ export function CaseHeader({
    *  header doesn't need to repeat it. */
   hideLongPendingFlag?: boolean;
 }) {
-  const extras = peekExtras(record.id);
+  const numberHistory = caseNumberHistory(record);
   const hasParties =
     record.parties.complainant.length > 0 && record.parties.accused.length > 0;
   const title = hasParties ? partiesLabel(record) : record.caseNumber;
@@ -63,93 +72,40 @@ export function CaseHeader({
   const accusedCounsel = counselFor(record, "accused");
 
   return (
-    <header className="flex flex-col gap-6">
-      <div className="flex min-w-0 flex-col gap-1">
-        {/* Without parties the title already *is* the number, so printing it
-            here too would just say it twice. Position and the mono face carry
-            the label, the way a record number does above a document title.
-            The sr-only labels that used to stand in for the strip's <dt> are
-            gone: each Identifier names its own kind ("Copy the case number,
-            ST 412/2025"), and keeping both said it twice. */}
-        {hasParties ? (
-          <p className="text-title-s font-semibold text-foreground">
-            <Identifier value={record.caseNumber} label="case number" />
-            {/* The registry's other number for the same matter, on the same
-                line. It is the number the other side of the courthouse
-                quotes, so it belongs with the one this side quotes rather
-                than four columns away in the fact strip. The dot divides
-                them; muted, because it is punctuation between two numbers
-                and not a third thing to read. Each number keeps its own
-                spoken label — read as one string they are one number. */}
-            {extras.altCaseNumber ? (
-              <>
-                <span aria-hidden className="text-muted-foreground">
-                  {" · "}
-                </span>
-                <Identifier value={extras.altCaseNumber} label="other case number" />
-              </>
-            ) : null}
-          </p>
-        ) : null}
-        <span className="flex flex-wrap items-center gap-2">
-          <h1 className="text-title-l font-semibold">{title}</h1>
-          {hideLongPendingFlag ? null : <CaseFlags record={record} />}
-        </span>
-        {hasParties ? null : (
-          <p className="text-body text-muted-foreground">
-            Parties not yet recorded
-          </p>
-        )}
-      </div>
-
-      {/* Facts and actions share the row. The buttons anchor its right end,
-          so the strip has two edges instead of trailing off — and they align
-          to the values, not the labels, which is why this is items-end. */}
-      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <dl className="flex min-w-0 flex-wrap gap-x-8 gap-y-4">
-          {/* Only when the lede above could not carry it. */}
-          {hasParties ? null : (
-            <HeaderFact label="Case number">
-              <Identifier value={record.caseNumber} label="case number" />
-            </HeaderFact>
-          )}
-          {/* Only in the branch where the lede could not carry it — with no
-              parties the title is the case number itself, so neither number
-              has a line above to sit on. */}
-          {extras.altCaseNumber && !hasParties ? (
-            <HeaderFact label="Other number">
-              <Identifier value={extras.altCaseNumber} label="other case number" />
-            </HeaderFact>
-          ) : null}
-          <HeaderFact label="Stage">
-            <CaseStage record={record} detail={false} />
-          </HeaderFact>
-          {/* A live case has its date on Overview; a disposed one has no
-              date left, and the day it ended is identity. */}
-          {record.disposal ? (
-            <HeaderFact label="Disposed">
-              {formatCaseDate(record.disposal.on)}
-            </HeaderFact>
-          ) : null}
-          {complainantCounsel.length > 0 ? (
-            <HeaderFact label={COUNSEL_LABEL.complainant}>
-              <CaseAdvocates
-                record={record}
-                side="complainant"
-                className="text-body font-medium"
-              />
-            </HeaderFact>
-          ) : null}
-          {accusedCounsel.length > 0 ? (
-            <HeaderFact label={COUNSEL_LABEL.accused}>
-              <CaseAdvocates
-                record={record}
-                side="accused"
-                className="text-body font-medium"
-              />
-            </HeaderFact>
-          ) : null}
-        </dl>
+    <header className="flex flex-col gap-4">
+      {/* Identity and actions share the top row, so the actions anchor the far
+          end without costing the header a row of their own. */}
+      {/* Centred on the number-and-title block, so the actions sit on the plane
+          between the two lines rather than hanging off the number (owner, Sept 18). */}
+      <div className="flex min-w-0 flex-col gap-3 md:pointer-fine:flex-row md:landscape:flex-row md:pointer-fine:items-center md:landscape:items-center md:pointer-fine:justify-between md:landscape:justify-between">
+        {/* The way back in its own column, on the title's line. The case
+            number sits UNDER the title (owner, Sept 21): the parties are what
+            the person looks for, the number confirms it. */}
+        <div className={PAGE_BACK_ROW}>
+          <div className={PAGE_BACK_COLUMN}>
+            <CaseBackButton />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <h1 className="text-title font-semibold">{title}</h1>
+              {hideLongPendingFlag ? null : <CaseFlags record={record} />}
+            </span>
+            {/* Without parties the title already *is* the number. Only the latest
+                number shows (DET-01); the older ones sit behind the icon. */}
+            {hasParties ? (
+              <div className="flex min-h-6 items-center">
+                <CaseNumberLine
+                  caseNumber={record.caseNumber}
+                  history={numberHistory}
+                />
+              </div>
+            ) : (
+              <p className="text-body-compact text-muted-foreground">
+                Parties not yet recorded
+              </p>
+            )}
+          </div>
+        </div>
 
         <CaseHeaderActions
           accessCase={{
@@ -159,18 +115,70 @@ export function CaseHeader({
             court: record.court,
             nextHearing: record.nextHearing?.on ?? "—",
           }}
+          disposed={Boolean(record.disposal)}
           shareReadOnly={viewerAccess(record).kind === "office"}
           shareExtraPeople={derivedAccessPeople(record)}
         />
       </div>
+
+      {/* The phone layout holds on a tablet held upright too (owner, Sept 21):
+          with the rail open an iPad Air leaves this column a phone's width, and
+          the desk layout crushed it. The desk layout is for `md` with a mouse,
+          or a tablet on its side; Tailwind has no "or", so each rule is said
+          twice. Fixed 16rem columns there. Packed at 2rem apart the facts read
+          as crammed; as equal thirds of the row they drifted apart. This is
+          the owner's middle ground (Sept 18). */}
+      <dl className="flex min-w-0 flex-col divide-y divide-hairline border-y border-hairline md:pointer-fine:divide-y-0 md:landscape:divide-y-0 md:pointer-fine:border-y-0 md:landscape:border-y-0 md:pointer-fine:gap-x-8 md:landscape:gap-x-8 md:pointer-fine:grid md:landscape:grid md:pointer-fine:auto-cols-[minmax(0,16rem)] md:landscape:auto-cols-[minmax(0,16rem)] md:pointer-fine:grid-flow-col md:landscape:grid-flow-col md:pointer-fine:justify-start md:landscape:justify-start">
+        {hasParties ? null : (
+          <HeaderFact label="Case number">
+            <CaseNumberLine
+              caseNumber={record.caseNumber}
+              history={numberHistory}
+              className="text-foreground"
+            />
+          </HeaderFact>
+        )}
+        <HeaderFact label="Stage">
+          <CaseStageBadges
+            stage={<CaseStage record={record} detail={false} />}
+            subStages={secondaryStages(record).map(secondaryStageLabel)}
+          />
+        </HeaderFact>
+        {/* A live case has its date on Overview; a disposed one has no
+            date left, and the day it ended is identity. */}
+        {record.disposal ? (
+          <HeaderFact label="Disposed">
+            <span className="tabular-nums">
+              {formatCaseDate(record.disposal.on)}
+            </span>
+          </HeaderFact>
+        ) : null}
+        {complainantCounsel.length > 0 ? (
+          <HeaderFact label={COUNSEL_LABEL.complainant}>
+            <CaseAdvocates
+              record={record}
+              side="complainant"
+              more="text"
+              className="font-medium"
+            />
+          </HeaderFact>
+        ) : null}
+        {accusedCounsel.length > 0 ? (
+          <HeaderFact label={COUNSEL_LABEL.accused}>
+            <CaseAdvocates
+              record={record}
+              side="accused"
+              more="text"
+              className="font-medium"
+            />
+          </HeaderFact>
+        ) : null}
+      </dl>
     </header>
   );
 }
 
-/**
- * Same type roles as OverviewRow / PeekRow: Card's compact type is control
- * chrome, not screen copy. Caption is too small for identity facts.
- */
+/** Caption label over a compact value, the app's dense key-value pair. */
 function HeaderFact({
   label,
   children,
@@ -179,11 +187,16 @@ function HeaderFact({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-body text-muted-foreground">{label}</dt>
-      {/* min-h-10 keeps every value on one baseline and gives the counsel
-          +N trigger its 40px target (Laws: accessibility floor). */}
-      <dd className="flex min-h-10 items-center text-body font-medium text-foreground">
+    /* Below `md`: a row, label left and value right, ruled off from its
+       neighbours. Wrapped as loose label-over-value pairs, two landed on one
+       line and the third alone, and the block read as jumbled (owner, Sept 21). */
+    <div className="flex min-w-0 items-center justify-between gap-4 py-2 md:pointer-fine:flex-col md:landscape:flex-col md:pointer-fine:items-stretch md:landscape:items-stretch md:pointer-fine:justify-start md:landscape:justify-start md:pointer-fine:gap-1 md:landscape:gap-1 md:pointer-fine:py-0 md:landscape:py-0">
+      <dt className="shrink-0 text-caption font-medium text-muted-foreground">
+        {label}
+      </dt>
+      {/* min-h-6 keeps every value on one baseline; the counsel +N chip
+          reaches its 40px target through its own `after:` inset. */}
+      <dd className="flex min-h-6 min-w-0 items-center gap-1 text-body-compact font-medium text-foreground justify-end md:pointer-fine:justify-start md:landscape:justify-start">
         {children}
       </dd>
     </div>

@@ -13,7 +13,7 @@ import {
   SearchIcon,
 } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Banner } from "@/components/ui/banner";
@@ -203,7 +203,7 @@ export function JoinCaseDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
       >
@@ -683,8 +683,11 @@ export function JoinCaseDialog({
                   label={pick(joinDialog.downloadCaseFile, locale)}
                   onClick={() => setDownloadNotice(true)}
                 />
+                {/* Stacked footer on a phone: the primary fills the row beside
+                    the icon, as wide as the Back button under it. */}
                 <Button
                   type="button"
+                  className="flex-1 sm:flex-none"
                   onClick={() => setStage("identity")}
                   data-icon="inline-end"
                 >
@@ -768,7 +771,7 @@ export function JoinCaseDialog({
             )
           ) : null}
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

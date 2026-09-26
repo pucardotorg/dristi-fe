@@ -63,8 +63,17 @@ export function regionFromBox(
 export type SourcePanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Field the panel explains ("Full name", "Date on cheque"). */
+  /**
+   * What the panel is showing: the document itself ("Identity proof", "Cheque"). This
+   * is the rail's resting subject — it holds whether or not a field has been asked about.
+   */
   title: string;
+  /**
+   * The one field being explained ("Full name"), set *only* when the person asked about
+   * it from the form. Absent means nobody asked: the rail is then the document and says
+   * so, rather than naming whichever field happened to be read first (owner, 2026-09-23).
+   */
+  field?: string;
   eyebrow?: string;
   /** "Value used in this field" — editable when `onValueChange` is given. */
   value?: string;
@@ -137,7 +146,9 @@ export function SourcePanel(props: SourcePanelProps) {
   if (docked && slot) {
     return createPortal(
       <aside
-        aria-label={`Source for ${props.title}`}
+        aria-label={
+          props.field ? `Source for ${props.field}` : `Source document: ${props.title}`
+        }
         style={{ top: TOP_BAR_HEIGHT, height: `calc(100svh - ${TOP_BAR_HEIGHT})` }}
         className="sticky flex w-(--source-panel-w) shrink-0 flex-col self-start overflow-y-auto border-l border-hairline bg-card"
       >
@@ -153,7 +164,9 @@ export function SourcePanel(props: SourcePanelProps) {
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader className="sr-only">
-          <SheetTitle>Source for {props.title}</SheetTitle>
+          <SheetTitle>
+            {props.field ? `Source for ${props.field}` : `Source document: ${props.title}`}
+          </SheetTitle>
           <SheetDescription>The uploaded document this value was read from.</SheetDescription>
         </SheetHeader>
         <SourcePanelBody {...props} />
@@ -218,11 +231,18 @@ function SourcePanelBody(p: SourcePanelProps) {
           >
             <FileTextIcon className="size-5" />
           </span>
+          {/*
+            The header answers what is in the rail. Until a field is asked about that is
+            the document, so it says the document; naming a field nobody picked read as a
+            hardcoded label sitting in the header (owner, 2026-09-23).
+          */}
           <div className="min-w-0">
             <p className="text-caption text-muted-foreground">
-              {p.file ? (p.eyebrow ?? "Source") : "Source document"}
+              {p.field ? "Source for" : (p.eyebrow ?? "Source document")}
             </p>
-            <p className="text-body font-semibold text-foreground">{p.title}</p>
+            <p className="text-body font-semibold text-foreground">
+              {p.field ?? p.title}
+            </p>
           </div>
         </div>
       </div>
@@ -231,7 +251,7 @@ function SourcePanelBody(p: SourcePanelProps) {
         <SourceEmptyState uploadHref={p.uploadHref} />
       ) : (
       <div className="flex flex-col gap-6 px-6 py-6">
-        {p.onValueChange !== undefined ? (
+        {p.field && p.onValueChange !== undefined ? (
           <Field className="gap-2">
             <FieldLabel className="text-caption text-muted-foreground">
               Value used in this field
@@ -280,7 +300,7 @@ function SourcePanelBody(p: SourcePanelProps) {
               <MaximizeIcon data-icon="inline-start" aria-hidden />
               Enlarge
             </Button>
-            {p.region ? (
+            {p.field && p.region ? (
               <div
                 aria-hidden
                 className="pointer-events-none absolute rounded-md border-2 border-primary bg-halo shadow-[0_0_0_9999px_var(--color-scrim)] transition-all"

@@ -52,7 +52,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { FlowStepper } from "@/components/cases/flow-stepper";
 import { usePartiesLive } from "@/components/cases/parties-live";
-import { ChromeDialogContent, ChromeAlertDialogContent } from "@/components/chrome/app-chrome";
+import {
+  ChromeAlertDialogContent,
+} from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import {
   PartyApplicationDocument,
   PartySignatureDialog,
@@ -247,7 +250,7 @@ export function AddPoaDialog({
           else requestExit();
         }}
       >
-        <ChromeDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <FlowDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
           {(
             <>
           {/* Own band + hairline for the stepper; see add-advocate-dialog. */}
@@ -535,7 +538,7 @@ export function AddPoaDialog({
           </footer>
             </>
           )}
-        </ChromeDialogContent>
+        </FlowDialogContent>
       </Dialog>
 
       <PartySignatureDialog

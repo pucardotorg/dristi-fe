@@ -40,3 +40,17 @@
     transition: none;
   }
 }
+
+/*
+  The phone rail is a sheet. Its exit keyframe had no fill mode, so when it ended
+  the sheet returned to its resting position until React removed it. That is
+  normally one frame; closing it by choosing a destination starts a navigation at
+  the same moment, the removal waits behind that work, and the sheet visibly came
+  back before going for good (owner, Sept 21). Holding the last frame closes the
+  gap. The rule lives here, not in `globals.css` (which is synced from the DS), and as
+  CSS because the primitive gives the sheet no className.
+*/
+[data-slot="sidebar"][data-mobile="true"][data-state="closed"],
+[data-slot="sheet-overlay"][data-state="closed"] {
+  animation-fill-mode: forwards;
+}

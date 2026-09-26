@@ -3,7 +3,8 @@
 import * as React from "react";
 import { PencilIcon } from "lucide-react";
 
-import { ChromeDialogContent, ChromeAlertDialogContent } from "@/components/chrome/app-chrome";
+import { ChromeAlertDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import {
   AlertDialog,
@@ -53,7 +54,7 @@ export function BailBondStatusDialog({
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
       >
@@ -113,7 +114,7 @@ export function BailBondStatusDialog({
             </ChromeAlertDialogContent>
           </AlertDialog>
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

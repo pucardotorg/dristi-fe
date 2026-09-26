@@ -22,6 +22,13 @@ import { useProfile } from "@/components/shell/profile";
 import { createVak, discardVak, useVakList, useStoreReady } from "@/lib/vakalatnama/store";
 import { executantName, scopeLabel, statusLabel } from "@/lib/vakalatnama/format";
 import type { CreatorRole, Vakalatnama } from "@/lib/vakalatnama/types";
+import {
+  PAGE_GROUND,
+  PAGE_GUTTER,
+  PAGE_SUBTITLE,
+  PAGE_TITLE,
+} from "@/components/shell/page-frame";
+import { cn } from "@/lib/utils";
 
 export default function VakalatnamaListPage() {
   const router = useRouter();
@@ -38,24 +45,27 @@ export default function VakalatnamaListPage() {
   };
 
   return (
-    <div className="min-w-0 flex-1 px-4 pb-12 pt-6 sm:px-6 lg:px-12">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-title font-semibold tracking-tight">Vakalatnama</h1>
-            <p className="text-body text-muted-foreground">
-              Appoint advocates for a litigant — for one case or all cases. You can start one
+    <div className={cn("min-w-0 flex-1", PAGE_GROUND, PAGE_GUTTER)}>
+      <div className="flex w-full flex-col gap-6">
+        {/* The page's one action rides the heading's row, at its far end, as
+            Join a case does on Cases. Held upright, phone or tablet, it drops under the description instead
+            (owner, Sept 21): beside a two-line subtitle it crowded the heading. */}
+        <header className="flex flex-col gap-4 sm:landscape:flex-row sm:landscape:items-start sm:landscape:justify-between">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className={PAGE_TITLE}>Vakalatnama</h1>
+            <p className={PAGE_SUBTITLE}>
+              Appoint advocates for a litigant, for one case or all cases. You can start one
               before a case is filed.
             </p>
           </div>
-          <Button type="button" onClick={create}>
+          <Button type="button" onClick={create} className="shrink-0 self-start max-sm:w-full max-sm:self-stretch">
             <PlusIcon aria-hidden />
             New vakalatnama
           </Button>
         </header>
 
         <section className="flex flex-col gap-4">
-          <h2 className="text-title-s font-semibold">Your vakalatnamas</h2>
+          <h2 className="text-body font-semibold">Your vakalatnamas</h2>
 
           {!ready ? null : list.length === 0 ? (
             <Card className={PANEL_CLASS}>

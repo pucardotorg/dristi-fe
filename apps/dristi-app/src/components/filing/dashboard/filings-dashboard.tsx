@@ -18,6 +18,13 @@ import { ConfirmDialog } from "@/components/filing/confirm-dialog";
 import { BulkImportCard, type BulkBatch } from "./bulk-import-card";
 import { FilingsQueue, type QueueData } from "./filings-queue";
 import { StartFilingCard } from "./start-filing-card";
+import {
+  PAGE_GROUND,
+  PAGE_GUTTER,
+  PAGE_SUBTITLE,
+  PAGE_TITLE,
+} from "@/components/shell/page-frame";
+import { cn } from "@/lib/utils";
 
 /**
  * No client has pushed a batch across, because nothing in the app can receive one yet.
@@ -60,12 +67,12 @@ export function FilingsDashboard() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className={cn("flex w-full flex-1 flex-col gap-6", PAGE_GROUND, PAGE_GUTTER)}>
       <header className="flex flex-col gap-1">
-        <h1 className="text-title-l font-semibold tracking-tight text-foreground">
+        <h1 className={cn(PAGE_TITLE, "text-foreground")}>
           {firstName ? `File a case, ${firstName}` : "File a case"}
         </h1>
-        <p className="max-w-2xl text-body text-muted-foreground">
+        <p className={PAGE_SUBTITLE}>
           Start a new e-filing, import a batch from your client&apos;s system, or track
           what you have already filed.
         </p>

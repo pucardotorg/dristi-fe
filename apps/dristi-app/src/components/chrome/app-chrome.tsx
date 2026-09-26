@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { useBottomSheet } from "@/components/chrome/flow-window";
 import { cn } from "@/lib/utils";
 import type { RailPlate } from "@/components/chrome/rail-plate";
 import { AlertDialogContent } from "@/components/ui/alert-dialog";
@@ -322,10 +323,19 @@ export function ChromeDialogContent({
 
 export function ChromeAlertDialogContent({
   className,
+  style,
   ...props
 }: React.ComponentProps<typeof AlertDialogContent>) {
   const pageDialog = useChromePageDialog();
-  return <AlertDialogContent className={cn(className, pageDialog)} {...props} />;
+  // On a phone every confirmation is a bottom sheet; see `useBottomSheet`.
+  const sheet = useBottomSheet();
+  return (
+    <AlertDialogContent
+      className={cn(className, pageDialog, sheet.className)}
+      style={{ ...style, ...sheet.style }}
+      {...props}
+    />
+  );
 }
 
 /**
@@ -578,7 +588,19 @@ function RailBody({
   return (
     <>
       {header ? <SidebarHeader className="p-0">{header}</SidebarHeader> : null}
-      <SidebarContent>
+      {/*
+        * **The folded strip scrolls.** The DS turns overflow off when the rail folds
+        * (`SidebarContent`: `group-data-[collapsible=icon]:overflow-hidden`), which is
+        * safe for the stock sidebar's handful of icon rows and is not safe here: the
+        * court's open layout folds to twenty-two squares, about 1050px of column, and in
+        * a 900px window roughly 400px of it — every Sign queue — became unclickable with
+        * no way to reach it. An area whose strip is taller than the viewport has to be
+        * able to move.
+        *
+        * No scrollbar appears: `SidebarContent` already carries `no-scrollbar`, so this
+        * restores the movement without putting a gutter in a 4rem strip.
+        */}
+      <SidebarContent className="group-data-[collapsible=icon]:overflow-y-auto">
         {/* The primitives are all `div`s, so an area that wants one landmark over the
             whole rail asks for it here. An area that labels each group instead — as the
             advocate's does — passes no `navLabel` and brings its own. */}

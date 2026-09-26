@@ -36,6 +36,11 @@ const AREAS: { prefix: string; label: string; href?: string }[] = [
   { prefix: "/tasks", label: "Pending tasks", href: TASKS_HOME },
   { prefix: "/cases", label: "Cases", href: "/cases" },
   { prefix: "/vakalatnama", label: "Vakalatnama", href: "/vakalatnama" },
+  {
+    prefix: "/raise-application",
+    label: "Raise application",
+    href: "/raise-application",
+  },
   { prefix: "/people", label: "People", href: "/people" },
   { prefix: "/settings", label: "Settings" },
   { prefix: "/advocate", label: "Home", href: "/advocate" },

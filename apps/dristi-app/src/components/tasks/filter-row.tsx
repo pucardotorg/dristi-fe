@@ -3,21 +3,21 @@
 import * as React from "react";
 import { SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 
-import { DUE_LABELS, type DueFilter, type Filters } from "@/lib/tasks/selectors";
-import type { Person } from "@/lib/tasks/types";
+import {
+  DUE_LABELS,
+  KIND_LABELS,
+  KIND_ORDER,
+  type DueFilter,
+  type Filters,
+} from "@/lib/tasks/selectors";
+import type { Person, PillKind } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { CheckGroup } from "@/components/cases/cases-filters";
 import { AppliedChip } from "@/components/shell/applied-chip";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Sheet,
   SheetClose,
@@ -29,10 +29,16 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const DUES: DueFilter[] = ["any", "overdue", "today", "week", "before-hearing"];
+const DUES: DueFilter[] = ["overdue", "today", "week", "before-hearing"];
 
-/** Radix Select reserves "" for the placeholder, so "all" stands in for it. */
-const ALL = "all";
+/**
+ * Where the kind pills show: a mouse at `md` and up. On a phone or a tablet the
+ * row of six ran off the screen and scrolled sideways (owner, Sept 21), so there
+ * the kinds move into the Filters sheet as its first group, and report
+ * themselves as chips like every other filter the sheet holds.
+ */
+export const KIND_PILLS_ONLY = "hidden md:pointer-fine:block";
+const KIND_IN_SHEET_ONLY = "md:pointer-fine:hidden";
 
 /**
  * The list's own search — local to this screen, not app chrome (owner, 2026-08-24).
@@ -73,7 +79,7 @@ function SearchBox({ query, onChange }: { query: string; onChange: (q: string) =
   }, []);
 
   return (
-    <InputGroup className="w-full sm:w-64">
+    <InputGroup className="min-w-0 flex-1 md:pointer-fine:w-64 md:pointer-fine:flex-none">
       <InputGroupAddon>
         <SearchIcon aria-hidden />
       </InputGroupAddon>
@@ -95,25 +101,6 @@ function SearchBox({ query, onChange }: { query: string; onChange: (q: string) =
 }
 
 /** A labelled control inside the peek — label above, full-width control below. */
-function PeekField({
-  id,
-  label,
-  children,
-}: {
-  id: string;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id} className="text-body-compact font-medium">
-        {label}
-      </Label>
-      {children}
-    </div>
-  );
-}
-
 /**
  * The task list's one control row: search, a way in to the filters, then whatever is
  * currently applied.
@@ -133,6 +120,7 @@ export function FilterRow({
   filters,
   courts,
   people,
+  kindCounts,
   narrowed,
   onChange,
   onClear,
@@ -140,23 +128,31 @@ export function FilterRow({
   filters: Filters;
   courts: string[];
   people: Person[];
+  /** What ticking each kind would list, the same numbers the pills carry. */
+  kindCounts: Record<PillKind, number> | null;
   /** Whether anything (including a pressed card or the search) narrows the view. */
   narrowed: boolean;
   onChange: (patch: Partial<Filters>) => void;
   onClear: () => void;
 }) {
-  /* What the peek holds — the pressed card and the search live outside it, so they are
-     not counted here; each shows its own chip or its own box. */
-  const applied = [
-    filters.due !== "any",
-    filters.court !== "",
-    filters.advocate !== "",
-  ].filter(Boolean).length;
+  /* What the sheet holds. The search lives outside it and shows its own box.
+     Kinds count only where the sheet is what holds them; with a mouse the
+     pressed pills already say so, one row up. */
+  const pillsShown = useMediaQuery("(min-width: 768px) and (pointer: fine)");
+  const applied =
+    filters.dues.length +
+    filters.courts.length +
+    filters.advocates.length +
+    (pillsShown ? 0 : filters.kinds.length);
 
-  const advocateName = people.find((p) => p.id === filters.advocate)?.name;
+  const without = <T,>(list: readonly T[], value: T) => list.filter((item) => item !== value);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/* Search and Filters hold one line at every width. Wherever the kind
+          pills are gone (any touch screen, either way up) the pair owns the
+          row, so the search takes everything the button leaves. Chips wrap onto the lines below. */}
+      <div className="flex w-full min-w-0 items-center gap-2 md:pointer-fine:w-auto">
       <SearchBox query={filters.query} onChange={(q) => onChange({ query: q })} />
 
       <Sheet>
@@ -179,63 +175,45 @@ export function FilterRow({
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex flex-col gap-5 px-4">
-            <PeekField id="filter-due" label="Due">
-              <Select value={filters.due} onValueChange={(v) => onChange({ due: v as DueFilter })}>
-                <SelectTrigger id="filter-due" className="w-full" aria-label="Due">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DUES.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {DUE_LABELS[d]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </PeekField>
-
-            <PeekField id="filter-court" label="Court">
-              <Select
-                value={filters.court || ALL}
-                onValueChange={(v) => onChange({ court: v === ALL ? "" : v })}
-              >
-                <SelectTrigger id="filter-court" className="w-full" aria-label="Court">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All courts</SelectItem>
-                  {courts.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </PeekField>
-
-            <PeekField id="filter-advocate" label="Advocate">
-              <Select
-                value={filters.advocate || ALL}
-                onValueChange={(v) => onChange({ advocate: v === ALL ? "" : v })}
-              >
-                <SelectTrigger
-                  id="filter-advocate"
-                  className="w-full"
-                  aria-label="Advocate on the case"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Anyone on the case</SelectItem>
-                  {people.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </PeekField>
+          {/* Checkboxes, as on the Cases filters: any combination can be asked
+              for, and what is on is visible without opening a menu. */}
+          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
+            <div className={KIND_IN_SHEET_ONLY}>
+              <CheckGroup
+                id="tasks-filter-kind"
+                legend="Kind of work"
+                options={KIND_ORDER.map((kind) => ({
+                  value: kind,
+                  label: KIND_LABELS[kind],
+                  count: kindCounts?.[kind],
+                }))}
+                value={filters.kinds}
+                onChange={(kinds) => onChange({ kinds })}
+              />
+            </div>
+            <CheckGroup
+              id="tasks-filter-due"
+              legend="Due"
+              options={DUES.map((due) => ({ value: due, label: DUE_LABELS[due] }))}
+              value={filters.dues}
+              onChange={(dues) => onChange({ dues })}
+            />
+            <CheckGroup
+              id="tasks-filter-court"
+              legend="Court"
+              options={courts.map((court) => ({ value: court, label: court }))}
+              value={filters.courts}
+              onChange={(next) => onChange({ courts: next })}
+            />
+            <CheckGroup
+              id="tasks-filter-advocate"
+              legend="Advocate on the case"
+              options={people.map((person) => ({ value: person.id, label: person.name }))}
+              value={filters.advocates}
+              onChange={(advocates) => onChange({ advocates })}
+              searchable={people.length > 8}
+              collapseAfter={8}
+            />
           </div>
 
           <SheetFooter>
@@ -250,23 +228,42 @@ export function FilterRow({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+      </div>
 
       {/* Applied state, always out here — the peek hides controls, never what is on.
           The kind is not among these: it has its own pill row directly above, and a
           pressed pill saying "Pay" over a chip saying "Pay" was the same state twice
           (2026-09-15). Everything the sheet hides still reports itself here. */}
-      {filters.due !== "any" ? (
-        <AppliedChip label={DUE_LABELS[filters.due]} onClear={() => onChange({ due: "any" })} />
-      ) : null}
-      {filters.court ? (
-        <AppliedChip label={filters.court} onClear={() => onChange({ court: "" })} />
-      ) : null}
-      {filters.advocate ? (
+      {pillsShown
+        ? null
+        : filters.kinds.map((kind) => (
+            <AppliedChip
+              key={kind}
+              label={KIND_LABELS[kind]}
+              onClear={() => onChange({ kinds: without(filters.kinds, kind) })}
+            />
+          ))}
+      {filters.dues.map((due) => (
         <AppliedChip
-          label={advocateName ?? "Advocate"}
-          onClear={() => onChange({ advocate: "" })}
+          key={due}
+          label={DUE_LABELS[due]}
+          onClear={() => onChange({ dues: without(filters.dues, due) })}
         />
-      ) : null}
+      ))}
+      {filters.courts.map((court) => (
+        <AppliedChip
+          key={court}
+          label={court}
+          onClear={() => onChange({ courts: without(filters.courts, court) })}
+        />
+      ))}
+      {filters.advocates.map((id) => (
+        <AppliedChip
+          key={id}
+          label={people.find((p) => p.id === id)?.name ?? "Advocate"}
+          onClear={() => onChange({ advocates: without(filters.advocates, id) })}
+        />
+      ))}
 
       {narrowed ? (
         <Button variant="ghost" onClick={onClear} className={cn("text-muted-foreground")}>

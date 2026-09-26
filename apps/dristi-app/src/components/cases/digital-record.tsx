@@ -35,6 +35,9 @@ import {
   type ComplaintPane,
 } from "@/lib/cases/complaint";
 import { cn } from "@/lib/utils";
+import { DOCUMENT_GROUND } from "@/components/cases/document-ground";
+
+import { PdfViewer, parsePdfSrc } from "./pdf-viewer";
 
 /**
  * Structured read of a filed record — DescriptionList, narrative blocks,
@@ -57,10 +60,10 @@ export function DigitalRecord({
     return (
       <Empty className="min-h-0 flex-1 border border-dashed border-border">
         <EmptyHeader>
-          <EmptyTitle className="text-title-s font-semibold">
+          <EmptyTitle className="text-body font-semibold">
             {emptyTitle}
           </EmptyTitle>
-          <EmptyDescription className="text-body">
+          <EmptyDescription>
             {emptyDescription}
           </EmptyDescription>
         </EmptyHeader>
@@ -75,7 +78,7 @@ export function DigitalRecord({
       {pane.notice ? (
         <Alert variant="info">
           <InfoIcon aria-hidden />
-          <AlertDescription className="text-body group-has-[>svg]/alert:col-start-2">
+          <AlertDescription className="group-has-[>svg]/alert:col-start-2">
             {pane.notice}
           </AlertDescription>
         </Alert>
@@ -91,10 +94,10 @@ export function DigitalRecord({
 
       {pane.blocks?.map((block) => (
         <div key={block.title} className="flex flex-col gap-2">
-          <h3 className="text-body font-medium text-foreground">
+          <h3 className="text-body-compact font-semibold text-foreground">
             {block.title}
           </h3>
-          <p className="text-body text-muted-foreground">{block.body}</p>
+          <p className="text-body-compact text-muted-foreground">{block.body}</p>
         </div>
       ))}
 
@@ -108,10 +111,10 @@ export function DigitalRecord({
                 className="items-start px-0 hover:bg-transparent"
               >
                 <ItemContent className="gap-2">
-                  <ItemTitle className="line-clamp-none min-w-0 text-body font-medium text-foreground">
+                  <ItemTitle className="line-clamp-none min-w-0">
                     {person.title}
                   </ItemTitle>
-                  <ItemDescription className="line-clamp-none text-body">
+                  <ItemDescription className="line-clamp-none">
                     {person.detail}
                   </ItemDescription>
                 </ItemContent>
@@ -131,10 +134,9 @@ export function DigitalRecord({
 function FieldRow({ field }: { field: ComplaintField }) {
   return (
     <DescriptionRow>
-      <DescriptionTerm className="text-body">{field.term}</DescriptionTerm>
+      <DescriptionTerm>{field.term}</DescriptionTerm>
       <DescriptionDetails
         className={cn(
-          "text-body",
           field.empty ? "text-muted-foreground" : "font-medium"
         )}
       >
@@ -157,7 +159,7 @@ function DocumentStrip({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <h3 className="text-body font-medium text-foreground">Documents</h3>
+      <h3 className="text-body-compact font-semibold text-foreground">Documents</h3>
       <ul aria-label="Documents" className="flex gap-4 overflow-x-auto pb-1">
         {documents.map((doc) => (
           <li key={doc.id} className="w-48 shrink-0">
@@ -179,22 +181,18 @@ function DocumentTile({
   const src = complaintDocumentSrc(document);
   const href = complaintDocumentHref(caseId, document);
   const preview = (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface-sunken">
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border border-border",
+        DOCUMENT_GROUND
+      )}
+    >
       <AspectRatio ratio={3 / 4}>
         {src ? (
-          <div className="absolute inset-0 overflow-hidden">
-            <iframe
-              src={previewSrc(src)}
-              title=""
-              tabIndex={-1}
-              aria-hidden
-              scrolling="no"
-              className="pointer-events-none absolute top-0 left-0 h-[calc(100%+theme(spacing.6))] w-[calc(100%+theme(spacing.6))] max-w-none border-0 bg-paper"
-            />
-          </div>
+          <DocumentThumbnail src={src} />
         ) : (
           <div className="flex size-full items-center justify-center">
-            <p className="text-body text-muted-foreground">Not uploaded</p>
+            <p className="text-body-compact text-muted-foreground">Not uploaded</p>
           </div>
         )}
       </AspectRatio>
@@ -205,7 +203,9 @@ function DocumentTile({
     return (
       <div className="flex flex-col gap-2">
         {preview}
-        <p className="text-body font-medium text-foreground">{document.label}</p>
+        <p className="text-body-compact font-medium text-foreground">
+          {document.label}
+        </p>
       </div>
     );
   }
@@ -216,17 +216,28 @@ function DocumentTile({
       className="flex flex-col gap-2 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       {preview}
-      <span className="text-body font-medium text-foreground">
+      <span className="text-body-compact font-medium text-foreground">
         {document.label}
       </span>
-      <span className="text-body text-muted-foreground">Open in case file</span>
+      <span className="text-caption font-medium text-muted-foreground">
+        Open in case file
+      </span>
     </Link>
   );
 }
 
-function previewSrc(src: string): string {
-  const flags = "toolbar=0&navpanes=0&scrollbar=0&view=FitH";
-  return src.includes("#") ? `${src}&${flags}` : `${src}#${flags}`;
+/** The first page as a still image; the tile's own link opens the document. */
+function DocumentThumbnail({ src }: { src: string }) {
+  const { url, page } = parsePdfSrc(src);
+  return (
+    <PdfViewer
+      src={url}
+      title=""
+      thumbnail
+      pages={page ? { from: page, to: page } : undefined}
+      className="absolute inset-0 rounded-none"
+    />
+  );
 }
 
 function FragmentRow({

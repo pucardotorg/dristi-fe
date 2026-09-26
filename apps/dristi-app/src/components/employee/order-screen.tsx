@@ -22,6 +22,7 @@ import {
   useStagedFlow,
 } from "@/components/chrome/staged-overlay";
 import { ListingApplicationDialog } from "@/components/employee/listing-application-dialog";
+import { OrderCaseFile } from "@/components/employee/order-case-file";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import {
   SignatureActions,
@@ -61,7 +62,6 @@ import {
   SegmentedControl,
   SegmentedControlItem,
 } from "@/components/ui/segmented-control";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -467,6 +467,17 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   const [signOpen, setSignOpen] = React.useState(false);
   const [announcement, setAnnouncement] = React.useState("");
   /**
+   * Reading the case file while writing the order.
+   *
+   * **Rearranges the screen rather than opening over it** (owner, 2026-09-22): the
+   * sheet — attendance, next hearing, the passage itself — moves down into the left
+   * column, under the applications and orders catalogue, and the right column turns
+   * over to the case file's own index-plus-PDF pane (`order-case-file.tsx`). Nothing
+   * is unmounted by the toggle: the draft, the open section and every mark on the
+   * roll are exactly where they were when the typist switches back.
+   */
+  const [caseFileOpen, setCaseFileOpen] = React.useState(false);
+  /**
    * Open a section and put the reader in it.
    *
    * Focus goes to the section's own heading rather than to the first control in it: the
@@ -595,22 +606,19 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   );
 
   /**
-   * Where the panel opens: on the applications when one is standing, on the order when
-   * none is.
+   * Where the panel opens: on Orders, always (owner, 2026-09-25).
    *
-   * The sitting is still a sequence — applications disposed of, the roll called, the
-   * matter posted on, the order set down last — but only its first and last steps are
-   * sections now. The roll and the posting are on the sheet (owner, 2026-09-15,
-   * exploration), in view from the moment the screen loads and needing nothing opened,
-   * so the panel opens on the first step it still owns that has anything in it. With
-   * nothing pending that is the order itself, which is the work this screen exists for.
+   * An earlier build opened on Applications whenever one stood pending, on the reasoning
+   * that a pending application was the sitting's first unfinished step. The owner's
+   * correction: the order is the work this screen exists for, and it is what a typist
+   * reaches for on arrival whether or not an application happens to be standing —
+   * applications are a click away in their own section, not a detour the screen picks
+   * for the typist.
    *
    * Read once, on the first render of this listing's composer: it is where the panel
    * *opens*, not a rule about where it must be.
    */
-  const [section, setSection] = React.useState<SectionId | null>(
-    pending.length > 0 ? "applications" : "orders",
-  );
+  const [section, setSection] = React.useState<SectionId | null>("orders");
 
   /**
    * What this sitting is likely to produce, read off the sitting.
@@ -1150,13 +1158,36 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           </h1>
           <MatterFacts hearing={hearing} />
         </div>
-        <Button
-          type="button"
-          className="w-full shrink-0 sm:w-fit"
-          onClick={advance}
-        >
-          {upNext ? "Next hearing" : "End hearing"}
-        </Button>
+        {/* **Outline beside the primary, the same bargain `ViewCaseAction` makes on
+            the overview page** (`hearing-overview-screen.tsx`): a promise and an act
+            share a band, and the act keeps the one teal. Unlike that button this one
+            is not dead — there is no case file to connect there, and there is one
+            here, read straight off the tree the advocate's case file already uses. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full shrink-0 sm:w-fit"
+            onClick={() => {
+              const next = !caseFileOpen;
+              setCaseFileOpen(next);
+              setAnnouncement(
+                next
+                  ? "Case file open. The order has moved below the applications and orders catalogue."
+                  : "Case file closed. The order is back on its own page.",
+              );
+            }}
+          >
+            {caseFileOpen ? "Back to order" : "View Case"}
+          </Button>
+          <Button
+            type="button"
+            className="w-full shrink-0 sm:w-fit"
+            onClick={advance}
+          >
+            {upNext ? "Next hearing" : "End hearing"}
+          </Button>
+        </div>
       </header>
 
       {/* The split the owner drew. Left: what the court did at this sitting and what it
@@ -1261,19 +1292,35 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
             row hidden under the footer.
 
             Below `lg` the columns are stacked and nothing is pinned or clamped: the page
-            scroll is the right one on a phone, and the `50svh` cap still applies there. */}
-        <div className="flex min-w-0 flex-col gap-4 self-start lg:sticky lg:top-(--order-panel-top) lg:h-(--order-panel-height) lg:overflow-y-auto">
+            scroll is the right one on a phone, and the `50svh` cap still applies there.
+
+            **Not pinned or clamped at any width once the case file is open.** The
+            column now also carries the sheet (below), and the fixed height was sized
+            for two section cards — the sheet's own well and passage want the page's
+            scroll, not a second scroller nested inside this one. The catalogue's own
+            `max-h-(--order-panel-height)` belt (`OrderItems`) is a plain CSS value, not
+            dependent on this column's height, so it keeps the catalogue scrolling in
+            place either way. */}
+        <div
+          className={cn(
+            "flex min-w-0 flex-col gap-4 self-start",
+            !caseFileOpen &&
+              "lg:sticky lg:top-(--order-panel-top) lg:h-(--order-panel-height) lg:overflow-y-auto",
+          )}
+        >
           {SECTIONS.map((entry) => {
             const Icon = entry.icon;
             const open = entry.id === section;
             const headingId = `order-section-${entry.id}`;
             /* **Only the catalogue takes the leftover height, and only while it is
-               open.** The applications are a short list, and a card stretched past its
-               rows is the tall pale container with its content bunched at the top that
-               the sheet itself was pulled out of (owner, 2026-09-15). The fill has to be
-               declared at every box between the column and the scroller: a flex child
-               cannot inherit a definite height through a box that has none. */
-            const fills = open && entry.id === "orders";
+               open** — and only while the column is the one pinned to it. The
+               applications are a short list, and a card stretched past its rows is the
+               tall pale container with its content bunched at the top that the sheet
+               itself was pulled out of (owner, 2026-09-15). The fill has to be declared
+               at every box between the column and the scroller: a flex child cannot
+               inherit a definite height through a box that has none — and with the case
+               file open there is no such height to inherit. */
+            const fills = !caseFileOpen && open && entry.id === "orders";
             const FILL = "lg:flex lg:min-h-0 lg:flex-1 lg:flex-col";
             return (
               <Card
@@ -1388,25 +1435,51 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
               </Card>
             );
           })}
+
+          {/* **The sheet, moved rather than hidden.** With the right column given
+              over to the case file, attendance, the next hearing and the passage
+              itself have nowhere else to be — they come to rest here, under the
+              catalogue, in the same order the sitting already works them. Same
+              component, same props, same draft: only its column changed. */}
+          {caseFileOpen ? (
+            <OrderPaper
+              compact
+              document={orderDocument}
+              appearances={appearances}
+              marks={draft.marks}
+              draft={draft}
+              bodyRevision={bodyWrites}
+              onBody={setBody}
+              suggestion={suggestion}
+              onMark={mark}
+              onSkip={(skip) => postNext({ next: skip ? "none" : "list" })}
+              onPurpose={(nextPurpose) => postNext({ nextPurpose })}
+              onDate={(nextDate) => postNext({ nextDate })}
+            />
+          ) : null}
         </div>
 
         {/* No surround. The page lies on the canvas directly and carries its own lift,
             which it could not do inside the old panel — a raised sheet inside a raised
             card flattens both. */}
-        <OrderPaper
-          className="lg:col-span-2"
-          document={orderDocument}
-          appearances={appearances}
-          marks={draft.marks}
-          draft={draft}
-          bodyRevision={bodyWrites}
-          onBody={setBody}
-          suggestion={suggestion}
-          onMark={mark}
-          onSkip={(skip) => postNext({ next: skip ? "none" : "list" })}
-          onPurpose={(nextPurpose) => postNext({ nextPurpose })}
-          onDate={(nextDate) => postNext({ nextDate })}
-        />
+        {caseFileOpen ? (
+          <OrderCaseFile className="lg:sticky lg:top-(--order-panel-top) lg:col-span-2 lg:h-(--order-panel-height)" />
+        ) : (
+          <OrderPaper
+            className="lg:col-span-2"
+            document={orderDocument}
+            appearances={appearances}
+            marks={draft.marks}
+            draft={draft}
+            bodyRevision={bodyWrites}
+            onBody={setBody}
+            suggestion={suggestion}
+            onMark={mark}
+            onSkip={(skip) => postNext({ next: skip ? "none" : "list" })}
+            onPurpose={(nextPurpose) => postNext({ nextPurpose })}
+            onDate={(nextDate) => postNext({ nextDate })}
+          />
+        )}
       </div>
 
       <footer
@@ -1836,21 +1909,11 @@ function AnsweredApplications({
 }
 
 /**
- * Which half of the catalogue is on screen.
+ * One order in the catalogue.
  *
- * `system` is the twenty-five orders the court has words for; `custom` is what a typist
- * writes themselves. The line between them is `hasTemplateText`, not a curation — see
- * `order-templates.ts` for why the source draws it there.
- */
-type CatalogueSourceId = "system" | "custom";
-
-/**
- * One order in the catalogue, in either tab.
- *
- * Shared so a type reads the same wherever it is listed, and so the two tabs cannot
- * drift into two row designs. **A row the matter rules out keeps its words and loses its
- * button**: the reason goes where the caption would, because a greyed row that still
- * clicks teaches a typist to distrust the list.
+ * Shared so every category renders a row the same way. **A row the matter rules out
+ * keeps its words and loses its button**: the reason goes where the caption would,
+ * because a greyed row that still clicks teaches a typist to distrust the list.
  */
 function CatalogueRow({
   label,
@@ -1894,20 +1957,15 @@ function CatalogueRow({
  *
  * **Choosing the order is what writes it.** A typist is not composing a direction from
  * nothing; they are setting down one the court has already made, from the court's
- * standing form. So the catalogue is the instrument, and since 2026-09-13 it is the real
- * one — the twenty-seven templates of `order-templates.ts`.
+ * standing form. So the catalogue is the instrument — the twenty-five templates of
+ * `order-templates.ts`.
  *
- * Built to the owner's reference screen, which arranges it in three parts. **The order of
- * the first two is this build's, not the reference's** (owner, 2026-09-16): the reference
- * leads with the shortcuts and puts the search under them, and the search now stands
- * first, pinned above the scroller, because it is the only control that reaches the
- * twenty-four orders the shortcuts do not name. Nothing else about the three parts moved.
+ * Built to the owner's reference screen, in three parts:
  *
- * 1. **A search field over four groups**, which is the reference's own browse and
- *    replaces the `Combobox` an earlier revision used. The trade is deliberate: a
- *    combobox is faster for a typist who knows the word and shows *nothing* to one who
- *    does not, because its list only exists while the menu is open. Four standing rows
- *    say how much catalogue there is before anyone types.
+ * 1. **A search field over the categories**, which replaces the `Combobox` an earlier
+ *    revision used. The trade is deliberate: a combobox is faster for a typist who knows
+ *    the word and shows *nothing* to one who does not, because its list only exists while
+ *    the menu is open. Standing rows say how much catalogue there is before anyone types.
  * 2. **Likely at this hearing** — ranked, and off the sitting rather than off the purpose
  *    alone (`order-suggestions.ts`, 2026-09-14). The source's purpose table is still the
  *    baseline, so an evidence listing still offers witness batta and a witness summons;
@@ -1920,33 +1978,28 @@ function CatalogueRow({
  *    allowed at this hearing". One per line rather than the reference's 2-up: its rail is
  *    wider than this column, and "Moving case out of long pending register" does not
  *    survive a 145px tile. It answers to no query — the sitting is what ranks it, not a
- *    word — so it stays put under the field while the groups below it filter.
- * 3. **Every order in its group, including the ones this matter cannot take**, each with
- *    the reason under it. The source gates several types on the state of the case, and a
- *    silently shorter list is the worse failure on a screen where the missing order is
- *    the one that mattered.
+ *    word — so it stays put under the field while the categories below it filter.
+ * 3. **Every order in its category, including the ones this matter cannot take**, each
+ *    with the reason under it. The source gates several types on the state of the case,
+ *    and a silently shorter list is the worse failure on a screen where the missing order
+ *    is the one that mattered.
  *
- * **System orders and custom orders are two tabs under the search, on the owner's ask
- * (2026-09-14).** The split is not a curation; it is the one the source already makes.
- * Twenty-five of the twenty-seven arrive part-written, and the judge's work on them is to
- * fill what auto-fill could not. Two carry no template text at all — Order under section
- * 202 CrPC, and Judgement — and of those the source says the judge "writes the order text
- * from scratch". Those two sit under **Custom orders** with the one order that is not the
- * court's at all, `others`, which is where the quiet "Something else" button under the
- * groups went. So each type is listed in exactly one place, and both tabs answer the
- * search above them: the counts on the tabs are match counts while a query stands, which
- * is how a typist searching "202" sees that the hit is in the other tab rather than
- * reading an empty list.
+ * **One unified, categorised list (owner, 2026-09-25), not two tabs.** An earlier build
+ * split "system orders" (the twenty-five worded by the catalogue) from "custom orders"
+ * (Judgement, which the source gives no words for, plus `others` — the one order that is
+ * not the court's at all). That split is gone: Judgement now sits in its own **Judgment**
+ * category like any other row, captioned "No template — opens empty" instead of the
+ * workflow line, and "Something else" stands as its own row under the categories rather
+ * than in a second tab.
  *
- * **A note on the counts, because they will not match the reference.** The reference
- * shows 5 / 7 / 10 / 6 — twenty-eight, one more than the catalogue holds — and its
- * **Accept / Reject** group is offered as something to browse. Under the source, every
- * accept/reject order is marked *not in dropdown*: they are reached from the application
- * that produces them and never chosen from a list. So that group stands here with its
- * five rows all reading "Comes from an application". Nothing is hidden and nothing lies
- * about being available. The groups now read 5 / 5 / 10 / 5, the two write-them-yourself
- * types having moved to the other tab. The source itself lists grouping as one of two
- * things it has yet to supply, so this is provisional either way.
+ * **The categories are the owner's own grouping (2026-09-25)** — the catalogue's
+ * `Category` column, not the four provisional headings (`Process orders` / `Accept
+ * Reject` / `Case progression` / `Directives`) an earlier build used as a placeholder.
+ * See `ORDER_GROUPS` in `order-templates.ts` for why **Accept / Reject** still exists
+ * outside that column: it is where this screen keeps the handful of types the source
+ * marks *not in dropdown*, disabled rather than hidden, on the same reasoning as point 3
+ * above — a type that used to be visible going silent is a worse failure than a greyed
+ * row nobody can click.
  */
 function OrderItems({
   items,
@@ -1973,7 +2026,6 @@ function OrderItems({
 }) {
   const [query, setQuery] = React.useState("");
   const [openGroup, setOpenGroup] = React.useState<OrderGroupId | null>(null);
-  const [source, setSource] = React.useState<CatalogueSourceId>("system");
   const { boxRef, contentRef, edges, measure } = useScrollEdges();
 
   const openCount = openSlots(body.text).length;
@@ -1986,41 +2038,20 @@ function OrderItems({
   const groups = ORDER_GROUPS.map((group) => ({
     ...group,
     rows: ORDER_TEMPLATES.filter(
-      (entry) =>
-        entry.group === group.id &&
-        hasTemplateText(entry) &&
-        matches(entry.label),
+      (entry) => entry.group === group.id && matches(entry.label),
     ),
   }));
-  /* The sum of the four group counts below, which is why it can sit on the tab without
-     saying anything twice: the tab carries the total, each group carries its share. */
-  const systemCount = groups.reduce(
-    (total, group) => total + group.rows.length,
-    0,
-  );
 
-  /* What the typist writes themselves. The two court types the source gives no words
-     for, and then the one order that is not the court's at all. Same row treatment as
-     the groups opposite — a template is a template wherever it is listed — and the
-     caption is the whole point of the split: these open empty. */
-  const customRows = [
-    ...ORDER_TEMPLATES.filter((entry) => !hasTemplateText(entry)).map(
-      (entry) => ({
-        key: entry.id,
-        label: entry.label,
-        caption: "No template — opens empty",
-        reason: unavailableReason(entry, catalogue),
-        select: () => add(entry.id),
-      }),
-    ),
-    {
-      key: "others",
-      label: "Something else",
-      caption: "Outside the court's twenty-seven",
-      reason: null,
-      select: () => add("others"),
-    },
-  ].filter((row) => matches(row.label));
+  /* The one order that is not the court's at all — its own row under the categories,
+     not a second tab (see the doc comment above, 2026-09-25). */
+  const othersRow = matches("Something else")
+    ? {
+        label: "Something else",
+        caption: "Outside the court's twenty-five",
+        reason: null as string | null,
+        select: () => add("others"),
+      }
+    : null;
 
   function add(
     type: OrderItemTypeId,
@@ -2193,127 +2224,94 @@ function OrderItems({
               )}
             </div>
 
-            {/* The panel's own pair of tabs sits above this one, so this switch has to read
-            as subordinate to it: it takes the DS's `line` variant — underline and teal,
-            no well and no second white pill competing with the one above. No band rule
-            under it either; the accent bar sits 4px clear of the list, so a rule would
-            draw a second parallel line rather than the one the bar lands on. */}
-            <Tabs
-              value={source}
-              onValueChange={(next) => setSource(next as CatalogueSourceId)}
-            >
-              <TabsList variant="line">
-                <TabsTrigger value="system" className="gap-2">
-                  System orders
-                  <span className="text-caption tabular-nums text-muted-foreground">
-                    {systemCount}
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="custom" className="gap-2">
-                  Custom orders
-                  <span className="text-caption tabular-nums text-muted-foreground">
-                    {customRows.length}
-                  </span>
-                </TabsTrigger>
-              </TabsList>
+            <div className="flex min-w-0 flex-col divide-y divide-hairline">
+              {groups.map((group) => {
+                /* A search opens whatever it found and leaves the rest shut, so the result
+                 is on screen without the typist opening every category to look for it. */
+                const open = searching
+                  ? group.rows.length > 0
+                  : openGroup === group.id;
+                return (
+                  <Collapsible
+                    key={group.id}
+                    id={`order-group-${group.id}`}
+                    open={open}
+                    /* The reveal runs in the next frame, not here: the rows this press
+                       mounts do not exist yet while the handler is running, and closing
+                       the group that was open takes content out from above this one, so
+                       both edges of what has to be measured move in the same commit.
+                       One frame later the box is settled and the measurement is real.
 
-              <TabsContent
-                value="system"
-                className="flex min-w-0 flex-col divide-y divide-hairline"
-              >
-                {groups.map((group) => {
-                  /* A search opens whatever it found and leaves the rest shut, so the result
-                 is on screen without the typist opening four groups to look for it. */
-                  const open = searching
-                    ? group.rows.length > 0
-                    : openGroup === group.id;
-                  return (
-                    <Collapsible
-                      key={group.id}
-                      id={`order-group-${group.id}`}
-                      open={open}
-                      /* The reveal runs in the next frame, not here: the rows this press
-                         mounts do not exist yet while the handler is running, and closing
-                         the group that was open takes content out from above this one, so
-                         both edges of what has to be measured move in the same commit.
-                         One frame later the box is settled and the measurement is real.
+                       Only on opening, and only from a press. A search opens groups by
+                       itself (`open` is computed from the query above), and scrolling
+                       the box under a reader who is typing would be the page moving on
+                       its own. */
+                    onOpenChange={(next) => {
+                      setOpenGroup(next ? group.id : null);
+                      if (!next) return;
+                      requestAnimationFrame(() =>
+                        revealInBox(
+                          boxRef.current,
+                          document.getElementById(`order-group-${group.id}`),
+                        ),
+                      );
+                    }}
+                    className="min-w-0 py-1"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={searching && group.rows.length === 0}
+                        className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-start transition-colors hover:bg-surface-sunken focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:opacity-50"
+                      >
+                        <ChevronDownIcon
+                          aria-hidden
+                          className={cn(
+                            "size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
+                            open && "rotate-180",
+                          )}
+                        />
+                        <span className="text-body-compact min-w-0 flex-1 font-medium">
+                          {group.label}
+                        </span>
+                        <span className="text-caption shrink-0 text-muted-foreground tabular-nums">
+                          {group.rows.length}
+                        </span>
+                      </button>
+                    </CollapsibleTrigger>
 
-                         Only on opening, and only from a press. A search opens groups by
-                         itself (`open` is computed from the query above), and scrolling
-                         the box under a reader who is typing would be the page moving on
-                         its own. */
-                      onOpenChange={(next) => {
-                        setOpenGroup(next ? group.id : null);
-                        if (!next) return;
-                        requestAnimationFrame(() =>
-                          revealInBox(
-                            boxRef.current,
-                            document.getElementById(`order-group-${group.id}`),
-                          ),
-                        );
-                      }}
-                      className="min-w-0 py-1"
-                    >
-                      <CollapsibleTrigger asChild>
-                        <button
-                          type="button"
-                          disabled={searching && group.rows.length === 0}
-                          className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-start transition-colors hover:bg-surface-sunken focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:opacity-50"
-                        >
-                          <ChevronDownIcon
-                            aria-hidden
-                            className={cn(
-                              "size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
-                              open && "rotate-180",
-                            )}
+                    <CollapsibleContent className="min-w-0">
+                      <ul className="flex min-w-0 flex-col gap-0.5 ps-8 pt-1 pb-2">
+                        {group.rows.map((template) => (
+                          <CatalogueRow
+                            key={template.id}
+                            label={template.label}
+                            caption={
+                              hasTemplateText(template)
+                                ? template.workflow
+                                : "No template — opens empty"
+                            }
+                            reason={unavailableReason(template, catalogue)}
+                            onSelect={() => add(template.id)}
                           />
-                          <span className="text-body-compact min-w-0 flex-1 font-medium">
-                            {group.label}
-                          </span>
-                          <span className="text-caption shrink-0 text-muted-foreground tabular-nums">
-                            {group.rows.length}
-                          </span>
-                        </button>
-                      </CollapsibleTrigger>
+                        ))}
+                      </ul>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
 
-                      <CollapsibleContent className="min-w-0">
-                        <ul className="flex min-w-0 flex-col gap-0.5 ps-8 pt-1 pb-2">
-                          {group.rows.map((template) => (
-                            <CatalogueRow
-                              key={template.id}
-                              label={template.label}
-                              caption={template.workflow}
-                              reason={unavailableReason(template, catalogue)}
-                              onSelect={() => add(template.id)}
-                            />
-                          ))}
-                        </ul>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  );
-                })}
-              </TabsContent>
-
-              <TabsContent value="custom" className="min-w-0">
-                {customRows.length === 0 ? (
-                  <p className="text-body-compact py-1 text-muted-foreground">
-                    No order you write yourself answers to that.
-                  </p>
-                ) : (
-                  <ul className="flex min-w-0 flex-col gap-0.5 py-1">
-                    {customRows.map((row) => (
-                      <CatalogueRow
-                        key={row.key}
-                        label={row.label}
-                        caption={row.caption}
-                        reason={row.reason}
-                        onSelect={row.select}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </TabsContent>
-            </Tabs>
+              {othersRow ? (
+                <ul className="flex min-w-0 flex-col gap-0.5 py-1">
+                  <CatalogueRow
+                    label={othersRow.label}
+                    caption={othersRow.caption}
+                    reason={othersRow.reason}
+                    onSelect={othersRow.select}
+                  />
+                </ul>
+              ) : null}
+            </div>
 
             {/* **Nothing pulled in says nothing** (owner, 2026-09-16). The empty state
                 here was a paragraph explaining what choosing an order would do — how the
@@ -2512,6 +2510,7 @@ function OrderPaper({
   onSkip,
   onPurpose,
   onDate,
+  compact,
 }: {
   className?: string;
   document: OrderDocument;
@@ -2527,6 +2526,16 @@ function OrderPaper({
   onSkip: (skip: boolean) => void;
   onPurpose: (purpose: CourtHearingPurposeId | "") => void;
   onDate: (day: string | null) => void;
+  /**
+   * The sheet at a third of the page rather than two-thirds — the width it gets in
+   * the left column once the case file has taken the right one. `md:grid-cols-2`
+   * reads the *viewport*, not this column: at a desktop width it fired anyway and
+   * paired Attendance with Next hearing in a track too narrow for either, which is
+   * what wrapped every office's name one letter to a line. This keeps the pair
+   * stacked regardless of viewport, which is what the column's own width actually
+   * calls for here.
+   */
+  compact?: boolean;
 }) {
   return (
     <article
@@ -2573,7 +2582,7 @@ function OrderPaper({
           wells fill it, so the pair reads as one band of the sheet's furniture rather
           than as two boxes that happen to be adjacent. Nothing is stretched *inside*
           them — the controls keep their own sizes and sit at the top. */}
-      <div className="grid min-w-0 gap-4 md:grid-cols-2">
+      <div className={cn("grid min-w-0 gap-4", !compact && "md:grid-cols-2")}>
         <PaperBlock id="order-attendance" label="Attendance">
           <PaperAttendance
             appearances={appearances}

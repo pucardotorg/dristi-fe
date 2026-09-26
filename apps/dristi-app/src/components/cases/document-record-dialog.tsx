@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { MessageSquareIcon, PaperclipIcon } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { DocumentPreview } from "@/components/cases/document-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -47,6 +47,7 @@ import {
 } from "@/lib/cases/documents";
 import { formatCaseDate } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { displayName } from "@/lib/cases/names";
 import { Identifier } from "@/components/chrome/identifier";
 
 /**
@@ -75,7 +76,7 @@ export function DocumentRecordFrame({
   children: ReactNode;
 }) {
   return (
-    <ChromeDialogContent
+    <FlowDialogContent
       className={cn(
         "flex max-h-[90svh] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl",
         className,
@@ -102,7 +103,7 @@ export function DocumentRecordFrame({
         <Separator orientation="vertical" className="hidden md:block" />
         <CommentsPane fieldId={commentId} />
       </div>
-    </ChromeDialogContent>
+    </FlowDialogContent>
   );
 }
 
@@ -188,7 +189,7 @@ function DocumentBody({
         </RecordRow>
         <RecordRow term="Submitted by">
           <span className="flex min-w-0 flex-col gap-1">
-            <span>{submittedByName(document, peopleById)}</span>
+            <span>{displayName(submittedByName(document, peopleById))}</span>
             {submittedByRole(document, peopleById) ? (
               <span className="text-caption font-medium text-muted-foreground">
                 {submittedByRole(document, peopleById)}
@@ -235,6 +236,7 @@ function DocumentBody({
       {previewSrc ? (
         <DocumentPreview
           title={document.title}
+          surface="ground"
           source={{ kind: "src", src: previewSrc }}
           download={{
             href: previewSrc,

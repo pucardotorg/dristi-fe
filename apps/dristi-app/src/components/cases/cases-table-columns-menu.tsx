@@ -56,10 +56,12 @@ export function CasesTableColumnsMenu({
           type="button"
           variant="outline"
           className={"shrink-0 gap-0 duration-300 " + (compact ? "px-2.5" : "px-4")}
-          aria-label={compact ? "Columns" : undefined}
+          aria-label={compact ? "Edit columns" : undefined}
         >
           <Columns3Icon aria-hidden />
-          <CollapsibleLabel show={!compact}>Columns</CollapsibleLabel>
+          {/* A verb, like Share access beside it: "Columns" named a thing and
+              left what the button does to be guessed (owner, Sept 18). */}
+          <CollapsibleLabel show={!compact}>Edit columns</CollapsibleLabel>
         </Button>
       </PopoverTrigger>
       {/* align="start" hangs the menu under the trigger's left edge so it sits under
@@ -71,7 +73,7 @@ export function CasesTableColumnsMenu({
             more air above the title than the content padding alone gives. */}
         <PopoverHeader className="px-2 pt-1">
           <PopoverTitle className="text-body-compact font-medium">
-            Columns
+            Show or hide columns
           </PopoverTitle>
         </PopoverHeader>
         <ul className="flex flex-col">

@@ -94,6 +94,8 @@ export type CasePeekExtras = {
    * per-state format is unconfirmed — see docs/product/open-questions.md.
    */
   altCaseNumber?: string;
+  /** The day the registry allotted `altCaseNumber`. Fixture guess, worklist K. */
+  altCaseNumberOn?: string;
   chequeAmount?: number;
   /** How the accused is described on the cause title beyond the short name. */
   accusedRepresentation?: string;
@@ -333,6 +335,7 @@ export function peekHistory(record: CaseRecord, now: number): PeekHistoryItem[] 
 const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
   "c-1001": {
     altCaseNumber: "ST 412/2026",
+    altCaseNumberOn: "2026-07-03",
     chequeAmount: 450000,
     accusedRepresentation: "represented by proprietor Anand Krishnan",
     appearingFor: "complainant",
@@ -462,6 +465,7 @@ const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
   },
   "c-1004": {
     altCaseNumber: "ST 1204/2026",
+    altCaseNumberOn: "2026-05-04",
     chequeAmount: 275000,
     appearingFor: "complainant",
     orderOfTheDay:
@@ -480,6 +484,7 @@ const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
   },
   "c-2002": {
     altCaseNumber: "ST 88/2024",
+    altCaseNumberOn: "2024-06-10",
   },
   /* The ON Court demo cases sit at the top of Your Cases (newest updatedOn),
      so the first screens a demo opens carry authored pending work beyond the

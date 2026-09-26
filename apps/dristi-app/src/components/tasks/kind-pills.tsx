@@ -32,26 +32,28 @@ export function KindPills({
   onSelect,
 }: {
   counts: Record<PillKind, number> | null;
-  active: PillKind | null;
+  /** The pressed kinds; none pressed is Everything. */
+  active: readonly PillKind[];
   loading?: boolean;
-  onSelect: (kind: PillKind | null) => void;
+  onSelect: (kinds: PillKind[]) => void;
 }) {
   const total = counts ? KIND_ORDER.reduce((sum, k) => sum + counts[k], 0) : null;
   return (
     <ToggleGroup
-      type="single"
+      type="multiple"
       size="lg"
       /* `default`, not `outline`: an outlined row gives every pill a card fill, and a
          tinted chosen pill among six filled ones reads softer than its neighbours — it
          looked disabled (render, 2026-09-15). Transparent pills leave the chosen one as
          the only fill on the row. */
       variant="default"
-      value={active ?? "all"}
-      onValueChange={(value) => {
-        // Radix clears the value when the chosen pill is pressed again; either way the
-        // absence of a kind is "Everything".
-        if (!value || value === "all") onSelect(null);
-        else onSelect(value as PillKind);
+      value={active.length ? [...active] : ["all"]}
+      onValueChange={(values) => {
+        // Kinds add up (owner, Sept 21: any combination). Everything is the
+        // empty set: pressing it clears the rest, and pressing a kind lifts it.
+        const kinds = values.filter((value) => value !== "all") as PillKind[];
+        const pressedEverything = values.includes("all") && active.length > 0;
+        onSelect(pressedEverything ? [] : kinds);
       }}
       aria-label="Kinds of work"
       /* The row scrolls sideways on a phone; the padding keeps a focus ring off the
@@ -68,7 +70,7 @@ export function KindPills({
           loading={loading}
           /* A kind with nothing in it cannot narrow anything — but the pill you are
              standing on stays pressable, so clearing it is never a dead end. */
-          disabled={!loading && counts?.[kind] === 0 && active !== kind}
+          disabled={!loading && counts?.[kind] === 0 && !active.includes(kind)}
         />
       ))}
     </ToggleGroup>

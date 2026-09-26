@@ -13,7 +13,7 @@ import {
   XIcon,
 } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -522,7 +522,7 @@ export function AdvocateJoinCaseDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
         // The litigant combobox portals its list outside this dialog's DOM. Without
@@ -1366,7 +1366,14 @@ export function AdvocateJoinCaseDialog({
                   label={pick(joinDialog.downloadCaseFile, locale)}
                   onClick={() => setDownloadNotice(true)}
                 />
-                <Button type="button" onClick={() => setStage("account")} data-icon="inline-end">
+                {/* Stacked footer on a phone: the primary fills the row beside
+                    the icon, as wide as the Back button under it. */}
+                <Button
+                  type="button"
+                  className="flex-1 sm:flex-none"
+                  onClick={() => setStage("account")}
+                  data-icon="inline-end"
+                >
                   {pick(joinDialog.continue, locale)}
                   <ArrowRightIcon aria-hidden />
                 </Button>
@@ -1499,7 +1506,7 @@ export function AdvocateJoinCaseDialog({
             )
           ) : null}
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

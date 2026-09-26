@@ -143,12 +143,20 @@ export const filingsMenu = {
 /* ------------------------------------------------------------------ the dialog */
 
 export const bailDialog = {
-  title: t("Raise an application", "അപേക്ഷ സമർപ്പിക്കുക"),
+  /* closing midway: the same question every filing dialog asks */
+  discardTitle: t("Discard this application?", "ഈ അപേക്ഷ ഉപേക്ഷിക്കണോ?"),
+  discardBody: t(
+    "Anything you entered will be lost.",
+    "നിങ്ങൾ നൽകിയതെല്ലാം നഷ്ടപ്പെടും.",
+  ),
+  discardKeep: t("Keep editing", "തിരുത്തൽ തുടരുക"),
+  discardConfirm: t("Discard", "ഉപേക്ഷിക്കുക"),
+  title: t("Bail application", "ജാമ്യാപേക്ഷ"),
 
   /* application details */
   detailsBody: t(
-    "Choose the application type and set out the grounds. The application is generated for you from these details.",
-    "അപേക്ഷയുടെ തരം തിരഞ്ഞെടുത്ത് കാരണങ്ങൾ വ്യക്തമാക്കുക. ഈ വിവരങ്ങളിൽ നിന്ന് അപേക്ഷ നിങ്ങൾക്കായി തയ്യാറാക്കും.",
+    "Set out the grounds. The application is generated for you from these details.",
+    "കാരണങ്ങൾ വ്യക്തമാക്കുക. ഈ വിവരങ്ങളിൽ നിന്ന് അപേക്ഷ നിങ്ങൾക്കായി തയ്യാറാക്കും.",
   ),
   typeLabel: t("Application type", "അപേക്ഷയുടെ തരം"),
   typePlaceholder: t("Select a type", "തരം തിരഞ്ഞെടുക്കുക"),

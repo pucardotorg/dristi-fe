@@ -44,22 +44,18 @@ export function CourtFeeSummary() {
         Please visit the Nyay Mitra to make this payment offline.
       </Banner>
 
-      <DescriptionList className="rounded-lg bg-surface-sunken px-4 py-1">
-        <DescriptionRow className="grid-cols-[1fr_auto]">
-          <DescriptionTerm className="text-body">Court fees</DescriptionTerm>
-          <DescriptionDetails className="text-body">
-            {COURT_FEE}
-          </DescriptionDetails>
-        </DescriptionRow>
-        <DescriptionRow className="grid-cols-[1fr_auto]">
-          <DescriptionTerm className="text-body font-semibold text-foreground">
-            Total fees
-          </DescriptionTerm>
-          <DescriptionDetails className="text-body font-semibold">
-            {COURT_FEE}
-          </DescriptionDetails>
-        </DescriptionRow>
-      </DescriptionList>
+      {/* The View Case payment dialog's sheet: white, hairline, 14px, figures
+          tabular. The dialog around it supplies the well. */}
+      <dl className="flex flex-col rounded-lg border border-hairline bg-card px-4 py-1 text-body-compact">
+        <div className="flex items-baseline justify-between gap-4 border-b border-hairline py-2.5">
+          <dt className="min-w-0 text-muted-foreground">Court fees</dt>
+          <dd className="shrink-0 tabular-nums">{COURT_FEE}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-4 py-2.5 font-semibold">
+          <dt>Total</dt>
+          <dd className="shrink-0 tabular-nums">{COURT_FEE}</dd>
+        </div>
+      </dl>
     </div>
   );
 }

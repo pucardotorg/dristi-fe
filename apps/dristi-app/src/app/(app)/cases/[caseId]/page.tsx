@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeftIcon } from "lucide-react";
 
 import {
   ApplicationsLoading,
@@ -17,20 +15,18 @@ import { CaseBailProvider } from "@/components/cases/case-bail-flow";
 import { CaseBreadcrumbs } from "@/components/cases/case-breadcrumbs";
 import { CaseFile } from "@/components/cases/case-file";
 import { CaseHeader } from "@/components/cases/case-header";
-import {
-  CaseHearings,
-  HearingsLoading,
-} from "@/components/cases/case-hearings";
+import { CaseLinkedHearing } from "@/components/cases/case-linked-hearing";
+import { CaseHearingsSection } from "@/components/cases/hearings-register";
 import { CaseOrders, OrdersLoading } from "@/components/cases/case-orders";
 import { CaseOverview } from "@/components/cases/case-overview";
 import { CaseParties } from "@/components/cases/case-parties";
-import { CaseServiceOfProcess } from "@/components/cases/case-service-of-process";
+import { CaseProcessStatus } from "@/components/cases/case-process-status";
 import { CaseTimeline } from "@/components/cases/case-timeline";
 import {
   CaseSectionTabs,
   SectionPending,
 } from "@/components/cases/case-section-tabs";
-import { Button } from "@/components/ui/button";
+import { hearingRecords } from "@/lib/cases/hearing-record";
 import { parseCaseFileDoc, parseCaseFileView } from "@/lib/cases/case-file";
 import {
   complaintTree,
@@ -103,16 +99,10 @@ export default async function CaseDetailPage(
           views of this one page, and a breadcrumb names pages, not tabs — moving
           between tabs must not move the trail (owner, Sept 9). */}
       <CaseBreadcrumbs caseId={record.id} caseNumber={record.caseNumber} />
-      <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
-        <div>
-          <Button variant="ghost" asChild>
-            <Link href="/cases">
-              <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-              Back to cases
-            </Link>
-          </Button>
-        </div>
-
+      {/* No "Back to cases" row: the trail above already carries that link. */}
+      {/* The Pending tasks page's ground, so the white cards stand off it
+          (owner, Sept 18). Dark keeps its own background. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-6 bg-muted p-6 md:p-8 dark:bg-background">
         <CaseHeader
           record={record}
           hideLongPendingFlag={origin === "long-pending"}
@@ -131,11 +121,12 @@ export default async function CaseDetailPage(
         ) : section === "complaint" ? (
           <CaseComplaint record={record} partId={partId} />
         ) : section === "notice-process-status" ? (
-          <CaseServiceOfProcess record={record} />
+          <CaseProcessStatus record={record} />
         ) : section === "hearings" ? (
-          <Suspense fallback={<HearingsLoading />}>
-            <CaseHearings record={record} />
-          </Suspense>
+          <CaseHearingsSection
+            caseId={record.id}
+            hearings={hearingRecords(record)}
+          />
         ) : section === "orders-and-notifications" ? (
           <Suspense fallback={<OrdersLoading />}>
             <CaseOrders record={record} />
@@ -161,6 +152,7 @@ export default async function CaseDetailPage(
           />
         )}
       </CaseSectionTabs>
+      <CaseLinkedHearing record={record} />
       </div>
     </CaseBailProvider>
   );

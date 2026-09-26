@@ -27,6 +27,7 @@ import { BrandGlyph } from "@/components/brand-lockup";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { YourDetailsItem } from "@/components/filing/your-details-item";
 import { useAppSearch } from "@/components/shell/app-search";
+import { useChrome } from "@/components/shell/chrome";
 import { useProfile } from "@/components/shell/profile";
 import { RAIL_THEMES, useRailTheme } from "@/components/shell/rail-theme";
 import { Button } from "@/components/ui/button";
@@ -139,7 +140,14 @@ const START: NavItem[] = [
     icon: FilePlusIcon,
     href: "/filings",
   },
-  { id: "file-application", label: "File application", icon: FileTextIcon },
+  // Raised against a case, so the page behind this starts by asking which one;
+  // from there it is the same flow a case's Make filings menu opens.
+  {
+    id: "raise-application",
+    label: "Raise application",
+    icon: FileTextIcon,
+    href: "/raise-application",
+  },
   {
     id: "vakalatnama",
     label: "Vakalatnama",
@@ -246,12 +254,27 @@ function SearchShortcut() {
 
 function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
   const pathname = usePathname();
+  const { crumbRoot } = useChrome();
+  // On a phone the rail is a sheet over the page. Choosing where to go is the
+  // end of its job, so it puts itself away; left open, it sat over the screen
+  // that had just loaded behind it (owner, Sept 21). A no-op on desktop.
+  const { isMobile, setOpenMobile } = useSidebar();
+  const closeSheet = () => {
+    if (isMobile) setOpenMobile(false);
+  };
   const { id, label, icon: Icon, href } = item;
 
   if (onAction) {
     return (
       <SidebarMenuItem>
-        <SidebarMenuButton tooltip={label} className={ROW} onClick={onAction}>
+        <SidebarMenuButton
+          tooltip={label}
+          className={ROW}
+          onClick={() => {
+            closeSheet();
+            onAction();
+          }}
+        >
           <Icon aria-hidden />
           <span className={LABEL}>{label}</span>
           {id === "search" ? <SearchShortcut /> : null}
@@ -285,7 +308,11 @@ function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
   }
 
   // Highlighted for the whole area; `aria-current="page"` only on the list itself.
-  const inArea = pathname.startsWith(href);
+  // A screen reached through another area's door roots its trail there
+  // (`lib/nav/origin.ts`), and the rail agrees with the trail: the types page
+  // opened from Raise application lives under `/cases`, but Cases is not where
+  // the person is.
+  const inArea = (crumbRoot?.href ?? pathname).startsWith(href);
   const isPage = pathname === href;
   return (
     <SidebarMenuItem>
@@ -295,7 +322,11 @@ function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
         tooltip={label}
         className={ROW}
       >
-        <Link href={href} aria-current={isPage ? "page" : undefined}>
+        <Link
+          href={href}
+          aria-current={isPage ? "page" : undefined}
+          onClick={closeSheet}
+        >
           <Icon aria-hidden />
           <span className={LABEL}>{label}</span>
           {id === "tasks" ? (

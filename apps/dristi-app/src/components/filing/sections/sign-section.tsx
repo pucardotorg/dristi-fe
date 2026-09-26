@@ -23,20 +23,21 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { format } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
+  BellIcon,
   CheckIcon,
-  ChevronRightIcon,
   CopyIcon,
-  FileTextIcon,
   PrinterIcon,
   SignatureIcon,
   UploadIcon,
 } from "lucide-react";
 
-import { getRepository, storeUpload } from "@/lib/filing/data";
-import { forgetFile, formatBytes } from "@/lib/filing/files";
+import { getRepository } from "@/lib/filing/data";
+import { forgetFile } from "@/lib/filing/files";
 import { money, toLongDate } from "@/lib/filing/format";
 import {
   CHANNEL_FEE,
@@ -48,7 +49,6 @@ import {
 import { useProfile } from "@/lib/filing/profile";
 import {
   feeBill,
-  phoneConfirmers,
   processPlan,
   signatories,
   type AccusedPlan,
@@ -56,7 +56,7 @@ import {
 } from "@/lib/filing/selectors";
 import { FILINGS_HOME, neighbours } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
-import type { PhoneConfirmer, Signatory, StoredFileRef } from "@/lib/filing/types";
+import type { SignInstrument, Signatory } from "@/lib/filing/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,28 +76,30 @@ import {
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { useSourceDock } from "@/hooks/use-min-width";
 import { TOP_BAR_HEIGHT } from "@/components/filing/chrome";
 import { ConfirmDialog } from "@/components/filing/confirm-dialog";
+import { SectionNotice } from "@/components/filing/notices";
 import { FilingFooter } from "@/components/filing/filing-footer";
 import { FilingPageHeader } from "@/components/filing/filing-page-header";
 import { FilingMain, useSourceRailSlot } from "@/components/filing/filing-shell";
 import { PANEL_CLASS } from "@/components/filing/form-card";
 import { useLeaveGuard } from "@/components/filing/leave-guard";
-import { SectionNotice } from "@/components/filing/notices";
+import {
+  SignFlowDialog,
+  type SignFlowStart,
+} from "@/components/filing/sign-flow-dialog";
 import { CourtDocument } from "@/components/filing/sections/preview/court-document";
-import { pickErrorMessage, useFilePicker } from "@/components/filing/use-file-picker";
+import { useFilePicker } from "@/components/filing/use-file-picker";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { Identifier } from "@/components/chrome/identifier";
 
 type ModalKey =
-  | "choose"
   | "esign"
+  | "dsc"
   | "upload"
   | "payment"
   | "procaddr"
@@ -130,82 +132,178 @@ function newCaseFileNumber(): string {
 
 /* ───────────────────────────── Signature rail ──────────────────────── */
 
-function SignatureList({ title, rows }: { title: string; rows: Signatory[] }) {
+/** What a signature was made with, as a row says it — the whole line, not a fragment. */
+const INSTRUMENT: Record<SignInstrument, string> = {
+  aadhaar: "Signed with Aadhaar OTP",
+  dsc: "Signed with a DSC",
+  paper: "Signed on paper",
+};
+
+/** "2:04 pm" — the product's clock, as `lib/tasks/format` writes it. */
+function timeOf(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return format(d, "h:mm a").replace("AM", "am").replace("PM", "pm");
+}
+
+/**
+ * Who must sign, and where each of them has got to.
+ *
+ * A row states only what has actually happened. Before the requests go out there is no
+ * "Pending" chip on anybody, because nobody has been asked — a roster that shows a case
+ * waiting on signatures the system was never told to collect is the screen describing a
+ * state it never entered (owner's colleague, 2026-09-23).
+ */
+function SignatureList({
+  title,
+  rows,
+  requested,
+  notified,
+}: {
+  title: string;
+  rows: Signatory[];
+  /** Whether the signature requests have gone out at all. */
+  requested: boolean;
+  /** Signatory id → when their link was last sent. */
+  notified: Record<string, string>;
+}) {
   if (!rows.length) return null;
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-caption font-medium text-muted-foreground">{title}</p>
+      <p className="text-body-compact font-medium text-muted-foreground">{title}</p>
       <ul className="flex flex-col">
-        {rows.map((s, i) => (
-          <li
-            key={s.id}
-            className="flex items-start gap-3 border-b border-hairline py-3 last:border-b-0"
-          >
-            <span
-              aria-hidden
-              className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-caption font-medium text-secondary-foreground tabular-nums"
+        {rows.map((s, i) => {
+          const sent = timeOf(notified[s.id]);
+          return (
+            <li
+              key={s.id}
+              className="flex items-start gap-3 border-b border-hairline py-3 last:border-b-0"
             >
-              {i + 1}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-body-compact font-semibold text-foreground">
-                  {s.name}
-                </span>
-                {/* One chip per row — the status. "You" is a caption, not a badge. */}
-                {s.you ? (
-                  <span className="text-caption font-medium text-muted-foreground">
-                    You
+              <span
+                aria-hidden
+                className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-caption font-medium text-secondary-foreground tabular-nums"
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-body-compact font-semibold text-foreground">
+                    {s.name}
                   </span>
+                  {/* One chip per row — the status. "You" is a caption, not a badge. */}
+                  {s.you ? (
+                    <span className="text-body-compact font-medium text-muted-foreground">
+                      You
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-body-compact text-muted-foreground">{s.role}</p>
+                {s.status === "signed" ? (
+                  <p className="text-body-compact text-muted-foreground">
+                    {INSTRUMENT[s.signedWith ?? "aadhaar"]}
+                  </p>
+                ) : requested && !s.you ? (
+                  <p className="text-body-compact text-muted-foreground tabular-nums">
+                    Link sent{sent ? ` ${sent}` : ""}
+                  </p>
                 ) : null}
               </div>
-              <p className="text-caption font-medium text-muted-foreground">{s.role}</p>
-            </div>
-            <span className="mt-px shrink-0">
-              {s.status === "signed" ? (
-                <Badge variant="success">
-                  <CheckIcon aria-hidden />
-                  Signed
-                </Badge>
-              ) : (
-                <Badge variant="secondary">Pending</Badge>
-              )}
-            </span>
-          </li>
-        ))}
+              <span className="mt-px shrink-0">
+                {s.status === "signed" ? (
+                  <Badge variant="success">
+                    <CheckIcon aria-hidden />
+                    Signed
+                  </Badge>
+                ) : requested ? (
+                  <Badge variant="secondary">Waiting</Badge>
+                ) : null}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
 }
 
+/**
+ * The state of the signing, as one chip.
+ *
+ * The rail's three states read the same until they are named and coloured, which is what
+ * the owner found on the render (2026-09-24: *"it looks the same to me and does not
+ * communicate one has committed to the signature mode"*). One chip, one meaning: grey
+ * while nothing has been asked, blue while the court's system is waiting on somebody,
+ * green when there is nothing left to collect.
+ */
+function stateChip(
+  all: Signatory[],
+  requested: boolean,
+  onPaper: boolean
+): { variant: "secondary" | "info" | "success"; label: string } {
+  const signed = all.filter((s) => s.status === "signed").length;
+  if (all.length > 0 && signed === all.length) {
+    return { variant: "success", label: `${signed} of ${all.length} signed` };
+  }
+  if (onPaper) return { variant: "secondary", label: "Physical document" };
+  if (!requested) return { variant: "secondary", label: "Not sent" };
+  return { variant: "info", label: `${signed} of ${all.length} signed` };
+}
+
+const SIGNATURES_HEADING = "sign-signatures";
+
 function SignatureSummary({
   complainants,
   advocates,
+  requested,
+  onPaper,
+  notified,
 }: {
   complainants: Signatory[];
   advocates: Signatory[];
+  requested: boolean;
+  onPaper: boolean;
+  notified: Record<string, string>;
 }) {
   const all = [...complainants, ...advocates];
-  const signed = all.filter((s) => s.status === "signed").length;
-  const pct = all.length ? Math.round((signed / all.length) * 100) : 0;
+  const chip = stateChip(all, requested, onPaper);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-body font-semibold">Signatures</h2>
-          <span className="text-caption font-medium text-muted-foreground tabular-nums">
-            {signed} of {all.length} signed
-          </span>
+    <div className="flex flex-col gap-4">
+      {/* The block header the newer advocate screens use: the title, and the one fact
+          about it opposite (`case-overview`'s `BlockHeader`). */}
+      <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <h2 id={SIGNATURES_HEADING} className="text-body font-semibold text-foreground">
+            Signatures
+          </h2>
+          <Badge variant={chip.variant} className="tabular-nums">
+            {chip.label}
+          </Badge>
         </div>
-        <Progress
-          value={pct}
-          aria-label={`${signed} of ${all.length} signatures collected`}
-          className="h-1.5"
-        />
+        {/* Which way this complaint is being signed, once that has been settled. The
+            count alone never said it, and the owner could not tell from the rail that a
+            mode had been chosen at all (2026-09-24). */}
+        {requested || onPaper ? (
+          <p className="text-body-compact text-muted-foreground">
+            {onPaper
+              ? "One PDF carrying every party's signature"
+              : "Each party e-signs with their own Aadhaar OTP or DSC"}
+          </p>
+        ) : null}
       </div>
-      <SignatureList title="Complainant signature" rows={complainants} />
-      <SignatureList title="Advocate signature" rows={advocates} />
+      <SignatureList
+        title="Complainant signature"
+        rows={complainants}
+        requested={requested}
+        notified={notified}
+      />
+      <SignatureList
+        title="Advocate signature"
+        rows={advocates}
+        requested={requested}
+        notified={notified}
+      />
     </div>
   );
 }
@@ -262,200 +360,50 @@ function FeeGroup({
   );
 }
 
-/* ──────────────────── Phone confirmation (upload path) ─────────────── */
-
-/** The tail of a number, for display — the row never repeats the whole thing back. */
-function mobileTailOf(mobile: string): string {
-  return mobile.replace(/\D/g, "").slice(-4);
-}
-
-/**
- * One party on the uploaded copy, and the OTP that turns "someone says they all signed"
- * into that person's own confirmation. The OTP only proves the handset; the sentence
- * above it is what the person is actually answering, so the two never appear apart.
- *
- * There is no link here on purpose — every confirmation happens in this sitting. Upload
- * is the path we would rather people did not take, so its friction is left in place
- * (owner, 2026-08-19).
- */
-function ConfirmRow({
-  person,
-  index,
-  confirmed,
-  open,
-  otp,
-  resent,
-  onOpen,
-  onOtp,
-  onResend,
-  onConfirm,
-  onAddNumber,
-}: {
-  person: PhoneConfirmer;
-  index: number;
-  confirmed: boolean;
-  open: boolean;
-  otp: string;
-  resent: boolean;
-  onOpen: () => void;
-  onOtp: (value: string) => void;
-  onResend: () => void;
-  onConfirm: () => void;
-  onAddNumber: () => void;
-}) {
-  const tail = mobileTailOf(person.mobile);
-  const otpId = `confirm-otp-${person.id}`;
-
-  return (
-    <li className="border-b border-hairline py-3 last:border-b-0">
-      <div className="flex items-center gap-3">
-        <span
-          aria-hidden
-          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-caption font-medium text-secondary-foreground tabular-nums"
-        >
-          {index + 1}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-body-compact font-semibold text-foreground">
-            {person.name}
-          </p>
-          <p className="text-caption font-medium text-muted-foreground">
-            {person.role} ·{" "}
-            {tail ? (
-              <span className="tabular-nums">•••• {tail}</span>
-            ) : (
-              "No mobile number"
-            )}
-          </p>
-        </div>
-        {/* One action or one status per row, never both — the action replaces the cue. */}
-        {confirmed ? (
-          <Badge variant="success">
-            <CheckIcon aria-hidden />
-            Confirmed
-          </Badge>
-        ) : !tail ? (
-          <Button
-            type="button"
-            variant="link"
-            className="h-auto p-0 underline"
-            onClick={onAddNumber}
-          >
-            Add number
-          </Button>
-        ) : open ? null : (
-          <Button type="button" variant="outline" size="sm" onClick={onOpen}>
-            Send OTP
-          </Button>
-        )}
-      </div>
-
-      {open && !confirmed && tail ? (
-        <div className="mt-3 flex flex-col gap-3 rounded-lg bg-surface-sunken p-4">
-          <p className="text-body-compact text-muted-foreground">
-            In the live service, a 6-digit OTP goes to{" "}
-            <strong className="font-semibold text-foreground tabular-nums">
-              •••• {tail}
-            </strong>
-            . Entering it confirms that{" "}
-            <strong className="font-semibold text-foreground">
-              {person.name}
-            </strong>{" "}
-            has signed this complaint.
-          </p>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={otpId} className="text-body-compact">
-              Enter OTP
-            </Label>
-            <InputOTP
-              id={otpId}
-              maxLength={6}
-              value={otp}
-              onChange={onOtp}
-              containerClassName="gap-2"
-              // Opening a row reveals the field below the fold; focus follows the action
-              // so it scrolls into view and a keyboard user lands on it.
-              autoFocus
-            >
-              <InputOTPGroup className="gap-2">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <InputOTPSlot
-                    key={i}
-                    index={i}
-                    className="size-10 rounded-lg border border-input"
-                  />
-                ))}
-              </InputOTPGroup>
-            </InputOTP>
-            <p className="text-caption text-muted-foreground">
-              Sandbox — any 6-digit code is accepted here.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto p-0 underline"
-              onClick={onResend}
-            >
-              {resent ? "Sent again" : "Resend OTP"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={otp.length < 6}
-              onClick={onConfirm}
-            >
-              Confirm
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </li>
-  );
-}
-
-/* ───────────────────────────── Screen ──────────────────────────────── */
-
 export function SignSection() {
   const { draft, update, hrefFor, flush } = useFiling();
   const { profile } = useProfile();
   const { prev } = neighbours("sign");
-  const { pick, input } = useFilePicker();
+  const { input } = useFilePicker();
   const router = useRouter();
   const docked = useSourceDock();
   const slot = useSourceRailSlot();
 
   const [modal, setModal] = React.useState<ModalKey>(null);
-  /** Where the person asked to go while signatures are on the sheet. */
+  /** The signing window, and the stage the complaint is actually at when it opens. */
+  const [flowOpen, setFlowOpen] = React.useState(false);
+  const [flowStart, setFlowStart] = React.useState<SignFlowStart>("choose");
+  /** Where the person asked to go while this version is out for signature. */
   const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
-  const [otp, setOtp] = React.useState("");
-  const [resent, setResent] = React.useState(false);
+  /** The "switch to paper" question, which recalls requests other people already have. */
+  const [switchOpen, setSwitchOpen] = React.useState(false);
+  /** The other way round, asked only when there is an uploaded copy to discard. */
+  const [digitalSwitchOpen, setDigitalSwitchOpen] = React.useState(false);
+  /** A reminder just went out — said once, then it goes quiet again. */
+  const [reminded, setReminded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
-  const [uploadError, setUploadError] = React.useState<string | null>(null);
-  /** The one confirmation row open for its OTP — one at a time, so the list stays a list. */
-  const [otpFor, setOtpFor] = React.useState<string | null>(null);
-  const [rowOtp, setRowOtp] = React.useState("");
-  const [rowResent, setRowResent] = React.useState<string | null>(null);
 
+  const remindTimer = React.useRef<number | null>(null);
   const payTimer = React.useRef<number | null>(null);
   const copyTimer = React.useRef<number | null>(null);
-  const resendTimer = React.useRef<number | null>(null);
-  const rowResendTimer = React.useRef<number | null>(null);
   React.useEffect(
     () => () => {
       if (payTimer.current) window.clearTimeout(payTimer.current);
       if (copyTimer.current) window.clearTimeout(copyTimer.current);
-      if (resendTimer.current) window.clearTimeout(resendTimer.current);
-      if (rowResendTimer.current) window.clearTimeout(rowResendTimer.current);
+      if (remindTimer.current) window.clearTimeout(remindTimer.current);
     },
     []
   );
 
   const filed = draft.status === "filed";
   const sign = draft.sign;
+  /**
+   * The one question the whole step turns on: has this complaint been sent for
+   * signature? Until it has, nothing has left the building and everything here is still
+   * the filer's own. After it has, other people hold tasks against this exact document.
+   */
+  const requested = sign.requestedAt !== null;
+  const onPaper = sign.mode === "upload";
 
   /** The bill, derived from this draft — see `feeBill` for what makes it specific. */
   const bill = React.useMemo(() => feeBill(draft), [draft]);
@@ -488,58 +436,53 @@ export function SignSection() {
   // The same person can be both a complainant and the advocate — one signature covers
   // every capacity they sign in.
   const yous = everyone.filter((s) => s.you);
-  const you = yous[0] ?? null;
   const youSigned = yous.length > 0 && yous.every((s) => s.status === "signed");
   const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
   const anySigned = everyone.some((s) => s.status === "signed");
   const pending = everyone.filter((s) => s.status === "pending").length;
-  /** Everyone the E-Sign path hands a link to, once "you" have signed your own rows. */
+  /** Everyone the requests go out to — the signatories who are not at this keyboard. */
   const otherSigners = Math.max(0, everyone.length - yous.length);
+  const others =
+    otherSigners === 1 ? "The other party" : `The other ${otherSigners} parties`;
+  const have = otherSigners === 1 ? "has" : "have";
 
-  /*
-   * Everyone who has to sign the uploaded copy and has a number of their own: each
-   * complainant, or their PoA holder in their place, or the representative who answers
-   * for an institution. Advocates cannot appear — the Advocate section collects a name
-   * and a bar number and no phone.
-   */
-  const confirmRows = React.useMemo(() => phoneConfirmers(draft), [draft]);
-  /**
-   * A confirmation belongs to the number it was given for. Editing a party's mobile
-   * afterwards voids it rather than carrying the record to a different handset — which
-   * is why this is derived from the draft each render instead of a stored flag.
-   */
-  const isConfirmed = React.useCallback(
-    (person: PhoneConfirmer) => {
-      const record = sign.confirmed[person.id];
-      const tail = person.mobile.replace(/\D/g, "").slice(-4);
-      return !!record && !!tail && record.mobileTail === tail;
-    },
-    [sign.confirmed]
-  );
-  const confirmedCount = confirmRows.filter(isConfirmed).length;
-  const allConfirmed =
-    confirmRows.length > 0 && confirmedCount === confirmRows.length;
+  /** Why the court fee is not open yet — said on the button that is shut, not beside it. */
+  const payGate = onPaper
+    ? "The court fee opens once the signed copy is in."
+    : requested
+      ? `The court fee opens once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in.`
+      : "The court fee opens once every signature is in.";
 
   /**
    * Every signature on this screen belongs to *this* version of the complaint. Going back
    * to change the case means the sheet the parties signed no longer exists, so the
    * signatures cannot survive the trip — the question is asked before the move, not after.
+   *
+   * It is asked from the moment the requests go out, not from the first signature: once
+   * other people are holding a task against this document, editing it makes them sign
+   * something else. So the guard catches "asked but nobody has signed yet" too.
    */
   const guardLeaving = React.useCallback(
     (href: string) => {
-      if (filed || !anySigned) return false;
+      if (filed || (!anySigned && !requested)) return false;
       setLeaveTo(href);
       return true;
     },
-    [filed, anySigned, setLeaveTo]
+    [filed, anySigned, requested, setLeaveTo]
   );
   useLeaveGuard(guardLeaving);
 
+  /**
+   * Take this version of the complaint out of signature: signatures void, requests
+   * recalled, an uploaded copy forgotten. The mode itself survives — how this filing is
+   * to be signed is a decision about the filing, not about the draft it was made on.
+   */
   const discardSignatures = () => {
     const copy = sign.signedCopy;
     update((d) => {
       d.sign.signed = {};
-      d.sign.mode = null;
+      d.sign.requestedAt = null;
+      d.sign.notified = {};
       d.sign.signedCopy = null;
       // Each party confirmed they had signed *this* sheet. A sheet that no longer
       // exists takes its confirmations with it.
@@ -563,110 +506,128 @@ export function SignSection() {
     if (filed) void flush();
   }, [filed, flush]);
 
-  const mobileTail = (profile?.mobile ?? "").replace(/\D/g, "").slice(-4);
-
   const printFile = () => {
     if (typeof window !== "undefined") window.print();
   };
 
   const closeModal = () => setModal(null);
 
-  /** E-Sign records one person's signature; the other parties still have to sign. */
-  const signYou = () => {
-    if (yous.length === 0) return;
+  /** Open the signing window where the complaint actually is. */
+  const openFlow = (at: SignFlowStart) => {
+    setFlowStart(at);
+    setFlowOpen(true);
+  };
+
+  /*
+   * ── The question asks itself on arrival ──
+   *
+   * Walking Review → Sign is walking towards a decision, so the step shows the document
+   * and then puts the decision in front of the reader rather than waiting to be asked
+   * (owner, 2026-09-23). Three guards keep it from becoming a wall:
+   *
+   * - it only asks while nothing has been decided (`requestedAt === null`, still digital)
+   *   and there is somebody to ask about, so a signed or paper-bound complaint is never
+   *   interrupted;
+   * - closing it is remembered for this draft for the rest of the session, so a reader
+   *   who wanted to read the complaint first is not asked again on every return;
+   * - and the window itself sends nothing until a card is pressed, so dismissing it
+   *   costs nothing.
+   *
+   * The short delay is the point of it: the screen paints, the reader sees where they
+   * are, and then the question arrives over it.
+   */
+  const askedKey = `dristi:sign-intro:${draft.id}`;
+  const shouldAsk =
+    !filed && !requested && !onPaper && everyone.length > 0 && !allSigned;
+  React.useEffect(() => {
+    if (!shouldAsk) return;
+    try {
+      if (sessionStorage.getItem(askedKey)) return;
+    } catch {
+      /* private mode — ask, and let the close below fail just as quietly */
+    }
+    const timer = window.setTimeout(() => {
+      setFlowStart("choose");
+      setFlowOpen(true);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [shouldAsk, askedKey]);
+
+  /** Closing the window is an answer of its own: do not ask again this session. */
+  const setFlowOpenRemembering = (next: boolean) => {
+    if (!next) {
+      try {
+        sessionStorage.setItem(askedKey, "1");
+      } catch {
+        /* private mode; the worst case is being asked again on the next visit */
+      }
+    }
+    setFlowOpen(next);
+  };
+
+  /** Ask again, for everyone still waiting. The link itself does not change. */
+  const remindAll = () => {
+    const now = new Date().toISOString();
     update((d) => {
-      for (const s of yous) d.sign.signed[s.id] = true;
-      d.sign.mode = "esign";
+      for (const s of everyone) {
+        if (s.status !== "signed" && !s.you) d.sign.notified[s.id] = now;
+      }
     });
-    setOtp("");
-    setModal(null);
+    setReminded(true);
+    if (remindTimer.current) window.clearTimeout(remindTimer.current);
+    remindTimer.current = window.setTimeout(() => setReminded(false), 2500);
   };
 
   /**
-   * An uploaded copy is the complaint *after* every party has signed it — that is what
-   * the upload asks for. So it settles the whole sheet, not the uploader's own row: no
-   * one is asked to sign again for a signature already on the page in front of them.
-   *
-   * What used to be one person's word for all of it is now each complainant's own
-   * confirmation by OTP, collected before this button can be pressed.
+   * Paper instead, after the requests are already out. Nobody signs in the system now, so
+   * every outstanding request is recalled and every signature collected goes with it —
+   * the uploaded copy has to carry all of them anyway. The window then opens on the
+   * upload, which is the next thing to do.
    */
-  const submitSignedCopy = () => {
-    if (!sign.signedCopy || !allConfirmed) return;
+  const switchToUpload = () => {
     update((d) => {
-      for (const s of everyone) d.sign.signed[s.id] = true;
       d.sign.mode = "upload";
+      d.sign.requestedAt = null;
+      d.sign.notified = {};
+      d.sign.signed = {};
+      d.sign.confirmed = {};
     });
-    setModal(null);
+    setSwitchOpen(false);
+    openFlow("paper");
   };
 
-  /** Store the signed copy the person uploaded, replacing any earlier one. */
-  const receiveSignedCopy = async (file: File) => {
-    const previous = sign.signedCopy;
-    let ref: StoredFileRef;
-    try {
-      ref = await storeUpload(file);
-    } catch {
-      setUploadError("We couldn't store that file in this browser. Please try again.");
-      return;
-    }
+  /**
+   * Back to e-signing. Nothing goes out until the choice is made in the window, so this
+   * only has something to undo when a copy was already uploaded or confirmed.
+   */
+  const backToDigital = () => {
+    const copy = sign.signedCopy;
     update((d) => {
-      d.sign.signedCopy = ref;
+      d.sign.mode = "digital";
+      d.sign.signed = {};
+      d.sign.confirmed = {};
+      d.sign.signedCopy = null;
     });
-    if (previous) {
-      forgetFile(previous.id);
-      void getRepository().deleteFile(previous.id);
+    if (copy) {
+      forgetFile(copy.id);
+      void getRepository().deleteFile(copy.id);
     }
+    setDigitalSwitchOpen(false);
+    openFlow("choose");
   };
 
-  const chooseSignedCopy = () => {
-    setUploadError(null);
-    pick((file, error) => {
-      if (error) {
-        setUploadError(pickErrorMessage(error));
-        return;
+  /**
+   * Sandbox only — the other parties' links go nowhere, so this stands in for them
+   * opening theirs and signing. It is the one way to walk the rest of the flow here, and
+   * it says what it is on the button.
+   */
+  const sandboxSignOthers = () => {
+    const at = new Date().toISOString();
+    update((d) => {
+      for (const s of everyone) {
+        if (!s.you && !d.sign.signed[s.id]) d.sign.signed[s.id] = { at, with: "aadhaar" };
       }
-      if (file) void receiveSignedCopy(file);
     });
-  };
-
-  /** Open a row's OTP — in the live service this is where the message would go out. */
-  const sendRowOtp = (id: string) => {
-    setOtpFor(id);
-    setRowOtp("");
-    setRowResent(null);
-  };
-
-  const resendRowOtp = (id: string) => {
-    setRowResent(id);
-    if (rowResendTimer.current) window.clearTimeout(rowResendTimer.current);
-    rowResendTimer.current = window.setTimeout(() => setRowResent(null), 2500);
-  };
-
-  /** Record one party's confirmation against the number it was given for. */
-  const confirmRow = (person: PhoneConfirmer) => {
-    const tail = person.mobile.replace(/\D/g, "").slice(-4);
-    if (rowOtp.length < 6 || !tail) return;
-    update((d) => {
-      d.sign.confirmed[person.id] = {
-        mobileTail: tail,
-        at: new Date().toISOString(),
-      };
-    });
-    setOtpFor(null);
-    setRowOtp("");
-    setRowResent(null);
-  };
-
-  /** No number on file is a gap in the party's own section, so that is where it is fixed. */
-  const addMissingNumber = () => {
-    setModal(null);
-    router.push(hrefFor("complainant"));
-  };
-
-  const resendOtp = () => {
-    setResent(true);
-    if (resendTimer.current) window.clearTimeout(resendTimer.current);
-    resendTimer.current = window.setTimeout(() => setResent(false), 2500);
   };
 
   /**
@@ -776,7 +737,7 @@ export function SignSection() {
 
       <dl className="flex flex-col gap-3 rounded-lg bg-surface-sunken p-4">
         <div className="flex flex-col gap-0.5">
-          <dt className="text-caption font-medium text-muted-foreground">
+          <dt className="text-body-compact font-medium text-muted-foreground">
             Case file number
           </dt>
           <dd className="text-body font-semibold">
@@ -788,19 +749,19 @@ export function SignSection() {
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
-          <dt className="text-caption font-medium text-muted-foreground">Filed on</dt>
+          <dt className="text-body-compact font-medium text-muted-foreground">Filed on</dt>
           <dd className="text-body-compact font-medium tabular-nums">
             {draft.filedAt ? toLongDate(draft.filedAt.slice(0, 10)) : "—"}
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
-          <dt className="text-caption font-medium text-muted-foreground">Amount paid</dt>
+          <dt className="text-body-compact font-medium text-muted-foreground">Amount paid</dt>
           <dd className="text-body-compact font-medium tabular-nums">
             {money(sign.paidAmount ?? bill.total)}
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
-          <dt className="text-caption font-medium text-muted-foreground">
+          <dt className="text-body-compact font-medium text-muted-foreground">
             Payment reference
           </dt>
           <dd className="text-body-compact font-medium break-all">
@@ -830,79 +791,173 @@ export function SignSection() {
     </div>
   );
 
-  /** "Add your signature" — the lower half of the signing rail. */
-  const signActions = (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-body font-semibold">
-          {allSigned ? "Signing complete" : "Add your signature"}
-        </h2>
-        {you ? null : (
-          <p className="text-body-compact text-muted-foreground">
-            Add a complainant or an advocate before signing.
-          </p>
-        )}
-      </div>
+  /**
+   * ── What to do about the signatures ──
+   *
+   * It lives in the rail, under the roster it is about. It sat over the court document
+   * for one pass and read as exactly that — a card on top of the complaint (owner,
+   * 2026-09-24) — and the reason it left the rail in the first place, that the *decision*
+   * was being made in side navigation, no longer holds: the decision is made in the
+   * signing window now, and this is the handle that opens it.
+   */
+  const noSignatories = everyone.length === 0;
 
-      {allSigned ? (
-        <>
-          <SectionNotice variant="success" announce="polite">
-            {sign.mode === "upload"
-              ? "The uploaded copy carries every signature."
-              : "Every party has signed."}
-          </SectionNotice>
-          {sign.mode === "upload" ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => setModal("upload")}
-            >
-              <UploadIcon data-icon="inline-start" aria-hidden />
-              Replace signed copy
-            </Button>
-          ) : null}
-        </>
-      ) : youSigned ? (
-        <SectionNotice variant="success" announce="polite" title="You have signed">
-          {pending === 1 ? "One more party" : `${pending} more parties`} still to sign.
-        </SectionNotice>
-      ) : (
-        /*
-         * One CTA, not a button plus a dropdown of two more choices — the previous
-         * shape put "how will this be signed" and "sign now" in the same click, which
-         * is why it read as a personal action. The commitment itself, and what it means
-         * for the *other* signatories, belongs in its own step (owner, 2026-08-19): see
-         * the "How will this complaint be signed?" dialog below.
-         */
+  const signActions = noSignatories ? (
+    <p className="text-body-compact text-muted-foreground">
+      Add a complainant or an advocate before sending this for signature.
+    </p>
+  ) : allSigned ? (
+    /* ── Every signature is in ── */
+    <div className="flex flex-col gap-3">
+      <SectionNotice variant="success" announce="polite">
+        {onPaper
+          ? "The uploaded copy carries every signature."
+          : "Every party has signed."}{" "}
+        You can pay the court fee now.
+      </SectionNotice>
+      {onPaper ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full"
+          onClick={() => openFlow("paper")}
+        >
+          <UploadIcon data-icon="inline-start" aria-hidden />
+          Replace signed copy
+        </Button>
+      ) : null}
+    </div>
+  ) : onPaper ? (
+    /* ── A physical document ── */
+    <div className="flex flex-col gap-3">
+      <p className="text-body-compact text-muted-foreground">
+        Print it, collect every signature, then upload the PDF.
+      </p>
+      <Button
+        type="button"
+        size="lg"
+        className="w-full"
+        onClick={() => openFlow("paper")}
+      >
+        <UploadIcon data-icon="inline-start" aria-hidden />
+        Upload signed copy
+      </Button>
+      {/* Either mode can be chosen from the other: a filer who picked paper and then
+          found everyone can e-sign was stuck with the printer (owner, 2026-09-24). */}
+      <Button
+        type="button"
+        variant="ghost"
+        className="w-full"
+        onClick={() => {
+          /* Only worth a question when there is something to discard. */
+          if (sign.signedCopy || anySigned) setDigitalSwitchOpen(true);
+          else backToDigital();
+        }}
+      >
+        <SignatureIcon data-icon="inline-start" aria-hidden />
+        E-sign instead
+      </Button>
+    </div>
+  ) : !requested ? (
+    /* ── Nobody has been asked yet ── */
+    <Button
+      type="button"
+      size="lg"
+      className="w-full"
+      onClick={() => openFlow("choose")}
+    >
+      <SignatureIcon data-icon="inline-start" aria-hidden />
+      Continue to signing
+    </Button>
+  ) : (
+    /* ── Asked, and waiting ── */
+    <div className="flex flex-col gap-3">
+      <p className="text-body-compact text-muted-foreground">
+        {youSigned ? (
+          <>
+            Waiting on {pending === 1 ? "one more party" : `${pending} more parties`}.
+          </>
+        ) : yous.length > 0 ? (
+          <>Your signature is still needed.</>
+        ) : (
+          /*
+           * Nobody at this keyboard is a signatory — the clerk. An Aadhaar OTP or a DSC
+           * is personal and cannot be used on someone else's behalf, so there is no
+           * signing action here (owner's colleague, 2026-09-23).
+           */
+          <>{others} {have} the link; nobody here is a signatory.</>
+        )}
+      </p>
+
+      {yous.length > 0 && !youSigned ? (
         <Button
           type="button"
           size="lg"
           className="w-full"
-          disabled={!you}
-          onClick={() => setModal("choose")}
+          onClick={() => openFlow("sign")}
         >
           <SignatureIcon data-icon="inline-start" aria-hidden />
-          Continue to sign
+          Add your e-signature
         </Button>
-      )}
+      ) : null}
+
+      <div className="flex flex-col gap-2">
+        {otherSigners > 0 ? (
+          <Button
+            type="button"
+            variant={yous.length > 0 && !youSigned ? "ghost" : "outline"}
+            className="w-full"
+            onClick={remindAll}
+            disabled={reminded}
+          >
+            <BellIcon data-icon="inline-start" aria-hidden />
+            {reminded ? "Reminder sent" : "Send a reminder"}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full"
+          onClick={() => setSwitchOpen(true)}
+        >
+          <UploadIcon data-icon="inline-start" aria-hidden />
+          Upload a signed copy instead
+        </Button>
+      </div>
+
+      {/* Sandbox — the other parties' links go nowhere, so this stands in for them. */}
+      {otherSigners > 0 && pending > (youSigned ? 0 : 1) ? (
+        <div className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-3">
+          <p className="text-body-compact text-muted-foreground">
+            Sandbox — no link is actually sent.
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={sandboxSignOthers}>
+            Mark the other parties as signed
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 
   /**
-   * One rail, not two. Who has signed and what you can do about it are the same question,
-   * and splitting them across opposite edges of the screen cost the filing its Sections
-   * rail — the only screen in the flow you could not navigate out of the way you had been
-   * taught (owner, 2026-08-18).
+   * The rail is the record: who must sign, and where each of them has got to. It used to
+   * carry the acts as well, and that is what made the one consequential decision of the
+   * step read as a side panel (owner, 2026-09-23). The acts are in the column now.
    */
   const railBody = filed ? (
     filedRecord()
   ) : (
-    <div className="flex flex-col gap-6">
-      <SignatureSummary complainants={complainants} advocates={advocates} />
+    <section aria-labelledby={SIGNATURES_HEADING} className="flex flex-col gap-4">
+      <SignatureSummary
+        complainants={complainants}
+        advocates={advocates}
+        requested={requested}
+        onPaper={onPaper}
+        notified={sign.notified}
+      />
       <div role="separator" className="h-px w-full bg-hairline" />
       {signActions}
-    </div>
+    </section>
   );
 
   const backHref = filed ? hrefFor("preview") : prev ? hrefFor(prev) : hrefFor("preview");
@@ -921,10 +976,21 @@ export function SignSection() {
           }
         />
 
-        {/* Below xl there is no width for a rail column, so it stacks above the document. */}
+        {/* Below xl there is no width for a rail column, so the roster stacks here. */}
         <Card className={cn(PANEL_CLASS, "xl:hidden")}>
           <CardContent>{railBody}</CardContent>
         </Card>
+
+        {/* Printing belongs to the document, not to the step: the footer carries the
+            walk through the filing, and a control for the paper in the column was
+            competing with it (owner, 2026-09-24). */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-body font-semibold text-foreground">The complaint</h2>
+          <Button type="button" variant="outline" size="sm" onClick={printFile}>
+            <PrinterIcon data-icon="inline-start" aria-hidden />
+            Print or save as PDF
+          </Button>
+        </div>
 
         {/* Scrolls on its own, so it is focusable — a keyboard user must be able to
             reach the scroll region to read the document. */}
@@ -958,12 +1024,6 @@ export function SignSection() {
           continueHref={FILINGS_HOME}
           continueLabel="Back to dashboard"
           showSaveState={false}
-          extra={
-            <Button type="button" variant="outline" size="lg" onClick={printFile}>
-              <PrinterIcon data-icon="inline-start" aria-hidden />
-              Print or save as PDF
-            </Button>
-          }
         />
       ) : (
         <FilingFooter
@@ -971,347 +1031,37 @@ export function SignSection() {
             if (!guardLeaving(backHref)) router.push(backHref);
           }}
           continueLabel="Continue to pay fees"
-          // Nothing to pay for until the sheet is signed, so the step's one real action
-          // stays dead until it is — and then it is the focal teal, as on every other step.
-          continueDisabled={!allSigned}
+          /*
+           * Nothing to pay for until the sheet is signed, so the step's one real action
+           * stays dead until it is — and then it is the focal teal, as on every other
+           * step. Blocked rather than disabled, so the reason can live on the control
+           * instead of as a sentence taking a row of the footer beside it (owner,
+           * 2026-09-24); pressing it says the same thing, for a reader who cannot hover.
+           */
+          continueBlocked={!allSigned}
+          continueHint={allSigned ? undefined : payGate}
           showSaveState={false}
-          onContinue={() => setModal("payment")}
-          extra={
-            <Button type="button" variant="outline" size="lg" onClick={printFile}>
-              <PrinterIcon data-icon="inline-start" aria-hidden />
-              Print or save as PDF
-            </Button>
-          }
+          onContinue={() => {
+            if (!allSigned) {
+              toast(payGate);
+              return;
+            }
+            setModal("payment");
+          }}
         />
       )}
 
       {/*
-        ── How will this complaint be signed? ──
-        The commitment point. Neither path is one person's action — E-Sign hands the
-        rest of the parties a link the moment you pick it, and an uploaded copy is only
-        accepted once it already carries every signature — so both options say who else
-        it reaches before either one is clickable, not after (owner, 2026-08-19).
+        ── Signing itself ──
+        One window with stages: the decision that sends this out, the filer's own
+        signature, the outcome, and the paper path. See `sign-flow-dialog`.
       */}
-      <Dialog open={modal === "choose"} onOpenChange={(open) => !open && closeModal()}>
-        <ChromeDialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>How will this complaint be signed?</DialogTitle>
-            <DialogDescription>
-              {everyone.length > 1
-                ? `All ${everyone.length} signatories sign the same way.`
-                : "Choose how this complaint is signed."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setOtp("");
-                setModal("esign");
-              }}
-              className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <span
-                aria-hidden
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-info-muted text-info-muted-foreground"
-              >
-                <SignatureIcon className="size-5" />
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-body font-semibold text-foreground">
-                  E-Sign with Aadhaar OTP
-                </span>
-                <span className="text-body-compact text-muted-foreground">
-                  You sign now.{" "}
-                  {otherSigners === 1
-                    ? "The other party gets"
-                    : `The other ${otherSigners} parties get`}{" "}
-                  a link to sign the same way.
-                </span>
-              </span>
-              <ChevronRightIcon
-                aria-hidden
-                className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-              />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setModal("upload")}
-              className="group flex w-full items-start gap-4 rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <span
-                aria-hidden
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-warning-muted text-warning-muted-foreground"
-              >
-                <UploadIcon className="size-5" />
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-body font-semibold text-foreground">
-                  Upload a signed copy
-                </span>
-                <span className="text-body-compact text-muted-foreground">
-                  One file that already carries{" "}
-                  {everyone.length > 1 ? `all ${everyone.length} signatures` : "the signature"}
-                  , on paper or by DSC. Everyone on the complaint then confirms by
-                  OTP.
-                </span>
-              </span>
-              <ChevronRightIcon
-                aria-hidden
-                className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-              />
-            </button>
-          </div>
-
-          <p className="flex flex-wrap items-center gap-1 text-caption text-muted-foreground">
-            Nothing is filed until every signature is in.
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto p-0 text-caption underline"
-              onClick={printFile}
-            >
-              Print or save as PDF
-            </Button>
-          </p>
-        </ChromeDialogContent>
-      </Dialog>
-
-      {/*
-        ── E-Sign with Aadhaar ──
-        One job: take six digits. The code is the focal thing on the sheet, so it is
-        centred and given the room to read as a code rather than six small boxes in a
-        corner, and everything around it is a caption.
-      */}
-      <Dialog open={modal === "esign"} onOpenChange={(open) => !open && closeModal()}>
-        <ChromeDialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Enter the OTP</DialogTitle>
-            <DialogDescription>
-              {mobileTail ? (
-                <>
-                  Sent to your Aadhaar-linked mobile ending{" "}
-                  <strong className="font-semibold text-foreground tabular-nums">
-                    {mobileTail}
-                  </strong>
-                  .
-                </>
-              ) : (
-                "Sent to your Aadhaar-linked mobile."
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col items-center gap-3 py-2">
-            <InputOTP
-              id="esign-otp"
-              maxLength={6}
-              value={otp}
-              onChange={setOtp}
-              aria-label="One-time password"
-              containerClassName="gap-2"
-              autoFocus
-            >
-              <InputOTPGroup className="gap-2">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <InputOTPSlot
-                    key={i}
-                    index={i}
-                    className="size-12 rounded-lg border border-input text-title-s font-semibold tabular-nums"
-                  />
-                ))}
-              </InputOTPGroup>
-            </InputOTP>
-
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto p-0 text-body-compact"
-              onClick={resendOtp}
-            >
-              {resent ? "Sent again" : "Send it again"}
-            </Button>
-          </div>
-
-          <Button
-            type="button"
-            size="lg"
-            className="w-full"
-            disabled={otp.length < 6}
-            onClick={signYou}
-          >
-            Verify and sign
-          </Button>
-
-          {otherSigners > 0 ? (
-            <p className="text-center text-caption text-muted-foreground">
-              {otherSigners === 1
-                ? "The other party signs next."
-                : `The other ${otherSigners} parties sign next.`}
-            </p>
-          ) : null}
-
-          <p className="text-center text-caption text-muted-foreground">
-            Sandbox — any six digits work.
-          </p>
-        </ChromeDialogContent>
-      </Dialog>
-
-      {/* ── Upload signed complaint ── */}
-      <Dialog
-        open={modal === "upload"}
-        onOpenChange={(open) => {
-          if (!open) {
-            setUploadError(null);
-            setOtpFor(null);
-            setRowOtp("");
-            closeModal();
-          }
-        }}
-      >
-        {/*
-          The roster grows with the parties, so the body scrolls and the two fixed points
-          stay on screen: the title, and the button the whole list gates.
-        */}
-        <ChromeDialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Upload signed complaint</DialogTitle>
-            <DialogDescription>
-              Upload the complaint once every party has signed it.
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* `pe-2` keeps the row’s status badge clear of the scrollbar, which overlays
-              the content edge rather than reserving space for itself. */}
-          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pe-2">
-            <SectionNotice variant="warning" title="Ensure all parties have signed">
-              Each complainant, and one advocate for each complainant, must sign
-              this document. The file may be signed on paper or with a{" "}
-              <strong className="font-semibold">
-                Digital Signature Certificate (DSC)
-              </strong>
-              .
-            </SectionNotice>
-
-            {sign.signedCopy ? (
-              <div className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-sunken p-4">
-                <FileTextIcon
-                  className="size-5 shrink-0 text-muted-foreground"
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-body-compact font-medium">
-                    {sign.signedCopy.name}
-                  </p>
-                  <p className="text-caption text-muted-foreground tabular-nums">
-                    {sign.signedCopy.ext}
-                    {formatBytes(sign.signedCopy.size)
-                      ? ` · ${formatBytes(sign.signedCopy.size)}`
-                      : ""}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={chooseSignedCopy}
-                >
-                  Replace
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={chooseSignedCopy}
-                className="flex w-full flex-col items-center gap-3 rounded-xl border border-dashed border-input p-6 text-center outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <UploadIcon
-                  className="size-8 text-muted-foreground"
-                  aria-hidden
-                />
-                <span className="text-body-compact text-muted-foreground">
-                  Choose the signed file from{" "}
-                  <span className="font-medium text-primary underline underline-offset-2">
-                    my files
-                  </span>
-                </span>
-              </button>
-            )}
-
-            {uploadError ? (
-              <SectionNotice
-                variant="destructive"
-                announce="assertive"
-                title="That file wasn’t added"
-              >
-                {uploadError}
-              </SectionNotice>
-            ) : null}
-
-            <p className="text-body-compact text-muted-foreground">
-              Upload .jpg, .png, .jpeg, .webp or .pdf. Maximum upload size of 15
-              MB.
-            </p>
-
-            {/*
-            Who signed, in their own words. The list is the gate on the button below it:
-            one OTP per complainant, taken here and now, because this path has no link
-            and is not meant to be the comfortable one.
-          */}
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-body font-semibold">Verify phone numbers</h3>
-                <span className="text-caption font-medium text-muted-foreground tabular-nums">
-                  {confirmedCount} of {confirmRows.length} confirmed
-                </span>
-              </div>
-              <p className="text-body-compact text-muted-foreground">
-                This ensures the litigant has access to their case file.
-              </p>
-              <ul>
-                {confirmRows.map((person, i) => (
-                  <ConfirmRow
-                    key={person.id}
-                    person={person}
-                    index={i}
-                    confirmed={isConfirmed(person)}
-                    open={otpFor === person.id}
-                    otp={otpFor === person.id ? rowOtp : ""}
-                    resent={rowResent === person.id}
-                    onOpen={() => sendRowOtp(person.id)}
-                    onOtp={setRowOtp}
-                    onResend={() => resendRowOtp(person.id)}
-                    onConfirm={() => confirmRow(person)}
-                    onAddNumber={addMissingNumber}
-                  />
-                ))}
-              </ul>
-            </div>
-            <p className="flex flex-wrap items-center gap-1 text-body-compact">
-              Need the unsigned document to sign on paper?
-              <Button
-                type="button"
-                variant="link"
-                className="h-auto p-0 underline"
-                onClick={printFile}
-              >
-                Print or save as PDF
-              </Button>
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              disabled={!sign.signedCopy || !allConfirmed}
-              onClick={submitSignedCopy}
-            >
-              Submit as fully signed
-            </Button>
-          </DialogFooter>
-        </ChromeDialogContent>
-      </Dialog>
+      <SignFlowDialog
+        open={flowOpen}
+        start={flowStart}
+        onOpenChange={setFlowOpenRemembering}
+        onPrint={printFile}
+      />
 
       {/* ── Choose process & address ── */}
       {/*
@@ -1717,19 +1467,66 @@ export function SignSection() {
         onOpenChange={(open) => {
           if (!open) setLeaveTo(null);
         }}
-        title="Going back voids the signatures"
-        description={
-          sign.mode === "upload"
-            ? "The signed copy you uploaded was signed against this version of the complaint. Editing the case makes it a different document, so the copy is removed and every party has to sign again."
-            : `The parties signed this version of the complaint. Editing the case makes it a different document, so ${
-                everyone.filter((s) => s.status === "signed").length === 1
-                  ? "the signature already collected is"
-                  : "the signatures already collected are"
-              } discarded and everyone has to sign again.`
+        title={
+          anySigned ? "Going back voids the signatures" : "Going back recalls the requests"
         }
-        confirmLabel="Go back and re-sign"
+        description={
+          onPaper
+            ? "The signed copy you uploaded was signed against this version of the complaint. Editing the case makes it a different document, so the copy is removed and every party has to sign again."
+            : anySigned
+              ? `The parties were asked to sign this version of the complaint. Editing the case makes it a different document, so ${
+                  everyone.filter((s) => s.status === "signed").length === 1
+                    ? "the signature already collected is"
+                    : "the signatures already collected are"
+                } discarded, the outstanding requests are withdrawn, and everyone is asked again.`
+              : "The parties have already been asked to sign this version of the complaint. Editing the case makes it a different document, so those requests are withdrawn and everyone is asked again once you come back."
+        }
+        confirmLabel={anySigned ? "Go back and re-sign" : "Go back and recall"}
         cancelLabel="Stay here"
         onConfirm={confirmLeave}
+      />
+
+      {/*
+        ── Switching to paper after the requests are out ──
+        Tasks can be cancelled; a message that has already landed cannot. So this is the
+        one place in the step that asks twice, and it says what the other parties will be
+        left holding.
+      */}
+      <ConfirmDialog
+        open={switchOpen}
+        onOpenChange={setSwitchOpen}
+        title="Upload a physically signed copy instead?"
+        description={
+          otherSigners === 0
+            ? /* Nobody else was ever asked, so there is no request to withdraw — only
+                 the signature already made, if one was made. */
+              anySigned
+                ? "Your e-signature is voided. The PDF you upload has to carry your signature by hand instead."
+                : "You print the complaint, sign it by hand, and upload it as one PDF."
+            : `${others} ${have} been asked to e-sign. Switching withdraws ${
+                otherSigners === 1 ? "that request" : "those requests"
+              }${
+                anySigned ? " and voids the signatures already collected" : ""
+              } — the PDF you upload has to carry every signature by hand instead.`
+        }
+        confirmLabel="Upload a signed copy"
+        cancelLabel="Keep e-signing"
+        onConfirm={switchToUpload}
+      />
+
+      {/* ── And back the other way ── */}
+      <ConfirmDialog
+        open={digitalSwitchOpen}
+        onOpenChange={setDigitalSwitchOpen}
+        title="E-sign instead?"
+        description={
+          sign.signedCopy
+            ? "The copy you uploaded is removed, and every confirmation taken against it goes with it. Each party e-signs with their own Aadhaar OTP or DSC."
+            : "The signatures collected on the copy are discarded. Each party e-signs with their own Aadhaar OTP or DSC."
+        }
+        confirmLabel="E-sign instead"
+        cancelLabel="Keep the physical document"
+        onConfirm={backToDigital}
       />
     </>
   );

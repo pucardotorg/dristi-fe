@@ -29,6 +29,7 @@ import type {
   IntakeGroup,
   IntakeSlot,
   Jurisdiction,
+  SignInstrument,
   UserProfile,
   Representative,
   Witness,
@@ -415,7 +416,7 @@ export function buildDocumentGroups(draft: FilingDraft): DocumentGroup[] {
 export function createBlankDraft(id: string, profile?: UserProfile | null): FilingDraft {
   const now = new Date().toISOString();
   const draft: FilingDraft = {
-    version: 5,
+    version: 6,
     id,
     caseType: "s138",
     status: "draft",
@@ -436,7 +437,9 @@ export function createBlankDraft(id: string, profile?: UserProfile | null): Fili
     affidavit: "",
     documents: [],
     sign: {
-      mode: null,
+      mode: "digital",
+      requestedAt: null,
+      notified: {},
       signed: {},
       signedCopy: null,
       confirmed: {},
@@ -526,7 +529,9 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
   draft.witnesses ??= [blankWitness()];
   draft.documents ??= [];
   draft.sign ??= {
-    mode: null,
+    mode: "digital",
+    requestedAt: null,
+    notified: {},
     signed: {},
     signedCopy: null,
     confirmed: {},
@@ -570,8 +575,50 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
   draft.affidavit ??= "";
   // Phone confirmation on the upload path is newer than these drafts.
   draft.sign.confirmed ??= {};
-  draft.version = 5;
+  migrateSignMode(draft);
+  draft.version = 6;
   return draft;
+}
+
+/**
+ * Bring a draft's signing block up to the two-level model.
+ *
+ * Signing used to be one flat choice — `esign` | `dsc` | `upload` — recorded only once
+ * somebody had signed, which left the system with no idea how a complaint was going to
+ * be signed until it already had been. It is now a decision about the filing (`digital`
+ * or `upload`, presumed digital) plus, per signature, the instrument that made it. An
+ * older draft's `esign` and `dsc` were both digital signing; a bare `true` against a
+ * signatory says a signature exists without saying what made it, so it keeps the mode's
+ * own instrument and no timestamp it cannot vouch for.
+ */
+function migrateSignMode(draft: FilingDraft) {
+  const sign = draft.sign as unknown as {
+    mode: string | null;
+    requestedAt?: string | null;
+    notified?: Record<string, string>;
+    signed: Record<string, unknown>;
+  };
+
+  const legacy = sign.mode;
+  const upload = legacy === "upload";
+  sign.mode = upload ? "upload" : "digital";
+  sign.notified ??= {};
+
+  const was: SignInstrument = upload ? "paper" : legacy === "dsc" ? "dsc" : "aadhaar";
+  for (const [id, value] of Object.entries(sign.signed ?? {})) {
+    if (value === true) sign.signed[id] = { at: "", with: was };
+    else if (!value) delete sign.signed[id];
+  }
+
+  /*
+   * A draft that already carries signatures was, by definition, sent for signature —
+   * there is no other way those could exist. Nothing is known about when, and inventing
+   * a time would put a fact in the record that never happened, so it takes the draft's
+   * own last-saved time.
+   */
+  if (sign.requestedAt === undefined) {
+    sign.requestedAt = Object.keys(sign.signed ?? {}).length ? draft.updatedAt : null;
+  }
 }
 
 /**

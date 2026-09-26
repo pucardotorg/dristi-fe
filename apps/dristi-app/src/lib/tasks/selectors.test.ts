@@ -115,15 +115,15 @@ describe("kindCounts", () => {
 
   it("a pill's count is what pressing it yields — every filter but the kind applies", () => {
     // The overdue pay item is the only overdue row, so an Overdue list holds just it.
-    const c = counts({ due: "overdue" });
+    const c = counts({ dues: ["overdue"] });
     assert.equal(c.pay, 1);
     assert.equal(c.sign, 0);
     assert.equal(c.file, 0);
     // And the pill ignores a kind already pressed, so pressing another is never a
     // count that shrinks to zero behind the press.
-    assert.deepEqual(counts({ kind: "sign" }), counts());
+    assert.deepEqual(counts({ kinds: ["sign"] }), counts());
     // The count matches the rows the table will list.
-    const rows = applyFilters(world(), { ...DEFAULT_FILTERS, due: "overdue", kind: "pay" });
+    const rows = applyFilters(world(), { ...DEFAULT_FILTERS, dues: ["overdue"], kinds: ["pay"] });
     assert.equal(rows.length, c.pay);
   });
 
@@ -161,7 +161,7 @@ describe("due bands", () => {
     // band must too, or the row would sit under a heading its own cell contradicts.
     const waiting = tasks.find((t) => t.id === "waiting")!;
     assert.equal(dueBucketOf(waiting, NOW), "today");
-    assert.equal(applyFilters(world(), { ...DEFAULT_FILTERS, due: "overdue" }).length, 1);
+    assert.equal(applyFilters(world(), { ...DEFAULT_FILTERS, dues: ["overdue"] }).length, 1);
   });
 
   it("bands run in date order and drop the empty ones", () => {
@@ -218,28 +218,35 @@ describe("applyFilters", () => {
   });
 
   it("a card narrows to one kind, and started work stays in its own queue", () => {
-    assert.deepEqual(ids({ kind: "sign" }), ["today-sign", "ready-sign"]);
+    assert.deepEqual(ids({ kinds: ["sign"] }), ["today-sign", "ready-sign"]);
     // The half-written filing sits under To file beside the untouched one.
-    assert.deepEqual(ids({ kind: "file" }), ["week-file", "draft-file"]);
+    assert.deepEqual(ids({ kinds: ["file"] }), ["week-file", "draft-file"]);
     // The junior sees only the filing they are on; visibility is unchanged by this.
     assert.deepEqual(
-      applyFilters(world(junior), { ...DEFAULT_FILTERS, kind: "file" }).map((t) => t.id),
+      applyFilters(world(junior), { ...DEFAULT_FILTERS, kinds: ["file"] }).map((t) => t.id),
       ["draft-file"]
     );
   });
 
   it("due filters", () => {
-    assert.deepEqual(ids({ due: "overdue" }), ["overdue-pay"]);
-    assert.deepEqual(ids({ due: "today" }), ["today-sign"]);
-    assert.deepEqual(ids({ due: "week" }), ["hearing", "week-file", "today-sign", "returned", "ready-sign"]);
-    assert.deepEqual(ids({ due: "before-hearing" }), ["hearing", "week-file"]);
+    assert.deepEqual(ids({ dues: ["overdue"] }), ["overdue-pay"]);
+    assert.deepEqual(ids({ dues: ["today"] }), ["today-sign"]);
+    assert.deepEqual(ids({ dues: ["week"] }), ["hearing", "week-file", "today-sign", "returned", "ready-sign"]);
+    assert.deepEqual(ids({ dues: ["before-hearing"] }), ["hearing", "week-file"]);
+  });
+
+  it("choices inside one filter widen, and filters narrow each other", () => {
+    // Overdue OR due today.
+    assert.deepEqual(ids({ dues: ["overdue", "today"] }), ["overdue-pay", "today-sign"]);
+    // Pay OR sign, AND overdue: only the overdue payment is both.
+    assert.deepEqual(ids({ kinds: ["pay", "sign"], dues: ["overdue"] }), ["overdue-pay"]);
   });
 
   it("court, advocate and search", () => {
-    assert.deepEqual(ids({ court: "JMFC Court 1, Kollam" }), []);
-    assert.equal(ids({ court: kase.court }).length, 7);
-    assert.equal(ids({ advocate: junior.id }).length, 7);
-    assert.deepEqual(ids({ advocate: outsider.id }), []);
+    assert.deepEqual(ids({ courts: ["JMFC Court 1, Kollam"] }), []);
+    assert.equal(ids({ courts: [kase.court] }).length, 7);
+    assert.equal(ids({ advocates: [junior.id] }).length, 7);
+    assert.deepEqual(ids({ advocates: [outsider.id] }), []);
     assert.deepEqual(ids({ query: "process" }).length, 7);
     assert.deepEqual(ids({ query: "ST 1/2025 zzz" }), []);
   });
@@ -259,7 +266,7 @@ describe("applyFilters", () => {
   it("isNarrowed", () => {
     assert.equal(isNarrowed(DEFAULT_FILTERS), false);
     assert.equal(isNarrowed({ ...DEFAULT_FILTERS, view: "waiting" }), false);
-    assert.equal(isNarrowed({ ...DEFAULT_FILTERS, kind: "pay" }), true);
+    assert.equal(isNarrowed({ ...DEFAULT_FILTERS, kinds: ["pay"] }), true);
     assert.equal(isNarrowed({ ...DEFAULT_FILTERS, query: " x" }), true);
   });
 

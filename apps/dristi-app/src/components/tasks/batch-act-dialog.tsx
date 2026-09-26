@@ -20,7 +20,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 /**
  * Signing or paying a selected set — one authorisation for the whole set.
@@ -114,7 +114,7 @@ export function BatchActDialog({
 
   return (
     <Dialog open={open && !!kind && tasks.length > 0} onOpenChange={(next) => (next ? undefined : close())}>
-      <ChromeDialogContent
+      <FlowDialogContent
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
         /* The DS's ghost X lands on the result panel's own fill and disappears into it;
            there the footer's Close is the way out. It is also gone while the set is
@@ -138,7 +138,7 @@ export function BatchActDialog({
             onFinished={onFinished}
           />
         ) : null}
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

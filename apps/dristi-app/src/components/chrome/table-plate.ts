@@ -118,9 +118,14 @@ export const TABLE_CELL =
 /**
  * The header row: no hover (nothing in it is live) and rounded ends, so the strip reads
  * as a well the panel insets rather than a band welded across it.
+ *
+ * No rule under it either. The sunken fill already separates the strip from the rows,
+ * and the DS hairline ran square under a rounded well, past both its corners (owner,
+ * 2026-09-18). The DS sets that border's width from `TableHeader` with a selector this
+ * row cannot outrank, so the row clears its colour instead.
  */
 export const TABLE_HEAD_ROW =
-  "hover:bg-transparent [&>th:first-child]:rounded-l-lg [&>th:last-child]:rounded-r-lg";
+  "border-transparent hover:bg-transparent [&>th:first-child]:rounded-l-lg [&>th:last-child]:rounded-r-lg";
 
 /**
  * The rest state: the fill the row sits on, the properties that animate off it, and the

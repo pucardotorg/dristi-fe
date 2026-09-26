@@ -51,7 +51,7 @@ function toggleIn<T>(list: readonly T[], value: T, on: boolean): T[] {
  * after the label in muted `tabular-nums` where the group has them — same
  * presentation for every option, never a badge on one and text on the next.
  */
-function CheckGroup<T extends string>({
+export function CheckGroup<T extends string>({
   id,
   legend,
   options,
@@ -241,6 +241,7 @@ export function CasesFiltersButton({
       <SheetTrigger asChild>
         <Button
           variant="outline"
+          data-toolbar-action
           className={"shrink-0 gap-0 duration-300 " + (compact ? "px-2.5" : "px-4")}
           aria-label={`Filters${applied ? `, ${applied} applied` : ""}`}
         >

@@ -28,6 +28,46 @@
   ],
   "submissions": [
     {
+      "id": "sub-1001-exemption",
+      "kind": "Application",
+      "type": "Others",
+      "title": "Exemption from personal appearance",
+      "status": "Completed",
+      "addedOn": "2026-07-29",
+      "submittedById": "ADV-C-001",
+      "submissionId": "KL-DUMMY-001386-2026-AP7",
+      "request": null,
+      "courtResult": "Allowed for the day",
+      "linkedOrder": null,
+      "defects": [],
+      "documents": [
+        {
+          "label": "Filed application",
+          "href": "/case-file/11-application-early-listing.pdf"
+        }
+      ]
+    },
+    {
+      "id": "sub-1001-summon-bank",
+      "kind": "Application",
+      "type": "Production of documents",
+      "title": "Summon bank official and produce account records",
+      "status": "Completed",
+      "addedOn": "2026-07-24",
+      "submittedById": "ADV-C-001",
+      "submissionId": "KL-DUMMY-001386-2026-AP6",
+      "request": null,
+      "courtResult": "Allowed",
+      "linkedOrder": null,
+      "defects": [],
+      "documents": [
+        {
+          "label": "Filed application",
+          "href": "/case-file/12-application-production-pw2-records.pdf"
+        }
+      ]
+    },
+    {
       "id": "sub-1001-settlement-draft",
       "kind": "Application",
       "type": "Settlement",

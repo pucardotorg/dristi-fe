@@ -509,3 +509,18 @@ must keep reaching it. A documented name for the state would help as much as the
 distinction between "you may not" (`disabled`) and "this is not connected yet"
 (`aria-disabled` + explanation) is a real one, and right now every consumer meets it by
 discovering that nothing happened.
+
+---
+
+## Input has no compact size (`size="sm"`)
+
+**Observed (pin e0cadea6):** `SelectTrigger` and `Button` both offer `size="sm"` at 36px
+(`h-9`), but `Input` and `InputGroup` are fixed at `h-10`. A register toolbar that sets
+compact filters beside a search field cannot match their heights from the primitives.
+
+**Consequence:** the View Case registers (Applications, Documents) set `h-9` on the search
+`Input` once, in `components/cases/register-controls.tsx`, returning to `h-10` below `sm:`
+for the 40px touch floor. That is a local height on a synced primitive.
+
+**Request:** add `size?: "sm" | "default"` to `Input` (and `InputGroup`) mirroring
+`SelectTrigger`, so a compact toolbar composes from the primitives alone.
