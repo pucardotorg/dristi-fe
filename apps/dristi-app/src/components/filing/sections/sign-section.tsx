@@ -36,7 +36,7 @@ import {
   UploadIcon,
 } from "lucide-react";
 
-import { getRepository } from "@/lib/filing/data";
+import { getRepository, newCaseFileNumber, newPaymentRef } from "@/lib/filing/data";
 import { forgetFile } from "@/lib/filing/files";
 import { money, toLongDate } from "@/lib/filing/format";
 import {
@@ -106,29 +106,6 @@ type ModalKey =
   | "processing"
   | "success"
   | null;
-
-const REF_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
-/** Stand-in payment reference — the shape a gateway returns, generated locally. */
-function newPaymentRef(): string {
-  const n = 10;
-  let out = "";
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const bytes = new Uint8Array(n);
-    crypto.getRandomValues(bytes);
-    for (const b of bytes) out += REF_ALPHABET[b % REF_ALPHABET.length];
-  } else {
-    for (let i = 0; i < n; i += 1) {
-      out += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
-    }
-  }
-  return `TXN-${out}`;
-}
-
-function newCaseFileNumber(): string {
-  const serial = String(Date.now() % 1_000_000).padStart(6, "0");
-  return `KL-${serial}-${new Date().getFullYear()}`;
-}
 
 /* ───────────────────────────── Signature rail ──────────────────────── */
 

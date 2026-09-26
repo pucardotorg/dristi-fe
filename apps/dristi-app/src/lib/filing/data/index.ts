@@ -28,6 +28,30 @@ export function newId(prefix = ""): string {
   return prefix ? `${prefix}_${raw.slice(0, 12)}` : raw.slice(0, 12);
 }
 
+const REF_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+/** Stand-in payment reference — the shape a gateway returns, generated locally. */
+export function newPaymentRef(): string {
+  const n = 10;
+  let out = "";
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(n);
+    crypto.getRandomValues(bytes);
+    for (const b of bytes) out += REF_ALPHABET[b % REF_ALPHABET.length];
+  } else {
+    for (let i = 0; i < n; i += 1) {
+      out += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
+    }
+  }
+  return `TXN-${out}`;
+}
+
+/** Stand-in case number — the sandbox generates one rather than getting it from a court. */
+export function newCaseFileNumber(): string {
+  const serial = String(Date.now() % 1_000_000).padStart(6, "0");
+  return `KL-${serial}-${new Date().getFullYear()}`;
+}
+
 /** Store an upload and return the reference the draft keeps. */
 export async function storeUpload(file: File): Promise<StoredFileRef> {
   const ext = (file.name.split(".").pop() || "").toUpperCase().slice(0, 5) || "FILE";

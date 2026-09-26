@@ -13,6 +13,7 @@ import {
   FINAL_RELIEF_TEMPLATE,
   INTERIM_RELIEF_TEMPLATE,
 } from "./options";
+import { WALK_ORDER } from "./steps";
 import type {
   Accused,
   Address,
@@ -514,6 +515,13 @@ const blankAdr = (): AdrPrayer => ({
  */
 export function migrateDraft(draft: FilingDraft): FilingDraft {
   migrateAdr(draft);
+
+  // migrateAdr moves the one renamed id this branch knows to carry across
+  // ("settlement"); a step dropped or renamed some other way — the next one will not
+  // be predictable either — otherwise survives on the draft as an id this branch's
+  // router cannot resolve, and `getStep` throws over it deep inside the queue list.
+  // Reopening onto the first screen is a smaller loss than that.
+  if (!WALK_ORDER.includes(draft.lastStep)) draft.lastStep = "upload";
 
   draft.intake ??= {
     cheques: [intakeChequeGroup(1)],
