@@ -25,7 +25,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { causeTitle, counselFor } from "@/lib/employee/hearings";
-import { delayDays, type CognizanceCase } from "@/lib/employee/cognizance";
+import {
+  delayDays,
+  type CognizanceCase,
+  type CognizanceTab,
+} from "@/lib/employee/cognizance";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
 
@@ -61,21 +65,31 @@ export function CognizanceCaseLink({
 }
 
 /**
- * Whether the complaint came in time, as the column says it.
+ * How late the complaint was, in days.
  *
- * The number is the encoding and the words carry the unit, so the fact survives without
- * colour. Being late is the notable answer of the two, so it takes the page's own
- * foreground and being in time steps back to muted — hierarchy from weight of colour
- * rather than from a paint that would read as a defect. It is not one: a late complaint
- * arrives with an application to condone the delay, and deciding that is ordinary work.
+ * Two dresses, because the column and the phone say it in different company. In the
+ * table the header already names the fact, so the cell is the bare number and nothing
+ * else — twenty rows of "12 days late" under a column called *Days of delay* is the unit
+ * written twice, and the numbers no longer line up to be compared. Stacked on a phone
+ * there is no header, so the words come back and carry it.
+ *
+ * `tabular-nums` either way: these are numbers a bench reads down a column.
  */
-export function DelayCell({ matter }: { matter: CognizanceCase }) {
+export function DelayCell({
+  matter,
+  standalone = false,
+}: {
+  matter: CognizanceCase;
+  standalone?: boolean;
+}) {
   const late = delayDays(matter);
   if (late === null) {
+    /* Only reachable standalone: the column exists on the With delay tab alone. */
     return <span className="text-muted-foreground">In time</span>;
   }
+  if (!standalone) return <span className="tabular-nums">{late}</span>;
   return (
-    <span className="text-foreground">
+    <span>
       <span className="tabular-nums">{late}</span>{" "}
       {late === 1 ? "day late" : "days late"}
     </span>
@@ -83,19 +97,29 @@ export function DelayCell({ matter }: { matter: CognizanceCase }) {
 }
 
 /**
- * The cognizance queue as a table: the cause, its number, who appears, and whether the
- * complaint was filed within the month §142(b) allows.
+ * One tab's complaints as a table: the cause, its number, who appears — and, on the With
+ * delay tab, how many days late the complaint was.
  *
- * Four columns, the PRD's four. There is no serial — these complaints have no day yet.
- * There is no status chip: every row is in one state, waiting for this act, so a column
- * repeating it on every row would carry nothing. And there is no actions column, because
- * the decision lives at the foot of the complaint's own file, where the magistrate has
- * just read the thing they are deciding about.
+ * The PRD's columns, per tab: three without delay, four with it. *Days of delay* exists
+ * only where there is delay to show; on the other tab every row would say the same
+ * thing, and a column with one value in it is a column carrying nothing. There is no
+ * serial — these complaints have no day yet — no status chip, because every row on this
+ * screen is in the one state, and no actions column, because the decision lives at the
+ * foot of the complaint's own file where the magistrate has just read the thing they are
+ * deciding about.
  *
  * The panel shell lives on the screen around this, so the table is one panel rather than
  * a box inside a box.
  */
-export function CognizanceTable({ rows }: { rows: CognizanceCase[] }) {
+export function CognizanceTable({
+  rows,
+  tab,
+}: {
+  rows: CognizanceCase[];
+  tab: CognizanceTab;
+}) {
+  const showDelay = tab === "with-delay";
+  const columns = showDelay ? 4 : 3;
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
@@ -109,9 +133,11 @@ export function CognizanceTable({ rows }: { rows: CognizanceCase[] }) {
           <TableHead className={cn(TABLE_HEAD, "min-w-48 whitespace-normal")}>
             Advocates
           </TableHead>
-          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap text-right")}>
-            Delay
-          </TableHead>
+          {showDelay ? (
+            <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap text-right")}>
+              Days of delay
+            </TableHead>
+          ) : null}
         </TableRow>
       </TableHeader>
       <TableBody className={tableBodyClass()}>
@@ -119,7 +145,7 @@ export function CognizanceTable({ rows }: { rows: CognizanceCase[] }) {
             bottom corners read as cut off. `border-separate` has no per-edge row gap, so
             the gap is one inert row held out of the accessibility tree. */}
         <tr aria-hidden="true">
-          <td colSpan={4} className="h-2 p-0" />
+          <td colSpan={columns} className="h-2 p-0" />
         </tr>
         {rows.map((matter) => (
           <TableRow key={matter.id} {...rowActivation(tableRowClass())}>
@@ -147,11 +173,13 @@ export function CognizanceTable({ rows }: { rows: CognizanceCase[] }) {
                 dense
               />
             </TableCell>
-            <TableCell
-              className={cn(TABLE_CELL, "text-right whitespace-nowrap")}
-            >
-              <DelayCell matter={matter} />
-            </TableCell>
+            {showDelay ? (
+              <TableCell
+                className={cn(TABLE_CELL, "text-right whitespace-nowrap")}
+              >
+                <DelayCell matter={matter} />
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>

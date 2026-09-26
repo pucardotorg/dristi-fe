@@ -24,19 +24,24 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { rowActivation } from "@/lib/employee/row-activation";
+import { useReturnedTab } from "@/components/employee/cognizance-return";
 import {
-  COGNIZANCE_DELAY_FILTERS,
+  casesOnTab,
   COGNIZANCE_QUEUE,
+  COGNIZANCE_TABS,
+  cognizanceTabCount,
   EMPTY_COGNIZANCE_FILTERS,
   filterCognizanceCases,
   type CognizanceCase,
   type CognizanceFilters,
+  type CognizanceTab,
 } from "@/lib/employee/cognizance";
 import {
   counselFor,
   PAGE_SIZE,
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
 
@@ -51,12 +56,12 @@ import { Identifier } from "@/components/chrome/identifier";
  * cognizance is looking at one complaint's life at two moments and should not have to
  * re-learn the furniture in between.
  *
- * **One list, not two.** The reference put *With Delay* and *Without delay* in the rail
- * as two counted rows opening two screens that differed by three lines. Whether a
- * complaint was late makes no difference to how cognizance is taken — the condonation
- * application came with it either way — so it narrows this list instead of forking it
- * (owner, 2026-09-14). Delay is a column you can read per row and a filter you can
- * apply.
+ * **Two tabs inside one rail row.** Delay was a filter on one list until the PRD (v6,
+ * §2) made the split decide the act: the positive action is configured per tab, and a
+ * state may swap Take cognizance for Issue notice on either. That is not something you
+ * narrow a list by. What the reference wanted and the PRD does not ask for — two counted
+ * rail rows opening two near-identical screens — stays refused: one row, one screen, two
+ * tabs in it.
  *
  * There is no teal on the page, and that is right: the Ration Teal Law spends a strong
  * action on the view's own act, and this view has none. Cognizance is taken at the foot
@@ -72,17 +77,20 @@ export function CognizanceScreen() {
   const [filters, setFilters] = React.useState<CognizanceFilters>(
     EMPTY_COGNIZANCE_FILTERS,
   );
+  /* The tab the magistrate left on, when they are coming back from a complaint; the
+     first tab otherwise. Taken once on mount, then this screen's own. */
+  const returned = useReturnedTab();
+  const [tab, setTab] = React.useState<CognizanceTab>(returned);
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
 
-  const rows = filterCognizanceCases(COGNIZANCE_QUEUE, filters);
+  const rows = filterCognizanceCases(casesOnTab(COGNIZANCE_QUEUE, tab), filters);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered =
-    filters.query !== "" || filters.delay !== EMPTY_COGNIZANCE_FILTERS.delay;
+  const isFiltered = filters.query !== "";
 
   function changeFilters(next: CognizanceFilters) {
     setFilters(next);
@@ -91,6 +99,13 @@ export function CognizanceScreen() {
 
   function clearFilters() {
     changeFilters(EMPTY_COGNIZANCE_FILTERS);
+  }
+
+  /* Switching tabs is a different list, so it starts at its own first page. The search
+     survives the move: it is the bench's question, not the tab's. */
+  function changeTab(next: CognizanceTab) {
+    setTab(next);
+    setPage(1);
   }
 
   return (
@@ -114,63 +129,117 @@ export function CognizanceScreen() {
         </p>
       </header>
 
-      {/* One panel: filters, list and footer are one unit of work, so they share one
-          lifted sheet. Nothing inside draws a second frame. */}
-      <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
-        <CognizanceFiltersRow
-          filters={filters}
-          onChange={changeFilters}
-          onClear={clearFilters}
-        />
+      <Tabs
+        value={tab}
+        onValueChange={(value) => changeTab(value as CognizanceTab)}
+        activationMode="automatic"
+        className="flex min-w-0 flex-col gap-6"
+      >
+        {/* Line TabsList, not the pill track: these are two halves of one register
+            rather than alternative views of it, and the underline is what a line looks
+            like. The primitive hangs its mark at `after:bottom-[-5px]` for a padded
+            track, so the mark is sat at `after:-bottom-px` to land on the gutter's own
+            rule instead of floating above it as a second horizontal line — the same
+            correction Scrutinise submitted cases carries. */}
+        <div className="overflow-x-auto border-b border-hairline">
+          <TabsList
+            variant="line"
+            aria-label="Whether the complaint was filed in time"
+            className="h-10 w-max min-w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
+          >
+            {COGNIZANCE_TABS.map((queueTab) => (
+              <TabsTrigger
+                key={queueTab.id}
+                value={queueTab.id}
+                className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
+              >
+                {queueTab.label}
+                {/* How many stand here, counted over the whole queue so the number does
+                    not move as the search box is typed into. It inherits the trigger's
+                    colour, so the count and its label read as one thing. */}
+                <span className="font-normal tabular-nums">
+                  {cognizanceTabCount(queueTab.id)}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-        <QueueAnnouncer
-          from={start + 1}
-          to={start + pageRows.length}
-          total={rows.length}
-        />
+        {COGNIZANCE_TABS.map((queueTab) => (
+          <TabsContent
+            key={queueTab.id}
+            value={queueTab.id}
+            className="min-w-0 outline-none"
+          >
+            {queueTab.id !== tab ? null : (
+              /* One panel: filters, list and footer are one unit of work, so they share
+                 one lifted sheet. Nothing inside draws a second frame. */
+              <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
+                <CognizanceFiltersRow
+                  filters={filters}
+                  onChange={changeFilters}
+                  onClear={clearFilters}
+                />
 
-        {pageRows.length === 0 ? (
-          <CognizanceEmpty isFiltered={isFiltered} onClear={clearFilters} />
-        ) : (
-          <div className="flex min-w-0 flex-col gap-4">
-            {/* min-w-0 lets this flex item shrink below the table's content width, so a
-                wide table scrolls inside the panel instead of pushing the page sideways. */}
-            <div className="min-w-0 overflow-x-auto">
-              <div className="hidden md:block">
-                <CognizanceTable rows={pageRows} />
-              </div>
-              <div className="md:hidden">
-                <CognizanceItemList rows={pageRows} />
-              </div>
-            </div>
+                <QueueAnnouncer
+                  from={start + 1}
+                  to={start + pageRows.length}
+                  total={rows.length}
+                />
 
-            <ListFooter
-              id="cognizance-page-size"
-              from={start + 1}
-              to={start + pageRows.length}
-              total={rows.length}
-              page={currentPage}
-              pageCount={pageCount}
-              onPageChange={setPage}
-              pageSize={pageSize}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-              }}
-            />
-          </div>
-        )}
-      </section>
+                {pageRows.length === 0 ? (
+                  <CognizanceEmpty
+                    tab={tab}
+                    isFiltered={isFiltered}
+                    onClear={clearFilters}
+                  />
+                ) : (
+                  <div className="flex min-w-0 flex-col gap-4">
+                    {/* min-w-0 lets this flex item shrink below the table's content
+                        width, so a wide table scrolls inside the panel instead of
+                        pushing the page sideways. */}
+                    <div className="min-w-0 overflow-x-auto">
+                      <div className="hidden md:block">
+                        <CognizanceTable rows={pageRows} tab={tab} />
+                      </div>
+                      <div className="md:hidden">
+                        <CognizanceItemList rows={pageRows} tab={tab} />
+                      </div>
+                    </div>
+
+                    <ListFooter
+                      id="cognizance-page-size"
+                      from={start + 1}
+                      to={start + pageRows.length}
+                      total={rows.length}
+                      page={currentPage}
+                      pageCount={pageCount}
+                      onPageChange={setPage}
+                      pageSize={pageSize}
+                      onPageSizeChange={(size) => {
+                        setPageSize(size);
+                        setPage(1);
+                      }}
+                    />
+                  </div>
+                )}
+              </section>
+            )}
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }
 
 /**
- * Free text and the delay filter, both narrowing as they are set.
+ * Free text over the tab's own rows, narrowing as it is typed.
  *
- * No Search button: with nothing to compose before asking, a button only stands between
- * the bench and the answer. The way back to the whole queue is the `×` in the box and
- * the filter's own "All complaints".
+ * One control now the tabs carry delay: the select that used to sit beside it asked the
+ * same question the tab strip answers, and two ways to say one thing is one of them
+ * being wrong. No Search button either — with nothing to compose before asking, a button
+ * only stands between the bench and the answer, and the way back to the whole tab is the
+ * `×` in the box.
  *
  * The form element stays so Enter in the box is swallowed rather than reloading the page.
  */
@@ -191,22 +260,7 @@ function CognizanceFiltersRow({
         onChange: (query) => onChange({ ...filters, query }),
         placeholder: "Case name, number or advocate",
       }}
-      fields={[
-        {
-          id: "cognizance-delay",
-          label: "Delay",
-          value: filters.delay,
-          all: "any",
-          allLabel:
-            COGNIZANCE_DELAY_FILTERS.find((option) => option.id === "any")
-              ?.label ?? "All complaints",
-          options: COGNIZANCE_DELAY_FILTERS.filter(
-            (option) => option.id !== "any",
-          ).map((option) => ({ value: option.id, label: option.label })),
-          onApply: (value) =>
-            onChange({ ...filters, delay: value as CognizanceFilters["delay"] }),
-        },
-      ]}
+      fields={[]}
       onClearAll={onClear}
     />
   );
@@ -215,17 +269,24 @@ function CognizanceFiltersRow({
 /**
  * Why the list is empty, and what to do about it.
  *
- * Two different facts, so two different states: a filter that matched nothing is a dead
- * end with an action worth offering, while an empty queue is the bench being up to date.
- * Borderless and unpadded; the panel is already the frame.
+ * Two different facts, so two different states: a search that matched nothing is a dead
+ * end with an action worth offering, while an empty tab is the bench being up to date on
+ * that half of the register — and the two halves are up to date about different things,
+ * so each says its own. Borderless and unpadded; the panel is already the frame.
  */
 function CognizanceEmpty({
+  tab,
   isFiltered,
   onClear,
 }: {
+  tab: CognizanceTab;
   isFiltered: boolean;
   onClear: () => void;
 }) {
+  const clear =
+    tab === "with-delay"
+      ? "No complaint filed beyond the month is waiting for a decision."
+      : "No complaint filed in time is waiting for a decision.";
   return (
     <Empty className="border-0 p-0">
       <EmptyHeader>
@@ -233,12 +294,12 @@ function CognizanceEmpty({
           {isFiltered ? <SearchXIcon aria-hidden /> : <StampIcon aria-hidden />}
         </EmptyMedia>
         <EmptyTitle className="text-title-s font-semibold">
-          {isFiltered ? "No complaints match these filters" : "Nothing waiting"}
+          {isFiltered ? "No complaints match this search" : "Nothing waiting"}
         </EmptyTitle>
         <EmptyDescription className="text-body">
           {isFiltered
-            ? "No complaint waiting for cognizance matches what you have asked for."
-            : "Every complaint on this court's register has been taken cognizance of or dismissed."}
+            ? "No complaint on this tab matches what you have asked for."
+            : clear}
         </EmptyDescription>
       </EmptyHeader>
       {isFiltered ? (
@@ -256,11 +317,18 @@ function CognizanceEmpty({
  * The same rows below `md`, stacked.
  *
  * Four columns do not survive a 375px screen, so the cause keeps its line, the number
- * and the delay share the one under it, and the advocates drop to their own. The delay is
- * spelled out with its unit either way, because on a phone there is no column header to
- * name it.
+ * and the delay share the one under it, and the advocates drop to their own. The delay
+ * is spelled out with its unit here — on a phone there is no column header to name it —
+ * and only on the tab that has one to show.
  */
-function CognizanceItemList({ rows }: { rows: CognizanceCase[] }) {
+function CognizanceItemList({
+  rows,
+  tab,
+}: {
+  rows: CognizanceCase[];
+  tab: CognizanceTab;
+}) {
+  const showDelay = tab === "with-delay";
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((matter) => (
@@ -276,8 +344,12 @@ function CognizanceItemList({ rows }: { rows: CognizanceCase[] }) {
           />
           <p className="text-caption text-muted-foreground">
             <Identifier value={matter.caseNumber} label="case number" />
-            {" · "}
-            <DelayCell matter={matter} />
+            {showDelay ? (
+              <>
+                {" · "}
+                <DelayCell matter={matter} standalone />
+              </>
+            ) : null}
           </p>
           <CounselCell
             complainant={counselFor(matter, "complainant").map(
