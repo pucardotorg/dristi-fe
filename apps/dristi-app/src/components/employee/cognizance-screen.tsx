@@ -243,7 +243,7 @@ export function CognizanceScreen() {
  *
  * The form element stays so Enter in the box is swallowed rather than reloading the page.
  */
-function CognizanceFiltersRow({
+export function CognizanceFiltersRow({
   filters,
   onChange,
   onClear,
@@ -274,7 +274,7 @@ function CognizanceFiltersRow({
  * that half of the register — and the two halves are up to date about different things,
  * so each says its own. Borderless and unpadded; the panel is already the frame.
  */
-function CognizanceEmpty({
+export function CognizanceEmpty({
   tab,
   isFiltered,
   onClear,
@@ -321,7 +321,7 @@ function CognizanceEmpty({
  * is spelled out with its unit here — on a phone there is no column header to name it —
  * and only on the tab that has one to show.
  */
-function CognizanceItemList({
+export function CognizanceItemList({
   rows,
   tab,
 }: {

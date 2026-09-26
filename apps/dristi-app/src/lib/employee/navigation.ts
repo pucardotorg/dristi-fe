@@ -31,7 +31,9 @@ import { APPROVE_COPY_QUEUE_COUNT } from "./approve-copy-application";
 import {
   COGNIZANCE_QUEUE_COUNT,
   cognizanceCaseById,
+  cognizanceTabCount,
 } from "./cognizance";
+import { type CognizanceLayout, readCognizanceLayout } from "./cognizance-layout";
 import { DELAY_CONDONATION_QUEUE_COUNT } from "./delay-condonation";
 import { hearingById, TODAYS_HEARING_COUNT } from "./hearings";
 import type { CourtNavLayout } from "./nav-layout";
@@ -129,6 +131,13 @@ export type CourtNavItem = {
   external?: boolean;
   /** How much of this kind of work is waiting on the bench. Demo data; see above. */
   count?: number;
+  /**
+   * Rows of their own under this one — today, only `cognizance-layout.ts`'s "split"
+   * setting gives any row these (`courtNavGroupsFor`). Generic rather than named after
+   * that one case, so a future row that wants the same shape does not need a second
+   * mechanism.
+   */
+  children?: CourtNavItem[];
 };
 
 export type CourtNavGroup = {
@@ -299,11 +308,18 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
          goes ahead. Registering is not taking cognizance — it puts the complaint on the
          register and nothing more, and this row is the act that follows.
 
-         One row, not two. The reference split this queue into *With Delay* and *Without
-         delay* as two counted children opening two screens that differed by three lines.
-         The PRD (v6, §2) keeps the split — it decides which positive action the bench is
-         offered — but keeps it inside the screen, as two tabs. The rail carries the act,
-         and the act is one: take cognizance. */
+         One row by default, not two. The reference split this queue into *With Delay*
+         and *Without delay* as two counted children opening two screens that differed
+         by three lines; the PRD (v6, §2) keeps the split — it decides which positive
+         action the bench is offered — but keeps it inside the screen, as two tabs.
+         That stands as the default. `cognizance-layout.ts` now also lets the bench
+         choose the reference's own shape instead — two rows of their own, each its own
+         screen (`/employee/cognizance/without-delay`, `/employee/cognizance/with-delay`)
+         — as a preference rather than a replacement, from Court settings (owner,
+         2026-09-26). `courtNavGroupsFor` attaches the two as this row's `children` only
+         when that setting is live; see it and `isCourtNavGroupActive`/`courtTrail`
+         below for how a child is matched and traced the same way a nested case record
+         is. */
       {
         id: "cognizance",
         label: "Take cognizance",
@@ -427,6 +443,49 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
     ],
   },
 ];
+
+/** The two rows `cognizance-layout.ts`'s "split" setting gives Take cognizance. */
+function cognizanceChildren(): CourtNavItem[] {
+  return [
+    {
+      id: "cognizance-without-delay",
+      label: "Without delay",
+      href: "/employee/cognizance/without-delay",
+      count: cognizanceTabCount("without-delay"),
+    },
+    {
+      id: "cognizance-with-delay",
+      label: "With delay",
+      href: "/employee/cognizance/with-delay",
+      count: cognizanceTabCount("with-delay"),
+    },
+  ];
+}
+
+/**
+ * `COURT_NAV_GROUPS`, with Take cognizance's two rows attached when the "split" setting
+ * is live. Read fresh rather than cached: the setting can change without a reload, and
+ * the counts are the queue's own and can move with it. Every other row and group is
+ * returned exactly as `COURT_NAV_GROUPS` holds it — `"tabs"` returns that same array,
+ * unchanged and uncopied.
+ */
+export function courtNavGroupsFor(
+  cognizanceLayout: CognizanceLayout,
+): CourtNavGroup[] {
+  if (cognizanceLayout !== "split") return COURT_NAV_GROUPS;
+  return COURT_NAV_GROUPS.map((group) =>
+    group.id !== "actions"
+      ? group
+      : {
+          ...group,
+          items: group.items.map((item) =>
+            item.id !== "cognizance"
+              ? item
+              : { ...item, children: cognizanceChildren() },
+          ),
+        },
+  );
+}
 
 /**
  * The rows each combined layout keeps standing apart from its one folded row, leading
@@ -628,7 +687,7 @@ const NESTED_ROUTES: {
   {
     queue: "/employee/register-cases",
     pattern: /^\/employee\/register-cases\/([^/]+)\/?$/,
-    identify: (id) => registerCaseById(id)?.caseNumber,
+    identify: (id) => registerCaseById(id)?.filingNumber,
   },
   {
     queue: "/employee/cognizance",
@@ -730,8 +789,23 @@ export type CourtCrumb = {
  * The standalone Dashboard row is absent from every trail because nothing nests under it.
  */
 export function courtTrail(pathname: string): CourtCrumb[] {
-  for (const group of COURT_NAV_GROUPS) {
+  const groups = courtNavGroupsFor(readCognizanceLayout());
+  for (const group of groups) {
     for (const item of group.items) {
+      // A row's child (only Take cognizance's two, while "split" is live) is itself a
+      // screen, not a nested record — traced the same three steps as one, but the last
+      // is the child's own label rather than an identifier read off the page.
+      const child = item.children?.find(
+        (entry) => entry.href !== undefined && isCourtNavActive(pathname, entry.href),
+      );
+      if (child) {
+        return [
+          { label: group.label, href: item.href },
+          { label: item.label, href: item.href },
+          { label: child.label },
+        ];
+      }
+
       if (!item.href || !isCourtNavActive(pathname, item.href)) continue;
       // Nested exactly when the path is not the row's own href — which is also when the
       // row is above this page rather than being it, and so becomes a link.
