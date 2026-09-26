@@ -101,6 +101,7 @@ export function blankComplainant(): Complainant {
     entAddr: blankAddress(),
     rep: blankRepresentative(),
     affidavit: AFFIDAVIT_PIP_TEMPLATE,
+    oathVideo: null,
     prefilled: {},
     edited: {},
     toReview: false,
@@ -416,7 +417,7 @@ export function buildDocumentGroups(draft: FilingDraft): DocumentGroup[] {
 export function createBlankDraft(id: string, profile?: UserProfile | null): FilingDraft {
   const now = new Date().toISOString();
   const draft: FilingDraft = {
-    version: 6,
+    version: 7,
     id,
     caseType: "s138",
     status: "draft",
@@ -566,6 +567,7 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
     c.differentlyAbled ??= "";
     c.rep.gender ??= "";
     c.rep.differentlyAbled ??= "";
+    c.oathVideo ??= null;
   }
   // The upfront choice used to be one set of rounds for the whole case; it is now made
   // per accused (§19.3). Nothing is carried across: an old draft's single choice cannot
@@ -576,7 +578,7 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
   // Phone confirmation on the upload path is newer than these drafts.
   draft.sign.confirmed ??= {};
   migrateSignMode(draft);
-  draft.version = 6;
+  draft.version = 7;
   return draft;
 }
 

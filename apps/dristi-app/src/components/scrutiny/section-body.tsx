@@ -36,6 +36,7 @@ import { ComplainantSection } from "@/components/filing/sections/complainant-sec
 import { DemandNoticeSection } from "@/components/filing/sections/demand-notice-section";
 import { DocumentsSection } from "@/components/filing/sections/documents-section";
 import { JurisdictionSection } from "@/components/filing/sections/jurisdiction-section";
+import { OathVideoSection } from "@/components/filing/sections/oath-video-section";
 import { UploadSection } from "@/components/filing/sections/upload-section";
 import { WitnessesSection } from "@/components/filing/sections/witnesses-section";
 
@@ -49,6 +50,7 @@ export const CORRECTABLE_SECTIONS: Partial<Record<StepId, React.ComponentType>> 
   jurisdiction: JurisdictionSection,
   "adr-prayer": AdrPrayerSection,
   witnesses: WitnessesSection,
+  "oath-video": OathVideoSection,
   documents: DocumentsSection,
   affidavit: AffidavitSection,
 };

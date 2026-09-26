@@ -24,6 +24,7 @@ export type StepId =
   | "jurisdiction"
   | "adr-prayer"
   | "witnesses"
+  | "oath-video"
   | "documents"
   | "affidavit"
   | "preview"
@@ -157,6 +158,16 @@ export type Representative = {
 /** Field keys that document reading can machine-fill on a complainant. */
 export type ComplainantPrefillKey = "name" | "email" | "res" | "entName" | "age";
 
+/**
+ * A video of the complainant (or, for an institution, their authorised representative)
+ * reciting the oath — its own screen, optional, one per complainant record.
+ */
+export type OathVideoUpload = {
+  file: StoredFileRef;
+  /** Seconds, read from the file's own metadata; null when it could not be read. */
+  durationSeconds: number | null;
+};
+
 export type Complainant = {
   id: string;
   pip: YesNo;
@@ -186,6 +197,8 @@ export type Complainant = {
   rep: Representative;
   /** Party-in-person affidavit body (HTML from the rich text editor). */
   affidavit: string;
+  /** Optional — the recorded oath, if this complainant chose to provide one. */
+  oathVideo: OathVideoUpload | null;
   prefilled: Partial<Record<ComplainantPrefillKey, boolean>>;
   edited: Partial<Record<ComplainantPrefillKey, boolean>>;
   toReview: boolean;
