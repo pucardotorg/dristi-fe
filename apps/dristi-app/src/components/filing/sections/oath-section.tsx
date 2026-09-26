@@ -13,6 +13,12 @@
  * Duration is the primary limit, read from the file's own metadata once it is chosen; a
  * file whose duration cannot be read (unsupported codec, corrupt upload) falls back to a
  * size cap instead, since duration cannot be enforced without it.
+ *
+ * Two ways to provide the video: pick a file, or record one in place through the camera
+ * (`OathRecorderPanel`) — the recorder enforces the same duration cap live, by stopping
+ * the recording itself, and hands back a plain `File` that goes through the exact same
+ * store-and-assign path as an uploaded one. If the camera/recorder isn't available or
+ * permission is refused, the recorder reports it and the upload button is untouched.
  */
 
 import * as React from "react";
@@ -23,6 +29,7 @@ import {
   Trash2Icon,
   TriangleAlertIcon,
   UploadIcon,
+  VideoIcon,
 } from "lucide-react";
 
 import { storeUpload, getRepository } from "@/lib/filing/data";
@@ -47,6 +54,7 @@ import { FilingMain } from "@/components/filing/filing-shell";
 import { FormCard } from "@/components/filing/form-card";
 import { RequiredMark } from "@/components/filing/form-field";
 import { SectionNotice } from "@/components/filing/notices";
+import { OathRecorderPanel } from "@/components/filing/oath-recorder";
 
 /** Read as an affirmation (Oaths Act, 1969) — religion-neutral, no invocation required. */
 const OATH_TEXT =
@@ -118,14 +126,22 @@ function ComplainantOathCard({
   label,
   upload,
   onPick,
+  onRecord,
   onRemove,
   busy,
+  recordDisabled,
+  recorder,
 }: {
   label: string;
   upload: OathVideoUpload | null;
   onPick: () => void;
+  onRecord: () => void;
   onRemove: () => void;
   busy: boolean;
+  /** Another card already has an open camera session; recording here would conflict. */
+  recordDisabled: boolean;
+  /** The mounted recorder panel for this card, when it is the one currently recording. */
+  recorder: React.ReactNode | null;
 }) {
   return (
     <FormCard
@@ -167,15 +183,29 @@ function ComplainantOathCard({
             </Button>
           </div>
         </div>
+      ) : recorder ? (
+        recorder
       ) : (
-        <Button type="button" variant="outline" onClick={onPick} disabled={busy} className="w-fit">
-          <UploadIcon data-icon="inline-start" aria-hidden />
-          Upload video
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onRecord}
+            disabled={busy || recordDisabled}
+            className="w-fit"
+          >
+            <VideoIcon data-icon="inline-start" aria-hidden />
+            Record video
+          </Button>
+          <Button type="button" variant="outline" onClick={onPick} disabled={busy} className="w-fit">
+            <UploadIcon data-icon="inline-start" aria-hidden />
+            Upload video
+          </Button>
+        </div>
       )}
 
       <p className="text-caption text-muted-foreground">
-        Up to {formatDuration(MAX_DURATION_SECONDS)}, in MP4, WebM or MOV.
+        Up to {formatDuration(MAX_DURATION_SECONDS)}, in MP4, WebM or MOV — or record one directly.
       </p>
     </FormCard>
   );
@@ -194,6 +224,7 @@ export function OathSection() {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const targetIndex = React.useRef<number | null>(null);
   const [busyIndex, setBusyIndex] = React.useState<number | null>(null);
+  const [recordingIndex, setRecordingIndex] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [removeIndex, setRemoveIndex] = React.useState<number | null>(null);
   const errorTimer = React.useRef<number | null>(null);
@@ -228,6 +259,36 @@ export function OathSection() {
     if (next) router.push(hrefFor(next));
   };
 
+  /**
+   * Store the video and assign it to a complainant — the single path both the file
+   * picker and the camera recorder end in, so a recorded clip and an uploaded file leave
+   * identical state (preview, replace, remove, the mandatory check all read `oathVideo`,
+   * never how it got there).
+   */
+  const commitVideo = async (index: number, file: File, durationSeconds: number | null) => {
+    setBusyIndex(index);
+    const previous = draft.complainants[index]?.oathVideo ?? null;
+    let ref: StoredFileRef;
+    try {
+      ref = await storeUpload(file);
+    } catch {
+      say("We couldn't store that video in this browser. Please try again.");
+      setBusyIndex(null);
+      return;
+    }
+
+    update((d) => {
+      const c = d.complainants[index];
+      if (!c) return;
+      c.oathVideo = { file: ref, durationSeconds };
+    });
+    if (previous) {
+      forgetFile(previous.file.id);
+      void getRepository().deleteFile(previous.file.id);
+    }
+    setBusyIndex(null);
+  };
+
   const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     const index = targetIndex.current;
@@ -241,27 +302,12 @@ export function OathSection() {
       setBusyIndex(null);
       return;
     }
+    await commitVideo(index, outcome.file, outcome.durationSeconds);
+  };
 
-    const previous = draft.complainants[index]?.oathVideo ?? null;
-    let ref: StoredFileRef;
-    try {
-      ref = await storeUpload(outcome.file);
-    } catch {
-      say("We couldn't store that file in this browser. Please try again.");
-      setBusyIndex(null);
-      return;
-    }
-
-    update((d) => {
-      const c = d.complainants[index];
-      if (!c) return;
-      c.oathVideo = { file: ref, durationSeconds: outcome.durationSeconds };
-    });
-    if (previous) {
-      forgetFile(previous.file.id);
-      void getRepository().deleteFile(previous.file.id);
-    }
-    setBusyIndex(null);
+  const onRecord = (index: number) => {
+    setError(null);
+    setRecordingIndex(index);
   };
 
   const confirmRemove = () => {
@@ -309,8 +355,27 @@ export function OathSection() {
             label={complainantLabel(c, i)}
             upload={c.oathVideo}
             onPick={() => pick(i)}
+            onRecord={() => onRecord(i)}
             onRemove={() => setRemoveIndex(i)}
             busy={busyIndex === i}
+            recordDisabled={recordingIndex !== null && recordingIndex !== i}
+            recorder={
+              recordingIndex === i ? (
+                <OathRecorderPanel
+                  key={i}
+                  maxDurationSeconds={MAX_DURATION_SECONDS}
+                  onRecorded={(file, durationSeconds) => {
+                    setRecordingIndex(null);
+                    void commitVideo(i, file, durationSeconds);
+                  }}
+                  onCancel={() => setRecordingIndex(null)}
+                  onError={(message) => {
+                    setRecordingIndex(null);
+                    say(message);
+                  }}
+                />
+              ) : null
+            }
           />
         ))}
       </FilingMain>
