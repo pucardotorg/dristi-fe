@@ -73,6 +73,12 @@ describe("migrateDraft — drafts written by another branch", () => {
     assert.equal(draft.version, 6);
     assert.equal(typeof draftProgress(draft), "number");
   });
+
+  it("reopens on the first screen when lastStep is an id no branch's migration named", () => {
+    const draft = createBlankDraft("draft-oath");
+    draft.lastStep = "oath" as FilingDraft["lastStep"];
+    assert.equal(migrateDraft(draft).lastStep, "upload");
+  });
 });
 
 /**
