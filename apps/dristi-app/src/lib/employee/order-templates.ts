@@ -27,10 +27,7 @@
  */
 
 export type OrderTemplateId =
-  | "order-under-section-202"
   | "mandatory-submissions"
-  | "accept-extension"
-  | "reject-extension"
   | "referral-to-adr"
   | "scheduling-of-hearing"
   | "rescheduling-of-hearing"
@@ -51,6 +48,7 @@ export type OrderTemplateId =
   | "witness-batta"
   | "issue-of-proclamation"
   | "issue-of-attachment"
+  | "issue-of-miscellaneous-process"
   | "move-to-lp-register"
   | "move-out-of-lp-register"
   | "abate-case";
@@ -75,7 +73,12 @@ export type OrderDropdownRule =
   | "case-is-lp";
 
 export type OrderGroupId =
-  "process" | "accept-reject" | "progression" | "directives";
+  | "filings"
+  | "disposal"
+  | "case-management"
+  | "process"
+  | "misc"
+  | "accept-reject";
 
 export type OrderVariable = {
   /** The token as it appears in the template, without brackets. */
@@ -101,20 +104,10 @@ export type OrderTemplate = {
 
 export const ORDER_TEMPLATES: OrderTemplate[] = [
   {
-    id: "order-under-section-202",
-    number: 1,
-    label: "Order under section 202 CrPC",
-    group: "directives",
-    dropdown: "always",
-    botd: "",
-    locked: [],
-    optional: [],
-  },
-  {
     id: "mandatory-submissions",
     number: 2,
     label: "Mandatory submissions and responses",
-    group: "directives",
+    group: "filings",
     dropdown: "always",
     botd: "It is directed that the [Party Type] files a [Document Type] for [Document Name] before the court by [Deadline for Submission]. Additionally, the [Party Type] must submit a response by [Deadline for Response].",
     locked: [
@@ -128,41 +121,10 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     workflow: "Creates a submission task and a response task",
   },
   {
-    id: "accept-extension",
-    number: 3,
-    label: "Accept extension for submission deadline",
-    group: "accept-reject",
-    dropdown: "context",
-    botd: "Application [Application Number] for extension of deadline of submission of [Document Type] for [Document Name] is accepted. The [Party Type] is required to submit the same by [New Submission Date].",
-    locked: [
-      { name: "Application Number" },
-      { name: "Document Type" },
-      { name: "Document Name" },
-      { name: "Party Type" },
-      { name: "New Submission Date" },
-    ],
-    optional: [],
-    workflow: "Updates the submission deadline",
-  },
-  {
-    id: "reject-extension",
-    number: 4,
-    label: "Reject extension for submission deadline",
-    group: "accept-reject",
-    dropdown: "context",
-    botd: "Application [Application Number] for extension of deadline of submission of [Document Type] for [Document Name] is rejected.",
-    locked: [
-      { name: "Application Number" },
-      { name: "Document Type" },
-      { name: "Document Name" },
-    ],
-    optional: [],
-  },
-  {
     id: "referral-to-adr",
     number: 5,
     label: "Referral of case to ADR",
-    group: "directives",
+    group: "disposal",
     dropdown: "always",
     botd: "Both the Parties have voluntarily agreed to seek resolution through [Mode of ADR]. The parties are hereby referred to [Mode of ADR] to resolve their dispute by [Date of End of ADR].",
     locked: [],
@@ -175,7 +137,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "scheduling-of-hearing",
     number: 6,
     label: "Scheduling of hearing date",
-    group: "progression",
+    group: "case-management",
     dropdown: "hearing-not-ongoing",
     botd: "Next hearing is scheduled on [Hearing Date] for [Hearing Purpose].",
     locked: [{ name: "Hearing Date" }, { name: "Hearing Purpose" }],
@@ -186,7 +148,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "rescheduling-of-hearing",
     number: 7,
     label: "Rescheduling of hearing date",
-    group: "progression",
+    group: "case-management",
     dropdown: "context",
     botd: "Next hearing scheduled on [Original Hearing Date] for [Hearing Purpose] has been rescheduled to [New Hearing Date].",
     locked: [
@@ -222,7 +184,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "case-transfer",
     number: 10,
     label: "Case transfer",
-    group: "progression",
+    group: "case-management",
     dropdown: "always",
     botd: "The case is transferred to another court for further proceedings.",
     locked: [],
@@ -232,7 +194,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "case-settlement",
     number: 11,
     label: "Case settlement",
-    group: "progression",
+    group: "disposal",
     dropdown: "always",
     botd: "The settlement records have been accepted by the court. Case closed.",
     locked: [],
@@ -272,7 +234,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "withdrawal-of-case",
     number: 14,
     label: "Withdrawal of case",
-    group: "progression",
+    group: "disposal",
     dropdown: "always",
     botd: "As per application [Application Number] complainant has sought to withdraw the complaint. Permission under Section 280 of the BNSS is granted and the Accused is acquitted.",
     locked: [{ name: "Application Number" }],
@@ -309,7 +271,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "cognizance",
     number: 17,
     label: "Cognizance",
-    group: "progression",
+    group: "case-management",
     dropdown: "cognizance-due",
     botd: "Considering the materials produced before the Court, I am prima facie satisfied that the offence punishable under S. 138 of NI Act is made out. Accordingly cognizance of the offence is taken and the case is taken on file.",
     locked: [],
@@ -319,7 +281,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "judgement",
     number: 18,
     label: "Judgement",
-    group: "progression",
+    group: "disposal",
     dropdown: "always",
     botd: "",
     locked: [],
@@ -329,7 +291,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "dismiss-case",
     number: 19,
     label: "Dismiss case",
-    group: "progression",
+    group: "case-management",
     dropdown: "cognizance-due",
     botd: "The case is dismissed.",
     locked: [],
@@ -339,7 +301,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "bail",
     number: 20,
     label: "Bail",
-    group: "directives",
+    group: "filings",
     dropdown: "on-file",
     botd: "Accused is released on bail. Particulars of offences u/s.138 of NI Act were read over and explained to the Accused to which he pleaded [Plea] and claimed to be tried.",
     locked: [],
@@ -350,7 +312,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "cost",
     number: 21,
     label: "Cost",
-    group: "directives",
+    group: "misc",
     dropdown: "always",
     botd: "The [Party Type] is directed to pay [Amount] to the [Party Type] as costs by [Date].",
     locked: [
@@ -366,7 +328,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "witness-batta",
     number: 22,
     label: "Witness batta",
-    group: "directives",
+    group: "misc",
     dropdown: "always",
     botd: "The [Party Type] is directed to pay [Amount] to the [Party Type] as witness batta by [Date].",
     locked: [
@@ -400,11 +362,33 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     optional: [],
     workflow: "Triggers the attachment workflow",
   },
+  /**
+   * Row 25 of `order-template-catalogue.md`, missing from this file until 2026-09-25 —
+   * the source has words for it, but nobody had wired it in. Numbered 28, past the
+   * original twenty-seven, because that numbering is the older spreadsheet's own order
+   * and this type never had a place in it; the doc's row number is 25.
+   */
+  {
+    id: "issue-of-miscellaneous-process",
+    number: 28,
+    label: "Issue of miscellaneous process",
+    group: "process",
+    dropdown: "on-file",
+    botd: "Issue [Process Type] to the [Party Type] [Party Name]. The [Party Type] is directed to make the appropriate payments and take steps.",
+    locked: [
+      { name: "Process Type" },
+      { name: "Party Type" },
+      { name: "Party Name" },
+      { name: "Party Type", role: "party taking steps" },
+    ],
+    optional: [],
+    workflow: "Triggers the miscellaneous process workflow",
+  },
   {
     id: "move-to-lp-register",
     number: 25,
     label: "Moving case to long pending register",
-    group: "progression",
+    group: "case-management",
     dropdown: "case-is-st",
     botd: "As per sanction given by Honourable CJM the case is moved to the Long Pending Register and is marked as LP.",
     locked: [],
@@ -414,7 +398,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "move-out-of-lp-register",
     number: 26,
     label: "Moving case out of long pending register",
-    group: "progression",
+    group: "case-management",
     dropdown: "case-is-lp",
     botd: "The case is moved out of the Long Pending Register and is to be considered and renumbered as a ST case.",
     locked: [],
@@ -424,7 +408,7 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     id: "abate-case",
     number: 27,
     label: "Abate case",
-    group: "progression",
+    group: "disposal",
     dropdown: "always",
     botd: "The case is abated following the death of the Accused party.",
     locked: [],
@@ -435,19 +419,27 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
 /**
  * The browsing groups.
  *
- * **Provisional.** The source names "grouping for the order-issuance screen" as one of
- * two things it still has to add, so these four are the owner's reference screen's own
- * headings with the catalogue's twenty-seven sorted into them by meaning. The reference
- * shows counts of 5 / 7 / 10 / 6, which total twenty-eight — one more than the
- * catalogue — so the reference and the source do not describe quite the same list, and
- * only **Process orders** lands on its count exactly. When product supplies the real
- * grouping it supersedes this.
+ * The owner's own grouping (2026-09-25), replacing the four provisional headings this
+ * file used before product supplied the real one. These are the catalogue's own
+ * `Category` column, plus **Accept / Reject** — a residual group this screen keeps for
+ * the handful of types the source marks *not in dropdown* (see `unavailableReason`'s
+ * `"context"` case): the source says a contextual type has no category because it is
+ * never browsed, but this screen still lists it, disabled, so the catalogue does not go
+ * silent where a typist might expect the type to be.
+ *
+ * **Cognizance and Judgment folded in the same day.** The first cut of this grouping
+ * gave Cognizance its own heading (Cognizance, Dismiss case) and Judgment another
+ * (Judgement alone) — the owner's correction merges them: Cognizance and Dismiss case
+ * now sit under **Case management**, and Judgement under **Disposal**, an order that
+ * ends the case like the rest of that category's rows.
  */
 export const ORDER_GROUPS: { id: OrderGroupId; label: string }[] = [
-  { id: "process", label: "Process orders" },
-  { id: "accept-reject", label: "Accept / reject" },
-  { id: "progression", label: "Case progression" },
-  { id: "directives", label: "Directives" },
+  { id: "filings", label: "Filings" },
+  { id: "disposal", label: "Disposal" },
+  { id: "case-management", label: "Case management" },
+  { id: "process", label: "Process" },
+  { id: "misc", label: "Miscellaneous" },
+  { id: "accept-reject", label: "Accept / Reject" },
 ];
 
 export function orderTemplate(id: OrderTemplateId): OrderTemplate {
@@ -505,16 +497,18 @@ export function browsableTemplates(): OrderTemplate[] {
 /**
  * Whether the source gives this type any words at all.
  *
- * Two of the twenty-seven carry no BOTD line — **Order under section 202 CrPC** and
- * **Judgement** — and the source says what that means rather than leaving it as a hole:
- * "If an order type has **no template** ... the judge writes the order text from scratch
- * — or a dedicated screen handles it (e.g. Judgement)." They are still the court's own
- * types and still choosable. What they are not is *worded*, and that is the one honest
- * line through the catalogue: twenty-five orders the system writes for you, and two it
- * hands you blank.
+ * One of the twenty-five carries no BOTD line — **Judgement** — and the source says what
+ * that means rather than leaving it as a hole: "If an order type has **no template** ...
+ * the judge writes the order text from scratch — or a dedicated screen handles it (e.g.
+ * Judgement)." It is still the court's own type and still choosable. What it is not is
+ * *worded*.
  *
- * Read off the text rather than kept as a list of two ids, so a template the court later
- * fills in stops being a write-it-yourself order without anyone remembering to move it.
+ * (Order under section 202 CrPC was the other wordless type, and also carried no BOTD;
+ * removed 2026-09-25 along with the two extension orders, all three marked "Not in V1"
+ * in `order-template-catalogue.md`.)
+ *
+ * Read off the text rather than kept as a fixed id, so a template the court later fills
+ * in stops being a write-it-yourself order without anyone remembering to move it.
  */
 export function hasTemplateText(entry: OrderTemplate): boolean {
   return entry.botd.trim().length > 0;
@@ -544,19 +538,9 @@ export const GENERIC_TEMPLATE_IDS: OrderTemplateId[] = [
  * that quietly hid the rest would be a wall rather than a shortcut.
  */
 export const LIKELY_BY_PURPOSE: Record<string, OrderTemplateId[]> = {
-  "delay-condonation": ["dismiss-case", "order-under-section-202"],
-  admission: [
-    "cognizance",
-    "dismiss-case",
-    "issue-of-summons",
-    "order-under-section-202",
-  ],
-  cognizance: [
-    "cognizance",
-    "dismiss-case",
-    "issue-of-summons",
-    "order-under-section-202",
-  ],
+  "delay-condonation": ["dismiss-case"],
+  admission: ["cognizance", "dismiss-case", "issue-of-summons"],
+  cognizance: ["cognizance", "dismiss-case", "issue-of-summons"],
   appearance: [
     "issue-of-summons",
     "issue-of-warrants",
@@ -590,7 +574,7 @@ export function likelyTemplatesFor(
  * spec also lists `[Party Type]`, `[Party Name]`, `[Document Type]`, `[Hearing Purpose]`
  * and `[Current Hearing Date]` as general — *"Available to every template.
  * Auto-populated — the judge never types these"* — and four of those five are the most
- * common tokens in the twenty-seven.
+ * common tokens in the twenty-five.
  *
  * **So the reconciliation is the load-bearing part of this type, not the field list.**
  * The spec says two things that look contradictory: those variables are auto-populated,
@@ -676,7 +660,7 @@ const GENERAL: { token: string; from: keyof OrderTemplateFacts }[] = [
 /**
  * The tokens the auto-fill pass resolves — the other half of the census.
  *
- * Exported so a test can assert that every token appearing anywhere in the twenty-seven
+ * Exported so a test can assert that every token appearing anywhere in the twenty-five
  * is either on this list or on the test's list of declared *choices*. Templates are
  * system configuration an administrator edits, so a new one can introduce a token
  * tomorrow; the census is what makes that a failing test rather than a silent bracket

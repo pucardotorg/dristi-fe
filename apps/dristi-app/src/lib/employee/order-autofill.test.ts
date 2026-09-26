@@ -372,11 +372,11 @@ describe("the census — every token is decided", () => {
     "[Amount]",
     "[Date]",
     "[Notice Type]",
+    "[Process Type]",
     "[Plea]",
     "[Mode of ADR]",
     "[Deadline for Submission]",
     "[Deadline for Response]",
-    "[New Submission Date]",
     "[New Hearing Date]",
     "[Date of End of ADR]",
   ]);
@@ -385,7 +385,7 @@ describe("the census — every token is decided", () => {
     ORDER_TEMPLATES.flatMap((template) => openSlots(template.botd)),
   );
 
-  it("classifies every token the twenty-seven actually use", () => {
+  it("classifies every token the twenty-five actually use", () => {
     const filled = new Set(AUTO_FILLED_TOKENS);
     const undecided = [...used].filter(
       (token) => !filled.has(token) && !JUDGE_CHOOSES.has(token),
@@ -405,7 +405,7 @@ describe("the census — every token is decided", () => {
   it("records that the six name variables appear in no template", () => {
     /* The finding that corrected D40 in the other direction. The spec's general-variables
        table has thirteen rows; the six *name* ones are real general variables and are
-       simply unused by today's twenty-seven. They stay mapped because an administrator can
+       simply unused by today's twenty-five. They stay mapped because an administrator can
        edit a template — this asserts the fact, so a future template using one is a change
        somebody sees rather than a surprise. */
     for (const token of [
