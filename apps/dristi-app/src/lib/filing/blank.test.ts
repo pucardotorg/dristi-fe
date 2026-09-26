@@ -75,8 +75,8 @@ describe("migrateDraft — drafts written by another branch", () => {
   });
 
   it("reopens on the first screen when lastStep is an id no branch's migration named", () => {
-    const draft = createBlankDraft("draft-oath");
-    draft.lastStep = "oath" as FilingDraft["lastStep"];
+    const draft = createBlankDraft("draft-unknown-step");
+    draft.lastStep = "not-a-real-step" as FilingDraft["lastStep"];
     assert.equal(migrateDraft(draft).lastStep, "upload");
   });
 });
