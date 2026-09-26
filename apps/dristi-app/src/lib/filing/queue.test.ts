@@ -10,6 +10,8 @@ import {
   draftRows,
   NO_DEADLINE,
   pageWindow,
+  pendingPaymentRows,
+  pendingSignatureRows,
   registeredRows,
   scrutinyRows,
   sortOptionFor,
@@ -17,6 +19,7 @@ import {
   TAB_SORTS,
   type QueueRow,
 } from "./queue";
+import { signatories } from "./selectors";
 import type { FilingDraft } from "./types";
 
 const TODAY = "2026-08-31";
@@ -170,6 +173,71 @@ describe("each tab has its own order, and the default is the useful one", () => 
     assert.equal(sortOptionFor("registered", null).value, defaultSortFor("registered"));
     // A sort that belongs to another tab is not silently accepted either.
     assert.equal(sortOptionFor("drafts", "hearing").value, defaultSortFor("drafts"));
+  });
+});
+
+describe("pendingSignatureRows and pendingPaymentRows — where a draft goes once drafting is done", () => {
+  function sentForSignature(id: string): FilingDraft {
+    const draft = createBlankDraft(id);
+    draft.sign.requestedAt = "2026-08-20T10:00:00.000Z";
+    return draft;
+  }
+
+  it("a draft still drafting appears on neither tab", () => {
+    const draft = createBlankDraft("d1");
+    assert.equal(draftRows([draft]).length, 1);
+    assert.equal(pendingSignatureRows([draft], null).length, 0);
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
+  });
+
+  it("sending it for signature moves it off Drafts and onto Pending signature", () => {
+    const draft = sentForSignature("d1");
+    assert.equal(draftRows([draft]).length, 0);
+    const [row] = pendingSignatureRows([draft], null);
+    assert.ok(row, "expected a pending-signature row");
+    assert.ok((row.count ?? 0) > 0, "nobody has signed yet");
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
+  });
+
+  it("choosing the paper path counts as sent, even though it sets no requestedAt of its own", () => {
+    const draft = createBlankDraft("d1");
+    draft.sign.mode = "upload";
+    assert.equal(draftRows([draft]).length, 0);
+    assert.equal(pendingSignatureRows([draft], null).length, 1);
+  });
+
+  it("names who it is waiting on, from the filer's own point of view", () => {
+    const draft = sentForSignature("d1");
+    const everyone = [...signatories(draft, null).complainants, ...signatories(draft, null).advocates];
+    const you = everyone.find((s) => s.you);
+    assert.ok(you, "a blank draft always resolves a 'you'");
+
+    const [before] = pendingSignatureRows([draft], null);
+    assert.equal(before.youPending, true);
+    assert.match(before.info.sub ?? "", /waiting on you/i);
+
+    // Sign for "you" — whoever is left, if anyone, is someone else's signature to give.
+    draft.sign.signed[you!.id] = { at: "2026-08-20T10:05:00.000Z", with: "aadhaar" };
+    const after = pendingSignatureRows([draft], null)[0];
+    if (after) {
+      assert.equal(after.youPending, false);
+      assert.doesNotMatch(after.info.sub ?? "", /waiting on you\b/i);
+    }
+  });
+
+  it("moves to Pending payment once everyone has signed, and drops off it once paid", () => {
+    const draft = sentForSignature("d1");
+    const everyone = [...signatories(draft, null).complainants, ...signatories(draft, null).advocates];
+    for (const s of everyone) {
+      draft.sign.signed[s.id] = { at: "2026-08-20T10:05:00.000Z", with: "aadhaar" };
+    }
+    assert.equal(pendingSignatureRows([draft], null).length, 0);
+    const [row] = pendingPaymentRows([draft], null);
+    assert.ok(row, "expected a pending-payment row");
+    assert.ok((row.amount ?? 0) > 0);
+
+    draft.sign.paid = true;
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
   });
 });
 
