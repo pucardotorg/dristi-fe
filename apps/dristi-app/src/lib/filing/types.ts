@@ -24,7 +24,7 @@ export type StepId =
   | "jurisdiction"
   | "adr-prayer"
   | "witnesses"
-  | "oath-video"
+  | "oath"
   | "documents"
   | "affidavit"
   | "preview"

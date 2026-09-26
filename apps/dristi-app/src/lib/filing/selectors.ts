@@ -342,7 +342,7 @@ export function sectionComplete(draft: FilingDraft, step: StepId): boolean {
       return !!draft.adr.finalRelief.trim();
     case "witnesses":
       return true; // optional
-    case "oath-video":
+    case "oath":
       return true; // optional
     case "documents":
       return documentsProgress(draft.documents).remaining === 0;

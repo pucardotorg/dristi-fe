@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Oath video — an optional recording of each complainant reciting the oath, kept beside
- * the wording so there is nothing to remember before pressing record.
+ * Oath — an optional video of each complainant reciting the oath, kept beside the
+ * wording so there is nothing to remember before pressing record.
  *
  * One card per complainant, in the same order as the Complainant screen. An institution
  * complainant's authorised representative takes the oath in their place. The recording is
@@ -121,7 +121,7 @@ function ComplainantOathCard({
 }) {
   return (
     <FormCard
-      title={`Oath video — ${label}`}
+      title={`Oath — ${label}`}
       description="Optional. Read the wording below aloud on camera."
     >
       <blockquote className="rounded-lg bg-surface-sunken p-4 text-body-compact italic text-foreground">
@@ -158,7 +158,7 @@ function ComplainantOathCard({
       ) : (
         <Button type="button" variant="outline" onClick={onPick} disabled={busy} className="w-fit">
           <UploadIcon data-icon="inline-start" aria-hidden />
-          Upload oath video
+          Upload video
         </Button>
       )}
 
@@ -169,9 +169,9 @@ function ComplainantOathCard({
   );
 }
 
-export function OathVideoSection() {
+export function OathSection() {
   const { draft, update, hrefFor } = useFiling();
-  const { prev, next } = neighbours("oath-video");
+  const { prev, next } = neighbours("oath");
 
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const targetIndex = React.useRef<number | null>(null);
@@ -253,7 +253,7 @@ export function OathVideoSection() {
 
       <FilingMain>
         <FilingPageHeader
-          title="Oath video"
+          title="Oath"
           description="Optional — a recorded oath from each complainant, kept with the case file."
         />
 
