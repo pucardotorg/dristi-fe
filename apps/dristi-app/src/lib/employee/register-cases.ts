@@ -19,17 +19,18 @@
  * `RegisterCasesTable`) — not even disabled ones. The list is honest about what is
  * waiting; the act is simply not offered yet.
  *
- * Numbers are `CMP/…`. A complaint carries its filing number until the magistrate
- * takes it on file, at which point it is numbered as a summary trial (`ST/…`). These
- * rows are the former. They do not overlap the scheduling queue: a complaint waiting
- * to be registered is not also waiting for a hearing date.
+ * Numbers are the filing number (`KL-NNNNNN-YYYY`), not a case number — a complaint
+ * carries its filing number until the magistrate takes it on file, at which point it
+ * is numbered as a summary trial (`ST/…`). These rows are all still waiting for that,
+ * so there is no case number to show yet. They do not overlap the scheduling queue: a
+ * complaint waiting to be registered is not also waiting for a hearing date.
  */
 
 import { type CourtCounsel } from "./hearings";
 
 export type RegisterCase = {
   id: string;
-  caseNumber: string;
+  filingNumber: string;
   parties: { complainant: string; accused: string };
   /**
    * Counsel on record. A complaint may have none — it has been submitted, not yet
@@ -58,28 +59,28 @@ export type RegisterCase = {
 export const REGISTER_QUEUE: RegisterCase[] = [
   {
     id: "r-1840",
-    caseNumber: "CMP/1840/2025",
+    filingNumber: "KL-001840-2025",
     parties: { complainant: "Rajan Krishnan", accused: "Quilon Cashew Exports" },
     counsel: [{ name: "Adv. Suresh Menon", side: "complainant" }],
     daysSinceSubmitted: 281,
   },
   {
     id: "r-1722",
-    caseNumber: "CMP/1722/2025",
+    filingNumber: "KL-001722-2025",
     parties: { complainant: "Shiny Varghese", accused: "Thevally Boat Yard" },
     counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
     daysSinceSubmitted: 240,
   },
   {
     id: "r-1654",
-    caseNumber: "CMP/1654/2025",
+    filingNumber: "KL-001654-2025",
     parties: { complainant: "Ajith Kumar", accused: "Punalur Paper Depot" },
     counsel: [{ name: "Adv. Saurabh Verma", side: "complainant" }],
     daysSinceSubmitted: 198,
   },
   {
     id: "r-1588",
-    caseNumber: "CMP/1588/2025",
+    filingNumber: "KL-001588-2025",
     parties: { complainant: "Leela Kumari", accused: "Asramam Dairy Products" },
     counsel: [
       { name: "Adv. Suresh Menon", side: "complainant" },
@@ -89,42 +90,42 @@ export const REGISTER_QUEUE: RegisterCase[] = [
   },
   {
     id: "r-1490",
-    caseNumber: "CMP/1490/2025",
+    filingNumber: "KL-001490-2025",
     parties: { complainant: "Shihabudeen", accused: "Kottiyam Steel House" },
     counsel: [],
     daysSinceSubmitted: 142,
   },
   {
     id: "r-1402",
-    caseNumber: "CMP/1402/2025",
+    filingNumber: "KL-001402-2025",
     parties: { complainant: "Geetha Nair", accused: "Chavara Minerals" },
     counsel: [{ name: "Adv. Latha Krishnan", side: "complainant" }],
     daysSinceSubmitted: 118,
   },
   {
     id: "r-1333",
-    caseNumber: "CMP/1333/2025",
+    filingNumber: "KL-001333-2025",
     parties: { complainant: "Mathew Philip", accused: "Ochira Furniture Mart" },
     counsel: [{ name: "Adv. Feroz Hameed", side: "complainant" }],
     daysSinceSubmitted: 97,
   },
   {
     id: "r-1288",
-    caseNumber: "CMP/1288/2025",
+    filingNumber: "KL-001288-2025",
     parties: { complainant: "Ramla Beevi", accused: "Mayyanad Fisheries" },
     counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
     daysSinceSubmitted: 81,
   },
   {
     id: "r-1199",
-    caseNumber: "CMP/1199/2025",
+    filingNumber: "KL-001199-2025",
     parties: { complainant: "Vijayakumar", accused: "Kundara Clay Works" },
     counsel: [{ name: "Adv. Saurabh Verma", side: "complainant" }],
     daysSinceSubmitted: 73,
   },
   {
     id: "r-1104",
-    caseNumber: "CMP/1104/2025",
+    filingNumber: "KL-001104-2025",
     parties: {
       complainant: "Soumya Rajan",
       accused: "Thangasseri Marine Stores and Ship Chandling",
@@ -137,7 +138,7 @@ export const REGISTER_QUEUE: RegisterCase[] = [
   },
   {
     id: "r-210",
-    caseNumber: "CMP/210/2026",
+    filingNumber: "KL-000210-2026",
     parties: { complainant: "Meenakshi S", accused: "Harbour Line Logistics" },
     counsel: [
       { name: "Adv. Anitha George", side: "complainant" },
@@ -147,63 +148,63 @@ export const REGISTER_QUEUE: RegisterCase[] = [
   },
   {
     id: "r-188",
-    caseNumber: "CMP/188/2026",
+    filingNumber: "KL-000188-2026",
     parties: { complainant: "Haridasan", accused: "Kollam Coir Exports" },
     counsel: [{ name: "Adv. Feroz Hameed", side: "complainant" }],
     daysSinceSubmitted: 51,
   },
   {
     id: "r-176",
-    caseNumber: "CMP/176/2026",
+    filingNumber: "KL-000176-2026",
     parties: { complainant: "Jameela", accused: "Oachira Handlooms" },
     counsel: [{ name: "Adv. Rekha Pillai", side: "complainant" }],
     daysSinceSubmitted: 48,
   },
   {
     id: "r-165",
-    caseNumber: "CMP/165/2026",
+    filingNumber: "KL-000165-2026",
     parties: { complainant: "Sreejith", accused: "Sasthamkotta Rice Traders" },
     counsel: [],
     daysSinceSubmitted: 44,
   },
   {
     id: "r-154",
-    caseNumber: "CMP/154/2026",
+    filingNumber: "KL-000154-2026",
     parties: { complainant: "Amina", accused: "Anchal Timber Depot" },
     counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
     daysSinceSubmitted: 41,
   },
   {
     id: "r-148",
-    caseNumber: "CMP/148/2026",
+    filingNumber: "KL-000148-2026",
     parties: { complainant: "Gopalakrishnan", accused: "Kilikolloor Hardware" },
     counsel: [{ name: "Adv. Saurabh Verma", side: "complainant" }],
     daysSinceSubmitted: 38,
   },
   {
     id: "r-441",
-    caseNumber: "CMP/441/2026",
+    filingNumber: "KL-000441-2026",
     parties: { complainant: "Fathima Beevi", accused: "Kadappakada Motors" },
     counsel: [],
     daysSinceSubmitted: 34,
   },
   {
     id: "r-428",
-    caseNumber: "CMP/428/2026",
+    filingNumber: "KL-000428-2026",
     parties: { complainant: "Bindhu", accused: "Pallimukku Electricals" },
     counsel: [{ name: "Adv. Latha Krishnan", side: "complainant" }],
     daysSinceSubmitted: 31,
   },
   {
     id: "r-401",
-    caseNumber: "CMP/401/2026",
+    filingNumber: "KL-000401-2026",
     parties: { complainant: "Yousaf", accused: "Eravipuram Cement Store" },
     counsel: [{ name: "Adv. Suresh Menon", side: "complainant" }],
     daysSinceSubmitted: 28,
   },
   {
     id: "r-388",
-    caseNumber: "CMP/388/2026",
+    filingNumber: "KL-000388-2026",
     parties: { complainant: "Kavitha", accused: "Kottarakkara Spices" },
     counsel: [
       { name: "Adv. Anitha George", side: "complainant" },
@@ -213,49 +214,49 @@ export const REGISTER_QUEUE: RegisterCase[] = [
   },
   {
     id: "r-372",
-    caseNumber: "CMP/372/2026",
+    filingNumber: "KL-000372-2026",
     parties: { complainant: "Shaji", accused: "Mundakkal Auto Parts" },
     counsel: [{ name: "Adv. Rekha Pillai", side: "complainant" }],
     daysSinceSubmitted: 23,
   },
   {
     id: "r-359",
-    caseNumber: "CMP/359/2026",
+    filingNumber: "KL-000359-2026",
     parties: { complainant: "Rosamma", accused: "Thekkumbhagam Printers" },
     counsel: [{ name: "Adv. Saurabh Verma", side: "complainant" }],
     daysSinceSubmitted: 21,
   },
   {
     id: "r-341",
-    caseNumber: "CMP/341/2026",
+    filingNumber: "KL-000341-2026",
     parties: { complainant: "Anwar", accused: "Parippally Feeds" },
     counsel: [],
     daysSinceSubmitted: 19,
   },
   {
     id: "r-330",
-    caseNumber: "CMP/330/2026",
+    filingNumber: "KL-000330-2026",
     parties: { complainant: "Usha", accused: "Chathannoor Tiles" },
     counsel: [{ name: "Adv. Latha Krishnan", side: "complainant" }],
     daysSinceSubmitted: 17,
   },
   {
     id: "r-318",
-    caseNumber: "CMP/318/2026",
+    filingNumber: "KL-000318-2026",
     parties: { complainant: "Dileep", accused: "Kottiyam Medical Agencies" },
     counsel: [{ name: "Adv. Feroz Hameed", side: "complainant" }],
     daysSinceSubmitted: 15,
   },
   {
     id: "r-301",
-    caseNumber: "CMP/301/2026",
+    filingNumber: "KL-000301-2026",
     parties: { complainant: "Haseena", accused: "Adichanalloor Traders" },
     counsel: [{ name: "Adv. Suresh Menon", side: "complainant" }],
     daysSinceSubmitted: 13,
   },
   {
     id: "r-612",
-    caseNumber: "CMP/612/2026",
+    filingNumber: "KL-000612-2026",
     /* The queue's one complaint filed by an entity (`case-review.ts` marks it
        `complainantType: "institution"`), so the complainant is a firm and not a person:
        the *Company* tag beside the name has to sit on something that is one, and a
@@ -275,56 +276,56 @@ export const REGISTER_QUEUE: RegisterCase[] = [
   },
   {
     id: "r-620",
-    caseNumber: "CMP/620/2026",
+    filingNumber: "KL-000620-2026",
     parties: { complainant: "Ravi", accused: "Kureepuzha Builders" },
     counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
     daysSinceSubmitted: 11,
   },
   {
     id: "r-633",
-    caseNumber: "CMP/633/2026",
+    filingNumber: "KL-000633-2026",
     parties: { complainant: "Mini", accused: "Perinad Agro Mills" },
     counsel: [{ name: "Adv. Rekha Pillai", side: "complainant" }],
     daysSinceSubmitted: 9,
   },
   {
     id: "r-648",
-    caseNumber: "CMP/648/2026",
+    filingNumber: "KL-000648-2026",
     parties: { complainant: "Shameer", accused: "Sakthikulangara Harbour Stores" },
     counsel: [],
     daysSinceSubmitted: 8,
   },
   {
     id: "r-661",
-    caseNumber: "CMP/661/2026",
+    filingNumber: "KL-000661-2026",
     parties: { complainant: "Lissy", accused: "Kavanad Super Bazaar" },
     counsel: [{ name: "Adv. Latha Krishnan", side: "complainant" }],
     daysSinceSubmitted: 7,
   },
   {
     id: "r-674",
-    caseNumber: "CMP/674/2026",
+    filingNumber: "KL-000674-2026",
     parties: { complainant: "Unnikrishnan", accused: "Mulamkadakam Motors" },
     counsel: [{ name: "Adv. Saurabh Verma", side: "complainant" }],
     daysSinceSubmitted: 5,
   },
   {
     id: "r-688",
-    caseNumber: "CMP/688/2026",
+    filingNumber: "KL-000688-2026",
     parties: { complainant: "Beegum", accused: "Polayathode Cold Storage" },
     counsel: [{ name: "Adv. Feroz Hameed", side: "complainant" }],
     daysSinceSubmitted: 4,
   },
   {
     id: "r-701",
-    caseNumber: "CMP/701/2026",
+    filingNumber: "KL-000701-2026",
     parties: { complainant: "Arun", accused: "Mevaram Furniture" },
     counsel: [{ name: "Adv. Suresh Menon", side: "complainant" }],
     daysSinceSubmitted: 3,
   },
   {
     id: "r-714",
-    caseNumber: "CMP/714/2026",
+    filingNumber: "KL-000714-2026",
     parties: { complainant: "Saji", accused: "Vadakkevila Provisions" },
     counsel: [{ name: "Adv. Anitha George", side: "complainant" }],
     daysSinceSubmitted: 1,
@@ -374,7 +375,7 @@ export function filterRegisterCases(
     const haystack = [
       entry.parties.complainant,
       entry.parties.accused,
-      entry.caseNumber,
+      entry.filingNumber,
       ...entry.counsel.map((counsel) => counsel.name),
     ]
       .join(" ")

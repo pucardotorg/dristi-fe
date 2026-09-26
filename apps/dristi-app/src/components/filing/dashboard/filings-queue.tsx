@@ -3,7 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowRightIcon, InboxIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  InboxIcon,
+  PenToolIcon,
+  SearchIcon,
+  Trash2Icon,
+  WalletIcon,
+} from "lucide-react";
 
 import {
   applyQueueFilters,
@@ -19,6 +26,7 @@ import {
   type QueueRow,
   type QueueTab,
 } from "@/lib/filing/queue";
+import { money } from "@/lib/filing/format";
 import { NEW_FILING } from "@/lib/filing/steps";
 import { cn } from "@/lib/utils";
 import { withOrigin } from "@/lib/nav/origin";
@@ -113,26 +121,49 @@ function writeView(view: View): string {
  * View state lives in the URL, the way `/cases` already does it: open a case from a row,
  * come back, and the tab, search, filter and page are still there.
  */
+/** The one bulk act each selectable tab offers — never more than one at a time. */
+const BULK_KIND: Partial<Record<QueueTab, "discard" | "sign" | "pay">> = {
+  drafts: "discard",
+  pendingSignature: "sign",
+  pendingPayment: "pay",
+};
+
+/**
+ * Whether one row can join this tab's bulk act. Every drafts row can be discarded and
+ * every pending-payment row can be paid, but a pending-signature row is only yours to
+ * bulk-sign when you are one of the people still asked — ticking it would otherwise
+ * promise a signature the batch cannot actually collect.
+ */
+function rowBulkable(tab: QueueTab, row: QueueRow): boolean {
+  return tab === "pendingSignature" ? !!row.youPending : true;
+}
+
 export function FilingsQueue({
   data,
   ready,
   onDiscard,
+  onBulk,
 }: {
   data: QueueData;
   ready: boolean;
   /** Throwing drafts away is the one destructive act here; the screen owns the
       confirmation, the row (or the selection) only asks for it. */
   onDiscard: (ids: string[]) => void;
+  /** Bulk sign or bulk pay — the screen owns the one-OTP / one-transaction dialog,
+      the row (or the selection) only names what it acts on. */
+  onBulk: (kind: "sign" | "pay", rows: QueueRow[]) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const view = readView(new URLSearchParams(searchParams.toString()));
 
-  /* Drafts can be ticked and discarded together. The selection is this screen's, not
-     the URL's, and it empties when the tab changes — a row ticked on Drafts means
-     nothing on Registered. Only drafts are discardable, so only Drafts selects. */
-  const selectable = view.tab === "drafts";
+  /* Drafts, pending-signature and pending-payment rows can be ticked and acted on
+     together; the other tabs have no bulk act to offer. The selection is this screen's,
+     not the URL's, and it empties when the tab changes — a row ticked on Drafts means
+     nothing on Registered. */
+  const bulkKind = BULK_KIND[view.tab];
+  const selectable = !!bulkKind;
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(() => new Set());
   const [selectedTab, setSelectedTab] = React.useState(view.tab);
   if (selectedTab !== view.tab) {
@@ -191,10 +222,14 @@ export function FilingsQueue({
   const start = (page - 1) * view.size;
   const slice = filtered.slice(start, start + view.size);
 
-  /* Rows that were ticked and then filtered or paged away still count — the discard
-     button names how many, and the confirmation names them again. */
-  const selectedIds = rows.filter((row) => selected.has(row.id)).map((row) => row.id);
-  const pageIds = slice.map((row) => row.id);
+  /* Rows that were ticked and then filtered or paged away still count — the bulk
+     button names how many, and (for a discard) the confirmation names them again. */
+  const selectedRows = rows.filter((row) => selected.has(row.id));
+  const selectedIds = selectedRows.map((row) => row.id);
+  // Only a bulkable row can be part of "select all" — ticking a pending-signature row
+  // that is waiting entirely on other parties would let the page promise a signature
+  // the batch has no way to collect.
+  const pageIds = slice.filter((row) => rowBulkable(view.tab, row)).map((row) => row.id);
   const selectedOnPage = pageIds.filter((id) => selected.has(id)).length;
   const pageState: boolean | "indeterminate" =
     selectedOnPage === 0
@@ -206,7 +241,7 @@ export function FilingsQueue({
   const body = (
     <>
       <div className="flex flex-wrap items-center gap-3 px-6 py-4">
-        {selectable && selectedIds.length > 0 ? (
+        {bulkKind === "discard" && selectedIds.length > 0 ? (
           <Button
             variant="destructive"
             onClick={() => onDiscard(selectedIds)}
@@ -214,6 +249,16 @@ export function FilingsQueue({
           >
             <Trash2Icon data-icon="inline-start" aria-hidden />
             Discard {selectedIds.length} {selectedIds.length === 1 ? "draft" : "drafts"}
+          </Button>
+        ) : bulkKind === "sign" && selectedRows.length > 0 ? (
+          <Button onClick={() => onBulk("sign", selectedRows)} className="shrink-0 tabular-nums">
+            <PenToolIcon data-icon="inline-start" aria-hidden />
+            Sign {selectedRows.length} {selectedRows.length === 1 ? "document" : "documents"}
+          </Button>
+        ) : bulkKind === "pay" && selectedRows.length > 0 ? (
+          <Button onClick={() => onBulk("pay", selectedRows)} className="shrink-0 tabular-nums">
+            <WalletIcon data-icon="inline-start" aria-hidden />
+            Pay {money(selectedRows.reduce((sum, row) => sum + (row.amount ?? 0), 0))}
           </Button>
         ) : null}
         <div className="relative min-w-60 flex-1">
@@ -310,7 +355,7 @@ export function FilingsQueue({
                         aria-label={
                           pageState === true
                             ? "Clear the selection on this page"
-                            : "Select every draft on this page"
+                            : "Select every row on this page that can be acted on"
                         }
                       />
                     </TableHead>
@@ -337,15 +382,20 @@ export function FilingsQueue({
                   >
                     {selectable ? (
                       <TableCell className="w-10 pl-6">
-                        {/* z-10 lifts the box above the row's stretched action link, so a
-                            click ticks the row instead of opening it. */}
-                        <div className="relative z-10 flex items-center">
-                          <Checkbox
-                            checked={selected.has(row.id)}
-                            onCheckedChange={() => toggleSelected(row.id)}
-                            aria-label={`Select ${row.parties}`}
-                          />
-                        </div>
+                        {/* Waiting entirely on other parties, on Pending signature, is
+                            not something a bulk sign can act on — the cell stays, so the
+                            column still lines up, but there is nothing to tick. */}
+                        {rowBulkable(view.tab, row) ? (
+                          // z-10 lifts the box above the row's stretched action link, so
+                          // a click ticks the row instead of opening it.
+                          <div className="relative z-10 flex items-center">
+                            <Checkbox
+                              checked={selected.has(row.id)}
+                              onCheckedChange={() => toggleSelected(row.id)}
+                              aria-label={`Select ${row.parties}`}
+                            />
+                          </div>
+                        ) : null}
                       </TableCell>
                     ) : null}
                     {layout.columns.map((column) => (
@@ -610,6 +660,10 @@ function emptyTitle(tab: QueueTab): string {
   switch (tab) {
     case "drafts":
       return "No drafts yet";
+    case "pendingSignature":
+      return "Nothing out for signature";
+    case "pendingPayment":
+      return "Nothing awaiting the court fee";
     case "scrutiny":
       return "Nothing with the registry";
     case "returned":
@@ -623,6 +677,10 @@ function emptyHint(tab: QueueTab): string {
   switch (tab) {
     case "drafts":
       return "A filing you start is saved here until you submit it.";
+    case "pendingSignature":
+      return "A filing sent for signature stays here until every signature is in.";
+    case "pendingPayment":
+      return "A filing everyone has signed waits here until the court fee is paid.";
     case "scrutiny":
       return "Filings waiting on the registry's check will appear here.";
     case "returned":

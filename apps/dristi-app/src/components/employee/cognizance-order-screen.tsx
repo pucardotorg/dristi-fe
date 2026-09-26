@@ -7,6 +7,7 @@ import {
   ChevronDownIcon,
   CircleCheckIcon,
   FileQuestionIcon,
+  PencilIcon,
   PlusIcon,
   ScrollTextIcon,
   SearchXIcon,
@@ -16,12 +17,29 @@ import {
 import { Identifier } from "@/components/chrome/identifier";
 import { ARRIVAL } from "@/components/chrome/motion";
 import {
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
+import { DocumentPreview } from "@/components/cases/document-preview";
+import {
   RichTextField,
   type RichTextValue,
 } from "@/components/cases/rich-text-field";
 import { markCognizanceTab } from "@/components/employee/cognizance-return";
 import { COGNIZANCE_PATH } from "@/components/employee/cognizance-table";
+import { OrderCaseFile } from "@/components/employee/order-case-file";
+import { OrderDraftFacsimile } from "@/components/employee/order-draft-facsimile";
+import { OrderSaveIndicator } from "@/components/employee/order-save-indicator";
+import { OrderVariableDialog } from "@/components/employee/order-variable-dialog";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
+import {
+  SIGN_SCENES,
+  SIGN_STAGES,
+  SignatureActions,
+  SignatureStage,
+  type SignStage,
+} from "@/components/employee/sign-method-stage";
+import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
 import { markArrival, useArrival } from "@/components/employee/use-arrival";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { PANEL_CLASS } from "@/components/shell/panel";
@@ -33,6 +51,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Dialog } from "@/components/ui/dialog";
 import {
   Empty,
   EmptyContent,
@@ -72,9 +91,11 @@ import {
   defaultNextPurposeLabel,
   type CognizanceOrderItem,
 } from "@/lib/employee/cognizance-order";
+import { CURRENT_STAFF } from "@/lib/employee/content";
 import {
   COURT_HEARING_PURPOSES,
   courtHearingPurposeLabel,
+  formatCourtDay,
   formatListingDate,
   isoDay,
   parseIsoDay,
@@ -89,6 +110,7 @@ import {
 } from "@/lib/employee/order-items";
 import {
   browsableTemplates,
+  needsProcessVariables,
   ORDER_GROUPS,
   orderTemplate,
   unavailableReason,
@@ -96,10 +118,16 @@ import {
   type OrderTemplateId,
 } from "@/lib/employee/order-templates";
 import {
+  subjectCauseTitle,
   subjectFacts,
   subjectReturn,
   type OrderSubject,
 } from "@/lib/employee/order-subject";
+import {
+  channelSummary,
+  defaultProcessVariables,
+  type ProcessVariables,
+} from "@/lib/employee/process-variables";
 import { cn } from "@/lib/utils";
 
 /**
@@ -174,7 +202,41 @@ function OrderBody({
   const [nextPurpose, setNextPurpose] = React.useState<CourtHearingPurposeId | null>(
     () => defaultNextPurposeFor(act),
   );
-  const [sent, setSent] = React.useState(false);
+  /**
+   * Where the footer's own act stands — the same three states `order-screen.tsx` keeps
+   * (owner, 2026-09-26). `"added"` is **Add to signing list**; `"signed"` is Submit from
+   * the read-then-sign overlay Preview opens, which also counts as added. Either state
+   * still means what `sent` meant here before this: the order is settled and its
+   * remaining controls (Next hearing, the catalogue) stop taking edits.
+   */
+  const [signingStatus, setSigningStatus] = React.useState<
+    "draft" | "added" | "signed"
+  >("draft");
+  const sent = signingStatus !== "draft";
+  const signature = useSignatureChoice("order");
+  const signFlow = useStagedFlow<SignStage>({
+    order: SIGN_STAGES,
+    scene: SIGN_SCENES,
+  });
+  const [signOpen, setSignOpen] = React.useState(false);
+  const signRef = React.useRef<HTMLButtonElement>(null);
+  /**
+   * The case file, read in place of the order — the hearing composer's own toggle
+   * (`order-screen.tsx`), missing here until now. Its header button used to be labelled
+   * "View case" while actually being `back.href`, a navigate-away link to the complaint
+   * page; that read as this toggle without being it, which is what looked broken (owner,
+   * 2026-09-27: "not coming up on the right side like it does when I go from the
+   * hearing"). The navigate-away link still exists — it is a real and different act —
+   * but now carries its own name, `back.label`.
+   */
+  const [caseFileOpen, setCaseFileOpen] = React.useState(false);
+
+  /** Preview opens fresh on the paper, whatever stage a previous look left it on. */
+  function openPreview() {
+    signFlow.go("read");
+    signature.reset();
+    setSignOpen(true);
+  }
 
   /* What the act loaded, and what it is worth saying about each of them. The list is
      the record of the composition; what the order *carries* is read back off the
@@ -291,6 +353,23 @@ function OrderBody({
     write(richTextWithoutItem(body, id));
   }
 
+  /**
+   * The delivery-channel confirmation, mid-flight — the item being confirmed, or
+   * `null` while the dialog is closed. `[Party Type]`/`[Party Name]` are already
+   * resolved on every summons or notice item the moment the act composes it
+   * (`fillPartyVariables` inside `cognizanceComposite`, unconditionally — see
+   * `CognizanceOrderItem`'s own note on why that is not a choice here), so confirming
+   * this only records the addressee and the channels; it never has to rewrite the
+   * passage the way the hearing composer's popup does.
+   */
+  const [confirming, setConfirming] = React.useState<CognizanceOrderItem | null>(null);
+
+  function updateItemVariables(id: string, variables: ProcessVariables) {
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, variables } : item)),
+    );
+  }
+
   return (
     <div className="flex min-h-svh min-w-0 flex-col">
       {/* The cause, the complaint it belongs to, and the way back — one header, the
@@ -306,10 +385,18 @@ function OrderBody({
           </h1>
           <MatterFacts subject={subject} />
         </div>
-        {/* One button, not two. The hearing composer's other control walks on to the
-            next matter of the sitting; there is no sitting here, and the way on is
-            the footer's own act. */}
+        {/* View Case beside the way back, the hearing composer's own pair — its other
+            control there walks on to the next matter of a sitting; there is no sitting
+            here, so this keeps the return link instead, under its own name. */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full shrink-0 sm:w-fit"
+            onClick={() => setCaseFileOpen((open) => !open)}
+          >
+            {caseFileOpen ? "Back to order" : "View Case"}
+          </Button>
           <Button
             asChild
             variant="outline"
@@ -322,7 +409,7 @@ function OrderBody({
                 markCognizanceTab(tabFor(matter));
               }}
             >
-              View case
+              {back.label}
             </Link>
           </Button>
         </div>
@@ -339,85 +426,204 @@ function OrderBody({
             disabled={sent}
             onAdd={addItem}
             onRemove={removeItem}
+            onConfirmDelivery={setConfirming}
           />
         </div>
 
-        <article
-          aria-labelledby="order-paper"
-          className={cn(
-            PANEL_CLASS,
-            "flex min-w-0 flex-col gap-4 self-start rounded-xl bg-card p-6 text-card-foreground md:p-8 lg:col-span-2",
-          )}
-        >
-          <h2
-            id="order-paper"
-            tabIndex={-1}
-            className="text-body-compact font-semibold uppercase tracking-wide"
+        {/* Same swap the hearing composer makes (`order-screen.tsx`): View Case takes
+            over this slot rather than opening elsewhere, so the typist reads a paper
+            from the case beside the order without leaving the screen it is on. */}
+        {caseFileOpen ? (
+          <OrderCaseFile className="lg:col-span-2" />
+        ) : (
+          <article
+            aria-labelledby="order-paper"
+            className={cn(
+              PANEL_CLASS,
+              "flex min-w-0 flex-col gap-4 self-start rounded-xl bg-card p-6 text-card-foreground md:p-8 lg:col-span-2",
+            )}
           >
-            Order
-          </h2>
-
-          {sent ? <SentNotice matter={matter} act={act} next={next ?? null} /> : null}
-
-          {/* One block, full width. On a sitting this row carries attendance beside the
-              posting; with the roll gone there is no pair to hold a two-column grid
-              open, and a half-width block beside empty card is a gap, not a layout. */}
-          {schedules ? (
-            <section
-              aria-labelledby="order-next"
-              className={cn("flex min-w-0 flex-col gap-2", WELL_CLASS)}
+            <h2
+              id="order-paper"
+              tabIndex={-1}
+              className="text-body-compact font-semibold uppercase tracking-wide"
             >
-              <h3
-                id="order-next"
-                className="text-caption font-semibold uppercase tracking-wide text-muted-foreground"
-              >
-                Next hearing
-              </h3>
-              <PaperNextHearing
-                date={nextDate}
-                purpose={nextPurpose}
-                today={today}
-                disabled={sent}
-                onDate={(day) => postNext({ date: day })}
-                onPurpose={(purpose) => postNext({ purpose })}
-              />
-            </section>
-          ) : null}
+              Order
+            </h2>
 
-          {/* The composed region: one box, ruled at the top so the editor reads as the
-              passage this document is for rather than a control that landed on the
-              sheet. The editor's own border closes it below. */}
-          <div className="flex min-w-0 flex-col border-t border-hairline py-6">
-            <RichTextField
-              key={bodyWrites}
-              value={body}
-              onChange={setBody}
-              labelId="order-paper"
-              className="[&_[data-slot=input-group-control]]:min-h-48 [&_[data-slot=input-group-control]>*+*]:mt-6"
-            />
-          </div>
-        </article>
+            {signingStatus !== "draft" ? (
+              <SentNotice
+                matter={matter}
+                act={act}
+                next={next ?? null}
+                signingStatus={signingStatus}
+              />
+            ) : null}
+
+            {/* One block, full width. On a sitting this row carries attendance beside the
+                posting; with the roll gone there is no pair to hold a two-column grid
+                open, and a half-width block beside empty card is a gap, not a layout. */}
+            {schedules ? (
+              <section
+                aria-labelledby="order-next"
+                className={cn("flex min-w-0 flex-col gap-2", WELL_CLASS)}
+              >
+                <h3
+                  id="order-next"
+                  className="text-caption font-semibold uppercase tracking-wide text-muted-foreground"
+                >
+                  Next hearing
+                </h3>
+                <PaperNextHearing
+                  date={nextDate}
+                  purpose={nextPurpose}
+                  today={today}
+                  disabled={sent}
+                  onDate={(day) => postNext({ date: day })}
+                  onPurpose={(purpose) => postNext({ purpose })}
+                />
+              </section>
+            ) : null}
+
+            {/* The composed region: one box, ruled at the top so the editor reads as the
+                passage this document is for rather than a control that landed on the
+                sheet. The editor's own border closes it below. */}
+            <div className="flex min-w-0 flex-col border-t border-hairline py-6">
+              <RichTextField
+                key={bodyWrites}
+                value={body}
+                onChange={setBody}
+                labelId="order-paper"
+                className="[&_[data-slot=input-group-control]]:min-h-48 [&_[data-slot=input-group-control]>*+*]:mt-6"
+              />
+            </div>
+          </article>
+        )}
       </div>
 
       <footer className="sticky bottom-0 z-30 border-t border-hairline bg-card px-6 py-3 md:px-8 md:py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           {/* Why the button is off, beside the button — never a disabled control with
               its reason somewhere else on the page. */}
-          {!sent && blockers.length > 0 ? (
+          {signingStatus === "draft" && blockers.length > 0 ? (
             <p className="text-caption text-warning-muted-foreground">
               {blockers.join(" ")}
             </p>
           ) : null}
+          <OrderSaveIndicator />
+          <Button
+            ref={signRef}
+            type="button"
+            variant="outline"
+            className="w-full sm:w-fit"
+            onClick={openPreview}
+          >
+            Preview
+          </Button>
           <Button
             type="button"
             className="w-full sm:w-fit"
-            disabled={sent || blockers.length > 0}
-            onClick={() => setSent(true)}
+            disabled={signingStatus !== "draft" || blockers.length > 0}
+            onClick={() => setSigningStatus("added")}
           >
-            Send to sign order
+            {signingStatus === "signed"
+              ? "Signed"
+              : signingStatus === "added"
+                ? "Added to signing list"
+                : "Add to signing list"}
           </Button>
         </div>
       </footer>
+
+      <OrderVariableDialog
+        open={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(null);
+        }}
+        dialogKey={confirming?.id ?? null}
+        label={confirming?.label ?? ""}
+        variables={
+          confirming
+            ? confirming.variables ?? defaultProcessVariables(matter.parties.accused)
+            : null
+        }
+        onConfirm={(variables) => {
+          if (!confirming) return;
+          updateItemVariables(confirming.id, variables);
+          setConfirming(null);
+        }}
+      />
+
+      {/* Preview: the complaint's order as paper, then the same signature choice the
+          hearing composer offers from its own Preview (`order-screen.tsx`) — one shared
+          overlay component, one shared flow (`sign-method-stage.tsx`), so a bench that
+          signs an order here and one at a hearing answers the same question in the same
+          window. */}
+      <Dialog open={signOpen} onOpenChange={setSignOpen}>
+        <StagedOverlay
+          className="h-[85dvh] sm:max-w-4xl"
+          title={signFlow.stage === "read" ? "Order" : "Add signature"}
+          titleRef={signFlow.titleRef}
+          description={`${subjectCauseTitle(subject)} · ${matter.caseNumber}`}
+          sceneKey={signFlow.sceneKey}
+          motion={signFlow.motion}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            signRef.current?.focus();
+          }}
+          footer={
+            signFlow.stage === "read" ? (
+              <Button
+                type="button"
+                disabled={blockers.length > 0}
+                onClick={() => signFlow.go("sign")}
+              >
+                Sign now
+              </Button>
+            ) : (
+              <SignatureActions
+                choice={signature}
+                onBack={() => signFlow.go("read")}
+                onSubmit={() => {
+                  setSignOpen(false);
+                  setSigningStatus("signed");
+                }}
+              />
+            )
+          }
+        >
+          {signFlow.stage === "read" ? (
+            <DocumentPreview
+              className="min-h-0 flex-1"
+              height="fill"
+              title="Order"
+              source={{
+                kind: "composed",
+                content: (
+                  <OrderDraftFacsimile
+                    document={{
+                      court: `Before the ${CURRENT_STAFF.court}`,
+                      caseNumber: matter.caseNumber,
+                      matter: subjectCauseTitle(subject),
+                      title: "Order",
+                      body: { html: body.html, pending: !body.text.trim() },
+                      dated: formatCourtDay(today),
+                      signature: "Pending the signature of the magistrate.",
+                    }}
+                  />
+                ),
+              }}
+            />
+          ) : (
+            <SignatureStage
+              noun="order"
+              subject={`You are adding your signature to the order in ${matter.caseNumber}.`}
+              warning="This records how the order is to be signed. Nothing is issued from this screen."
+              choice={signature}
+            />
+          )}
+        </StagedOverlay>
+      </Dialog>
     </div>
   );
 }
@@ -598,11 +804,13 @@ function CatalogueCard({
   disabled,
   onAdd,
   onRemove,
+  onConfirmDelivery,
 }: {
   carried: CognizanceOrderItem[];
   disabled: boolean;
   onAdd: (id: OrderTemplateId) => void;
   onRemove: (id: string) => void;
+  onConfirmDelivery: (item: CognizanceOrderItem) => void;
 }) {
   const [open, setOpen] = React.useState(true);
   const [query, setQuery] = React.useState("");
@@ -666,6 +874,7 @@ function CatalogueCard({
               carried={carried}
               disabled={disabled}
               onRemove={onRemove}
+              onConfirmDelivery={onConfirmDelivery}
             />
 
             <div className="flex min-w-0 flex-col gap-3">
@@ -733,10 +942,12 @@ function InThisOrder({
   carried,
   disabled,
   onRemove,
+  onConfirmDelivery,
 }: {
   carried: CognizanceOrderItem[];
   disabled: boolean;
   onRemove: (id: string) => void;
+  onConfirmDelivery: (item: CognizanceOrderItem) => void;
 }) {
   if (carried.length === 0) {
     return (
@@ -751,30 +962,59 @@ function InThisOrder({
         In this order
       </h3>
       <ul className="flex min-w-0 flex-col gap-1">
-        {carried.map((item, index) => (
-          <li
-            key={item.id}
-            className="flex min-h-10 min-w-0 items-center gap-2 rounded-lg bg-surface-sunken px-3 py-1.5"
-          >
-            <span className="text-caption tabular-nums text-muted-foreground">
-              {index + 1}.
-            </span>
-            <span className="text-body-compact min-w-0 flex-1 wrap-break-word">
-              {item.label}
-            </span>
-            {item.fixed || disabled ? null : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${item.label} from this order`}
-                onClick={() => onRemove(item.id)}
-              >
-                <TrashIcon aria-hidden />
-              </Button>
-            )}
-          </li>
-        ))}
+        {carried.map((item, index) => {
+          /* Who this goes to and on what channels is not printed in the sentence
+             (`[Party Type]`/`[Party Name]` resolve unconditionally at composite
+             time, and the channels never join the wording at all — `PRC-03` is a
+             separate confirmation, not a template variable) so the row is what says
+             whether it has been given yet, the same way the hearing composer's own
+             catalogue row does (`order-screen.tsx`). */
+          const needsConfirmation = needsProcessVariables(item.template);
+          return (
+            <li
+              key={item.id}
+              className="flex min-h-10 min-w-0 items-center gap-2 rounded-lg bg-surface-sunken px-3 py-1.5"
+            >
+              <span className="text-caption tabular-nums text-muted-foreground">
+                {index + 1}.
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="text-body-compact block wrap-break-word">
+                  {item.label}
+                </span>
+                {needsConfirmation ? (
+                  <span className="text-caption block text-muted-foreground">
+                    {item.variables
+                      ? `Delivery: ${channelSummary(item.variables)}`
+                      : "Delivery channels not confirmed"}
+                  </span>
+                ) : null}
+              </div>
+              {needsConfirmation ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Confirm delivery for ${item.label}`}
+                  onClick={() => onConfirmDelivery(item)}
+                >
+                  <PencilIcon aria-hidden />
+                </Button>
+              ) : null}
+              {item.fixed || disabled ? null : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remove ${item.label} from this order`}
+                  onClick={() => onRemove(item.id)}
+                >
+                  <TrashIcon aria-hidden />
+                </Button>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -851,10 +1091,12 @@ function SentNotice({
   matter,
   act,
   next,
+  signingStatus,
 }: {
   matter: CognizanceCase;
   act: CognizanceAct;
   next: CognizanceCase | null;
+  signingStatus: "added" | "signed";
 }) {
   const spec = COGNIZANCE_ACTS[act];
   return (
@@ -873,7 +1115,10 @@ function SentNotice({
         <div className="flex min-w-0 flex-col gap-1">
           <p className="text-body-compact font-semibold">{spec.settled}</p>
           <p className="text-body-compact text-muted-foreground text-pretty">
-            {cognizanceOrderOutcome(matter, act)} The order is waiting to be signed;
+            {cognizanceOrderOutcome(matter, act)}{" "}
+            {signingStatus === "signed"
+              ? "A signature has been recorded for this sitting;"
+              : "The order is waiting to be signed;"}{" "}
             nothing has been issued from this screen.
           </p>
         </div>

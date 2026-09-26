@@ -4,9 +4,12 @@ import * as React from "react";
 
 import {
   draftRows,
+  pendingPaymentRows,
+  pendingSignatureRows,
   registeredRows,
   returnedRows,
   scrutinyRows,
+  type QueueRow,
   type QueueTab,
 } from "@/lib/filing/queue";
 import { firstNameOf, useProfile } from "@/lib/filing/profile";
@@ -15,6 +18,7 @@ import { useDrafts } from "@/lib/filing/use-drafts";
 import { useTasks } from "@/lib/tasks/store";
 import { ConfirmDialog } from "@/components/filing/confirm-dialog";
 
+import { BatchFilingDialog } from "./batch-filing-dialog";
 import { BulkImportCard, type BulkBatch } from "./bulk-import-card";
 import { FilingsQueue, type QueueData } from "./filings-queue";
 import { StartFilingCard } from "./start-filing-card";
@@ -46,11 +50,16 @@ const BATCH: BulkBatch | null = null;
 export function FilingsDashboard() {
   const mounted = useMounted();
   const { profile } = useProfile();
-  const { ready, error, readAt, drafts, filed, discard } = useDrafts();
+  const { ready, error, readAt, drafts, filed, discard, reload } = useDrafts();
   const { tasks, cases: taskCases } = useTasks();
   // The drafts awaiting a discard confirmation — one from a row's bin, several from
   // the selection. Empty means the dialog is closed.
   const [confirmIds, setConfirmIds] = React.useState<string[]>([]);
+  // The rows a bulk sign or bulk pay is about to act on — from the tab's own selection,
+  // never restated. Empty (null) means the dialog is closed.
+  const [batch, setBatch] = React.useState<{ kind: "sign" | "pay"; rows: QueueRow[] } | null>(
+    null
+  );
 
   const showData = mounted && ready;
   const firstName = firstNameOf(profile?.name ?? "");
@@ -59,11 +68,13 @@ export function FilingsDashboard() {
   const data = React.useMemo<QueueData>(
     () => ({
       drafts: draftRows(drafts),
+      pendingSignature: pendingSignatureRows(drafts, profile),
+      pendingPayment: pendingPaymentRows(drafts, profile),
       scrutiny: scrutinyRows(today),
       returned: returnedRows(tasks, taskCases),
       registered: registeredRows(today),
     }),
-    [drafts, tasks, taskCases, today]
+    [drafts, profile, tasks, taskCases, today]
   );
 
   return (
@@ -88,7 +99,12 @@ export function FilingsDashboard() {
       {/* Gated on the drafts read only. Cases are a static import and the tasks store
           fills the "returned" tab whenever it finishes; waiting for all three would blank
           the whole table because one tab is not ready yet. */}
-      <FilingsQueue data={data} ready={showData} onDiscard={setConfirmIds} />
+      <FilingsQueue
+        data={data}
+        ready={showData}
+        onDiscard={setConfirmIds}
+        onBulk={(kind, rows) => setBatch({ kind, rows })}
+      />
 
       <ConfirmDialog
         open={confirmIds.length > 0}
@@ -111,6 +127,20 @@ export function FilingsDashboard() {
         onConfirm={() => {
           for (const id of confirmIds) void discard(id);
           setConfirmIds([]);
+        }}
+      />
+
+      <BatchFilingDialog
+        kind={batch?.kind ?? null}
+        rows={batch?.rows ?? []}
+        profile={profile}
+        open={!!batch}
+        onOpenChange={(open) => {
+          if (!open) setBatch(null);
+        }}
+        onFinished={() => {
+          setBatch(null);
+          reload();
         }}
       />
     </div>

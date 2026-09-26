@@ -8,10 +8,12 @@ import {
   CalendarDaysIcon,
   CalendarX2Icon,
   InboxIcon,
+  PencilIcon,
   ScrollTextIcon,
   TrashIcon,
 } from "lucide-react";
 
+import { DocumentPreview } from "@/components/cases/document-preview";
 import {
   RichTextField,
   type RichTextSuggestion,
@@ -23,10 +25,16 @@ import {
 } from "@/components/chrome/staged-overlay";
 import { ListingApplicationDialog } from "@/components/employee/listing-application-dialog";
 import { OrderCaseFile } from "@/components/employee/order-case-file";
+import { OrderDraftFacsimile } from "@/components/employee/order-draft-facsimile";
+import { OrderSaveIndicator } from "@/components/employee/order-save-indicator";
+import { OrderVariableDialog } from "@/components/employee/order-variable-dialog";
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import {
+  SIGN_SCENES,
+  SIGN_STAGES,
   SignatureActions,
   SignatureStage,
+  type SignStage,
 } from "@/components/employee/sign-method-stage";
 import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
 import { useCourtToday } from "@/components/employee/use-court-today";
@@ -115,12 +123,19 @@ import {
   nextOrderItemId,
   orderItemLabel,
   orderItemsInBody,
+  replaceOrderItemText,
+  richTextFromPlain,
   richTextWithoutItem,
   upsertRichTextFact,
   upsertRichTextSentence,
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "@/lib/employee/order-items";
+import {
+  channelSummary,
+  defaultProcessVariables,
+  type ProcessVariables,
+} from "@/lib/employee/process-variables";
 import {
   phraseCompletions,
   phraseRemainder,
@@ -139,25 +154,33 @@ import {
 import {
   ORDER_GROUPS,
   ORDER_TEMPLATES,
+  fillGeneralVariables,
+  fillPartyVariables,
   hasTemplateText,
+  needsProcessVariables,
   openSlots,
+  orderTemplate,
   unavailableReason,
   type OrderCatalogueContext,
   type OrderGroupId,
+  type OrderTemplateId,
 } from "@/lib/employee/order-templates";
 import { Identifier } from "@/components/chrome/identifier";
 
 /**
- * The composer's signature overlay, stated as a flow with one stage in it.
+ * The composer's own read-then-sign overlay — the shared two-stage flow the four signing
+ * queues already use (`sign-method-stage.tsx`), reached here from **Preview** rather than
+ * from the paper already standing on the page.
  *
- * The four signing queues read a paper and then sign it; here the paper is the page the
- * overlay is standing on, so the act has one stage and no way back. `useStagedFlow` still
- * owns it, because what the frame needs — a scene to mount the stage under and a line for
- * focus to land on — is the same whether the act has one stage or three.
+ * It was a one-stage flow (owner, 2026-09-15: "there is nothing to read here and nothing
+ * to go back to" — the order was always visible on the page beside it). That reasoning
+ * held until Preview existed; now there is a document to read that is not simply "the
+ * page", and the owner asked for the option to sign immediately from it (2026-09-26). So
+ * this composer adopts the same `SIGN_STAGES`/`SIGN_SCENES` the queues share rather than
+ * keeping a second, one-stage vocabulary — two signing overlays that behaved differently
+ * would be the "two answers to what an order says" objection this codebase already states
+ * elsewhere, applied to how it is signed instead of what it says.
  */
-const SIGN_ONLY = ["sign"] as const;
-type SignStage = (typeof SIGN_ONLY)[number];
-const SIGN_ONLY_SCENE: Record<SignStage, string> = { sign: "sign" };
 
 /**
  * Compose the order of one listing.
@@ -172,12 +195,14 @@ const SIGN_ONLY_SCENE: Record<SignStage, string> = { sign: "sign" };
  * and the way on to the next matter; a bar across the bottom carries the signature.
  *
  * **This build issues nothing.** The draft is held for this sitting and dies on a
- * reload. The paper on the page is the order as it will read. Send to sign order opens the
- * same Add-signature overlay the signing queues already run — e-sign or upload —
- * and Submit records that choice here only. Next hearing ends this listing and
- * calls the next one on the board — the same screen marks the cause list already
- * makes. Nothing files, notifies, or signs, and answering an application draws no
- * order.
+ * reload. The paper on the page is the order as it will read. **Add to signing list**
+ * (renamed from Send to sign order, owner, 2026-09-26 — the old name read as an order
+ * already gone somewhere) marks the draft ready and stops there; it opens no overlay.
+ * **Preview** opens the order as paper and offers Sign now from it — the same
+ * Add-signature overlay the signing queues already run (e-sign or upload), and Submit
+ * records that choice here only. Next hearing ends this listing and calls the next one on
+ * the board — the same screen marks the cause list already makes. Nothing files,
+ * notifies, or signs, and answering an application draws no order.
  */
 /**
  * Which of the left column's section cards is open — at most one, which is the whole of
@@ -465,6 +490,15 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
    */
   const [bodyWrites, setBodyWrites] = React.useState(0);
   const [signOpen, setSignOpen] = React.useState(false);
+  /**
+   * Where the footer's own act stands — never written back to `order-drafts.ts`, because
+   * nothing here is issued and a reload is honestly meant to lose it, same as the draft
+   * itself. `"added"` is **Add to signing list**; `"signed"` is Submit from the read-then-
+   * sign overlay Preview opens, which also counts as added — see the footer, below.
+   */
+  const [signingStatus, setSigningStatus] = React.useState<
+    "draft" | "added" | "signed"
+  >("draft");
   const [announcement, setAnnouncement] = React.useState("");
   /**
    * Reading the case file while writing the order.
@@ -492,14 +526,21 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
   }
   const [openApplication, setOpenApplication] =
     React.useState<ListingApplication | null>(null);
+  /** The button that opens the read-then-sign overlay — Preview — so focus returns to
+   *  it, and not to the primary action beside it, when the overlay closes. */
   const signRef = React.useRef<HTMLButtonElement>(null);
   const signature = useSignatureChoice("order");
-  /* One stage, so the flow never travels — it is here for the frame's chrome: the line
-     focus lands on, and the key the stage mounts under. */
   const signFlow = useStagedFlow<SignStage>({
-    order: SIGN_ONLY,
-    scene: SIGN_ONLY_SCENE,
+    order: SIGN_STAGES,
+    scene: SIGN_SCENES,
   });
+
+  /** Preview opens fresh on the paper, whatever stage a previous look left it on. */
+  function openPreview() {
+    signFlow.go("read");
+    signature.reset();
+    setSignOpen(true);
+  }
 
   const appearances = React.useMemo(() => appearancesFor(hearing), [hearing]);
   /**
@@ -673,6 +714,12 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
        listing is exactly the case where "the only candidate" has no answer and the row
        still does. */
     application?: Pick<ListingApplication, "number" | "type">,
+    /* Set only for a process type that has just been through the delivery-channel
+       confirmation (`OrderItems`' own gate, below). Its presence is what tells
+       `createOrderItem` to resolve `[Party Type]`/`[Party Name]` instead of leaving
+       them standing — the same substitution as ever, run only once somebody has
+       confirmed who it goes to. */
+    variables?: ProcessVariables,
   ) {
     /* Pressed a suggestion row? It named the application. Searched the catalogue
        instead? `applicationForOrder` type-matches one, and finds nothing rather than
@@ -683,15 +730,22 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
       type,
       undefined,
       orderTemplateFacts(hearing, draft, today, context),
+      /* `variables` is only ever supplied for a process type — `needsProcessVariables`
+         gates the row that collects it (`OrderItems`, below) — so `type` is never
+         `"others"` on this branch. */
+      variables
+        ? (text) => fillPartyVariables(text, hearing.parties, type as OrderTemplateId)
+        : undefined,
     );
-    const open = openSlots(item.text.text);
+    const withVariables = variables ? { ...item, variables } : item;
+    const open = openSlots(withVariables.text.text);
     /* **Appended, not added as a box** (owner, 2026-09-15). The template's words join
        what is already written and stop being a thing of their own; `items` keeps the
        record that it was pulled in, which is what the catalogue's gates read. */
     setDraft((current) => ({
       ...current,
-      items: [...current.items, item],
-      body: appendRichText(current.body, item.text),
+      items: [...current.items, withVariables],
+      body: appendRichText(current.body, withVariables.text),
     }));
     setBodyWrites((count) => count + 1);
     /* The announcement says what is left to do, because after the auto-fill pass that is
@@ -699,11 +753,42 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
        written" would tell a screen-reader user it is finished when three brackets are
        still standing in it. */
     setAnnouncement(
-      item.text.text
+      withVariables.text.text
         ? open.length === 0
           ? `${orderItemLabel(type)} added to the order, complete. Its text is at the end of the order and can be edited.`
           : `${orderItemLabel(type)} added to the order with ${open.length === 1 ? "one detail" : `${open.length} details`} still to fill: ${open.join(", ")}.`
         : `${orderItemLabel(type)} added to the order. It has no standing text — write it in the order.`,
+    );
+  }
+
+  /**
+   * Reopen a process item's delivery-channel confirmation and rewrite its passage.
+   *
+   * Replaces the item's marked block in place (`replaceOrderItemText`) rather than
+   * removing and re-appending it — the sentence stays where the drafter last read it,
+   * which is what "open it up to edit it again" (owner, 2026-09-26) means for a passage
+   * already sitting in the middle of an order the drafter may have written around.
+   */
+  function updateItemVariables(item: OrderItemDraft, variables: ProcessVariables) {
+    /* Only ever called for a process item (`needsProcessVariables` gates the row that
+       offers it), so the type is never `"others"` and this cast is safe. */
+    const type = item.type as OrderTemplateId;
+    const resolved = fillPartyVariables(
+      fillGeneralVariables(orderTemplate(type).botd, orderTemplateFacts(hearing, draft, today)),
+      hearing.parties,
+      type,
+    );
+    const text = richTextFromPlain(resolved, item.id);
+    setDraft((current) => ({
+      ...current,
+      items: current.items.map((entry) =>
+        entry.id === item.id ? { ...entry, text, variables } : entry,
+      ),
+      body: replaceOrderItemText(current.body, item.id, text),
+    }));
+    setBodyWrites((count) => count + 1);
+    setAnnouncement(
+      `${orderItemLabel(item.type)} updated with the confirmed addressee and delivery channels.`,
     );
   }
 
@@ -1424,9 +1509,11 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
                         purpose={hearing.purpose}
                         suggestions={suggestions}
                         catalogue={catalogue}
+                        accusedName={hearing.parties.accused}
                         onOpen={setOpenApplication}
                         onDecide={decide}
                         onAdd={addItem}
+                        onUpdateVariables={updateItemVariables}
                         onRemove={removeItem}
                       />
                     </div>
@@ -1487,16 +1574,32 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         className="sticky bottom-0 z-30 border-t border-hairline bg-card px-6 py-3 md:px-8 md:py-4"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <OrderSaveIndicator />
           <Button
             ref={signRef}
             type="button"
+            variant="outline"
             className="w-full sm:w-fit"
+            onClick={openPreview}
+          >
+            Preview
+          </Button>
+          <Button
+            type="button"
+            className="w-full sm:w-fit"
+            disabled={signingStatus !== "draft"}
             onClick={() => {
-              signature.reset();
-              setSignOpen(true);
+              setSigningStatus("added");
+              setAnnouncement(
+                "Added to the signing list. Nothing has been filed or published.",
+              );
             }}
           >
-            Send to sign order
+            {signingStatus === "signed"
+              ? "Signed"
+              : signingStatus === "added"
+                ? "Added to signing list"
+                : "Add to signing list"}
           </Button>
         </div>
       </footer>
@@ -1526,26 +1629,22 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         }}
       />
 
-      {/* The composer's signature step — the same stage the four signing queues reach
-          after reading the paper, in the same frame, so a bench that signs an order here
-          and a bond in the queue is answering one question in one kind of window.
-
-          **One stage, and that is honest rather than a special case.** The queues have a
-          document to read first; the composer's order is on the page behind this overlay,
-          so there is nothing to read here and nothing to go back to. The frame costs
-          nothing when there is one stage and it still earns its keep: the header and the
-          footer hold still while the fields underneath them scroll, which the old
-          `overflow-y-auto` dialog could not do — choosing upload scrolled the title and
-          Submit off the top and bottom of the box. */}
+      {/* Preview: the order as paper, then the same signature choice the four signing
+          queues offer after their own paper — one frame, the read stage travelling to
+          the sign stage rather than a second dialog opening after the first closes
+          (`sign-method-stage.tsx`). The window keeps the document's width and height
+          across both stages, which is what let the header and footer hold still while
+          the fields under them scroll — the old `overflow-y-auto` dialog could not do
+          that; choosing upload used to scroll the title and Submit off the box. */}
       <Dialog open={signOpen} onOpenChange={setSignOpen}>
         <StagedOverlay
-          /* The width the *act* needs. There is no document in this one, so it stays the
-             narrow box it has always been — and with a single stage there is nothing for
-             a floor to hold the window steady against. */
-          className="sm:max-w-lg"
-          title="Add signature"
+          /* The width and height the *document* needs, for both stages — the read stage
+             sizes the window and the sign stage keeps it rather than shrinking to its
+             own narrower content, the same reasoning `SignOrderDialog` states. */
+          className="h-[85dvh] sm:max-w-4xl"
+          title={signFlow.stage === "read" ? orderDocument.title : "Add signature"}
           titleRef={signFlow.titleRef}
-          description="Choose how you will sign this order."
+          description={`${causeTitle(hearing)} · ${hearing.caseNumber}`}
           sceneKey={signFlow.sceneKey}
           motion={signFlow.motion}
           onCloseAutoFocus={(event) => {
@@ -1553,23 +1652,43 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
             signRef.current?.focus();
           }}
           footer={
-            <SignatureActions
-              choice={signature}
-              onSubmit={() => {
-                setSignOpen(false);
-                setAnnouncement(
-                  "Signature recorded for this sitting. Nothing has been filed or published.",
-                );
-              }}
-            />
+            signFlow.stage === "read" ? (
+              <Button type="button" onClick={() => signFlow.go("sign")}>
+                Sign now
+              </Button>
+            ) : (
+              <SignatureActions
+                choice={signature}
+                onBack={() => signFlow.go("read")}
+                onSubmit={() => {
+                  setSignOpen(false);
+                  setSigningStatus("signed");
+                  setAnnouncement(
+                    "Signature recorded for this sitting. Nothing has been filed or published.",
+                  );
+                }}
+              />
+            )
           }
         >
-          <SignatureStage
-            noun="order"
-            subject={`You are adding your signature to the order in ${hearing.caseNumber}.`}
-            warning="This records how the order is to be signed. Nothing is issued from this screen."
-            choice={signature}
-          />
+          {signFlow.stage === "read" ? (
+            <DocumentPreview
+              className="min-h-0 flex-1"
+              height="fill"
+              title={orderDocument.title}
+              source={{
+                kind: "composed",
+                content: <OrderDraftFacsimile document={orderDocument} />,
+              }}
+            />
+          ) : (
+            <SignatureStage
+              noun="order"
+              subject={`You are adding your signature to the order in ${hearing.caseNumber}.`}
+              warning="This records how the order is to be signed. Nothing is issued from this screen."
+              choice={signature}
+            />
+          )}
         </StagedOverlay>
       </Dialog>
     </div>
@@ -1597,9 +1716,11 @@ function SectionBody({
   purpose,
   suggestions,
   catalogue,
+  accusedName,
   onOpen,
   onDecide,
   onAdd,
+  onUpdateVariables,
   onRemove,
 }: {
   entry: SectionEntry;
@@ -1613,6 +1734,8 @@ function SectionBody({
     decision: ListingApplicationDecision;
   }[];
   items: readonly OrderItemDraft[];
+  /** Who a process order's confirmation opens on — the case's own accused. */
+  accusedName: string;
   onOpen: (application: ListingApplication) => void;
   onDecide: (
     application: ListingApplication,
@@ -1621,7 +1744,9 @@ function SectionBody({
   onAdd: (
     type: OrderItemTypeId,
     application?: Pick<ListingApplication, "number" | "type">,
+    variables?: ProcessVariables,
   ) => void;
+  onUpdateVariables: (item: OrderItemDraft, variables: ProcessVariables) => void;
   onRemove: (item: OrderItemDraft) => void;
 }) {
   if (entry.id === "applications") {
@@ -1685,10 +1810,12 @@ function SectionBody({
       items={items}
       body={draft.body}
       onAdd={onAdd}
+      onUpdateVariables={onUpdateVariables}
       onRemove={onRemove}
       purpose={purpose}
       suggestions={suggestions}
       catalogue={catalogue}
+      accusedName={accusedName}
     />
   );
 }
@@ -2005,10 +2132,12 @@ function OrderItems({
   items,
   body,
   onAdd,
+  onUpdateVariables,
   onRemove,
   purpose,
   suggestions,
   catalogue,
+  accusedName,
 }: {
   items: readonly OrderItemDraft[];
   /** What the box actually says now — the only honest source for what is left to fill. */
@@ -2016,17 +2145,31 @@ function OrderItems({
   onAdd: (
     type: OrderItemTypeId,
     application?: Pick<ListingApplication, "number" | "type">,
+    variables?: ProcessVariables,
   ) => void;
+  onUpdateVariables: (item: OrderItemDraft, variables: ProcessVariables) => void;
   onRemove: (item: OrderItemDraft) => void;
   /** Only to word the note when the court's table has nothing to suggest. */
   purpose: CourtHearingPurposeId;
   /** Ranked, most likely first, and already gated. Built by the screen. */
   suggestions: readonly OrderSuggestion[];
   catalogue: OrderCatalogueContext;
+  /** Who a process order's delivery-channel confirmation opens on. */
+  accusedName: string;
 }) {
   const [query, setQuery] = React.useState("");
   const [openGroup, setOpenGroup] = React.useState<OrderGroupId | null>(null);
   const { boxRef, contentRef, edges, measure } = useScrollEdges();
+
+  /**
+   * The delivery-channel confirmation, mid-flight — either a type about to be added or
+   * an already-carried item being reopened. `null` closes the dialog either way.
+   */
+  const [pendingVariables, setPendingVariables] = React.useState<
+    | { mode: "add"; type: OrderItemTypeId; application?: Pick<ListingApplication, "number" | "type"> }
+    | { mode: "edit"; item: OrderItemDraft }
+    | null
+  >(null);
 
   const openCount = openSlots(body.text).length;
 
@@ -2053,13 +2196,45 @@ function OrderItems({
       }
     : null;
 
+  /**
+   * Choosing a process type opens the delivery-channel confirmation instead of writing
+   * the template straight in (`PRC-03`, `ITM-11`) — the popup the owner asked for
+   * (2026-09-26). Everything else still lands the moment it is pressed, as it always
+   * has.
+   */
   function add(
     type: OrderItemTypeId,
     application?: Pick<ListingApplication, "number" | "type">,
   ) {
+    if (needsProcessVariables(type)) {
+      setPendingVariables({ mode: "add", type, application });
+      return;
+    }
     onAdd(type, application);
     setQuery("");
   }
+
+  function confirmVariables(variables: ProcessVariables) {
+    if (!pendingVariables) return;
+    if (pendingVariables.mode === "add") {
+      onAdd(pendingVariables.type, pendingVariables.application, variables);
+      setQuery("");
+    } else {
+      onUpdateVariables(pendingVariables.item, variables);
+    }
+    setPendingVariables(null);
+  }
+
+  const dialogLabel = pendingVariables
+    ? pendingVariables.mode === "add"
+      ? orderItemLabel(pendingVariables.type)
+      : orderItemLabel(pendingVariables.item.type)
+    : "";
+  const dialogVariables = pendingVariables
+    ? pendingVariables.mode === "add"
+      ? defaultProcessVariables(accusedName)
+      : (pendingVariables.item.variables ?? defaultProcessVariables(accusedName))
+    : null;
 
   return (
     /* **The catalogue scrolls, the panel does not** (owner, 2026-09-15). This region is
@@ -2346,27 +2521,59 @@ function OrderItems({
                     moving down the list hears which direction each button would take
                     out. */}
                 <ol className="flex min-w-0 flex-col gap-2">
-                  {items.map((item, index) => (
-                    <li
-                      key={item.id}
-                      className="flex min-h-10 min-w-0 items-center gap-3 rounded-lg bg-surface-sunken px-3 py-2"
-                    >
-                      <p className="text-body-compact min-w-0 flex-1">
-                        <span className="tabular-nums">{index + 1}.</span>{" "}
-                        {orderItemLabel(item.type)}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`Take ${orderItemLabel(item.type)} out of the order`}
-                        onClick={() => onRemove(item)}
-                        className="relative shrink-0 after:absolute after:-inset-1"
+                  {items.map((item, index) => {
+                    /* A process type still carries the delivery-channel confirmation
+                       as its own row fact, whether or not it has been given one yet —
+                       added through the catalogue it always has one by the time it
+                       lands here (`add`, above); the "/" inline suggestion has no such
+                       gate, so a row it wrote can still be missing one. Either way the
+                       row says so rather than reading as finished. */
+                    const needsConfirmation = needsProcessVariables(item.type);
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex min-h-10 min-w-0 items-center gap-3 rounded-lg bg-surface-sunken px-3 py-2"
                       >
-                        <TrashIcon aria-hidden />
-                      </Button>
-                    </li>
-                  ))}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-body-compact min-w-0">
+                            <span className="tabular-nums">{index + 1}.</span>{" "}
+                            {orderItemLabel(item.type)}
+                          </p>
+                          {needsConfirmation ? (
+                            <p className="text-caption text-muted-foreground">
+                              {item.variables
+                                ? `Delivery: ${channelSummary(item.variables)}`
+                                : "Delivery channels not confirmed"}
+                            </p>
+                          ) : null}
+                        </div>
+                        {needsConfirmation ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={`Confirm delivery for ${orderItemLabel(item.type)}`}
+                            onClick={() =>
+                              setPendingVariables({ mode: "edit", item })
+                            }
+                            className="relative shrink-0 after:absolute after:-inset-1"
+                          >
+                            <PencilIcon aria-hidden />
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`Take ${orderItemLabel(item.type)} out of the order`}
+                          onClick={() => onRemove(item)}
+                          className="relative shrink-0 after:absolute after:-inset-1"
+                        >
+                          <TrashIcon aria-hidden />
+                        </Button>
+                      </li>
+                    );
+                  })}
                 </ol>
                 {/* What the auto-fill pass could not resolve, **read off the box rather
                     than off the templates**. It used to be a count per row, taken from the
@@ -2387,6 +2594,23 @@ function OrderItems({
           </div>
         </div>
       </div>
+
+      <OrderVariableDialog
+        open={pendingVariables !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingVariables(null);
+        }}
+        dialogKey={
+          pendingVariables
+            ? pendingVariables.mode === "add"
+              ? `add:${pendingVariables.type}`
+              : `edit:${pendingVariables.item.id}`
+            : null
+        }
+        label={dialogLabel}
+        variables={dialogVariables}
+        onConfirm={confirmVariables}
+      />
     </div>
   );
 }

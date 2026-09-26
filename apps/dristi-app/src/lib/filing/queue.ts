@@ -19,13 +19,22 @@ import type { CaseRecord } from "@/lib/cases/types";
 import type { Case as TaskCase, Task } from "@/lib/tasks/types";
 import { fixHref } from "@/lib/tasks/routes";
 
-import { addDays, daysBetween, toDisplayDate } from "./format";
-import { draftProgress, draftTitle, limitationView, LIMITATION_DAYS } from "./selectors";
+import { addDays, daysBetween, money, toDisplayDate } from "./format";
+import {
+  draftProgress,
+  draftTitle,
+  feeBill,
+  limitationView,
+  LIMITATION_DAYS,
+  signatories,
+} from "./selectors";
 import { stepHref } from "./steps";
-import type { FilingDraft } from "./types";
+import type { FilingDraft, Signatory, UserProfile } from "./types";
 
 export const QUEUE_TABS = [
   { id: "drafts", label: "Drafts" },
+  { id: "pendingSignature", label: "Pending signature" },
+  { id: "pendingPayment", label: "Pending payment" },
   { id: "scrutiny", label: "Pending scrutiny" },
   { id: "returned", label: "Returned post scrutiny" },
   { id: "registered", label: "Registered" },
@@ -55,6 +64,14 @@ export type QueueRow = {
   count?: number;
   /** How much of the form is filled in, and when it was last touched. Drafts only. */
   progress?: { percent: number; savedOn: string };
+  /**
+   * Whether the signed-in profile is one of the people still asked to sign. Pending-
+   * signature rows only — this is what a bulk sign can actually act on: you cannot sign
+   * for a party who is not you, however pressing their row looks.
+   */
+  youPending?: boolean;
+  /** The court fee still owed, in rupees. Pending-payment rows only — for the bulk total. */
+  amount?: number;
   action: { label: string; href: string };
   /** When this row needs attention — ascending puts the most pressing first. */
   urgencyAt: string;
@@ -95,6 +112,16 @@ export const TAB_LAYOUT: Record<
     info: "File by",
     label: "Drafts you have not filed yet",
   },
+  pendingSignature: {
+    columns: ["parties", "info", "action"],
+    info: "Signatures",
+    label: "Filings sent for signature",
+  },
+  pendingPayment: {
+    columns: ["parties", "info", "action"],
+    info: "Court fee",
+    label: "Filings signed and awaiting the court fee",
+  },
   scrutiny: {
     columns: ["ref", "parties", "court", "info", "action"],
     ref: "E-filing no.",
@@ -133,6 +160,14 @@ export const TAB_SORTS: Record<QueueTab, SortOption[]> = {
   drafts: [
     { value: "deadline", label: "Deadline first", key: "urgencyAt", dir: "asc" },
     { value: "recent", label: "Recently saved", key: "recencyAt", dir: "desc" },
+  ],
+  pendingSignature: [
+    { value: "waiting", label: "Longest waiting", key: "urgencyAt", dir: "asc" },
+    { value: "recent", label: "Recently sent", key: "recencyAt", dir: "desc" },
+  ],
+  pendingPayment: [
+    { value: "waiting", label: "Longest waiting", key: "urgencyAt", dir: "asc" },
+    { value: "recent", label: "Recently signed", key: "recencyAt", dir: "desc" },
   ],
   scrutiny: [
     { value: "waiting", label: "Longest waiting", key: "urgencyAt", dir: "asc" },
@@ -214,27 +249,127 @@ export function draftClock(draft: FilingDraft): {
   };
 }
 
+/**
+ * Sending for signature is what actually takes a draft out of drafting — see
+ * `sign-section.tsx`'s own `requested`. Choosing the paper path is the same moment for
+ * that path: `sign.mode` only ever becomes `"upload"` when the filer picks it there, and
+ * it never carries a `requestedAt` of its own to read instead.
+ */
+function enteredSigning(draft: FilingDraft): boolean {
+  return draft.sign.requestedAt !== null || draft.sign.mode === "upload";
+}
+
 export function draftRows(drafts: FilingDraft[]): QueueRow[] {
-  return drafts.map((draft) => {
+  return drafts
+    .filter((draft) => !enteredSigning(draft))
+    .map((draft) => {
+      const parties = draftTitle(draft);
+      const { dueOn, ...info } = draftClock(draft);
+      return {
+        id: draft.id,
+        parties,
+        court: "",
+        info,
+        progress: {
+          percent: draftProgress(draft),
+          savedOn: toDisplayDate(draft.updatedAt.slice(0, 10)),
+        },
+        action: { label: "Continue filing", href: stepHref(draft.id, draft.lastStep) },
+        // A draft past its window keeps its real date rather than being pushed to the end:
+        // it is the most pressing row on the tab, not a finished one.
+        urgencyAt: dueOn || NO_URGENCY,
+        recencyAt: draft.updatedAt.slice(0, 10),
+        discardable: true,
+        haystack: parties.toLowerCase(),
+      };
+    });
+}
+
+/** Who is still asked to sign, read from the filer's own point of view. */
+function pendingSummary(everyone: Signatory[]): {
+  count: number;
+  youPending: boolean;
+  sub: string;
+} {
+  const pending = everyone.filter((s) => s.status === "pending");
+  const youPending = pending.some((s) => s.you);
+  const others = pending.filter((s) => !s.you).length;
+  const sub = youPending
+    ? others
+      ? `Waiting on you and ${others} other ${others === 1 ? "party" : "parties"}`
+      : "Waiting on you"
+    : others === 1
+      ? "Waiting on the other party"
+      : `Waiting on ${others} other parties`;
+  return { count: pending.length, youPending, sub };
+}
+
+/**
+ * Sent for signature, at least one signature still outstanding. Some of these are
+ * waiting on the filer; some are waiting entirely on other parties, which is why the
+ * count in the Signatures column, not a date, is the fact the row leads with.
+ */
+export function pendingSignatureRows(
+  drafts: FilingDraft[],
+  profile: UserProfile | null
+): QueueRow[] {
+  return drafts.flatMap((draft) => {
+    if (!enteredSigning(draft)) return [];
+    const { complainants, advocates } = signatories(draft, profile);
+    const everyone = [...complainants, ...advocates];
+    const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
+    if (allSigned) return [];
     const parties = draftTitle(draft);
-    const { dueOn, ...info } = draftClock(draft);
-    return {
+    const { count, youPending, sub } = pendingSummary(everyone);
+    // The moment it left the drafting phase — the paper path never sets `requestedAt`,
+    // so its own last edit is the closest honest stand-in for "waiting since".
+    const since = (draft.sign.requestedAt ?? draft.updatedAt).slice(0, 10);
+    const row: QueueRow = {
       id: draft.id,
       parties,
       court: "",
-      info,
-      progress: {
-        percent: draftProgress(draft),
-        savedOn: toDisplayDate(draft.updatedAt.slice(0, 10)),
-      },
-      action: { label: "Continue filing", href: stepHref(draft.id, draft.lastStep) },
-      // A draft past its window keeps its real date rather than being pushed to the end:
-      // it is the most pressing row on the tab, not a finished one.
-      urgencyAt: dueOn || NO_URGENCY,
+      info: { lead: String(count), sub, tone: youPending ? "warning" : "default" },
+      count,
+      action: { label: "Continue signing", href: stepHref(draft.id, "sign") },
+      urgencyAt: since,
       recencyAt: draft.updatedAt.slice(0, 10),
-      discardable: true,
+      youPending,
       haystack: parties.toLowerCase(),
     };
+    return [row];
+  });
+}
+
+/**
+ * Every signature is in; the court fee is what stands between this draft and a case
+ * number. `feeBill` is the same calculation Sign shows and charges from — this tab
+ * cannot read the fee differently than the screen that collects it.
+ */
+export function pendingPaymentRows(
+  drafts: FilingDraft[],
+  profile: UserProfile | null
+): QueueRow[] {
+  return drafts.flatMap((draft) => {
+    if (draft.sign.paid) return [];
+    const { complainants, advocates } = signatories(draft, profile);
+    const everyone = [...complainants, ...advocates];
+    const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
+    if (!allSigned) return [];
+    const parties = draftTitle(draft);
+    const amount = feeBill(draft).total;
+    const since = (draft.sign.requestedAt ?? draft.updatedAt).slice(0, 10);
+    const row: QueueRow = {
+      id: draft.id,
+      parties,
+      court: "",
+      info: { lead: money(amount), tone: "default" },
+      amount,
+      action: { label: "Pay court fee", href: stepHref(draft.id, "sign") },
+      urgencyAt: since,
+      recencyAt: draft.updatedAt.slice(0, 10),
+      haystack: parties.toLowerCase(),
+    };
+    return [row];
   });
 }
 
