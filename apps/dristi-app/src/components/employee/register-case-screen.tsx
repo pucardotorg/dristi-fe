@@ -246,8 +246,8 @@ function ComplaintHeader({
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <Identifier
-          value={complaint.caseNumber}
-          label="case number"
+          value={complaint.filingNumber}
+          label="filing number"
           className="self-start text-body-compact text-muted-foreground"
         />
         <h1
@@ -1200,7 +1200,7 @@ function ActBody({
         </DialogTitle>
         <DialogDescription className="text-body-compact text-muted-foreground">
           {/* No copy control inside the dialog's accessible description. */}
-          <Identifier value={complaint.caseNumber} label="case number" copyable={false} />
+          <Identifier value={complaint.filingNumber} label="filing number" copyable={false} />
           {" · "}
           {causeTitle(complaint)}
         </DialogDescription>

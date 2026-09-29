@@ -239,6 +239,9 @@ export function ComplainantSection() {
           : sourceField === "age"
             ? c.age
             : c.name;
+  /** The document in the rail, named as a person would name it, not by its file name. */
+  const sourceDocLabel =
+    sourceSlot?.label ?? PARTY_DOC_LABELS[shownDoc ?? "id-proof"];
   const sourceBox = SOURCE_BOX_KEYS[sourceField]
     .map((key) => idProof?.extract?.fields[key]?.box)
     .find(Boolean);
@@ -695,13 +698,19 @@ export function ComplainantSection() {
       <SourcePanel
         open={sourceOpen}
         onOpenChange={setSourceOpen}
-        title={SOURCE_TITLES[sourceField]}
+        title={sourceDocLabel}
+        // Named only when the person asked about that field from the form; switching
+        // documents in the rail is a question about the document, so it clears it.
+        field={chosenField ? SOURCE_TITLES[chosenField] : undefined}
         value={sourceValue}
         onValueChange={(v) => setRead(sourceField, v)}
         chips={uploadedDocs.map(({ doc, slot }) => ({
           label: slot?.file?.name ?? slot?.label ?? PARTY_DOC_LABELS[doc],
           active: doc === shownDoc,
-          onClick: () => setSourceDoc(doc),
+          onClick: () => {
+            setChosenField(null);
+            setSourceDoc(doc);
+          },
         }))}
         file={sourceSlot?.file ?? null}
         uploadHref={hrefFor("upload")}

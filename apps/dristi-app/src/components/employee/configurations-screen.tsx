@@ -79,7 +79,7 @@ function InsertVariableMenu({
           e.stopPropagation();
           setOpen(!open);
         }}
-        className="gap-1.5 text-xs"
+        className="gap-1.5 text-caption"
       >
         <PlusIcon aria-hidden className="size-3.5" />
         Insert variable
@@ -88,7 +88,7 @@ function InsertVariableMenu({
         <div className="absolute top-full left-0 z-50 mt-1 w-80 max-h-96 overflow-y-auto rounded-lg border border-hairline bg-popover shadow-overlay">
           {/* General variables */}
           <div className="border-b border-hairline px-3 py-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <span className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
               General — any template
             </span>
           </div>
@@ -100,7 +100,7 @@ function InsertVariableMenu({
                 onInsert(gv.name);
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent/50"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body-compact hover:bg-accent/50"
             >
               <span
                 className={cn("size-2 shrink-0 rounded-full", {
@@ -111,7 +111,7 @@ function InsertVariableMenu({
                 })}
               />
               <span className="min-w-0 flex-1">{gv.name}</span>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-caption text-muted-foreground">
                 {gv.resolution === "auto-fill"
                   ? "auto"
                   : gv.source || gv.inputType || ""}
@@ -122,7 +122,7 @@ function InsertVariableMenu({
           {template.lockedVars.length > 0 && (
             <>
               <div className="border-t border-b border-hairline px-3 py-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <span className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
                   🔒 Locked — this template
                 </span>
               </div>
@@ -134,7 +134,7 @@ function InsertVariableMenu({
                     onInsert(lv.name);
                     setOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent/50"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body-compact hover:bg-accent/50"
                 >
                   <span
                     className={cn("size-2 shrink-0 rounded-full", {
@@ -147,7 +147,7 @@ function InsertVariableMenu({
                     })}
                   />
                   <span className="min-w-0 flex-1">{lv.name}</span>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-caption text-muted-foreground">
                     {lv.resolution === "auto-fill"
                       ? "auto"
                       : lv.source || lv.inputType || ""}
@@ -160,7 +160,7 @@ function InsertVariableMenu({
           {(template.optionalVars ?? []).length > 0 && (
             <>
               <div className="border-t border-b border-hairline px-3 py-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <span className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
                   Optional — this template
                 </span>
               </div>
@@ -172,7 +172,7 @@ function InsertVariableMenu({
                     onInsert(ov.name);
                     setOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent/50"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body-compact hover:bg-accent/50"
                 >
                   <span
                     className={cn("size-2 shrink-0 rounded-full", {
@@ -183,7 +183,7 @@ function InsertVariableMenu({
                     })}
                   />
                   <span className="min-w-0 flex-1">{ov.name}</span>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-caption text-muted-foreground">
                     {ov.source || ov.inputType || ""}
                   </span>
                 </button>
@@ -210,7 +210,7 @@ function VariableList({ template }: { template: OrderTemplate }) {
 
   if (total === 0 && !template.freeText) {
     return (
-      <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-center text-sm text-muted-foreground italic">
+      <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-center text-body-compact text-muted-foreground italic">
         No [variables] in the template text
       </div>
     );
@@ -223,7 +223,7 @@ function VariableList({ template }: { template: OrderTemplate }) {
         return (
           <div
             key={name}
-            className="flex items-center gap-2 rounded-md border border-hairline bg-card px-3 py-2 text-sm"
+            className="flex items-center gap-2 rounded-md border border-hairline bg-card px-3 py-2 text-body-compact"
           >
             <span
               className={cn("size-2 shrink-0 rounded-full", {
@@ -236,30 +236,30 @@ function VariableList({ template }: { template: OrderTemplate }) {
                 "bg-muted-foreground": info.scope === "unknown",
               })}
             />
-            <span className="font-mono text-xs font-medium">{name}</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="font-mono text-caption font-medium">{name}</span>
+            <span className="text-caption text-muted-foreground">
               {resolutionLabel(info)}
             </span>
             <span className="flex-1" />
             {info.scope === "general" && (
-              <Badge variant="success" className="h-5 px-1.5 text-[10px]">
+              <Badge variant="success" className="h-5 px-1.5 text-caption">
                 general
               </Badge>
             )}
             {info.scope === "locked" && (
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              <Badge variant="secondary" className="h-5 px-1.5 text-caption">
                 🔒 locked
               </Badge>
             )}
             {info.scope === "optional" && (
-              <Badge variant="info" className="h-5 px-1.5 text-[10px]">
+              <Badge variant="info" className="h-5 px-1.5 text-caption">
                 optional
               </Badge>
             )}
             {info.scope === "unknown" && (
               <Badge
                 variant="outline"
-                className="h-5 border-dashed px-1.5 text-[10px]"
+                className="h-5 border-dashed px-1.5 text-caption"
               >
                 not recognised
               </Badge>
@@ -271,7 +271,7 @@ function VariableList({ template }: { template: OrderTemplate }) {
       {lockedNotInText.map((lv) => (
         <div
           key={lv.name}
-          className="flex items-center gap-2 rounded-md border border-dashed border-hairline bg-card px-3 py-2 text-sm"
+          className="flex items-center gap-2 rounded-md border border-dashed border-hairline bg-card px-3 py-2 text-body-compact"
         >
           <span
             className={cn("size-2 shrink-0 rounded-full", {
@@ -280,15 +280,15 @@ function VariableList({ template }: { template: OrderTemplate }) {
               "bg-warning-muted-foreground": lv.resolution === "input",
             })}
           />
-          <span className="font-mono text-xs font-medium">{lv.name}</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="font-mono text-caption font-medium">{lv.name}</span>
+          <span className="text-caption text-muted-foreground">
             {resolutionLabel(lv)}
           </span>
           <span className="flex-1" />
-          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+          <Badge variant="secondary" className="h-5 px-1.5 text-caption">
             🔒 locked
           </Badge>
-          <span className="text-[10px] text-muted-foreground italic">
+          <span className="text-caption text-muted-foreground italic">
             collected separately
           </span>
         </div>
@@ -303,7 +303,7 @@ function VariableList({ template }: { template: OrderTemplate }) {
 
 function VariableLegend() {
   return (
-    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+    <div className="flex flex-wrap gap-3 text-caption text-muted-foreground">
       <span className="flex items-center gap-1.5">
         <span className="size-2 rounded-full bg-success-muted-foreground" />
         Auto-fill
@@ -343,7 +343,7 @@ function TemplateSidebar({
           if (items.length === 0) return null;
           return (
             <div key={g.key} className="mb-1">
-              <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <div className="px-2 py-1.5 text-caption font-bold uppercase tracking-wider text-muted-foreground">
                 {g.label}
               </div>
               {items.map((t) => (
@@ -353,7 +353,7 @@ function TemplateSidebar({
                   onClick={() => onSelect(t.id)}
                   aria-current={selectedId === t.id ? "page" : undefined}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm leading-snug transition-colors",
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-compact leading-snug transition-colors",
                     selectedId === t.id
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -458,8 +458,8 @@ function TemplateEditor({
 
         {/* ── Workflow block ── */}
         <div className="rounded-lg border border-hairline bg-surface-sunken p-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center gap-2 text-body-compact">
+            <span className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
               Workflow
             </span>
             <span
@@ -472,21 +472,21 @@ function TemplateEditor({
             >
               {template.workflow || "None"}
             </span>
-            <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span className="ml-auto flex items-center gap-1 text-caption text-muted-foreground">
               <LockIcon aria-hidden className="size-3" />
               Defined in code
             </span>
           </div>
           {template.lockedVars.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-hairline pt-2">
-              <span className="text-[10px] font-medium text-muted-foreground">
+              <span className="text-caption font-medium text-muted-foreground">
                 Requires:
               </span>
               {template.lockedVars.map((lv) => (
                 <span
                   key={lv.name}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium",
+                    "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-caption font-medium",
                     lv.resolution === "auto-fill"
                       ? "bg-success-muted text-success-muted-foreground"
                       : lv.resolution === "select"
@@ -496,7 +496,7 @@ function TemplateEditor({
                 >
                   <LockIcon aria-hidden className="size-2.5" />
                   {lv.name}
-                  <span className="text-[10px] opacity-70">
+                  <span className="text-caption opacity-70">
                     {lv.inputType || lv.source || ""}
                   </span>
                 </span>
@@ -507,7 +507,7 @@ function TemplateEditor({
 
         {/* ── BOTD Text ── */}
         <section className="flex flex-col gap-2">
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <Label className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
             BOTD text
           </Label>
           <Textarea
@@ -516,20 +516,20 @@ function TemplateEditor({
             onFocus={() => setActiveField("botdText")}
             onChange={(e) => onUpdate({ botdText: e.target.value })}
             placeholder="Short board text, e.g. Summons issued to [Party Name]"
-            className="min-h-10 resize-y text-sm"
+            className="min-h-10 resize-y text-body-compact"
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-caption text-muted-foreground">
             Brief entry for the Business of the Day board.
           </p>
         </section>
 
         {/* ── Order Text ── */}
         <section className="flex flex-col gap-2">
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <Label className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
             Order text
           </Label>
           {template.freeText && !template.orderText && (
-            <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 text-sm text-muted-foreground italic">
+            <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 text-body-compact text-muted-foreground italic">
               Free text — no template. The magistrate writes the full order.
             </div>
           )}
@@ -539,9 +539,9 @@ function TemplateEditor({
             onFocus={() => setActiveField("orderText")}
             onChange={(e) => onUpdate({ orderText: e.target.value })}
             placeholder="Full order template text. Use [brackets] for variables."
-            className="min-h-20 resize-y text-sm"
+            className="min-h-20 resize-y text-body-compact"
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-caption text-muted-foreground">
             Variables in [brackets] are resolved when the magistrate selects
             this order.
           </p>
@@ -552,7 +552,7 @@ function TemplateEditor({
 
         {/* ── Variables (detected from text) ── */}
         <section className="flex flex-col gap-2">
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <Label className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
             Variables
           </Label>
           <VariableList template={template} />
@@ -567,7 +567,7 @@ function TemplateEditor({
         {/* ── Category ── */}
         {template.inDropdown && (
           <section className="flex flex-col gap-2">
-            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <Label className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
               Category
             </Label>
             <Select
@@ -590,7 +590,7 @@ function TemplateEditor({
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-caption text-muted-foreground">
               Groups this order on the issuance screen dropdown.
             </p>
           </section>
@@ -598,10 +598,10 @@ function TemplateEditor({
 
         {/* ── Hearing purpose associations ── */}
         <section className="flex flex-col gap-2">
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <Label className="text-caption font-bold uppercase tracking-wider text-muted-foreground">
             Hearing purpose associations
           </Label>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-caption text-muted-foreground">
             Hearing purposes where this order is likely to be issued. Generic
             orders are always available.
           </p>
@@ -624,7 +624,7 @@ function TemplateEditor({
                     className="mt-0.5"
                     aria-label={`Associate with ${hp.name}`}
                   />
-                  <span className="min-w-0 flex-1 text-sm">{hp.name}</span>
+                  <span className="min-w-0 flex-1 text-body-compact">{hp.name}</span>
                 </label>
               );
             })}
@@ -763,7 +763,7 @@ export function ConfigurationsScreen() {
                 onDelete={deleteCurrent}
               />
             ) : (
-              <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground">
+              <div className="flex min-h-64 items-center justify-center text-body-compact text-muted-foreground">
                 Select a template to edit
               </div>
             )}

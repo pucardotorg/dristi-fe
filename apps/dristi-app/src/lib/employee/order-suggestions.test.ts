@@ -111,11 +111,7 @@ describe("the baseline is still the court's purpose table", () => {
       signals({ purpose: "admission", catalogue: beforeCognizance }),
     );
     assert.ok(!offered.includes("issue-of-summons"));
-    assert.deepEqual(offered, [
-      "cognizance",
-      "dismiss-case",
-      "order-under-section-202",
-    ]);
+    assert.deepEqual(offered, ["cognizance", "dismiss-case"]);
   });
 
   it("never offers more than a shortcut's worth, and cuts only the weakest", () => {
@@ -393,16 +389,16 @@ describe("the chain inside one order", () => {
     );
     assert.deepEqual(
       ranked.map((entry) => entry.template.id),
-      ["order-under-section-202", "issue-of-summons"],
+      ["issue-of-summons"],
     );
-    assert.equal(suggestionCaption(ranked[1]), "Already item 2");
+    assert.equal(suggestionCaption(ranked[0]), "Already item 2");
   });
 
   it("names the item it follows, wherever in the order that is", () => {
     const ranked = orderSuggestions(
       signals({
         purpose: "cognizance",
-        chosen: ["cost", "order-under-section-202", "cognizance"],
+        chosen: ["cost", "dismiss-case", "cognizance"],
       }),
     );
     const summons = ranked.find(

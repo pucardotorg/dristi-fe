@@ -165,6 +165,16 @@ export function documentsProgress(groups: DocumentGroup[]) {
   return { total, done, remaining, pct: total ? Math.round((done / total) * 100) : 0 };
 }
 
+/* ───────────────────────────────── Oath ─────────────────────────────── */
+
+/** Mandatory — every complainant record needs an oath video before the case can proceed. */
+export function oathProgress(complainants: Complainant[]) {
+  const total = complainants.length;
+  const done = complainants.filter((c) => !!c.oathVideo).length;
+  const remaining = total - done;
+  return { total, done, remaining, pct: total ? Math.round((done / total) * 100) : 0 };
+}
+
 /* ───────────────────────────── Sign ────────────────────────────────── */
 
 function sameMobile(a: string, b: string): boolean {
@@ -189,7 +199,9 @@ export function signatories(
   draft: FilingDraft,
   profile: UserProfile | null
 ): { complainants: Signatory[]; advocates: Signatory[] } {
-  const signedOf = (id: string): Signatory["status"] => (draft.sign.signed[id] ? "signed" : "pending");
+  const signedOf = (id: string): Signatory["status"] =>
+    draft.sign.signed[id] ? "signed" : "pending";
+  const signedWith = (id: string) => draft.sign.signed[id]?.with;
 
   const complainants: Signatory[] = draft.complainants.map((c, i) => {
     const n = i + 1;
@@ -207,7 +219,14 @@ export function signatories(
       role = `Complainant ${n} · Individual`;
     }
     const you = !!profile?.mobile && sameMobile(profile.mobile, c.mobile);
-    return { id: `sig-c-${c.id}`, name, role, status: signedOf(`sig-c-${c.id}`), you };
+    return {
+      id: `sig-c-${c.id}`,
+      name,
+      role,
+      status: signedOf(`sig-c-${c.id}`),
+      signedWith: signedWith(`sig-c-${c.id}`),
+      you,
+    };
   });
 
   const myBar = profile?.barNumber.trim().toUpperCase() ?? "";
@@ -229,6 +248,7 @@ export function signatories(
         name: `Advocate for Complainant ${i + 1}`,
         role,
         status: signedOf(`sig-a-${c.id}`),
+        signedWith: signedWith(`sig-a-${c.id}`),
         you,
       },
     ];
@@ -332,6 +352,8 @@ export function sectionComplete(draft: FilingDraft, step: StepId): boolean {
       return !!draft.adr.finalRelief.trim();
     case "witnesses":
       return true; // optional
+    case "oath":
+      return oathProgress(draft.complainants).remaining === 0;
     case "documents":
       return documentsProgress(draft.documents).remaining === 0;
     case "preview":

@@ -1134,9 +1134,9 @@ function marksFor(id: string): CaseFileMarks {
    yields the same file) and *coherent* (the dates make a §138 chain, the amounts
    agree with each other). Nothing is random. */
 
-/** The `CMP/1840/2025` serial — the one number a row already carries. */
-function serialOf(caseNumber: string): number {
-  const digits = caseNumber.match(/\d+/);
+/** The `KL-001840-2025` serial — the one number a row already carries. */
+function serialOf(filingNumber: string): number {
+  const digits = filingNumber.match(/\d+/);
   return digits ? Number(digits[0]) : 0;
 }
 
@@ -1440,7 +1440,7 @@ export function caseChainFor(id: string, today: string): CaseChain | undefined {
   const submittedOn = shiftDay(today, -complaint.daysSinceSubmitted);
   return chainFor(
     submittedOn,
-    serialOf(complaint.caseNumber),
+    serialOf(complaint.filingNumber),
     marks.delayed,
     marks.depositedLate,
   );
@@ -1497,7 +1497,7 @@ export function scrutinyFor(
   /* Nothing can have been scrutinised in no time at all. */
   if (wait < 1) return undefined;
 
-  const seed = serialOf(complaint.caseNumber);
+  const seed = serialOf(complaint.filingNumber);
   const marks = marksFor(complaint.id);
   const submittedOn = shiftDay(today, -wait);
 
@@ -1796,7 +1796,7 @@ export function caseReviewFor(
   const complaint = registerCaseById(id);
   if (!complaint) return undefined;
 
-  const seed = serialOf(complaint.caseNumber);
+  const seed = serialOf(complaint.filingNumber);
   const marks = marksFor(complaint.id);
   const submittedOn = shiftDay(today, -complaint.daysSinceSubmitted);
   const chain = chainFor(submittedOn, seed, marks.delayed, marks.depositedLate);
@@ -1804,7 +1804,7 @@ export function caseReviewFor(
 
   return {
     id: complaint.id,
-    caseNumber: complaint.caseNumber,
+    caseNumber: complaint.filingNumber,
     title: causeTitle(complaint),
     daysSinceSubmitted: complaint.daysSinceSubmitted,
     submittedOn,
@@ -2551,7 +2551,7 @@ export function caseSummaryFor(
   const complaint = registerCaseById(id);
   if (!complaint) return undefined;
 
-  const seed = serialOf(complaint.caseNumber);
+  const seed = serialOf(complaint.filingNumber);
   const marks = marksFor(complaint.id);
   const submittedOn = shiftDay(today, -complaint.daysSinceSubmitted);
   const chain = chainFor(submittedOn, seed, marks.delayed, marks.depositedLate);

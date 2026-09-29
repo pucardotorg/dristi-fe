@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  casesOnTab,
   chainFor,
   COGNIZANCE_ACTS,
-  COGNIZANCE_DELAY_COUNT,
   COGNIZANCE_DOCUMENTS,
   COGNIZANCE_QUEUE,
   COGNIZANCE_QUEUE_COUNT,
+  COGNIZANCE_TABS,
+  cognizanceTabCount,
   COURT_PLACE,
   EMPTY_COGNIZANCE_FILTERS,
   LIMITATION_DAYS,
@@ -24,8 +26,10 @@ import {
   hasDelay,
   NOTICE_DISPATCHED_TERM,
   nextCognizanceCase,
+  positiveActForTab,
   summaryChunksFor,
   primaryActFor,
+  tabFor,
   type CognizanceCase,
 } from "./cognizance";
 import { parseIsoDay } from "./hearings";
@@ -56,10 +60,6 @@ describe("COGNIZANCE_QUEUE", () => {
 
   it("carries its own count, so the rail cannot disagree with the screen", () => {
     assert.equal(COGNIZANCE_QUEUE_COUNT, COGNIZANCE_QUEUE.length);
-    assert.equal(
-      COGNIZANCE_DELAY_COUNT,
-      COGNIZANCE_QUEUE.filter(hasDelay).length,
-    );
   });
 
   it("is numbered CMP throughout — cognizance is what renumbers a complaint", () => {
@@ -403,15 +403,43 @@ describe("filterCognizanceCases", () => {
     );
   });
 
-  it("narrows by delay rather than forking the list", () => {
-    const withDelay = filterCognizanceCases(COGNIZANCE_QUEUE, {
-      query: "",
-      delay: "with",
-    });
-    const without = filterCognizanceCases(COGNIZANCE_QUEUE, {
-      query: "",
-      delay: "without",
-    });
+  it("matches a cause, either number, or an advocate", () => {
+    assert.equal(
+      filterCognizanceCases(COGNIZANCE_QUEUE, { query: "sainaba" })[0]?.id,
+      "c-2041",
+    );
+    assert.equal(
+      filterCognizanceCases(COGNIZANCE_QUEUE, { query: "CMP/2015/2025" })[0]?.id,
+      "c-2015",
+    );
+    assert.equal(
+      filterCognizanceCases(COGNIZANCE_QUEUE, { query: "KL-001629-2025" })[0]?.id,
+      "c-2041",
+    );
+    assert.ok(
+      filterCognizanceCases(COGNIZANCE_QUEUE, { query: "nisha" }).length > 0,
+    );
+  });
+
+  it("narrows one tab's rows without reaching into the other", () => {
+    const late = casesOnTab(COGNIZANCE_QUEUE, "with-delay");
+    const rows = filterCognizanceCases(late, { query: "adv. suresh menon" });
+    assert.ok(rows.length > 0);
+    assert.ok(rows.every(hasDelay));
+  });
+
+  it("can match nothing, which is the screen's filtered empty state", () => {
+    assert.equal(
+      filterCognizanceCases(COGNIZANCE_QUEUE, { query: "no such party" }).length,
+      0,
+    );
+  });
+});
+
+describe("the tabs", () => {
+  it("splits the queue in two, with nothing lost and nothing counted twice", () => {
+    const withDelay = casesOnTab(COGNIZANCE_QUEUE, "with-delay");
+    const without = casesOnTab(COGNIZANCE_QUEUE, "without-delay");
     assert.ok(withDelay.every(hasDelay));
     assert.ok(without.every((row) => !hasDelay(row)));
     assert.equal(
@@ -419,65 +447,56 @@ describe("filterCognizanceCases", () => {
       COGNIZANCE_QUEUE.length,
       "the two halves have to add up to the whole queue",
     );
-    assert.equal(withDelay.length, COGNIZANCE_DELAY_COUNT);
   });
 
-  it("matches a cause, either number, or an advocate", () => {
-    assert.equal(
-      filterCognizanceCases(COGNIZANCE_QUEUE, {
-        query: "sainaba",
-        delay: "any",
-      })[0]?.id,
-      "c-2041",
-    );
-    assert.equal(
-      filterCognizanceCases(COGNIZANCE_QUEUE, {
-        query: "CMP/2015/2025",
-        delay: "any",
-      })[0]?.id,
-      "c-2015",
-    );
-    assert.equal(
-      filterCognizanceCases(COGNIZANCE_QUEUE, {
-        query: "KL-001629-2025",
-        delay: "any",
-      })[0]?.id,
-      "c-2041",
-    );
-    assert.ok(
-      filterCognizanceCases(COGNIZANCE_QUEUE, {
-        query: "nisha",
-        delay: "any",
-      }).length > 0,
-    );
+  it("puts every complaint on exactly one tab", () => {
+    for (const matter of COGNIZANCE_QUEUE) {
+      const on = COGNIZANCE_TABS.filter((tab) => tabFor(matter) === tab.id);
+      assert.equal(on.length, 1, matter.id);
+    }
   });
 
-  it("applies the search and the delay filter together", () => {
-    const rows = filterCognizanceCases(COGNIZANCE_QUEUE, {
-      query: "adv. suresh menon",
-      delay: "with",
-    });
-    assert.ok(rows.length > 0);
-    assert.ok(rows.every(hasDelay));
+  it("counts each tab over the whole queue, so a search cannot move it", () => {
+    for (const tab of COGNIZANCE_TABS) {
+      assert.equal(
+        cognizanceTabCount(tab.id),
+        casesOnTab(COGNIZANCE_QUEUE, tab.id).length,
+      );
+    }
   });
 
-  it("can match nothing, which is the screen's filtered empty state", () => {
-    assert.equal(
-      filterCognizanceCases(COGNIZANCE_QUEUE, {
-        query: "no such party",
-        delay: "any",
-      }).length,
-      0,
-    );
+  it("has both tabs populated, so neither ships only ever empty", () => {
+    for (const tab of COGNIZANCE_TABS) {
+      assert.ok(cognizanceTabCount(tab.id) > 0, tab.id);
+    }
+  });
+
+  it("carries one positive action per tab, and never dismissal", () => {
+    for (const tab of COGNIZANCE_TABS) {
+      assert.notEqual(tab.positiveAct, "dismiss", tab.id);
+      assert.equal(positiveActForTab(tab.id), tab.positiveAct);
+    }
+  });
+
+  it("defaults to cognizance without delay and notice with it", () => {
+    assert.equal(positiveActForTab("without-delay"), "cognizance");
+    assert.equal(positiveActForTab("with-delay"), "notice");
   });
 });
 
 describe("nextCognizanceCase", () => {
-  it("walks the queue in order and stops at the end", () => {
-    assert.equal(nextCognizanceCase("c-2041")?.id, COGNIZANCE_QUEUE[1].id);
-    const last = COGNIZANCE_QUEUE[COGNIZANCE_QUEUE.length - 1];
-    assert.equal(nextCognizanceCase(last.id), undefined);
+  it("walks on, and stops at the end of the tab it is on", () => {
+    const late = casesOnTab(COGNIZANCE_QUEUE, "with-delay");
+    assert.equal(nextCognizanceCase(late[0].id)?.id, late[1].id);
+    assert.equal(nextCognizanceCase(late[late.length - 1].id), undefined);
     assert.equal(nextCognizanceCase("not-an-id"), undefined);
+  });
+
+  it("never walks into the other tab, which would change the act on offer", () => {
+    for (const matter of COGNIZANCE_QUEUE) {
+      const next = nextCognizanceCase(matter.id);
+      if (next) assert.equal(tabFor(next), tabFor(matter), matter.id);
+    }
   });
 });
 
@@ -485,6 +504,12 @@ describe("primaryActFor", () => {
   it("offers cognizance on a timely complaint and notice on a late one", () => {
     assert.equal(primaryActFor(find("c-2038")), "cognizance");
     assert.equal(primaryActFor(find("c-2041")), "notice");
+  });
+
+  it("reads the act off the complaint's tab, so a state swap carries through", () => {
+    for (const matter of COGNIZANCE_QUEUE) {
+      assert.equal(primaryActFor(matter), positiveActForTab(tabFor(matter)));
+    }
   });
 
   it("never offers dismissal as the primary — that is always the other button", () => {
