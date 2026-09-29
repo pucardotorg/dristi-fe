@@ -25,6 +25,9 @@ import {
 } from "@/components/filing/posture";
 import { defectState } from "@/lib/tasks/defects";
 
+const SourceFieldLabel = React.createContext("this field");
+export function useSourceFieldLabel() { return React.useContext(SourceFieldLabel); }
+
 /** The `*` / "optional" marker after a label. */
 export function RequiredMark({ optional }: { optional?: boolean }) {
   if (optional) {
@@ -172,7 +175,9 @@ export function FormField({
         <FieldLabel className="text-body-compact">{labelBody}</FieldLabel>
       )}
       {help && helpPlacement === "above" ? <FieldDescription>{help}</FieldDescription> : null}
-      {children}
+      <SourceFieldLabel.Provider value={typeof label === "string" ? label : "this field"}>
+        {children}
+      </SourceFieldLabel.Provider>
       {help && helpPlacement === "below" ? <FieldDescription>{help}</FieldDescription> : null}
       {error ? <FieldError>{error}</FieldError> : null}
     </Field>

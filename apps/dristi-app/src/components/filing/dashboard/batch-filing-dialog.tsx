@@ -121,7 +121,7 @@ export function BatchFilingDialog({
       open={open && !!kind && n > 0}
       onOpenChange={(next) => (next ? undefined : close())}
     >
-      <ChromeDialogContent
+      <ChromeDialogContent mobileSheet
         className="sm:max-w-md"
         showCloseButton={step === "confirm" && !running}
         onEscapeKeyDown={(e) => running && e.preventDefault()}

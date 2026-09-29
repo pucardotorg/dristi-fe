@@ -1006,7 +1006,7 @@ export function BailApplicationDialog({
                 />
 
                 <Dialog open={reviewFullscreen} onOpenChange={setReviewFullscreen}>
-                  <ChromeDialogContent
+                  <ChromeDialogContent mobileSheet
                     lang={locale}
                     className="inset-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0 sm:max-w-none"
                     onInteractOutside={(event) => event.preventDefault()}

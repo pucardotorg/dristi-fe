@@ -129,7 +129,8 @@ function build(sample: Sample, today: string): FilingDraft {
   d.lastStep = "demand-notice";
   if (sample.reach === "cheque" || sample.reach === "notice") return d;
 
-  d.cheques.push(Object.assign(blankCheque(), { ...cheque, chequeNumber: "447163", amount: "85000", sameAsPrev: "yes" }));
+  const secondCheque = blankCheque();
+  d.cheques.push({ ...cheque, id: secondCheque.id, prefilled: {}, edited: {}, chequeNumber: "447163", amount: "85000", sameAsPrev: "yes" });
   d.jurisdiction.deposited = "yes";
   d.jurisdiction.ifsc = "SBIN0070123";
   d.jurisdiction.payeeBankName = "State Bank of India";

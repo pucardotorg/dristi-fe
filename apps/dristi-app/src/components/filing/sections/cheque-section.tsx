@@ -257,7 +257,7 @@ export function ChequeSection() {
   // Source panel — which upload, which region, and the value we read there. The two
   // documents behind this cheque come from intake; either may not be uploaded yet.
   const fromCheque = CHEQUE_FIELDS.includes(sourceField);
-  const sourceSlot = fromCheque ? frontSlot : memoSlot;
+  const sourceSlot = (explaining ? [frontSlot, memoSlot].find((slot) => slot?.extract?.fields[sourceField]?.value === cheque[sourceField]) : undefined) ?? (fromCheque ? frontSlot : memoSlot);
   /** The document in the rail — the rail's subject until a field is asked about. */
   const sourceDocLabel =
     sourceSlot?.label ?? (fromCheque ? "Cheque (front side)" : "Cheque return memo");
@@ -300,7 +300,7 @@ export function ChequeSection() {
           onAdd={addCheque}
           trailing={
             !sourceOpen ? (
-              <ViewSourceButton onClick={() => setSourceOpen(true)} />
+              <ViewSourceButton onClick={() => { setExplaining(false); setSourceOpen(true); }} />
             ) : null
           }
         />

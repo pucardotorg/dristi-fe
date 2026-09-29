@@ -615,7 +615,7 @@ export function UploadSection() {
           if (!open) setPreviewKey(null);
         }}
       >
-        <ChromeDialogContent className="sm:max-w-lg">
+        <ChromeDialogContent mobileSheet className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2 pr-8">
               <Badge variant="secondary">{previewFile?.ext}</Badge>

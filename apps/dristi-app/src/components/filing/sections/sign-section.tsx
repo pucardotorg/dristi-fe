@@ -1050,7 +1050,7 @@ export function SignSection() {
         offered as declinable rather than offered and then refused.
       */}
       <Dialog open={modal === "procaddr"} onOpenChange={(open) => !open && closeModal()}>
-        <ChromeDialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-2xl">
+        <ChromeDialogContent mobileSheet className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Change process &amp; address</DialogTitle>
             <DialogDescription>
@@ -1282,7 +1282,7 @@ export function SignSection() {
         process by process, and this screen only adds it up.
       */}
       <Dialog open={modal === "payment"} onOpenChange={(open) => !open && closeModal()}>
-        <ChromeDialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-xl">
+        <ChromeDialogContent mobileSheet className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Pay court fees</DialogTitle>
             <DialogDescription>
@@ -1342,7 +1342,7 @@ export function SignSection() {
 
       {/* ── Processing ── */}
       <Dialog open={modal === "processing"}>
-        <ChromeDialogContent
+        <ChromeDialogContent mobileSheet
           className="sm:max-w-sm"
           showCloseButton={false}
           onEscapeKeyDown={(e) => e.preventDefault()}
@@ -1365,7 +1365,7 @@ export function SignSection() {
 
       {/* ── Payment successful ── */}
       <Dialog open={modal === "success"} onOpenChange={(open) => !open && closeModal()}>
-        <ChromeDialogContent
+        <ChromeDialogContent mobileSheet
           showCloseButton={false}
           className="gap-0 overflow-hidden p-0 sm:max-w-lg"
         >

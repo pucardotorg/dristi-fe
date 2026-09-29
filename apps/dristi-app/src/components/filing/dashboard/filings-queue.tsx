@@ -277,12 +277,12 @@ export function FilingsQueue({
             <Trash2Icon data-icon="inline-start" aria-hidden />
             Discard {selectedIds.length} {selectedIds.length === 1 ? "draft" : "drafts"}
           </Button>
-        ) : bulkKind === "sign" && selectedRows.length > 0 ? (
+        ) : bulkKind === "sign" && selectedRows.length > 0 && !cards ? (
           <Button onClick={() => onBulk("sign", selectedRows)} className="shrink-0 tabular-nums">
             <PenToolIcon data-icon="inline-start" aria-hidden />
             Sign {selectedRows.length} {selectedRows.length === 1 ? "document" : "documents"}
           </Button>
-        ) : bulkKind === "pay" && selectedRows.length > 0 ? (
+        ) : bulkKind === "pay" && selectedRows.length > 0 && !cards ? (
           <Button onClick={() => onBulk("pay", selectedRows)} className="shrink-0 tabular-nums">
             <WalletIcon data-icon="inline-start" aria-hidden />
             Pay {money(selectedRows.reduce((sum, row) => sum + (row.amount ?? 0), 0))}
@@ -386,7 +386,7 @@ export function FilingsQueue({
                     selected.has(row.id) && "border-primary/40 bg-brand-muted/50"
                   )}
                   leading={
-                    selectable ? (
+                    selectable && rowBulkable(view.tab, row) ? (
                       <Checkbox
                         checked={selected.has(row.id)}
                         onCheckedChange={() => toggleSelected(row.id)}
@@ -468,7 +468,7 @@ export function FilingsQueue({
                   </div>
                   {/* While picking, the whole card is the toggle, as on Cases. Pointer
                       only: the checkbox is the same control for a keyboard. */}
-                  {selectable && selected.size > 0 ? (
+                  {selectable && rowBulkable(view.tab, row) && selected.size > 0 ? (
                     <button
                       type="button"
                       tabIndex={-1}
@@ -505,7 +505,7 @@ export function FilingsQueue({
             <div className="pointer-events-none sticky bottom-0 z-30 h-0">
               <div
                 role="region"
-                aria-label="Selected drafts"
+                aria-label="Selected filings"
                 inert={selectedIds.length === 0 || undefined}
                 className={cn(
                   "border-hairline shadow-modal pointer-events-auto absolute inset-x-4 bottom-[calc(--spacing(4)+env(safe-area-inset-bottom))] flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 transition-[translate,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-opacity",
@@ -523,10 +523,16 @@ export function FilingsQueue({
                     Clear
                   </Button>
                 </p>
-                <Button variant="destructive" onClick={() => onDiscard(selectedIds)}>
-                  <Trash2Icon data-icon="inline-start" aria-hidden />
-                  Discard
-                </Button>
+                {bulkKind === "discard" ? (
+                  <Button variant="destructive" onClick={() => onDiscard(selectedIds)}>
+                    <Trash2Icon data-icon="inline-start" aria-hidden />Discard
+                  </Button>
+                ) : (
+                  <Button onClick={() => onBulk(bulkKind === "sign" ? "sign" : "pay", selectedRows)}>
+                    {bulkKind === "sign" ? <PenToolIcon data-icon="inline-start" aria-hidden /> : <WalletIcon data-icon="inline-start" aria-hidden />}
+                    {bulkKind === "sign" ? "Sign" : "Pay"}
+                  </Button>
+                )}
               </div>
             </div>
           ) : null}

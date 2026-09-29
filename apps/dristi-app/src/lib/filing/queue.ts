@@ -236,7 +236,7 @@ export function draftClock(draft: FilingDraft): {
   if (left < 0) {
     return {
       lead: toDisplayDate(dueOn),
-      sub: "Window closed · filing now needs a condonation application",
+      sub: "Delay condonation applicable",
       tone: "danger",
       dueOn,
     };

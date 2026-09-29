@@ -31,7 +31,7 @@ export function ProfileDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent className="sm:max-w-md">
+      <ChromeDialogContent mobileSheet className="sm:max-w-md">
         {/* Mounted per open, so the form always starts from the stored profile. */}
         {open ? <ProfileForm onClose={() => onOpenChange(false)} /> : null}
       </ChromeDialogContent>

@@ -284,7 +284,7 @@ export function AccusedSection() {
 
       {/* Continue while some accused — named here — has no phone or email. */}
       <Dialog open={noContactOpen} onOpenChange={setNoContactOpen}>
-        <ChromeDialogContent className="sm:max-w-lg">
+        <ChromeDialogContent mobileSheet className="sm:max-w-lg">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <span
@@ -313,7 +313,7 @@ export function AccusedSection() {
 
       {/* The confirmation itself — the court is told this was a considered choice. */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <ChromeDialogContent aria-describedby={confirmStatementId} className="sm:max-w-lg">
+        <ChromeDialogContent mobileSheet aria-describedby={confirmStatementId} className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Confirm: proceed without details</DialogTitle>
           </DialogHeader>

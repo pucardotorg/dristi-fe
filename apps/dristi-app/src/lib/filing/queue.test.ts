@@ -76,8 +76,7 @@ describe("draftClock — the File by column", () => {
   it("past the window it keeps the date and names condonation — never 'overdue' or 'barred'", () => {
     const clock = draftClock(draftAt(45));
     assert.match(clock.lead, DATE);
-    assert.match(clock.sub ?? "", /^Window closed/);
-    assert.match(clock.sub ?? "", /condonation application/);
+    assert.equal(clock.sub, "Delay condonation applicable");
     assert.equal(clock.tone, "danger");
     const words = `${clock.lead} ${clock.sub}`.toLowerCase();
     for (const banned of ["overdue", "barred", "time-barred", "expired"]) {

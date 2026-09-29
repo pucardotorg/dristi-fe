@@ -444,7 +444,7 @@ function SignFlowBody({
   return (
     <>
       {input}
-      <StagedOverlay
+      <StagedOverlay mobileSheet
         className="sm:max-w-2xl"
         title={title}
         titleRef={flow.titleRef}

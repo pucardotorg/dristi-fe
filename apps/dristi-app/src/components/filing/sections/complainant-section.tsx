@@ -83,6 +83,9 @@ const SOURCE_TITLES: Record<ComplainantPrefillKey, string> = {
  */
 const PREFILL_ORDER: ComplainantPrefillKey[] = ["name", "age", "res", "email", "entName"];
 
+const ADDRESS_SOURCE_KEYS: Record<keyof Address, string> = { line1: "address", pin: "pin", city: "city", district: "district", state: "state" };
+const ADDRESS_LABELS: Record<keyof Address, string> = { line1: "Address line", pin: "Pincode", city: "City / town", district: "District", state: "State / UT" };
+
 const SOURCE_BOX_KEYS: Record<ComplainantPrefillKey, string[]> = {
   name: ["name"],
   age: ["age", "dob"],
@@ -132,6 +135,7 @@ export function ComplainantSection() {
    */
   const [chosenField, setChosenField] = React.useState<ComplainantPrefillKey | null>(null);
   /** Which of the complainant's uploads the panel shows; the chips switch between them. */
+  const [addressField, setAddressField] = React.useState<keyof Address>("line1");
   const [sourceDoc, setSourceDoc] = React.useState<PartyDoc>("id-proof");
   const [pendingRemove, setPendingRemove] = React.useState<number | null>(null);
   /** The sandbox stand-in for mobile verification — see the dialog at the foot of the file. */
@@ -157,7 +161,7 @@ export function ComplainantSection() {
   const setRead = (key: ComplainantPrefillKey, value: string) =>
     update((d) => {
       const target = d.complainants[active];
-      if (key === "res") target.res.line1 = value;
+      if (key === "res") target.res[addressField] = value;
       else if (key === "name") target.name = value;
       else if (key === "age") target.age = value;
       else if (key === "email") target.email = value;
@@ -231,7 +235,7 @@ export function ComplainantSection() {
     "name";
   const sourceValue =
     sourceField === "res"
-      ? c.res.line1
+      ? c.res[addressField]
       : sourceField === "entName"
         ? c.entName
         : sourceField === "email"
@@ -242,7 +246,7 @@ export function ComplainantSection() {
   /** The document in the rail, named as a person would name it, not by its file name. */
   const sourceDocLabel =
     sourceSlot?.label ?? PARTY_DOC_LABELS[shownDoc ?? "id-proof"];
-  const sourceBox = SOURCE_BOX_KEYS[sourceField]
+  const sourceBox = (sourceField === "res" ? [ADDRESS_SOURCE_KEYS[addressField]] : SOURCE_BOX_KEYS[sourceField])
     .map((key) => idProof?.extract?.fields[key]?.box)
     .find(Boolean);
   const sourceRegion = regionFromBox(sourceBox, idProof?.extract?.page);
@@ -325,7 +329,7 @@ export function ComplainantSection() {
           onAdd={addComplainant}
           trailing={
             !sourceOpen ? (
-              <ViewSourceButton onClick={() => setSourceOpen(true)} />
+              <ViewSourceButton onClick={() => { setChosenField(null); setSourceOpen(true); }} />
             ) : null
           }
         />
@@ -450,7 +454,8 @@ export function ComplainantSection() {
                 value={c.res}
                 onChange={setRes}
                 prefilled={resPrefilled}
-                onViewSource={() => openSource("res")}
+                prefilledFields={Object.fromEntries((Object.keys(ADDRESS_SOURCE_KEYS) as (keyof Address)[]).map((key) => [key, !!idProof?.extract?.fields[ADDRESS_SOURCE_KEYS[key]]?.value && idProof.extract.fields[ADDRESS_SOURCE_KEYS[key]].value === c.res[key]]))}
+                onViewSource={(key) => { setAddressField(key); openSource("res"); }}
               />
               <FormField
                 asGroup
@@ -701,7 +706,7 @@ export function ComplainantSection() {
         title={sourceDocLabel}
         // Named only when the person asked about that field from the form; switching
         // documents in the rail is a question about the document, so it clears it.
-        field={chosenField ? SOURCE_TITLES[chosenField] : undefined}
+        field={chosenField ? (chosenField === "res" ? ADDRESS_LABELS[addressField] : SOURCE_TITLES[chosenField]) : undefined}
         value={sourceValue}
         onValueChange={(v) => setRead(sourceField, v)}
         chips={uploadedDocs.map(({ doc, slot }) => ({
@@ -728,7 +733,7 @@ export function ComplainantSection() {
           if (!open) setOtp("");
         }}
       >
-        <ChromeDialogContent className="sm:max-w-md">
+        <ChromeDialogContent mobileSheet className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Verify &amp; fetch details</DialogTitle>
             <DialogDescription>

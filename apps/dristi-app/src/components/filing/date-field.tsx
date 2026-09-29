@@ -9,12 +9,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useFieldReadOnly, useLockedDisabled } from "@/components/filing/posture";
-import { ReadOnlyValue } from "@/components/filing/inputs";
+import { ReadOnlyValue, SourceField, useSourceDocked } from "@/components/filing/inputs";
 
 /**
- * Date control bound to an ISO string. Uses the DS DatePicker to pick; when the value was
- * machine-read (`prefilled`), the field shows the amber fill and opens its source document
- * instead — the value is corrected from the source panel, as in the demo.
+ * Date control bound to an ISO string. Uses the DS DatePicker to pick. When the value was
+ * machine-read (`prefilled`): docked (desktop) it stays the button that opens the source
+ * rail and is corrected there, as it always has been; undocked (phone, tablet) it shows
+ * the amber fill and edits, with the adjacent source button opening the sheet.
  */
 export function DateField({
   value,
@@ -37,6 +38,7 @@ export function DateField({
 }) {
   const disabled = useLockedDisabled();
   const readOnly = useFieldReadOnly();
+  const docked = useSourceDocked();
   /* Flagged by scrutiny: a date picker has no read-only state, so the date reads as a
      value and the correction is made in the inset beneath it (brief §15.5). */
   if (readOnly) {
@@ -49,7 +51,10 @@ export function DateField({
       />
     );
   }
-  if (prefilled && onViewSource) {
+  const amber = prefilled && !!value;
+  /* Docked (desktop): the machine-read date is a button that opens the rail; the value is
+     corrected from the source panel, unchanged from before. */
+  if (amber && onViewSource && docked) {
     return (
       <Button
         id={id}
@@ -70,6 +75,7 @@ export function DateField({
     );
   }
   return (
+    <SourceField onViewSource={amber && !docked ? onViewSource : undefined} disabled={disabled}>
     <DatePicker
       value={isoToDate(value)}
       onValueChange={(d) => onChange(dateToIso(d))}
@@ -77,7 +83,8 @@ export function DateField({
       placeholder={placeholder}
       /* Locked in a correction round: the same quiet sunken fill as every other locked
          control (the correction screen restores full opacity; see its centre pane). */
-      className={cn("w-full", disabled && "disabled:bg-surface-sunken", className)}
+      className={cn("w-full", amber && "border-dashed border-warning-ink bg-prefilled hover:bg-prefilled", disabled && "disabled:bg-surface-sunken", className)}
     />
+    </SourceField>
   );
 }

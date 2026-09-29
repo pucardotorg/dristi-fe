@@ -32,7 +32,11 @@ export function FilingShell({ children }: { children: React.ReactNode }) {
       <SourceRailSlot.Provider value={slot}>
         <SectionsRail />
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        {/* The canvas tint (see `FilingMain`) runs the full column, not just the form
+            card area, so the sticky Sections trigger can float transparently over the
+            content that scrolls beneath it instead of masking it behind a band. `FilingMain`
+            fills the rest, so this only ever shows in the trigger's own strip. */}
+        <main className="flex min-w-0 flex-1 flex-col bg-muted dark:bg-background">
           <SectionsTrigger />
           {children}
         </main>

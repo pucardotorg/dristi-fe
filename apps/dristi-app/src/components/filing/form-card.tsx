@@ -38,12 +38,12 @@ export function FormCard({
 }) {
   return (
     <Card className={cn(PANEL_CLASS, "gap-6", className)}>
-      <CardHeader>
+      <CardHeader className={action && !description ? "items-center" : undefined}>
         <CardTitle className="text-body font-semibold">{title}</CardTitle>
         {description ? (
           <CardDescription className="text-body-compact">{description}</CardDescription>
         ) : null}
-        {action ? <CardAction>{action}</CardAction> : null}
+        {action ? <CardAction className={!description ? "row-span-1 self-center" : undefined}>{action}</CardAction> : null}
       </CardHeader>
       <CardContent className={cn("flex flex-col gap-6", contentClassName)}>
         {children}

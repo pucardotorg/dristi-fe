@@ -111,7 +111,7 @@ function ReviewButton({ section, onClick }: { section: string; onClick: () => vo
         <span className="sr-only"> {section}</span>
       </Button>
       {/* Phone: the DS small button, so a long section title keeps its line. */}
-      <Button type="button" variant="outline" size="sm" onClick={onClick} className="sm:hidden">
+      <Button type="button" variant="outline" size="sm" onClick={onClick} className="h-10 sm:hidden">
         <PencilLineIcon data-icon="inline-start" aria-hidden />
         Review
         <span className="sr-only"> {section}</span>
@@ -404,12 +404,12 @@ export function PreviewSection() {
         />
 
         <Tabs value={view} onValueChange={setView} className="gap-6">
-          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-hairline pb-2">
-            <TabsList variant="line" aria-label="Preview format">
-              <TabsTrigger value="synopsis">Synopsis</TabsTrigger>
-              <TabsTrigger value="document">Court document</TabsTrigger>
+          <div className="flex flex-col items-start justify-between gap-2 border-b border-hairline sm:flex-row sm:items-end">
+            <TabsList variant="line" aria-label="Preview format" className="order-2 p-0 group-data-horizontal/tabs:h-10 sm:order-none">
+              <TabsTrigger value="synopsis" className="h-10 px-3 group-data-horizontal/tabs:after:-bottom-px">Synopsis</TabsTrigger>
+              <TabsTrigger value="document" className="h-10 px-3 group-data-horizontal/tabs:after:-bottom-px">Court document</TabsTrigger>
             </TabsList>
-            <Button type="button" variant="outline" size="sm" onClick={printFile}>
+            <Button type="button" variant="outline" onClick={printFile} className="sm:mb-2">
               <PrinterIcon data-icon="inline-start" aria-hidden />
               Print or save as PDF
             </Button>
@@ -678,7 +678,7 @@ export function PreviewSection() {
           if (!open) setEditKey(null);
         }}
       >
-        <ChromeDialogContent className="sm:max-w-md">
+        <ChromeDialogContent mobileSheet className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Open the {panel?.title ?? ""} section?</DialogTitle>
             <DialogDescription>
