@@ -72,8 +72,14 @@ function KeyValues({ rows }: { rows: Row[] }) {
   return (
     <DescriptionList>
       {rows.map((r, i) => (
-        <DescriptionRow key={`${r.term}-${i}`}>
-          <DescriptionTerm className="text-body-compact text-muted-foreground">
+        /* Phone: the label over its value, the way every fact on a phone card reads in
+           this product. Side by side, a 7rem label column left an address five lines
+           of a 150px column. From `sm` up the two columns stand as designed. */
+        <DescriptionRow
+          key={`${r.term}-${i}`}
+          className="max-sm:grid-cols-1 max-sm:gap-0.5 max-sm:border-hairline max-sm:py-2.5"
+        >
+          <DescriptionTerm className="text-body-compact text-muted-foreground max-sm:text-caption">
             {r.term}
           </DescriptionTerm>
           <DescriptionDetails className="text-body-compact font-medium text-foreground tabular-nums">
@@ -98,11 +104,19 @@ function SubBlock({ title, rows }: { title: string; rows: Row[] }) {
 /** Opens the read-only panel for a section. Changing anything happens in the section. */
 function ReviewButton({ section, onClick }: { section: string; onClick: () => void }) {
   return (
-    <Button type="button" variant="outline" onClick={onClick}>
-      <PencilLineIcon data-icon="inline-start" aria-hidden />
-      Review
-      <span className="sr-only"> {section}</span>
-    </Button>
+    <>
+      <Button type="button" variant="outline" onClick={onClick} className="max-sm:hidden">
+        <PencilLineIcon data-icon="inline-start" aria-hidden />
+        Review
+        <span className="sr-only"> {section}</span>
+      </Button>
+      {/* Phone: the DS small button, so a long section title keeps its line. */}
+      <Button type="button" variant="outline" size="sm" onClick={onClick} className="h-10 sm:hidden">
+        <PencilLineIcon data-icon="inline-start" aria-hidden />
+        Review
+        <span className="sr-only"> {section}</span>
+      </Button>
+    </>
   );
 }
 
@@ -135,7 +149,7 @@ function CardActions({
   onEdit: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2 sm:gap-3">
       <SectionState complete={complete} />
       <ReviewButton section={section} onClick={onEdit} />
     </div>
@@ -390,12 +404,12 @@ export function PreviewSection() {
         />
 
         <Tabs value={view} onValueChange={setView} className="gap-6">
-          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-hairline pb-2">
-            <TabsList variant="line" aria-label="Preview format">
-              <TabsTrigger value="synopsis">Synopsis</TabsTrigger>
-              <TabsTrigger value="document">Court document</TabsTrigger>
+          <div className="flex flex-col items-start justify-between gap-2 border-b border-hairline sm:flex-row sm:items-end">
+            <TabsList variant="line" aria-label="Preview format" className="order-2 p-0 group-data-horizontal/tabs:h-10 sm:order-none">
+              <TabsTrigger value="synopsis" className="h-10 px-3 group-data-horizontal/tabs:after:-bottom-px">Synopsis</TabsTrigger>
+              <TabsTrigger value="document" className="h-10 px-3 group-data-horizontal/tabs:after:-bottom-px">Court document</TabsTrigger>
             </TabsList>
-            <Button type="button" variant="outline" size="sm" onClick={printFile}>
+            <Button type="button" variant="outline" onClick={printFile} className="sm:mb-2">
               <PrinterIcon data-icon="inline-start" aria-hidden />
               Print or save as PDF
             </Button>
@@ -463,7 +477,7 @@ export function PreviewSection() {
                 ))
               ) : (
                 <p className="text-body-compact text-muted-foreground">
-                  No advocate added — the complainant appears as a party in person.
+                  No advocate added. The complainant appears as a party in person.
                 </p>
               )}
             </FormCard>
@@ -664,7 +678,7 @@ export function PreviewSection() {
           if (!open) setEditKey(null);
         }}
       >
-        <ChromeDialogContent className="sm:max-w-md">
+        <ChromeDialogContent mobileSheet className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Open the {panel?.title ?? ""} section?</DialogTitle>
             <DialogDescription>
@@ -700,7 +714,7 @@ export function PreviewSection() {
         continueHref={next ? hrefFor(next) : undefined}
         continueLabel="Continue to sign"
         showSaveState={false}
-        extra={
+        status={
           readyToSign ? (
             <span className="inline-flex items-center gap-2 text-body-compact text-success-ink">
               <CheckIcon className="size-4" aria-hidden />

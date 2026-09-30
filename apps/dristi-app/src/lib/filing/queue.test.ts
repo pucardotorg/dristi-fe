@@ -76,8 +76,7 @@ describe("draftClock — the File by column", () => {
   it("past the window it keeps the date and names condonation — never 'overdue' or 'barred'", () => {
     const clock = draftClock(draftAt(45));
     assert.match(clock.lead, DATE);
-    assert.match(clock.sub ?? "", /^Window closed/);
-    assert.match(clock.sub ?? "", /condonation application/);
+    assert.equal(clock.sub, "Delay condonation applicable");
     assert.equal(clock.tone, "danger");
     const words = `${clock.lead} ${clock.sub}`.toLowerCase();
     for (const banned of ["overdue", "barred", "time-barred", "expired"]) {
@@ -126,7 +125,7 @@ describe("each tab has its own order, and the default is the useful one", () => 
       (r) => r.urgencyAt === "9999-12-31" && r.info.lead !== "Awaiting listing"
     );
     assert.ok(past.length > 0, "fixtures should hold at least one past listing");
-    for (const row of past) assert.equal(row.info.sub, "Last listed — no new date yet");
+    for (const row of past) assert.equal(row.info.sub, "Last listed. No new date yet");
   });
 
   it("drafts lead with the tightest deadline", () => {

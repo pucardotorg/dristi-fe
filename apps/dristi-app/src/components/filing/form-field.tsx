@@ -25,6 +25,9 @@ import {
 } from "@/components/filing/posture";
 import { defectState } from "@/lib/tasks/defects";
 
+const SourceFieldLabel = React.createContext("this field");
+export function useSourceFieldLabel() { return React.useContext(SourceFieldLabel); }
+
 /** The `*` / "optional" marker after a label. */
 export function RequiredMark({ optional }: { optional?: boolean }) {
   if (optional) {
@@ -54,7 +57,7 @@ export function LabelTip({ children }: { children: React.ReactNode }) {
           variant="ghost"
           size="icon"
           aria-label="More about this field"
-          className="-my-2 text-muted-foreground"
+          className="-my-3 -mr-2.5 -ml-2 align-middle text-muted-foreground"
         >
           <InfoIcon aria-hidden />
         </Button>
@@ -141,29 +144,40 @@ export function FormField({
       <span className="sr-only">
         {resolved
           ? " by scrutiny, and corrected in the corrections panel"
-          : " by scrutiny — correct it in the corrections panel"}
+          : " by scrutiny. Correct it in the corrections panel"}
       </span>
     </span>
   ) : null;
 
   const labelBody = (
     <>
-      <span>{label}</span>
-      {marker}
-      {tip ? <LabelTip>{tip}</LabelTip> : null}
+      {/* One inline run, so on a label that wraps the mark and the tip follow its last
+          word instead of standing at the far end of the row, a line away from it. */}
+      <span>
+        {label}
+        {marker ? <> {marker}</> : null}
+        {tip ? (
+          <>
+            {" "}
+            <LabelTip>{tip}</LabelTip>
+          </>
+        ) : null}
+      </span>
       {tag}
     </>
   );
 
   const field = (
-    <Field className={cn("gap-2", className)} data-invalid={error ? true : undefined}>
+    <Field className={cn(asGroup ? "gap-3" : "gap-2", className)} data-invalid={error ? true : undefined}>
       {asGroup ? (
         <FieldTitle className="text-body-compact">{labelBody}</FieldTitle>
       ) : (
         <FieldLabel className="text-body-compact">{labelBody}</FieldLabel>
       )}
       {help && helpPlacement === "above" ? <FieldDescription>{help}</FieldDescription> : null}
-      {children}
+      <SourceFieldLabel.Provider value={typeof label === "string" ? label : "this field"}>
+        {children}
+      </SourceFieldLabel.Provider>
       {help && helpPlacement === "below" ? <FieldDescription>{help}</FieldDescription> : null}
       {error ? <FieldError>{error}</FieldError> : null}
     </Field>

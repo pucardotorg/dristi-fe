@@ -162,7 +162,7 @@ export function SourcePanel(props: SourcePanelProps) {
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+      <SheetContent side="right" className="w-full overflow-y-auto data-[side=right]:w-full sm:max-w-md [&>[data-slot=sheet-close]]:z-20">
         <SheetHeader className="sr-only">
           <SheetTitle>
             {props.field ? `Source for ${props.field}` : `Source document: ${props.title}`}
@@ -258,7 +258,7 @@ function SourcePanelBody(p: SourcePanelProps) {
             </FieldLabel>
             <Input value={p.value ?? ""} onChange={(e) => p.onValueChange?.(e.target.value)} />
             <FieldDescription>
-              Correct it here if we misread — this updates the form and clears the
+              Correct it here if we misread. This updates the form and clears the
               auto-filled marker.
             </FieldDescription>
           </Field>
@@ -365,7 +365,7 @@ export function ViewSourceButton({
       variant="outline"
       size="sm"
       onClick={onClick}
-      className={cn("rounded-full text-primary", className)}
+      className={cn("rounded-full text-primary max-sm:h-10 max-sm:w-full max-sm:rounded-lg max-sm:text-body-compact", className)}
     >
       <FileTextIcon data-icon="inline-start" aria-hidden />
       View source document

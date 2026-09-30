@@ -76,7 +76,7 @@ export function BatchProgress({ counts }: { counts: BulkBatch["counts"] }) {
 export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
   return (
     <Card className={cn(PANEL_CLASS, "gap-0")}>
-      <CardHeader className="flex-row items-start gap-3">
+      <CardHeader className="flex flex-row items-start gap-3">
         <span
           aria-hidden
           className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-info-muted text-info-muted-foreground"
@@ -86,20 +86,18 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
         <div className="flex min-w-0 flex-col gap-0.5">
           <CardTitle className="text-body font-semibold">Bulk filing</CardTitle>
           <CardDescription className="text-body-compact">
-            Import many cases at once from your client&apos;s case-management system, then
-            file them as one batch.
+            Bring in many cases from your client&apos;s system and file them together.
           </CardDescription>
         </div>
       </CardHeader>
 
       <CardContent className="mt-auto flex flex-col gap-4 pt-4">
         {batch === null ? (
-          <Empty className="border-0 p-0 text-left">
+          <Empty className="items-start gap-0 border-0 p-0 text-left text-wrap">
             <EmptyHeader className="max-w-none items-start">
               <EmptyTitle className="text-body font-semibold">No imports yet</EmptyTitle>
-              <EmptyDescription className="text-body-compact">
-                Batches your clients send for filing will appear here with their progress
-                through scrutiny.
+              <EmptyDescription className="text-body-compact text-wrap">
+                When a client sends cases, they appear here with their progress.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -118,14 +116,17 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* The pair shares the row half and half at every width (owner, Sept 22). */}
+        <div className="flex flex-wrap items-center gap-2 [&>*]:flex-1">
           <Button asChild variant="outline">
             <Link href={`${FILINGS_HOME}/bulk`}>
               {batch ? "Review batch" : "About bulk filing"}
               <ArrowRightIcon data-icon="inline-end" aria-hidden />
             </Link>
           </Button>
-          <Button asChild variant="ghost">
+          {/* Outline, not ghost: sharing a row half and half, a button with no edge read
+              as a stray label beside a real one. */}
+          <Button asChild variant="outline">
             <Link href={`${FILINGS_HOME}/bulk`}>
               <PlusIcon data-icon="inline-start" aria-hidden />
               New import

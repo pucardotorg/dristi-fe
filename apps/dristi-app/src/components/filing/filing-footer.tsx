@@ -33,6 +33,7 @@ export function FilingFooter({
   continueVariant = "default",
   showSaveState = true,
   leading,
+  status,
   extra,
   className,
 }: {
@@ -59,7 +60,10 @@ export function FilingFooter({
   showSaveState?: boolean;
   /** Left-side status (e.g. "3 required documents still needed"); replaces Back's slot when Back is absent. */
   leading?: React.ReactNode;
-  /** Extra controls between the save state and the primary action. */
+  /** A right-side statement about the step ("2 sections incomplete"), where the save
+   *  state sits. On a phone it joins the status line above the buttons. */
+  status?: React.ReactNode;
+  /** Extra controls (buttons) between the save state and the primary action. */
   extra?: React.ReactNode;
   className?: string;
 }) {
@@ -132,20 +136,56 @@ export function FilingFooter({
 
   if (inCorrection) return null;
 
+  const hasStatusLine = Boolean(leading || status || showSaveState);
+
   return (
     <footer
       className={cn(
-        "sticky bottom-0 z-30 border-t border-hairline bg-card px-4 py-3 sm:px-6",
+        "sticky bottom-0 z-30 border-t border-hairline bg-card px-6 pt-3 pb-[calc(--spacing(3)+env(safe-area-inset-bottom))] sm:pb-3",
         className
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Phone: the actions stack, as every dialog footer in the product does below
+          `sm`: the primary action on top at full width, Back under it. A second
+          control (Print) shares Back's row half and half. What the step has to say
+          sits on one quiet line above them. */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        {hasStatusLine ? (
+          /* One quiet line. The save state always sits on the right (owner, Sept 22):
+             alone, or closing the line after the step's own statement on the left. */
+          <div className="flex items-center justify-between gap-3 text-caption [&_*]:text-caption">
+            {leading || status ? (
+              <>
+                <div className="min-w-0">{leading ?? status}</div>
+                <div className="flex shrink-0 items-center gap-3">
+                  {leading ? status : null}
+                  {showSaveState ? <SavingIndicator /> : null}
+                </div>
+              </>
+            ) : (
+              <span className="ml-auto flex">
+                <SavingIndicator />
+              </span>
+            )}
+          </div>
+        ) : null}
+        <div className="flex flex-col [&>*]:w-full">{primary}</div>
+        {back || extra ? (
+          <div className="flex items-center gap-2 [&>*]:min-w-0 [&>*]:flex-1">
+            {back}
+            {extra}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="hidden flex-wrap items-center justify-between gap-3 sm:flex">
         <div className="flex min-w-0 items-center gap-3">
           {back}
           {leading}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-3 sm:gap-4">
           {showSaveState ? <SavingIndicator /> : null}
+          {status}
           {extra}
           {primary}
         </div>

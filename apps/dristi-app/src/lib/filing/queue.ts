@@ -236,7 +236,7 @@ export function draftClock(draft: FilingDraft): {
   if (left < 0) {
     return {
       lead: toDisplayDate(dueOn),
-      sub: "Window closed · filing now needs a condonation application",
+      sub: "Delay condonation applicable",
       tone: "danger",
       dueOn,
     };
@@ -464,7 +464,7 @@ export function registeredRows(today: string, cases: CaseRecord[] = CASES): Queu
         info: on
           ? {
               lead: toDisplayDate(on),
-              sub: upcoming ? record.nextHearing?.purpose : "Last listed — no new date yet",
+              sub: upcoming ? record.nextHearing?.purpose : "Last listed. No new date yet",
               tone: "default" as InfoTone,
             }
           : {

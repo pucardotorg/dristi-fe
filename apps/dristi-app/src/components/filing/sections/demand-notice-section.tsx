@@ -206,7 +206,7 @@ export function DemandNoticeSection() {
   // too — fall back to the receipt when the notice was never uploaded.
   const sourceDoc =
     sourceField === "dispatchDate" &&
-    !slots["demand-notice"]?.file &&
+    !slots["demand-notice"]?.extract?.fields.dispatchDate?.value &&
     slots["dispatch-proof"]?.file
       ? "dispatch-proof"
       : DOC_OF_FIELD[sourceField];
@@ -266,7 +266,7 @@ export function DemandNoticeSection() {
           onAdd={addNotice}
           trailing={
             !sourceOpen ? (
-              <ViewSourceButton onClick={() => setSourceOpen(true)} />
+              <ViewSourceButton onClick={() => { setExplaining(false); setSourceOpen(true); }} />
             ) : null
           }
         />
@@ -341,7 +341,9 @@ export function DemandNoticeSection() {
             <FormField label="Mode of service" name="modeService" required>
               <OptionSelect
                 value={notice.modeService}
-                onValueChange={(v) => set("modeService", v)}
+                prefilled={isPrefilled("modeService")}
+                onViewSource={() => openSource("modeService")}
+                onValueChange={(v) => editField("modeService", v)}
                 options={MODE_OF_SERVICE}
                 ariaLabel="Mode of service"
               />
@@ -357,7 +359,9 @@ export function DemandNoticeSection() {
             >
               <TextField
                 value={notice.tracking}
-                onChange={(v) => set("tracking", v)}
+                prefilled={isPrefilled("tracking")}
+                onViewSource={() => openSource("tracking")}
+                onChange={(v) => editField("tracking", v)}
                 placeholder="Enter tracking number"
                 autoComplete="off"
               />
@@ -384,7 +388,9 @@ export function DemandNoticeSection() {
                 >
                   <DateField
                     value={notice.deliveryDate}
-                    onChange={(v) => set("deliveryDate", v)}
+                prefilled={isPrefilled("deliveryDate")}
+                onViewSource={() => openSource("deliveryDate")}
+                    onChange={(v) => editField("deliveryDate", v)}
                     ariaLabel="Date of delivery"
                   />
                 </FormField>

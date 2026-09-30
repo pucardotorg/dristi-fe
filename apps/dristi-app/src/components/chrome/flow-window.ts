@@ -82,7 +82,7 @@ export function useBottomSheet(): {
   if (!phone) return { className: "", style: undefined };
   return {
     className:
-      "top-auto bottom-0 left-0 w-full max-w-none translate-x-0 translate-y-0 rounded-t-xl rounded-b-none ease-[cubic-bezier(0.32,0.72,0,1)] data-open:duration-300 data-closed:duration-200 [&_[data-slot=alert-dialog-footer]]:rounded-b-none [&_[data-slot=alert-dialog-footer]]:pb-[calc(--spacing(6)+env(safe-area-inset-bottom))]",
+      "top-auto bottom-0 left-0 max-h-dvh w-full max-w-none overflow-y-auto translate-x-0 translate-y-0 rounded-t-xl rounded-b-none ease-[cubic-bezier(0.32,0.72,0,1)] data-open:duration-300 data-closed:duration-200 [&>[data-slot=dialog-close]]:size-10 [&_[data-slot=dialog-footer]]:rounded-b-none [&_[data-slot=dialog-footer]]:pb-[calc(--spacing(6)+env(safe-area-inset-bottom))] [&_[data-slot=alert-dialog-footer]]:rounded-b-none [&_[data-slot=alert-dialog-footer]]:pb-[calc(--spacing(6)+env(safe-area-inset-bottom))]",
     style: (reduced
       ? ({ "--tw-enter-scale": "1", "--tw-exit-scale": "1" } as Record<string, string>)
       : {

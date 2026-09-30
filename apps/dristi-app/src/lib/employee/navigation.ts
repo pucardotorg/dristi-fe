@@ -549,7 +549,7 @@ export function courtNavClubbedTotal(layout: CombinedCourtNavLayout): number {
 }
 
 /** A layout that folds work into one row, rather than the rail's default four groups. */
-type CombinedCourtNavLayout = Exclude<CourtNavLayout, "grouped">;
+type CombinedCourtNavLayout = Exclude<CourtNavLayout, "grouped" | "open">;
 
 /** The one row `"actions"` and `"schedule"` differ on — same destination shape, two names. */
 const COURT_NAV_COMBINED_ROW: Record<CombinedCourtNavLayout, CourtNavItem> = {

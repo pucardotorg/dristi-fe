@@ -763,7 +763,7 @@ export function SignSection() {
       </div>
 
       <p className="text-caption text-muted-foreground">
-        Sandbox — this filing has not been sent to a real court.
+        Sandbox: this filing has not been sent to a real court.
       </p>
     </div>
   );
@@ -1050,7 +1050,7 @@ export function SignSection() {
         offered as declinable rather than offered and then refused.
       */}
       <Dialog open={modal === "procaddr"} onOpenChange={(open) => !open && closeModal()}>
-        <ChromeDialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-2xl">
+        <ChromeDialogContent mobileSheet className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Change process &amp; address</DialogTitle>
             <DialogDescription>
@@ -1215,7 +1215,7 @@ export function SignSection() {
                             <span className="text-muted-foreground"> · required</span>
                           </Label>
                           <p className="text-caption text-muted-foreground tabular-nums">
-                            {money(CHANNEL_FEE.amount)} for each address, every round —
+                            {money(CHANNEL_FEE.amount)} for each address, every round,
                             charged by the post office, not by the court.
                           </p>
                         </div>
@@ -1282,7 +1282,7 @@ export function SignSection() {
         process by process, and this screen only adds it up.
       */}
       <Dialog open={modal === "payment"} onOpenChange={(open) => !open && closeModal()}>
-        <ChromeDialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-xl">
+        <ChromeDialogContent mobileSheet className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100svh-2rem)] sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Pay court fees</DialogTitle>
             <DialogDescription>
@@ -1307,7 +1307,7 @@ export function SignSection() {
 
             <FeeGroup
               title={`Delivery of summons · ${DELIVERY_CHANNEL}`}
-              caption="Charged for each address, every round of summons — by the post office, not by the court."
+              caption="Charged for each address, every round of summons, by the post office and not by the court."
               lines={bill.delivery}
               total={bill.deliveryTotal}
             />
@@ -1325,7 +1325,7 @@ export function SignSection() {
           </Button>
 
           <p className="text-caption text-muted-foreground">
-            Sandbox payment — no money moves.
+            Sandbox payment. No money moves.
           </p>
 
           <DialogFooter>
@@ -1342,7 +1342,7 @@ export function SignSection() {
 
       {/* ── Processing ── */}
       <Dialog open={modal === "processing"}>
-        <ChromeDialogContent
+        <ChromeDialogContent mobileSheet
           className="sm:max-w-sm"
           showCloseButton={false}
           onEscapeKeyDown={(e) => e.preventDefault()}
@@ -1357,7 +1357,7 @@ export function SignSection() {
               Please don’t close or refresh this window while we confirm your payment.
             </DialogDescription>
             <p className="text-caption text-muted-foreground">
-              Sandbox payment — no money moves.
+              Sandbox payment. No money moves.
             </p>
           </div>
         </ChromeDialogContent>
@@ -1365,7 +1365,7 @@ export function SignSection() {
 
       {/* ── Payment successful ── */}
       <Dialog open={modal === "success"} onOpenChange={(open) => !open && closeModal()}>
-        <ChromeDialogContent
+        <ChromeDialogContent mobileSheet
           showCloseButton={false}
           className="gap-0 overflow-hidden p-0 sm:max-w-lg"
         >
@@ -1377,7 +1377,7 @@ export function SignSection() {
               Payment successful
             </DialogTitle>
             <DialogDescription className="text-body-compact text-success-foreground">
-              Your case file is complete. This is a sandbox — nothing has been sent to a
+              Your case file is complete. This is a sandbox. Nothing has been sent to a
               real court.
             </DialogDescription>
           </div>

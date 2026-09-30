@@ -257,7 +257,7 @@ export function ChequeSection() {
   // Source panel — which upload, which region, and the value we read there. The two
   // documents behind this cheque come from intake; either may not be uploaded yet.
   const fromCheque = CHEQUE_FIELDS.includes(sourceField);
-  const sourceSlot = fromCheque ? frontSlot : memoSlot;
+  const sourceSlot = (explaining ? [frontSlot, memoSlot].find((slot) => slot?.extract?.fields[sourceField]?.value === cheque[sourceField]) : undefined) ?? (fromCheque ? frontSlot : memoSlot);
   /** The document in the rail — the rail's subject until a field is asked about. */
   const sourceDocLabel =
     sourceSlot?.label ?? (fromCheque ? "Cheque (front side)" : "Cheque return memo");
@@ -300,7 +300,7 @@ export function ChequeSection() {
           onAdd={addCheque}
           trailing={
             !sourceOpen ? (
-              <ViewSourceButton onClick={() => setSourceOpen(true)} />
+              <ViewSourceButton onClick={() => { setExplaining(false); setSourceOpen(true); }} />
             ) : null
           }
         />
@@ -392,7 +392,7 @@ export function ChequeSection() {
                   label="Bank name"
                   name="bankName"
                   required
-                  tip="The bank written on the cheque — i.e. the drawer's (accused's) bank."
+                  tip="The bank written on the cheque, i.e. the drawer's (accused's) bank."
                 >
                   <TextField
                     value={cheque.bankName}
@@ -406,7 +406,7 @@ export function ChequeSection() {
                   label="Bank branch"
                   name="bankBranch"
                   required
-                  tip="The branch written on the cheque — i.e. the drawer's (accused's) branch."
+                  tip="The branch written on the cheque, i.e. the drawer's (accused's) branch."
                 >
                   <TextField
                     value={cheque.bankBranch}
@@ -424,7 +424,7 @@ export function ChequeSection() {
             <InfoWell>
               <CreditCardIcon className="size-5 shrink-0" aria-hidden />
               <p className="min-w-0 flex-1 text-body">
-                Using bank details from Cheque {index} —{" "}
+                Using bank details from Cheque {index}:{" "}
                 <span className="font-semibold">{inheritedBank}</span>
                 {previous?.bankBranch ? `, ${previous.bankBranch}` : ""}.
               </p>

@@ -13,8 +13,8 @@ export function PrefillNotice({ show }: { show: boolean }) {
   if (!show) return null;
   return (
     <SectionNotice variant="info">
-      Highlighted fields were read from your documents. Select one to see where it came
-      from.
+      Highlighted fields were read from your documents. Use the source button beside a
+      field to see where it came from.
     </SectionNotice>
   );
 }

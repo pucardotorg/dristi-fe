@@ -32,6 +32,7 @@ export function RegisterTrayCard({
   open,
   onOpenChange,
   marked = false,
+  leading,
   className,
   cardRef,
 }: {
@@ -44,6 +45,9 @@ export function RegisterTrayCard({
   onOpenChange: (open: boolean) => void;
   /** The record this card stands for is open or was just closed. */
   marked?: boolean;
+  /** Before the title on its line: a checkbox. It sits above the title's stretched
+   *  hit area, so it takes its own taps. */
+  leading?: React.ReactNode;
   className?: string;
   cardRef?: React.Ref<HTMLDivElement>;
 }) {
@@ -59,6 +63,9 @@ export function RegisterTrayCard({
         )}
       >
         <div className="flex items-start gap-3">
+          {leading ? (
+            <span className="relative z-10 flex shrink-0 items-center">{leading}</span>
+          ) : null}
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <CollapsibleTrigger asChild>
               <button

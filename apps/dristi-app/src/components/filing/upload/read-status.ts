@@ -92,8 +92,8 @@ export function readOutcomeFor({
     return poor
       ? {
           kind: "read-check",
-          text: `Read · ${counted} filled — worth checking against the document`,
-          short: `Read · ${counted} filled — check them`,
+          text: `Read · ${counted} filled. Worth checking against the document`,
+          short: `Read · ${counted} filled. Check them`,
           speech: `read, ${counted} filled in your form. Worth checking them against the document.`,
           tone: "warning",
           reupload: false,
@@ -128,8 +128,8 @@ export function readOutcomeFor({
   return {
     kind: "nothing",
     text: readable
-      ? "Uploaded — nothing to pre-fill from this one; type the details in the form"
-      : "Uploaded — nothing to pre-fill from this one",
+      ? "Uploaded. Nothing to pre-fill from this one, so type the details in the form"
+      : "Uploaded. Nothing to pre-fill from this one",
     short: "Uploaded · nothing to pre-fill",
     speech: "uploaded, nothing to pre-fill from it.",
     tone: "muted",

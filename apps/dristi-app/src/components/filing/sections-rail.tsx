@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FilesIcon, PanelLeftIcon } from "lucide-react";
+import { ChevronRightIcon, FilesIcon, PanelLeftOpenIcon } from "lucide-react";
 
 import { draftProgress } from "@/lib/filing/selectors";
 import {
@@ -90,7 +90,7 @@ function StepRow({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            {step.title} — {PLACEHOLDER_NOTE[step.id] ?? "not a screen of its own"}
+            {step.title}: {PLACEHOLDER_NOTE[step.id] ?? "not a screen of its own"}
           </TooltipContent>
         </Tooltip>
       </li>
@@ -219,7 +219,7 @@ export function SectionsRail() {
       <aside
         aria-label="Sections"
         style={{ top: TOP_BAR_HEIGHT, height: `calc(100svh - ${TOP_BAR_HEIGHT})` }}
-        className="sticky hidden w-72 shrink-0 flex-col self-start overflow-y-auto border-r border-hairline bg-sidebar lg:flex"
+        className="sticky hidden w-72 shrink-0 flex-col self-start overflow-y-auto border-r border-hairline bg-sidebar lg:pointer-fine:flex lg:landscape:flex"
       >
         <div className="flex flex-col gap-3 px-4 py-4">
           <span className="text-body font-medium text-foreground">Sections</span>
@@ -260,24 +260,102 @@ export function SectionsRail() {
 }
 
 /**
- * Opens the rail below `lg`, where it is a sheet rather than a column. From `lg` up the
- * rail is simply always there, so this is the only trigger that has to exist at all.
+ * Opens the rail wherever it is a sheet rather than a column: below `lg`, and on an
+ * upright tablet of any width, where the main nav, an 18rem rail and the form would
+ * share 1024px three ways.
+ *
+ * A slim bar on the form's own canvas, not a lone button on a white strip: it reads as
+ * where you are in the filing (the step count) and as something that opens (the panel
+ * glyph and the chevron), the same pair the case file's Browse bar uses.
  */
 export function SectionsTrigger() {
   const { sectionsSheetOpen, setSectionsSheetOpen } = useFilingChrome();
+  const active = useActiveStep();
+  const walked = FILING_STEPS.filter((s) => !s.placeholder);
+  const position = active ? walked.findIndex((s) => s.id === active.id) + 1 : 0;
+
+  // The trigger sticks under the top bar so a thumb never has to scroll back up for it.
+  // On the phone form it shrinks to its icon while the page rests and grows back the
+  // moment a scroll or focus asks for it, reclaiming a scarce line; tablets keep the full
+  // button (`sm:`), since they have the width to spare (owner, 2026-09-29).
+  const marker = React.useRef<HTMLDivElement>(null);
+  const [stuck, setStuck] = React.useState(false);
+  const [scrolling, setScrolling] = React.useState(false);
+  const [focused, setFocused] = React.useState(false);
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const measure = () => {
+      const el = marker.current;
+      const band = el?.nextElementSibling;
+      if (el && band) {
+        setStuck(el.getBoundingClientRect().top < parseFloat(getComputedStyle(band).top));
+      }
+    };
+    const onScroll = () => {
+      measure();
+      setScrolling(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setScrolling(false), 1400);
+    };
+    measure();
+    // Scroll events do not bubble; the filing form scrolls in its own pane, not the
+    // window, so listen in the capture phase to catch whichever pane actually moves.
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", measure, { passive: true });
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", measure);
+      clearTimeout(timer);
+    };
+  }, []);
+  // Collapse only when it is stuck and the page is at rest; any scroll, focus or the open
+  // sheet keeps it full. `sm:` overrides the collapse, so tablets never shrink.
+  const shrink = stuck && !scrolling && !focused && !sectionsSheetOpen;
 
   return (
-    <div className="px-4 pt-4 sm:px-6 lg:hidden">
-      <Button
-        type="button"
-        variant="outline"
-        aria-haspopup="dialog"
-        aria-expanded={sectionsSheetOpen}
-        onClick={() => setSectionsSheetOpen(true)}
+    <>
+      {/* Sentinel for `measure`: once it scrolls above the sticky offset, the bar is stuck. */}
+      <div ref={marker} className="h-0" aria-hidden />
+      {/* The bar is transparent and click-through, so only the button is opaque: content
+          shows beside the collapsed icon and flows right under the button, never behind a
+          band. The one exception is the full-bleed canvas fill below, which covers just the
+          gap up to the top bar so that space reads as the page rather than letting a strip of
+          content peek through. The gap sits inside the sticky box, so it is identical resting
+          or stuck — the button holds its place instead of jumping up to touch the bar. */}
+      <div
+        style={{ top: TOP_BAR_HEIGHT }}
+        className="pointer-events-none sticky z-20 px-6 lg:pointer-fine:hidden lg:landscape:hidden"
       >
-        <PanelLeftIcon data-icon="inline-start" aria-hidden />
-        Sections
-      </Button>
-    </div>
+        <div aria-hidden className="-mx-6 h-4 bg-muted dark:bg-background" />
+        {/* One button that morphs its own width: full-width on the phone form, easing down
+            to its icon while the page rests and back on scroll. The label clips in place,
+            so the button keeps its full accessible name collapsed. Tablets keep the full
+            button (`sm:w-auto`), since they have the width to spare. */}
+        <Button
+          type="button"
+          variant="outline"
+          aria-haspopup="dialog"
+          aria-expanded={sectionsSheetOpen}
+          onClick={() => setSectionsSheetOpen(true)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          className={cn(
+            "pointer-events-auto justify-start gap-0 overflow-hidden bg-card shadow-raised transition-[width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none sm:w-auto",
+            shrink ? "w-12" : "w-full"
+          )}
+        >
+          <PanelLeftOpenIcon aria-hidden />
+          <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap pl-2">
+            Sections
+            {position ? (
+              <span className="ml-auto pl-3 text-caption font-normal tabular-nums text-muted-foreground">
+                Step {position} of {walked.length}
+              </span>
+            ) : null}
+            <ChevronRightIcon aria-hidden className="text-muted-foreground" />
+          </span>
+        </Button>
+      </div>
+    </>
   );
 }
