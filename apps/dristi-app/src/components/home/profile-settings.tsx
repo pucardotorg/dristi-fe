@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { CheckCircle2Icon, CheckIcon, ChevronsUpDownIcon, FileTextIcon, PencilIcon, PlusIcon } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Locale } from "@/lib/onboarding/content";
 import { Identifier } from "@/components/chrome/identifier";
+import { DSC_SETUP_HREF, useDscCheck } from "@/lib/signing/dsc";
 
 const REQUIRED_MARK = <span className="text-destructive">*</span>;
 
@@ -190,6 +192,8 @@ export function ProfileSettings({ locale, profileName, idSubmitted, submittedId,
         ) : null}
       </section>
 
+      {profileRole === "advocate" ? <DscSettingsSection /> : null}
+
       {/* Password */}
       <section className="flex flex-col gap-5 border-t border-border pt-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -205,6 +209,39 @@ export function ProfileSettings({ locale, profileName, idSubmitted, submittedId,
 }
 
 /* ────────────────────────── Helpers ────────────────────────── */
+
+/**
+ * DSC signing, for advocates. Whether it is set up is asked of this computer, not stored
+ * on the profile — the same account can be ready at one desk and not at another — so the
+ * chip says "on this computer" and the page it links to does the rest.
+ */
+function DscSettingsSection() {
+  const { check } = useDscCheck();
+  const ready = check.state === "ready";
+  return (
+    <section className="flex flex-col gap-4 border-t border-border pt-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-title-s font-semibold">Digital signature (DSC)</h2>
+          <p className="text-body-compact text-muted-foreground">
+            Sign with your Digital Signature Certificate instead of an Aadhaar OTP.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {check.state === "checking" ? null : (
+            <Badge variant={ready ? "success" : "secondary"}>
+              {ready ? <CheckIcon data-icon="inline-start" aria-hidden /> : null}
+              {ready ? "Ready on this computer" : "Not set up on this computer"}
+            </Badge>
+          )}
+          <Button asChild variant="outline">
+            <Link href={DSC_SETUP_HREF}>{ready ? "View DSC setup" : "Set up DSC"}</Link>
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 /**
  * The profile name, editable in-place for litigants (whose names are self-reported).

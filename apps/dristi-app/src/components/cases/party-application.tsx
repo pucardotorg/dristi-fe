@@ -15,7 +15,7 @@
  *   view as icon buttons on the sheet itself. Rendered inside the owning
  *   flow's own review step.
  * - `PartySignatureDialog` — a SMALL dialog that opens OVER that review: the
- *   complaint's two-card chooser (Aadhaar e-sign / upload a signed copy).
+ *   complaint's chooser (Aadhaar e-sign / DSC / upload a signed copy).
  *   Success shows the confirmation and Done closes both. Failure closes only
  *   this dialog, so the review underneath keeps its progress.
  *
@@ -23,16 +23,20 @@
  * an application.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   DownloadIcon,
   HourglassIcon,
   Maximize2Icon,
+  ShieldCheckIcon,
   SignatureIcon,
   UploadIcon,
   XCircleIcon,
 } from "lucide-react";
 
+import { signWithDsc, useDscCheck, type DscCheck } from "@/lib/signing/dsc";
+import { useProfile } from "@/components/shell/profile";
+import { DscAvailabilityBadge, DscStatus, type DscPhase } from "@/components/signing/dsc-status";
 import { Button } from "@/components/ui/button";
 import {
   DescriptionDetails,
@@ -272,7 +276,7 @@ function downloadPartyApplication(
 /* Sign — a small dialog OVER the review                               */
 /* ------------------------------------------------------------------ */
 
-type SignStep = "choose" | "upload" | "aadhaar" | "done";
+type SignStep = "choose" | "upload" | "aadhaar" | "dsc" | "done";
 type AadhaarPhase = "authenticating" | "failure";
 
 /**
@@ -303,6 +307,9 @@ export function PartySignatureDialog({
   chooseTitle?: string;
 }) {
   const [step, setStep] = useState<SignStep>("choose");
+  /* One question to this computer for the chooser and the DSC step together, so the
+     step opens on the answer the card already showed rather than asking again. */
+  const dsc = useDscCheck({ enabled: step === "choose" || step === "dsc" });
   const [aadhaar, setAadhaar] = useState<AadhaarPhase>("authenticating");
   const [signedFile, setSignedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -435,6 +442,16 @@ export function PartySignatureDialog({
               </Button>
             </footer>
           </>
+        ) : step === "dsc" ? (
+          <DscSignStep
+            dsc={dsc}
+            onBack={() => setStep("choose")}
+            onSigned={() => setStep("done")}
+            onUseAadhaar={() => {
+              setAadhaar("authenticating");
+              setStep("aadhaar");
+            }}
+          />
         ) : step === "upload" ? (
           <>
             <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-5 pr-14 text-left">
@@ -494,18 +511,19 @@ export function PartySignatureDialog({
               <SignMethodCard
                 icon={<SignatureIcon className="size-5" />}
                 tone="info"
-                title="E-Sign with Aadhaar OTP"
+                title="Aadhaar OTP"
                 description="You are taken to the Aadhaar e-sign service. The signature is recorded here as soon as it is done."
                 onClick={() => {
                   setAadhaar("authenticating");
                   setStep("aadhaar");
                 }}
               />
+              <DscMethodCard check={dsc.check} onClick={() => setStep("dsc")} />
               <SignMethodCard
                 icon={<UploadIcon className="size-5" />}
                 tone="warning"
                 title="Upload a signed copy"
-                description="One file that already carries the signature, on paper or by DSC."
+                description="One file that already carries the signature, signed on paper."
                 onClick={() => {
                   setError(undefined);
                   setStep("upload");
@@ -530,13 +548,17 @@ export function SignMethodCard({
   icon,
   tone,
   title,
+  badge,
   description,
   onClick,
 }: {
   icon: ReactNode;
-  /** `neutral` is for a way of not signing now: no status colour to claim. */
-  tone: "info" | "warning" | "neutral";
+  /** `neutral` is for a way of not signing now: no status colour to claim.
+   *  `brand` is the DSC's mark, as the complaint's chooser has it. */
+  tone: "info" | "warning" | "brand" | "neutral";
   title: string;
+  /** A status pill beside the name — what this route can do right now. */
+  badge?: ReactNode;
   description: string;
   onClick: () => void;
 }) {
@@ -554,20 +576,134 @@ export function SignMethodCard({
             ? "bg-info-muted text-info-muted-foreground"
             : tone === "warning"
               ? "bg-warning-muted text-warning-muted-foreground"
-              : "bg-surface-sunken text-muted-foreground group-hover:bg-background"
+              : tone === "brand"
+                ? "bg-brand-muted text-brand-muted-foreground"
+                : "bg-surface-sunken text-muted-foreground group-hover:bg-background"
         )}
       >
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-body-compact font-semibold text-foreground">
-          {title}
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="text-body-compact font-semibold text-foreground">
+            {title}
+          </span>
+          {badge}
         </span>
         <span className="text-body-compact text-muted-foreground">
           {description}
         </span>
       </span>
     </button>
+  );
+}
+
+/**
+ * The DSC on the sign chooser. It asks this computer as the chooser opens, so the card
+ * already shows whether the DSC is available before it is pressed — pressing it is always
+ * allowed, because the step behind it is where "not set up" gets its way forward.
+ */
+export function DscMethodCard({ check, onClick }: { check: DscCheck; onClick: () => void }) {
+  return (
+    <SignMethodCard
+      icon={<ShieldCheckIcon className="size-5" />}
+      tone="brand"
+      title="DSC"
+      badge={<DscAvailabilityBadge check={check} />}
+      description="Uses the certificate on your token. You’ll be asked for its PIN."
+      onClick={onClick}
+    />
+  );
+}
+
+/**
+ * The DSC step of a case signing dialog: header, what this computer has, and the
+ * warm footer band. There is no DSC signing screen of our own — the signing software
+ * takes the PIN — so this is the hand-off and its answer.
+ */
+export function DscSignStep({
+  dsc,
+  titleRef,
+  onBack,
+  onSigned,
+  onUseAadhaar,
+}: {
+  /** The dialog's own check, shared with the chooser's DSC card. */
+  dsc: { check: DscCheck; recheck: () => void };
+  titleRef?: RefObject<HTMLHeadingElement | null>;
+  onBack: () => void;
+  onSigned: () => void;
+  onUseAadhaar: () => void;
+}) {
+  const { accountName } = useProfile();
+  const { check, recheck } = dsc;
+  const [attempt, setAttempt] = useState<"idle" | "signing" | "failed">("idle");
+  const phase: DscPhase = attempt === "idle" ? check : { state: attempt };
+  const canSign =
+    phase.state === "ready" || phase.state === "failed" || phase.state === "signing";
+  const ownTitle = useRef<HTMLHeadingElement>(null);
+  const ref = titleRef ?? ownTitle;
+
+  /* The step replaces the chooser wholesale; its title takes focus to announce it. */
+  useEffect(() => {
+    ref.current?.focus();
+  }, [ref]);
+
+  async function sign() {
+    setAttempt("signing");
+    const result = await signWithDsc();
+    if (result === "signed") onSigned();
+    else setAttempt("failed");
+  }
+
+  return (
+    <>
+      <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-4 pr-12 text-left">
+        <DialogTitle
+          ref={ref}
+          tabIndex={-1}
+          className="text-body font-semibold text-balance outline-none"
+        >
+          Sign with your DSC
+        </DialogTitle>
+        <DialogDescription>
+          Your DSC token has to be plugged in, with the signing software running on
+          this computer.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
+        <DscStatus
+          phase={phase}
+          holder={accountName}
+          onRecheck={recheck}
+          onUseAadhaar={phase.state === "signing" ? undefined : onUseAadhaar}
+        />
+      </div>
+      <footer className={cn(FLOW_FOOTER, "flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center sm:justify-between")}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={phase.state === "signing"}
+          onClick={onBack}
+        >
+          Back
+        </Button>
+        {canSign ? (
+          <Button
+            type="button"
+            disabled={phase.state === "signing"}
+            aria-busy={phase.state === "signing" || undefined}
+            onClick={() => void sign()}
+          >
+            {phase.state === "signing"
+              ? "Signing…"
+              : phase.state === "failed"
+                ? "Try again"
+                : "Sign with this DSC"}
+          </Button>
+        ) : null}
+      </footer>
+    </>
   );
 }
 

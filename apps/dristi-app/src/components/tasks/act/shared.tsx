@@ -328,42 +328,23 @@ export function PrepareCard({
 
 /* ───────────────────────────── OTP ───────────────────────────── */
 
-/** Aadhaar e-Sign, sandboxed: any 6 digits. The signatory's name is on the dialog. */
-export function OtpDialog({
-  open,
-  onOpenChange,
+/**
+ * Aadhaar e-Sign, sandboxed: any 6 digits. The signatory's name is on the dialog. One
+ * stage of `SignDialog`, mounted per visit so the code always starts empty; `onBack`
+ * returns to the choice of instrument.
+ */
+export function OtpForm({
   signer,
   onSign,
+  onBack,
   title = "E-Sign with Aadhaar",
   confirmLabel = "Sign",
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   signer: Person;
   onSign: () => void;
+  onBack?: () => void;
   title?: string;
   confirmLabel?: string;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <FlowDialogContent className="sm:max-w-md">
-        {/* Mounted per open, so the code always starts empty. */}
-        {open ? <OtpForm signer={signer} onSign={onSign} title={title} confirmLabel={confirmLabel} /> : null}
-      </FlowDialogContent>
-    </Dialog>
-  );
-}
-
-function OtpForm({
-  signer,
-  onSign,
-  title,
-  confirmLabel,
-}: {
-  signer: Person;
-  onSign: () => void;
-  title: string;
-  confirmLabel: string;
 }) {
   const [otp, setOtp] = React.useState("");
   const [resent, setResent] = React.useState(false);
@@ -400,6 +381,11 @@ function OtpForm({
         <SignatureIcon data-icon="inline-start" aria-hidden />
         {confirmLabel}
       </Button>
+      {onBack ? (
+        <Button type="button" variant="ghost" className="w-full" onClick={onBack}>
+          Choose another way
+        </Button>
+      ) : null}
     </>
   );
 }

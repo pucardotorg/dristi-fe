@@ -36,10 +36,10 @@
  */
 
 import * as React from "react";
+import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import {
   CheckIcon,
-  ChevronRightIcon,
   CircleCheckIcon,
   FileTextIcon,
   ShieldCheckIcon,
@@ -55,6 +55,7 @@ import { getRepository, storeUpload } from "@/lib/filing/data";
 import { forgetFile, formatBytes } from "@/lib/filing/files";
 import { useProfile } from "@/lib/filing/profile";
 import { phoneConfirmers, signatories } from "@/lib/filing/selectors";
+import { signWithDsc, useDscCheck } from "@/lib/signing/dsc";
 import { useFiling } from "@/lib/filing/store";
 import type {
   PhoneConfirmer,
@@ -68,9 +69,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
-import { Spinner } from "@/components/ui/spinner";
 import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
 import { SectionNotice } from "@/components/filing/notices";
+import { ChoiceCard } from "@/components/signing/choice-card";
+import { DscAvailabilityBadge, DscStatus, type DscPhase } from "@/components/signing/dsc-status";
 import { pickErrorMessage, useFilePicker } from "@/components/filing/use-file-picker";
 
 /** Where the window opens, decided by what has happened to the complaint so far. */
@@ -190,7 +192,9 @@ function SignFlowBody({
   /* ── the filer's own signature ─────────────────────────────────────────── */
   const [otp, setOtp] = React.useState("");
   const [resent, setResent] = React.useState(false);
-  const [dscFound, setDscFound] = React.useState(false);
+  const [dscAttempt, setDscAttempt] = React.useState<"idle" | "signing" | "failed">(
+    "idle"
+  );
   const [signedWith, setSignedWith] = React.useState<SignInstrument | null>(null);
   const resendTimer = React.useRef<number | null>(null);
 
@@ -210,15 +214,24 @@ function SignFlowBody({
   );
 
   /*
-   * A DSC is read off the signer's own machine, not from us, and the utility takes a
-   * beat to answer. The stage says it is looking rather than presenting a certificate it
-   * never went to find.
+   * A DSC is read off the signer's own machine, not from us, and the software takes a
+   * beat to answer. The question is asked as soon as the instrument is being chosen, so
+   * the DSC card can say what this computer has before it is pressed — the moment the
+   * product "recognises" a DSC is set up is the moment the software answers.
    */
-  React.useEffect(() => {
-    if (flow.stage !== "dsc" || dscFound) return;
-    const timer = window.setTimeout(() => setDscFound(true), 1100);
-    return () => window.clearTimeout(timer);
-  }, [flow.stage, dscFound]);
+  const dsc = useDscCheck({ enabled: flow.stage === "sign" || flow.stage === "dsc" });
+  const dscPhase: DscPhase =
+    dscAttempt === "idle" ? dsc.check : { state: dscAttempt };
+
+  /* ── resending one person's link ───────────────────────────────────────── */
+  const [resentTo, setResentTo] = React.useState<string | null>(null);
+  const resentTimer = React.useRef<number | null>(null);
+  React.useEffect(
+    () => () => {
+      if (resentTimer.current) window.clearTimeout(resentTimer.current);
+    },
+    []
+  );
 
   const mobileTail = (profile?.mobile ?? "").replace(/\D/g, "").slice(-4);
   const certHolder = (profile?.name ?? "").trim();
@@ -283,6 +296,38 @@ function SignFlowBody({
     });
     setSignedWith(instrument);
     flow.go("done");
+  };
+
+  /**
+   * Hand the document to the signing software and wait for its answer. The PIN is
+   * asked for in the software's own window; the product hears only signed or not.
+   */
+  const signDsc = async () => {
+    setDscAttempt("signing");
+    const result = await signWithDsc();
+    if (result === "signed") {
+      setDscAttempt("idle");
+      signYou("dsc");
+    } else {
+      setDscAttempt("failed");
+    }
+  };
+
+  const useAadhaarInstead = () => {
+    setDscAttempt("idle");
+    setOtp("");
+    flow.go("otp");
+  };
+
+  /** The same link again, to one person — by SMS, to the number in the complaint. */
+  const resendLink = (id: string) => {
+    const now = new Date().toISOString();
+    update((d) => {
+      d.sign.notified[id] = now;
+    });
+    setResentTo(id);
+    if (resentTimer.current) window.clearTimeout(resentTimer.current);
+    resentTimer.current = window.setTimeout(() => setResentTo(null), 2500);
   };
 
   const resendOtp = () => {
@@ -382,7 +427,7 @@ function SignFlowBody({
     otp: mobileTail
       ? `Sent to your Aadhaar-linked mobile ending ${mobileTail}.`
       : "Sent to your Aadhaar-linked mobile.",
-    dsc: "Your certificate has to be plugged in, with the signing utility running on this computer.",
+    dsc: "Your DSC token has to be plugged in, with the signing software running on this computer.",
     done: null,
     paper: null,
     uploaded: null,
@@ -407,12 +452,28 @@ function SignFlowBody({
     ),
     dsc: (
       <>
-        <Button type="button" variant="outline" onClick={() => flow.go("sign")}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={dscPhase.state === "signing"}
+          onClick={() => flow.go("sign")}
+        >
           Back
         </Button>
-        <Button type="button" disabled={!dscFound} onClick={() => signYou("dsc")}>
-          Sign with this certificate
-        </Button>
+        {dscPhase.state === "failed" || dscPhase.state === "ready" || dscPhase.state === "signing" ? (
+          <Button
+            type="button"
+            disabled={dscPhase.state === "signing"}
+            aria-busy={dscPhase.state === "signing" || undefined}
+            onClick={() => void signDsc()}
+          >
+            {dscPhase.state === "signing"
+              ? "Signing…"
+              : dscPhase.state === "failed"
+                ? "Try again"
+                : "Sign with this DSC"}
+          </Button>
+        ) : null}
       </>
     ),
     done: (
@@ -511,15 +572,16 @@ function SignFlowBody({
             </ChoiceCard>
 
             <ChoiceCard
-              title="My DSC"
+              title="DSC"
+              badge={<DscAvailabilityBadge check={dsc.check} />}
               tone="bg-brand-muted text-brand-muted-foreground"
               icon={<ShieldCheckIcon className="size-5" />}
               onClick={() => {
-                setDscFound(false);
+                setDscAttempt("idle");
                 flow.go("dsc");
               }}
             >
-              The Digital Signature Certificate already set up on this computer.
+              Uses the certificate on your token. You&rsquo;ll be asked for its PIN.
             </ChoiceCard>
           </StageColumn>
         ) : flow.stage === "otp" ? (
@@ -559,35 +621,12 @@ function SignFlowBody({
           </StageColumn>
         ) : flow.stage === "dsc" ? (
           <StageColumn>
-            {/* The height is held across both states so the footer does not jump. */}
-            <div aria-live="polite" className="flex min-h-20 flex-col justify-center">
-              {dscFound ? (
-                <div className="flex items-start gap-3 rounded-lg border border-hairline bg-card p-4">
-                  <ShieldCheckIcon
-                    aria-hidden
-                    className="mt-0.5 size-5 shrink-0 text-success-ink"
-                  />
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <p className="truncate text-body-compact font-medium">
-                      {certHolder || "Certificate found on this computer"}
-                    </p>
-                    <p className="text-body-compact text-muted-foreground">
-                      {certHolder
-                        ? "Class 3 individual certificate, found on this computer"
-                        : "Class 3 individual certificate"}
-                    </p>
-                    <p className="text-body-compact text-muted-foreground">
-                      Sandbox — no certificate store is read.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p className="flex items-center gap-3 text-body-compact text-muted-foreground">
-                  <Spinner className="size-4 shrink-0" aria-hidden />
-                  Looking for a certificate on this computer&hellip;
-                </p>
-              )}
-            </div>
+            <DscStatus
+              phase={dscPhase}
+              holder={certHolder}
+              onRecheck={dsc.recheck}
+              onUseAadhaar={dscPhase.state === "signing" ? undefined : useAadhaarInstead}
+            />
           </StageColumn>
         ) : flow.stage === "done" ? (
           <StageColumn>
@@ -598,6 +637,9 @@ function SignFlowBody({
                   : "Sent for signature"
               }
               rows={everyone}
+              notified={sign.notified}
+              resentTo={resentTo}
+              onResend={resendLink}
               footnote={
                 pending === 0
                   ? "You can pay the court fee now."
@@ -644,6 +686,13 @@ function SignFlowBody({
 
 /* ───────────────────────────── Stages ──────────────────────────────────── */
 
+/** "2:04 pm" — the product's clock, as the Sign step's roster writes it. */
+function clockOf(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return format(d, "h:mm a").replace("AM", "am").replace("PM", "pm");
+}
+
 /**
  * A stage's column: reading width, at the top of the canvas.
  *
@@ -672,10 +721,19 @@ function StageColumn({ children }: { children: React.ReactNode }) {
 function SettledCard({
   headline,
   rows,
+  notified,
+  resentTo,
+  onResend,
   footnote,
 }: {
   headline: string;
   rows: Signatory[];
+  /** Signatory id → when their link was last sent. */
+  notified?: Record<string, string>;
+  /** The one row whose link just went out again, for its moment of confirmation. */
+  resentTo?: string | null;
+  /** Absent where nobody is waiting on a link — the paper route. */
+  onResend?: (id: string) => void;
   footnote: string;
 }) {
   return (
@@ -708,14 +766,36 @@ function SettledCard({
                 ) : null}
               </p>
               <p className="text-body-compact text-muted-foreground">{s.role}</p>
+              {s.status !== "signed" && !s.you && notified?.[s.id] ? (
+                <p className="text-body-compact text-muted-foreground tabular-nums">
+                  Link sent {clockOf(notified[s.id])}
+                </p>
+              ) : null}
             </div>
             {s.status === "signed" ? (
               <Badge variant="success">
                 <CheckIcon aria-hidden />
                 Signed
               </Badge>
-            ) : (
+            ) : s.you || !onResend ? (
               <Badge variant="secondary">Waiting</Badge>
+            ) : (
+              /* Waiting on someone else: the chip, and the one thing that can be done
+                 about it from here — their link again. */
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge variant="secondary">Waiting</Badge>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={resentTo === s.id}
+                  aria-label={
+                    resentTo === s.id ? `Link sent again to ${s.name}` : `Resend link to ${s.name}`
+                  }
+                  onClick={() => onResend(s.id)}
+                >
+                  {resentTo === s.id ? "Sent again" : "Resend link"}
+                </Button>
+              </div>
             )}
           </li>
         ))}
@@ -725,56 +805,6 @@ function SettledCard({
         {footnote}
       </p>
     </div>
-  );
-}
-
-/**
- * One route, as a card that takes it.
- *
- * The card carries the mark, the name and what the route does to everyone else, and
- * pressing it is the choice — there is no separate confirm below, because the sentence
- * the reader just read *is* the confirmation. This is the shape the owner picked out as
- * the right one (2026-09-23), and it is used for both questions the window asks: how the
- * complaint is signed, and which instrument the filer signs it with.
- */
-function ChoiceCard({
-  icon,
-  tone,
-  title,
-  onClick,
-  children,
-}: {
-  icon: React.ReactNode;
-  /** The tile's fill/foreground pair — a category mark, never a status. */
-  tone: string;
-  title: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex w-full items-start gap-4 rounded-xl border border-border bg-card p-4 text-left shadow-raised transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
-      <span
-        aria-hidden
-        className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-lg",
-          tone
-        )}
-      >
-        {icon}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-body font-semibold text-foreground">{title}</span>
-        <span className="text-body-compact text-muted-foreground">{children}</span>
-      </span>
-      <ChevronRightIcon
-        aria-hidden
-        className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-      />
-    </button>
   );
 }
 

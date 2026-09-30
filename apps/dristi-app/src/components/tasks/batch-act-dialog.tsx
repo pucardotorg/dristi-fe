@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CheckIcon, SignatureIcon } from "lucide-react";
 
+import { signWithDsc, useDscCheck } from "@/lib/signing/dsc";
 import { rupees } from "@/lib/tasks/format";
 import { useTasks } from "@/lib/tasks/store";
 import { recordPayment, sign, TransitionError } from "@/lib/tasks/transitions";
@@ -19,8 +20,10 @@ import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/componen
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { DscStatus, type DscPhase } from "@/components/signing/dsc-status";
 
 /**
  * Signing or paying a selected set — one authorisation for the whole set.
@@ -167,6 +170,12 @@ function BatchBody({
   const { dispatch } = useTasks();
   const titleRef = React.useRef<HTMLHeadingElement>(null);
   const [otp, setOtp] = React.useState("");
+  /* The set is signed with one instrument: one OTP, or the DSC once through the
+     signing software. The DSC is only looked for once it is chosen. */
+  const [instrument, setInstrument] = React.useState<"aadhaar" | "dsc">("aadhaar");
+  const [dscAttempt, setDscAttempt] = React.useState<"idle" | "signing" | "failed">("idle");
+  const dsc = useDscCheck({ enabled: kind === "sign" && instrument === "dsc" });
+  const dscPhase: DscPhase = dscAttempt === "idle" ? dsc.check : { state: dscAttempt };
   const [gateway, setGateway] = React.useState<PaymentResult>("success");
   const [outcomes, setOutcomes] = React.useState<Outcome[]>([]);
   /** The set this run is acting on — a retry narrows it to what was refused. */
@@ -187,6 +196,19 @@ function BatchBody({
 
   const run = async () => {
     onRunning(true);
+    /* The signing software answers for the whole set before any task is touched: if it
+       refuses, nothing was signed and every task is exactly where it was, so the answer
+       stays on this step rather than becoming a result. */
+    if (kind === "sign" && instrument === "dsc") {
+      setDscAttempt("signing");
+      const result = await signWithDsc();
+      if (result === "failed") {
+        setDscAttempt("failed");
+        onRunning(false);
+        return;
+      }
+      setDscAttempt("idle");
+    }
     const done: Outcome[] = [];
     for (const task of batch) {
       try {
@@ -252,7 +274,9 @@ function BatchBody({
       : refused.length
         ? "The refused ones are still open, exactly as they were."
         : kind === "sign"
-          ? "One OTP covered the set. Each document is attached to its own task."
+          ? instrument === "dsc"
+            ? "Your DSC signed the set. Each document is attached to its own task."
+            : "One OTP covered the set. Each document is attached to its own task."
           : confirming === through.length
             ? "The registry confirms each receipt; the tasks wait until it does."
             : "Charged as one transaction, with a receipt against each fee.";
@@ -361,6 +385,7 @@ function BatchBody({
                 setBatch(tasks.filter((t) => refused.some((r) => r.id === t.id)));
                 setOutcomes([]);
                 setOtp("");
+                setDscAttempt("idle");
                 setGateway("success");
                 onStep("confirm");
               }}
@@ -394,7 +419,11 @@ function BatchBody({
         : `One transaction across ${caseCount === 1 ? "one case" : `${caseCount} cases`}, with a receipt against each fee. Any the gateway declines stay open.`
       : one
         ? `Signed as ${user.name}, and attached to the task and the case file.`
-        : `One OTP signs all ${n}, as ${user.name}. Each closes on its own signature.`;
+        : instrument === "dsc"
+          ? `Your DSC signs all ${n}, as ${user.name}. Each closes on its own signature.`
+          : `One OTP signs all ${n}, as ${user.name}. Each closes on its own signature.`;
+  const dscCanSign =
+    dscPhase.state === "ready" || dscPhase.state === "failed" || dscPhase.state === "signing";
 
   return (
     <>
@@ -407,20 +436,58 @@ function BatchBody({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         {kind === "sign" ? (
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="batch-otp" className="text-body-compact font-medium">
-              Aadhaar OTP
-            </Label>
-            <InputOTP id="batch-otp" maxLength={6} value={otp} onChange={setOtp} containerClassName="gap-2">
-              <InputOTPGroup className="gap-2">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <InputOTPSlot key={i} index={i} className="size-10 rounded-lg border border-input" />
-                ))}
-              </InputOTPGroup>
-            </InputOTP>
-            <p className="text-caption text-muted-foreground">
-              Sandbox — any 6-digit code is accepted here.
-            </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <p id="batch-instrument" className="text-body-compact font-medium">
+                Sign with
+              </p>
+              <SegmentedControl
+                type="single"
+                aria-labelledby="batch-instrument"
+                className="w-full sm:w-auto sm:self-start"
+                value={instrument}
+                disabled={running}
+                onValueChange={(value) => {
+                  if (!value) return;
+                  setInstrument(value as "aadhaar" | "dsc");
+                  setDscAttempt("idle");
+                }}
+              >
+                <SegmentedControlItem value="aadhaar">Aadhaar OTP</SegmentedControlItem>
+                <SegmentedControlItem value="dsc">DSC</SegmentedControlItem>
+              </SegmentedControl>
+            </div>
+            {instrument === "aadhaar" ? (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="batch-otp" className="text-body-compact font-medium">
+                  Aadhaar OTP
+                </Label>
+                <InputOTP id="batch-otp" maxLength={6} value={otp} onChange={setOtp} containerClassName="gap-2">
+                  <InputOTPGroup className="gap-2">
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <InputOTPSlot key={i} index={i} className="size-10 rounded-lg border border-input" />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+                <p className="text-caption text-muted-foreground">
+                  Sandbox — any 6-digit code is accepted here.
+                </p>
+              </div>
+            ) : (
+              <DscStatus
+                phase={dscPhase}
+                holder={user.name}
+                onRecheck={dsc.recheck}
+                onUseAadhaar={
+                  running
+                    ? undefined
+                    : () => {
+                        setInstrument("aadhaar");
+                        setDscAttempt("idle");
+                      }
+                }
+              />
+            )}
           </div>
         ) : (
           /* Sandbox scaffolding, kept to one line and plainly labelled as such: the
@@ -454,7 +521,11 @@ function BatchBody({
         </Button>
         <Button
           type="button"
-          disabled={running || (kind === "sign" && otp.length < 6)}
+          disabled={
+            running ||
+            (kind === "sign" &&
+              (instrument === "dsc" ? !dscCanSign : otp.length < 6))
+          }
           aria-busy={running || undefined}
           onClick={() => void run()}
           className="tabular-nums"
@@ -467,7 +538,11 @@ function BatchBody({
           ) : kind === "sign" ? (
             <>
               <SignatureIcon data-icon="inline-start" aria-hidden />
-              {one ? "Sign" : `Sign ${n} documents`}
+              {instrument === "dsc" && dscPhase.state === "failed"
+                ? "Try again"
+                : one
+                  ? "Sign"
+                  : `Sign ${n} documents`}
             </>
           ) : (
             `Pay ${money}`

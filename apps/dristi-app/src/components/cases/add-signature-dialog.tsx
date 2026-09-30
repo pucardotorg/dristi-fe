@@ -12,7 +12,11 @@ import {
 
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
-import { SignMethodCard } from "@/components/cases/party-application";
+import {
+  DscMethodCard,
+  DscSignStep,
+  SignMethodCard,
+} from "@/components/cases/party-application";
 import {
   UPLOAD_HELP,
   UploadedDocField,
@@ -49,11 +53,13 @@ import { applicationTypeGuide } from "@/lib/cases/application-type-guide";
 import { applicationsFile } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { Identifier } from "@/components/chrome/identifier";
+import { useDscCheck } from "@/lib/signing/dsc";
 import { cn } from "@/lib/utils";
 
 type SignatureStep =
   | "method"
   | "aadhaar"
+  | "dsc"
   | "upload"
   | "signed"
   | "payment"
@@ -103,6 +109,9 @@ export function AddSignatureDialog({
 }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [step, setStep] = useState<SignatureStep>("method");
+  /* One question to this computer for the chooser and the DSC step together, so the
+     step opens on the answer the card already showed rather than asking again. */
+  const dsc = useDscCheck({ enabled: step === "method" || step === "dsc" });
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | undefined>(undefined);
   const [paid, setPaid] = useState(false);
@@ -336,6 +345,17 @@ export function AddSignatureDialog({
               </Button>
             </footer>
           </>
+        ) : step === "dsc" ? (
+          <DscSignStep
+            dsc={dsc}
+            titleRef={titleRef}
+            onBack={backToMethods}
+            onSigned={() => setStep("signed")}
+            onUseAadhaar={() => {
+              setAadhaar("authenticating");
+              setStep("aadhaar");
+            }}
+          />
         ) : (
           <>
             <DialogHeader className="shrink-0 gap-1.5 border-b border-hairline px-6 py-4 pr-12 text-left">
@@ -366,24 +386,25 @@ export function AddSignatureDialog({
             >
               {step === "method" ? (
                 <>
-                  {/* Two ways to sign now, two ways not to. One list, because
+                  {/* Three ways to sign now, and ways not to. One list, because
                       they answer one question: what happens to the signature
                       on this application. Choosing a card is what proceeds. */}
                   <SignMethodCard
                     icon={<SignatureIcon className="size-5" />}
                     tone="info"
-                    title="E-Sign with Aadhaar OTP"
+                    title="Aadhaar OTP"
                     description="You are taken to the Aadhaar e-sign service. The signature is recorded here as soon as it is done."
                     onClick={() => {
                       setAadhaar("authenticating");
                       setStep("aadhaar");
                     }}
                   />
+                  <DscMethodCard check={dsc.check} onClick={() => setStep("dsc")} />
                   <SignMethodCard
                     icon={<UploadIcon className="size-5" />}
                     tone="warning"
                     title="Upload a signed copy"
-                    description="One file that already carries the signature, on paper or by DSC."
+                    description="One file that already carries the signature, signed on paper."
                     onClick={() => {
                       setFileError(undefined);
                       setStep("upload");

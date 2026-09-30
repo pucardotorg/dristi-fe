@@ -2,15 +2,14 @@
 
 /**
  * Sign — the document preview above the signing well, as an act-modal body. A signatory
- * e-signs with an Aadhaar OTP (sandbox: any 6 digits) and the task closes by event with
+ * continues to signing and signs with an Aadhaar OTP (sandbox: any 6 digits) or their
+ * DSC (sandbox: see the DSC setup page), and the task closes by event with
  * the stamp on the preview; if someone else prepared it, their note and upload sit above
  * the button. Anyone else on the case prepares (a note, an optional upload of the
  * draft) and marks it ready.
  */
 
 import * as React from "react";
-import { SignatureIcon } from "lucide-react";
-
 import { TERMINAL } from "@/lib/tasks/permissions";
 import { sign } from "@/lib/tasks/transitions";
 import type { StoredFileRef } from "@/lib/tasks/types";
@@ -21,35 +20,34 @@ import {
   type ActContext,
   closedTitle,
   FileSlot,
-  OtpDialog,
   PrepareCard,
   PreparedNote,
   RailCard,
   RecordCard,
   signatoryLine,
 } from "@/components/tasks/act/shared";
+import { SignDialog } from "@/components/tasks/act/sign-dialog";
 
 /** The signatory's own signing well. */
 function SignCard({ ctx }: { ctx: ActContext }) {
   const { task, user, online, finish } = ctx;
   const { act, busy } = useTaskActions();
-  const [otpOpen, setOtpOpen] = React.useState(false);
+  const [signOpen, setSignOpen] = React.useState(false);
   return (
     <RailCard title="Add your signature" description={signatoryLine(ctx, "Signing")}>
       <PreparedNote ctx={ctx} />
-      <Button size="lg" disabled={!online || !!busy} onClick={() => setOtpOpen(true)}>
-        <SignatureIcon data-icon="inline-start" aria-hidden />
-        E-Sign with Aadhaar OTP
+      <Button size="lg" disabled={!online || !!busy} onClick={() => setSignOpen(true)}>
+        Continue to signing
       </Button>
       <p className="text-caption text-muted-foreground">
         The signed document is attached to the task and the case file. Sandbox — nothing reaches a court.
       </p>
-      <OtpDialog
-        open={otpOpen}
-        onOpenChange={setOtpOpen}
+      <SignDialog
+        open={signOpen}
+        onOpenChange={setSignOpen}
         signer={user}
         onSign={async () => {
-          setOtpOpen(false);
+          setSignOpen(false);
           const t = await act(task.id, sign);
           if (t) finish(`Signed — ${t.completion?.receipt ?? ""}`);
         }}
