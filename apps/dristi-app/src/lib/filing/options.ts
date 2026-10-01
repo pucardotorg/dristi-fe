@@ -12,6 +12,10 @@ export const CASE_TYPE = {
   short: "S-138, NI Act",
   title: "Cheque bounce (S-138, NI Act)",
   offence: "Section 138, Negotiable Instruments Act, 1881",
+  /** "Complaint under …" — the screen-length form of the proceeding's title. */
+  proceedingTitleShort: "Complaint under S-138, NI Act",
+  /** "Complaint under …" — the full statutory form, for PDFs (the complaint document's heading). */
+  proceedingTitleLong: "Complaint under Section 138 of the Negotiable Instruments Act, 1881",
 } as const;
 
 export const COURT = {

@@ -9,7 +9,7 @@
 import * as React from "react";
 
 import { toLongDate } from "@/lib/filing/format";
-import { COURT, RETURN_REASONS } from "@/lib/filing/options";
+import { CASE_TYPE, COURT, RETURN_REASONS } from "@/lib/filing/options";
 import type { FilingDraft } from "@/lib/filing/types";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -93,6 +93,13 @@ function DocSub({ children }: { children: React.ReactNode }) {
   return <h4 className="mt-6 text-body-compact font-semibold">{children}</h4>;
 }
 
+/** "+1 other" / "+3 others" appended to a case-title party name when more than one is on that side. */
+function othersSuffix(count: number): string {
+  const extra = count - 1;
+  if (extra <= 0) return "";
+  return ` +${extra} other${extra > 1 ? "s" : ""}`;
+}
+
 function DocP({
   children,
   className,
@@ -139,7 +146,10 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
       {/* Parties — age is printed only when it was collected. */}
       <div className="mt-4 flex items-start justify-between gap-4 py-1">
         <div className="min-w-0">
-          <p className="text-body-compact font-semibold break-words">{complainant.name}</p>
+          <p className="text-body-compact font-semibold break-words">
+            {complainant.name}
+            {othersSuffix(draft.complainants.length)}
+          </p>
           <p className="mt-1 text-caption font-medium leading-relaxed text-paper-muted-foreground">
             {complainant.age ? (
               <>
@@ -159,6 +169,7 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
         <div className="min-w-0">
           <p className="text-body-compact font-semibold break-words">
             {firstAccused ? firstAccused.heading : NOT_PROVIDED}
+            {othersSuffix(accused.length)}
           </p>
           <p className="mt-1 text-caption font-medium leading-relaxed text-paper-muted-foreground">
             R/o {firstAccused ? firstAccused.address : NOT_PROVIDED}
@@ -167,9 +178,9 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
         <p className="shrink-0 text-body-compact italic">… Accused</p>
       </div>
 
-      {/* Legal heading — printed as the statute names it. */}
-      <h2 className="mt-4 text-center text-body font-semibold">
-        COMPLAINT UNDER SECTION 138 OF THE NEGOTIABLE INSTRUMENTS ACT, 1881
+      {/* Legal heading — the case type's own long-form proceeding title. */}
+      <h2 className="mt-4 text-center text-body font-semibold uppercase">
+        {CASE_TYPE.proceedingTitleLong}
       </h2>
 
       {/* ── Synopsis ── */}
@@ -330,7 +341,7 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
       {/* ── 2. Case details ── */}
       <DocSection>2. Case details</DocSection>
 
-      <DocSub>2.1. Cheque details</DocSub>
+      <DocSub>2.1. Cheque and return memo details</DocSub>
       <DocTable>
         <tbody>
           {cheques.map((c, i) => (
@@ -349,17 +360,6 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
                   {c.bankBranch}
                 </DocCell>
               </tr>
-            </React.Fragment>
-          ))}
-        </tbody>
-      </DocTable>
-
-      <DocSub>2.2. Cheque return memo details</DocSub>
-      <DocTable>
-        <tbody>
-          {cheques.map((c, i) => (
-            <React.Fragment key={c.key}>
-              <DocGroupRow>Cheque return memo {i + 1}</DocGroupRow>
               <tr>
                 <DocCell label="Date of presentation">
                   {longDate(draft.cheques[i].presentDate)}
@@ -376,7 +376,7 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
         </tbody>
       </DocTable>
 
-      <DocSub>2.3. Demand notice details</DocSub>
+      <DocSub>2.2. Demand notice details</DocSub>
       <DocTable>
         <tbody>
           {draft.notices.map((n, i) => {
@@ -384,6 +384,11 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
             return (
               <React.Fragment key={n.id}>
                 <DocGroupRow>Demand notice {i + 1}</DocGroupRow>
+                <tr>
+                  <DocCell label="Nature of debt or other liability" span={3}>
+                    {s.nature}
+                  </DocCell>
+                </tr>
                 <tr>
                   <DocCell label="Date of dispatch of demand notice">
                     {longDate(n.dispatchDate)}
@@ -406,18 +411,7 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
         </tbody>
       </DocTable>
 
-      <DocSub>2.4. Nature of debt or liability</DocSub>
-      <DocTable>
-        <tbody>
-          <tr>
-            <DocCell label="Nature of debt or other liability" span={3}>
-              {notice.nature}
-            </DocCell>
-          </tr>
-        </tbody>
-      </DocTable>
-
-      <DocSub>2.5. Jurisdiction</DocSub>
+      <DocSub>2.3. Jurisdiction and limitation</DocSub>
       <DocTable>
         <tbody>
           <tr>
@@ -462,12 +456,6 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
               </DocCell>
             </tr>
           ))}
-        </tbody>
-      </DocTable>
-
-      <DocSub>2.6. Limitation period</DocSub>
-      <DocTable>
-        <tbody>
           <tr>
             <DocCell label="Date of cause of action">
               {longDate(jurisdiction.causeDateIso)}
@@ -487,7 +475,7 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
         </tbody>
       </DocTable>
 
-      <DocSub>2.7. ADR</DocSub>
+      <DocSub>2.4. ADR, prayer and other details</DocSub>
       <DocTable>
         <tbody>
           <tr>
@@ -498,12 +486,6 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
               {adrLabel(draft)}
             </DocCell>
           </tr>
-        </tbody>
-      </DocTable>
-
-      <DocSub>2.8. Other details</DocSub>
-      <DocTable>
-        <tbody>
           <tr>
             <DocCell label="Any additional details" span={3}>
               {otherDetails.length ? otherDetails.join(" ") : NOT_PROVIDED}
@@ -511,8 +493,6 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
           </tr>
         </tbody>
       </DocTable>
-
-      <DocSub>2.9. Prayer / relief sought</DocSub>
       <p className="mt-4 text-body-compact font-semibold">Interim relief</p>
       {interimRelief.length ? (
         interimRelief.map((p, i) => <DocP key={i}>{p}</DocP>)
