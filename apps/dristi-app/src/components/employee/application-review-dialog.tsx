@@ -70,7 +70,16 @@ export function ApplicationReviewOverlay({
   onApprove,
   onReject,
   onReturnFocus,
+  badge,
+  aside,
+  footer,
 }: {
+  /** The application's own status; absent, the queue's "Pending review". */
+  badge?: ReactNode;
+  /** Under the facts: where a lifecycle task takes its answer. */
+  aside?: ReactNode;
+  /** Replaces Approve / Reject where the caller runs its own decisions. */
+  footer?: ReactNode;
   /** What the application is — the head it was filed under. */
   title: string;
   /** The line under it: which case this is, or who sent it. */
@@ -87,8 +96,8 @@ export function ApplicationReviewOverlay({
   onDownload?: () => void;
   /** "Accept" where a queue's own vocabulary says so. */
   approveLabel?: string;
-  onApprove: () => void;
-  onReject: () => void;
+  onApprove?: () => void;
+  onReject?: () => void;
   onReturnFocus: () => void;
 }) {
   return (
@@ -107,7 +116,7 @@ export function ApplicationReviewOverlay({
           {/* The application's own state — waiting on this bench — stated once,
               here. The queue behind it is entirely pending, so a column of chips
               would say the same thing thirty times. */}
-          <Badge variant="warning">Pending review</Badge>
+          {badge ?? <Badge variant="warning">Pending review</Badge>}
         </div>
         <DialogDescription className="text-body-compact text-muted-foreground">
           {description}
@@ -125,10 +134,11 @@ export function ApplicationReviewOverlay({
             container of definite height, and `min-height: 0` is what lets a grid compress
             such a row below its content — the well then ran straight under the document
             below it. Off the split, the cell keeps its automatic minimum. */}
-        <div className="xl:min-h-0 xl:overflow-y-auto">
+        <div className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto">
           <div className="rounded-lg bg-surface-sunken p-4">
             <DescriptionList>{facts}</DescriptionList>
           </div>
+          {aside}
         </div>
         <DocumentPreview
           className="min-h-96 md:min-h-0"
@@ -145,14 +155,16 @@ export function ApplicationReviewOverlay({
           }
         />
       </div>
-      <DialogFooter className="mx-0 mb-0 shrink-0">
-        <Button type="button" variant="destructive" onClick={onReject}>
-          Reject
-        </Button>
-        <Button type="button" onClick={onApprove}>
-          {approveLabel}
-        </Button>
-      </DialogFooter>
+      {footer ?? (
+        <DialogFooter className="mx-0 mb-0 shrink-0">
+          <Button type="button" variant="destructive" onClick={onReject}>
+            Reject
+          </Button>
+          <Button type="button" onClick={onApprove}>
+            {approveLabel}
+          </Button>
+        </DialogFooter>
+      )}
     </ChromeDialogContent>
   );
 }

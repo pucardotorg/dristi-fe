@@ -62,13 +62,18 @@ const DATED_TYPES = new Set([
 
 export function buildGeneratedApplication(
   draft: ApplicationDraft,
-  record: CaseRecord
+  record: CaseRecord,
+  /** The side filing it. Absent, bail is the accused's and the rest the complainant's. */
+  side?: "complainant" | "accused"
 ): GeneratedApplication | null {
   if (!draft.type) return null;
 
   const complainant = record.parties.complainant;
   const accused = record.parties.accused;
-  const filedFor = draft.type === "bail" ? accused : complainant;
+  const filedFor =
+    (side ?? (draft.type === "bail" ? "accused" : "complainant")) === "accused"
+      ? accused
+      : complainant;
 
   const facts: { term: string; value: string }[] = [
     { term: "Complainant", value: complainant },
@@ -106,8 +111,12 @@ export function buildGeneratedApplication(
   let prayer = "";
 
   switch (draft.type) {
-    case "advancement-reschedule": {
-      title = "Application for advancement or rescheduling of hearing";
+    case "advancement-reschedule":
+    case "postpone": {
+      title =
+        draft.type === "postpone"
+          ? "Application to postpone the hearing"
+          : "Application to advance the hearing";
       paragraphs.push(
         record.nextHearing
           ? `This case is listed before this court on ${formatCaseDate(
@@ -192,6 +201,19 @@ export function buildGeneratedApplication(
       prayer = `It is therefore prayed that the delay of ${trimmed(
         draft.delayDays
       )} days in filing the complaint be condoned for sufficient cause shown.`;
+      break;
+    }
+
+    case "objection": {
+      title = "Objection";
+      if (trimmed(draft.details.text)) {
+        paragraphs.push(trimmed(draft.details.text));
+      }
+      if (draft.supportingFiles.length) {
+        paragraphs.push(fileCount(draft.supportingFiles.length));
+      }
+      prayer =
+        "It is therefore prayed that this court reject the application objected to.";
       break;
     }
 
@@ -344,9 +366,10 @@ export function generatedApplicationFilename(record: CaseRecord): string {
  */
 export function downloadGeneratedApplication(
   draft: ApplicationDraft,
-  record: CaseRecord
+  record: CaseRecord,
+  side?: "complainant" | "accused"
 ): void {
-  const generated = buildGeneratedApplication(draft, record);
+  const generated = buildGeneratedApplication(draft, record, side);
   if (!generated) return;
   const url = URL.createObjectURL(
     new Blob([generatedApplicationText(generated)], { type: "text/plain" })

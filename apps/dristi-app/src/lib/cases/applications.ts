@@ -24,7 +24,13 @@ export type FilingStatus =
 export type ApplicationTypeId =
   | "absent-application"
   | "advancement-reschedule"
+  | "postpone"
+  | "addition-of-witness"
   | "bail"
+  | "certified-copy"
+  | "edit-litigant-details"
+  | "objection"
+  | "poa-change"
   | "condonation-of-delay"
   | "production-of-documents"
   | "reopen-evidence"
@@ -57,8 +63,14 @@ export const APPLICATION_TYPES: {
   label: string;
 }[] = [
   { id: "absent-application", label: "Absent application" },
-  { id: "advancement-reschedule", label: "Advancement/reschedule" },
+  { id: "addition-of-witness", label: "Addition of witness" },
+  { id: "advancement-reschedule", label: "Advance / prepone" },
   { id: "bail", label: "Bail" },
+  { id: "certified-copy", label: "Certified copy" },
+  { id: "edit-litigant-details", label: "Edit litigant details" },
+  { id: "objection", label: "Objection" },
+  { id: "poa-change", label: "PoA change" },
+  { id: "postpone", label: "Postpone" },
   { id: "condonation-of-delay", label: "Condonation of delay" },
   { id: "production-of-documents", label: "Production of documents" },
   { id: "reopen-evidence", label: "Reopen evidence" },
@@ -82,6 +94,13 @@ export const UNBUILT_APPLICATION_TYPE_IDS: ReadonlySet<ApplicationTypeId> =
     "reopen-evidence",
     "warrant-by-hand",
     "warrant-recall",
+    /* In the lifecycle's type list, with no fields specified yet. Edit litigant
+       details, PoA change and Addition of witness still run as their own party
+       actions from the Parties tab. */
+    "addition-of-witness",
+    "certified-copy",
+    "edit-litigant-details",
+    "poa-change",
   ]);
 
 export function isUnbuiltApplicationType(id: ApplicationTypeId): boolean {
@@ -170,7 +189,7 @@ export function filingStatusVariant(
   return "warning";
 }
 
-export function nextStepCopy(status: FilingStatus): string | null {
+export function nextStepCopy(status: string): string | null {
   switch (status) {
     case "draft":
       return "Continue draft";
@@ -188,7 +207,7 @@ export function filingActionLabel(status: FilingStatus): string {
 }
 
 /** Filings that still need a step from you — pin these above the register. */
-export function needsAttention(status: FilingStatus): boolean {
+export function needsAttention(status: string): boolean {
   return nextStepCopy(status) !== null;
 }
 
@@ -406,8 +425,14 @@ function kindFromPack(value: string): SubmissionKind {
   throw new Error(`Unknown submission kind in dummy pack: ${value}`);
 }
 
+/** Labels the pack was written with before the lifecycle renamed the type. */
+const PACK_LABEL_ALIASES: Record<string, string> = {
+  "advancement/reschedule": "advance / prepone",
+};
+
 function typeFromPack(kind: SubmissionKind, label: string): SubmissionTypeId {
-  const normalized = label.trim().toLowerCase();
+  const raw = label.trim().toLowerCase();
+  const normalized = PACK_LABEL_ALIASES[raw] ?? raw;
   const catalogue =
     kind === "application" ? APPLICATION_TYPES : SUBMISSION_DOCUMENT_TYPES;
   const match = catalogue.find(

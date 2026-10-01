@@ -203,6 +203,7 @@ export function applicationDraftFrom(submission: Submission): ApplicationDraft {
 
   switch (type) {
     case "advancement-reschedule":
+    case "postpone":
       draft.requestReason = ask;
       break;
     case "bail":
@@ -364,7 +365,8 @@ export function validateApplication(
   }
 
   switch (draft.type) {
-    case "advancement-reschedule": {
+    case "advancement-reschedule":
+    case "postpone": {
       // Not marked mandatory on the portal, but an advancement application
       // with no proposed date asks the court for nothing.
       if (draft.availabilityDates.length === 0) {
@@ -417,6 +419,13 @@ export function validateApplication(
       }
       if (!rich(draft.details)) {
         errors.fields.details = "Enter the application details.";
+      }
+      break;
+    }
+
+    case "objection": {
+      if (!draft.details.text.trim()) {
+        errors.fields.details = "Enter the grounds of objection.";
       }
       break;
     }

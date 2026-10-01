@@ -49,10 +49,10 @@ export default async function RaiseApplicationPage({
   searchParams,
 }: {
   params: Promise<{ caseId: string }>;
-  searchParams: Promise<{ draft?: string; from?: string }>;
+  searchParams: Promise<{ draft?: string; from?: string; objectionTo?: string }>;
 }) {
   const { caseId } = await params;
-  const { draft, from } = await searchParams;
+  const { draft, from, objectionTo } = await searchParams;
   const record = findCase(caseId);
   if (!record) notFound();
 
@@ -83,6 +83,10 @@ export default async function RaiseApplicationPage({
         <RaiseApplicationForm
           record={record}
           resume={resumedDraft(caseId, draft)}
+          // A draft raised in this browser lives in the applications store, which
+          // only the client can read; the form resolves it.
+          liveDraftId={draft?.startsWith("app-") ? draft : undefined}
+          objectionToId={objectionTo}
           // The door this was opened from: the rail's case list records itself
           // here, so the way back returns to it rather than to the case.
           backHref={safeOrigin(from) ?? undefined}

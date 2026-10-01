@@ -45,7 +45,13 @@ export function ApplicationTypePicker({
   suggested,
   stageName,
   onChoose,
+  available,
 }: {
+  /**
+   * Whether a type can be filed here, by this side, at this point in the case
+   * (lifecycle "Available when"). A type that cannot is not offered at all.
+   */
+  available?: (type: ApplicationTypeId) => boolean;
   /** The type already chosen, when returning here to change it. */
   value: ApplicationTypeId | "";
   query: string;
@@ -55,7 +61,13 @@ export function ApplicationTypePicker({
   stageName: string;
   onChoose: (type: ApplicationTypeId) => void;
 }) {
-  const results = useMemo(() => searchApplicationTypes(query), [query]);
+  const results = useMemo(
+    () =>
+      searchApplicationTypes(query).filter(
+        (result) => !available || available(result.guide.id)
+      ),
+    [query, available]
+  );
   const matched = results.filter(
     (result) => result.score >= APPLICATION_TYPE_MATCH_FLOOR
   );
@@ -68,6 +80,7 @@ export function ApplicationTypePicker({
   const all = results.map((result) => result.guide);
   // In the stage's own order, which is most likely first, not alphabetical.
   const leading = suggested
+    .filter((id) => !available || available(id))
     .map((id) => all.find((guide) => guide.id === id))
     .filter((guide): guide is ApplicationTypeGuide => guide !== undefined);
   const rest = all.filter((guide) => !suggested.includes(guide.id));
