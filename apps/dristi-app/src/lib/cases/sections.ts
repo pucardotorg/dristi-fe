@@ -97,6 +97,29 @@ export function caseSectionHref(
 }
 
 /**
+ * Opens one hearing in the hearings pop-up (OVW-08, SVC-07). Pass the tab the
+ * link sits on and the pop-up opens over it, so closing returns there.
+ */
+export function hearingHref(
+  caseId: string,
+  hearingId: string,
+  from: CaseSection = DEFAULT_CASE_SECTION
+): string {
+  const base = caseSectionHref(caseId, from);
+  return `${base}${base.includes("?") ? "&" : "?"}hearing=${hearingId}`;
+}
+
+/** Opens one application's record over the Applications tab (OVW-08). */
+export function applicationHref(caseId: string, applicationId: string): string {
+  return `${caseSectionHref(caseId, "applications")}&application=${applicationId}`;
+}
+
+/** Opens one order over the Orders tab (ORD-03). */
+export function orderHref(caseId: string, orderId: string): string {
+  return `${caseSectionHref(caseId, "orders-and-notifications")}&order=${orderId}`;
+}
+
+/**
  * Where a case detail link was reached from — today just the long pending
  * register, so the header doesn't repeat a badge the register already
  * established. Extend this union if another register gains the same need.

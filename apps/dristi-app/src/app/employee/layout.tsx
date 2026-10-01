@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 
-import { EmployeeArea } from "@/components/employee/employee-area";
-import { Toaster } from "@/components/ui/sonner";
-
 /**
- * `/employee/*` — the court-staff area: magistrate, bench clerk, scrutiny officer.
+ * `/employee/*` — the court-staff area: magistrate, bench clerk, scrutiny officer,
+ * typist.
  *
  * Kept apart from `/citizen/*` (advocates, litigants, clerks, parties in person) so the
  * two can be built in parallel without colliding. Nothing here reaches into the citizen
  * screens and nothing there reaches in here — including the app shell, which is the
- * advocate's product and not the bench's. See `EmployeeArea` for the chrome.
+ * advocate's product and not the bench's.
+ *
+ * This layout carries the segment's metadata and nothing else. The chrome belongs one
+ * level down, to the `(court)` group, so that `/employee/login` can be an `/employee`
+ * route without wearing the bench's rail — see `(court)/layout.tsx`.
  */
 export const metadata: Metadata = {
   title: {
@@ -23,11 +25,5 @@ export default function EmployeeLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <>
-      <EmployeeArea>{children}</EmployeeArea>
-      {/* Per-area, as every other area mounts it: scrutiny's removal toast needs it. */}
-      <Toaster position="bottom-right" />
-    </>
-  );
+  return children;
 }

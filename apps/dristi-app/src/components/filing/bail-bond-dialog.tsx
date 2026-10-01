@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
 
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -72,6 +74,7 @@ import {
 } from "@/lib/filing/content";
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The bail bond, in its three entries:
@@ -374,6 +377,16 @@ export function BailBondDialog({
     onOpenChange(next);
   }
 
+  /* A window on a phone, with the phone's Back working as the footer does:
+     the previous step, or out from the first one. See the bail application. */
+  const { phone } = useFlowWindow();
+  useBackCloses(phone && open, () => {
+    if (reviewFullscreen) setReviewFullscreen(false);
+    else if (stage === "review") setStage("details");
+    else if (stage === "sign") setStage("review");
+    else handleOpenChange(false);
+  });
+
   function choosePetitioner(id: string) {
     setPetitionerId(id);
     const entry = BAIL_PETITIONERS.find((option) => option.id === id);
@@ -475,7 +488,8 @@ export function BailBondDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
+        ownBack
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         onInteractOutside={(event) => event.preventDefault()}
@@ -510,7 +524,9 @@ export function BailBondDialog({
             </DialogTitle>
             <DialogDescription className="text-pretty">{headerCopy.body}</DialogDescription>
             <p className="text-caption text-muted-foreground">
-              {accessCase.caseNumber} · {accessCase.title}
+              <Identifier value={accessCase.caseNumber} label="case number" />
+              <span aria-hidden> · </span>
+              {accessCase.title}
             </p>
           </DialogHeader>
         )}
@@ -965,7 +981,7 @@ export function BailBondDialog({
                 />
 
                 <Dialog open={reviewFullscreen} onOpenChange={setReviewFullscreen}>
-                  <ChromeDialogContent
+                  <ChromeDialogContent mobileSheet
                     lang={locale}
                     className="inset-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0 sm:max-w-none"
                     onInteractOutside={(event) => event.preventDefault()}
@@ -1080,7 +1096,9 @@ export function BailBondDialog({
               <DescriptionList>
                 <DescriptionRow className="items-center border-hairline">
                   <DescriptionTerm>{pick(bondCopy.bondIdLabel, locale)}</DescriptionTerm>
-                  <DescriptionDetails className="font-mono">{BOND_ID}</DescriptionDetails>
+                  <DescriptionDetails>
+                    <Identifier value={BOND_ID} label="bond number" />
+                  </DescriptionDetails>
                 </DescriptionRow>
                 {method === "esign" ? (
                   <DescriptionRow className="items-center border-hairline">
@@ -1206,7 +1224,7 @@ export function BailBondDialog({
             </>
           ) : null}
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

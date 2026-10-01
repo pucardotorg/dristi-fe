@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  TABLE_CELL,
+  TABLE_HEAD,
+  TABLE_HEAD_ROW,
+  tableBodyClass,
+  tableRowClass,
+} from "@/components/chrome/table-plate";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -11,23 +18,17 @@ import {
 } from "@/components/ui/table";
 import { causeTitle } from "@/lib/employee/hearings";
 import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
+import {
   formatSignFormDate,
   signFormProcessLabel,
   type SignForm,
 } from "@/lib/employee/sign-forms";
 import { cn } from "@/lib/utils";
-
-/* The same table treatment as the register queue, the rescheduling queue and the
- * scheduling queue — header separated by fill rather than a second stroke, rows by
- * hairline, the panel edge as the only full-strength border on the screen (ui-craft
- * §1.1). The classes are restated rather than exported because when the advocate shell
- * moves onto the shared `components/chrome` frame, this treatment is what belongs
- * there, and the court-side tables should collapse onto it together rather than one of
- * them becoming the other's parent. */
-const headClass =
-  "h-10 bg-surface-sunken px-4 py-3 text-caption font-semibold text-muted-foreground";
-const cellClass =
-  "border-b border-hairline px-4 py-3 align-middle text-left text-body-compact";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The signing queue as a table: which forms are picked for signature, the cause, its
@@ -72,12 +73,8 @@ export function SignFormsTable({
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
-        {/* The panel insets this table by p-6, so the header strip is a well, not a
-            full-bleed band — it rounds itself (ui-craft §4). `border-separate` means
-            each cell paints its own fill, so the radius goes on the end cells rather
-            than the row. */}
-        <TableRow className="hover:bg-transparent [&>th:first-child]:rounded-l-lg [&>th:last-child]:rounded-r-lg">
-          <TableHead className={cn(headClass, "w-12")}>
+        <TableRow className={TABLE_HEAD_ROW}>
+          <TableHead className={cn(TABLE_HEAD, "w-12")}>
             <Checkbox
               checked={allSelected ? true : someSelected ? "indeterminate" : false}
               onCheckedChange={(next) => onToggleAll(next === true)}
@@ -92,26 +89,21 @@ export function SignFormsTable({
               }
             />
           </TableHead>
-          <TableHead className={cn(headClass, "min-w-64 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-64 whitespace-normal")}>
             Case name
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Case number
           </TableHead>
-          <TableHead className={cn(headClass, "min-w-40 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-40 whitespace-normal")}>
             Process type
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Date created
           </TableHead>
         </TableRow>
       </TableHeader>
-      {/* `border-separate` stays even without a sticky column — the header well needs
-          each cell to paint its own fill for the end cells to round (above). It puts
-          the row stroke on the cell, so the DS TableBody rule that clears the last row
-          targets the wrong element. Reach the cells directly, or the final row doubles
-          its line against the panel edge. */}
-      <TableBody className="[&_tr:last-child_td]:border-b-0">
+      <TableBody className={tableBodyClass({ selectable: true })}>
         {/* The header is a well, not a band welded to the rows — it needs the panel's
             fill under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held
@@ -125,9 +117,9 @@ export function SignFormsTable({
             <TableRow
               key={form.id}
               data-state={selected ? "selected" : undefined}
-              className="bg-card"
+              {...rowActivation(tableRowClass({ selectable: true }))}
             >
-              <TableCell className={cn(cellClass, "w-12")}>
+              <TableCell className={cn(TABLE_CELL, "w-12")}>
                 <Checkbox
                   checked={selected}
                   onCheckedChange={() => onToggle(form)}
@@ -138,32 +130,33 @@ export function SignFormsTable({
                   `text-foreground` rather than the reference's teal underline: three
                   sibling court queues already name their opener this way, and ten
                   underlined teal names down a column is the colour ui-craft §4
-                  rations. The underline arrives on hover and focus, where it is an
-                  affordance rather than decoration. */}
+                  rations. The underline now arrives on the *row's* hover, wherever the
+                  pointer sits, and on this control's own focus — see `rowOpenerClass`. */}
               <TableCell
-                className={cn(cellClass, "min-w-64 font-medium whitespace-normal")}
+                className={cn(TABLE_CELL, "min-w-64 font-medium whitespace-normal")}
               >
                 <button
                   type="button"
                   onClick={() => onOpen(form)}
-                  className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+                  {...rowOpener}
+                className={rowOpenerClass}
                 >
                   <span className="sr-only">Read and sign </span>
                   {causeTitle(form)}
                 </button>
               </TableCell>
               <TableCell
-                className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {form.caseNumber}
+                <Identifier value={form.caseNumber} label="case number" />
               </TableCell>
               {/* Plain text, not a chip. Three tinted process types down a column is
                   decoration, and the word is already the whole fact (ui-craft §4). */}
-              <TableCell className={cn(cellClass, "min-w-40 whitespace-normal")}>
+              <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>
                 {signFormProcessLabel(form.process)}
               </TableCell>
               <TableCell
-                className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
               >
                 {formatSignFormDate(form.createdOn)}
               </TableCell>

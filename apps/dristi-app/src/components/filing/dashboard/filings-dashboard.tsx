@@ -4,9 +4,12 @@ import * as React from "react";
 
 import {
   draftRows,
+  pendingPaymentRows,
+  pendingSignatureRows,
   registeredRows,
   returnedRows,
   scrutinyRows,
+  type QueueRow,
   type QueueTab,
 } from "@/lib/filing/queue";
 import { firstNameOf, useProfile } from "@/lib/filing/profile";
@@ -15,9 +18,17 @@ import { useDrafts } from "@/lib/filing/use-drafts";
 import { useTasks } from "@/lib/tasks/store";
 import { ConfirmDialog } from "@/components/filing/confirm-dialog";
 
+import { BatchFilingDialog } from "./batch-filing-dialog";
 import { BulkImportCard, type BulkBatch } from "./bulk-import-card";
 import { FilingsQueue, type QueueData } from "./filings-queue";
 import { StartFilingCard } from "./start-filing-card";
+import {
+  PAGE_GROUND,
+  PAGE_GUTTER,
+  PAGE_SUBTITLE,
+  PAGE_TITLE,
+} from "@/components/shell/page-frame";
+import { cn } from "@/lib/utils";
 
 /**
  * No client has pushed a batch across, because nothing in the app can receive one yet.
@@ -39,9 +50,16 @@ const BATCH: BulkBatch | null = null;
 export function FilingsDashboard() {
   const mounted = useMounted();
   const { profile } = useProfile();
-  const { ready, error, readAt, drafts, filed, discard } = useDrafts();
+  const { ready, error, readAt, drafts, filed, discard, reload } = useDrafts();
   const { tasks, cases: taskCases } = useTasks();
-  const [confirmId, setConfirmId] = React.useState<string | null>(null);
+  // The drafts awaiting a discard confirmation — one from a row's bin, several from
+  // the selection. Empty means the dialog is closed.
+  const [confirmIds, setConfirmIds] = React.useState<string[]>([]);
+  // The rows a bulk sign or bulk pay is about to act on — from the tab's own selection,
+  // never restated. Empty (null) means the dialog is closed.
+  const [batch, setBatch] = React.useState<{ kind: "sign" | "pay"; rows: QueueRow[] } | null>(
+    null
+  );
 
   const showData = mounted && ready;
   const firstName = firstNameOf(profile?.name ?? "");
@@ -50,22 +68,23 @@ export function FilingsDashboard() {
   const data = React.useMemo<QueueData>(
     () => ({
       drafts: draftRows(drafts),
+      pendingSignature: pendingSignatureRows(drafts, profile),
+      pendingPayment: pendingPaymentRows(drafts, profile),
       scrutiny: scrutinyRows(today),
       returned: returnedRows(tasks, taskCases),
       registered: registeredRows(today),
     }),
-    [drafts, tasks, taskCases, today]
+    [drafts, profile, tasks, taskCases, today]
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className={cn("flex w-full flex-1 flex-col gap-6", PAGE_GROUND, PAGE_GUTTER)}>
       <header className="flex flex-col gap-1">
-        <h1 className="text-title-l font-semibold tracking-tight text-foreground">
+        <h1 className={cn(PAGE_TITLE, "text-foreground")}>
           {firstName ? `File a case, ${firstName}` : "File a case"}
         </h1>
-        <p className="max-w-2xl text-body text-muted-foreground">
-          Start a new e-filing, import a batch from your client&apos;s system, or track
-          what you have already filed.
+        <p className={PAGE_SUBTITLE}>
+          Start a new filing, import many cases at once, or track what you have filed.
         </p>
       </header>
 
@@ -79,19 +98,48 @@ export function FilingsDashboard() {
       {/* Gated on the drafts read only. Cases are a static import and the tasks store
           fills the "returned" tab whenever it finishes; waiting for all three would blank
           the whole table because one tab is not ready yet. */}
-      <FilingsQueue data={data} ready={showData} onDiscard={setConfirmId} />
+      <FilingsQueue
+        data={data}
+        ready={showData}
+        onDiscard={setConfirmIds}
+        onBulk={(kind, rows) => setBatch({ kind, rows })}
+      />
 
       <ConfirmDialog
-        open={confirmId !== null}
+        open={confirmIds.length > 0}
         onOpenChange={(open) => {
-          if (!open) setConfirmId(null);
+          if (!open) setConfirmIds([]);
         }}
-        title="Discard this draft?"
-        description="Everything entered and uploaded for this filing will be removed. This cannot be undone."
-        confirmLabel="Discard draft"
+        title={
+          confirmIds.length === 1
+            ? "Discard this draft?"
+            : `Discard these ${confirmIds.length} drafts?`
+        }
+        description={
+          confirmIds.length === 1
+            ? "Everything entered and uploaded for this filing will be removed. This cannot be undone."
+            : `Everything entered and uploaded for these ${confirmIds.length} filings will be removed. This cannot be undone.`
+        }
+        confirmLabel={
+          confirmIds.length === 1 ? "Discard draft" : `Discard ${confirmIds.length} drafts`
+        }
         onConfirm={() => {
-          if (confirmId) void discard(confirmId);
-          setConfirmId(null);
+          for (const id of confirmIds) void discard(id);
+          setConfirmIds([]);
+        }}
+      />
+
+      <BatchFilingDialog
+        kind={batch?.kind ?? null}
+        rows={batch?.rows ?? []}
+        profile={profile}
+        open={!!batch}
+        onOpenChange={(open) => {
+          if (!open) setBatch(null);
+        }}
+        onFinished={() => {
+          setBatch(null);
+          reload();
         }}
       />
     </div>

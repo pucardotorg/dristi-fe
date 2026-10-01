@@ -52,6 +52,7 @@ import { DocumentSlot } from "@/components/ui/document-slot";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { RequiredMark } from "@/components/filing/form-field";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 export const MAX_FILING_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_FILE_EXTENSIONS = ["pdf", "jpg", "jpeg", "png"];
@@ -206,7 +207,7 @@ export function FilingFrame({
             <UserRoundIcon className="mt-0.5 size-5 shrink-0" aria-hidden />
             <div>
               <p className="text-body-compact text-muted-foreground">
-                Case {caseNumber}
+                Case <Identifier value={caseNumber} label="case number" />
               </p>
               <p className="text-body font-medium">
                 Filing for Complainant · {complainantName}
@@ -271,7 +272,7 @@ export function FileField({
     <Field data-invalid={Boolean(error)}>
       {attached ? (
         <>
-          <FieldLabel className="flex items-center gap-1.5 text-body">
+          <FieldLabel className="flex items-center gap-1.5">
             <span>{label}</span>
             {required ? null : <RequiredMark optional />}
           </FieldLabel>
@@ -506,13 +507,21 @@ function ChoicePills<Value extends string>({
 
 export function ReviewRow({
   term,
+  className,
   children,
 }: {
   term: string;
+  /** For a caller whose rows sit in a well and need a quieter rule than border. */
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <DescriptionRow className="grid-cols-1 sm:grid-cols-[minmax(8rem,11rem)_1fr]">
+    <DescriptionRow
+      className={cn(
+        "grid-cols-1 sm:grid-cols-[minmax(8rem,11rem)_1fr]",
+        className
+      )}
+    >
       <DescriptionTerm className="text-body-compact">{term}</DescriptionTerm>
       <DescriptionDetails className="min-w-0 text-body-compact">
         {children}
@@ -612,16 +621,15 @@ export function DiscardFilingDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <ChromeAlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Discard filing draft?</AlertDialogTitle>
+          <AlertDialogTitle>Discard this application?</AlertDialogTitle>
           <AlertDialogDescription>
-            The details and locally selected files will be lost if you return
-            to the case.
+            Anything you entered will be lost.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep editing</AlertDialogCancel>
           <AlertDialogAction variant="destructive-solid" onClick={onDiscard}>
-            Discard draft
+            Discard
           </AlertDialogAction>
         </AlertDialogFooter>
       </ChromeAlertDialogContent>

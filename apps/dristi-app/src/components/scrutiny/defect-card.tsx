@@ -46,11 +46,16 @@ import {
   Undo2Icon,
 } from "lucide-react";
 
-import { displayTargetValue, targetControlKind } from "@/lib/filing/targets";
+import {
+  displayTargetValue,
+  isIdentifierTarget,
+  targetControlKind,
+} from "@/lib/filing/targets";
 import { defectState, reasonRequired, resolutionLabel } from "@/lib/tasks/defects";
 import type { Defect } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { useFilePreview } from "@/lib/filing/files";
+import { Identifier } from "@/components/chrome/identifier";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -265,7 +270,7 @@ function Compare({
 }) {
   const suggestion = defect.suggestion;
   if (!suggestion) return null;
-  const filed = displayTargetValue(defect.target, suggestion.from) || "Blank";
+  const filed = displayTargetValue(defect.target, suggestion.from);
   const reads = displayTargetValue(defect.target, suggestion.to);
 
   return (
@@ -279,7 +284,7 @@ function Compare({
         <div className="flex items-center justify-between gap-4 bg-surface-sunken px-3.5 py-2.5">
           <span className="shrink-0 text-caption text-muted-foreground">Originally filed</span>
           <span className="min-w-0 text-right text-body-compact tabular-nums text-muted-foreground">
-            {filed}
+            {filed ? <CompareValue defect={defect} value={filed} /> : "Blank"}
           </span>
         </div>
       )}
@@ -305,11 +310,23 @@ function Compare({
               : "text-body font-semibold text-foreground"
           )}
         >
-          {reads}
+          <CompareValue defect={defect} value={reads} />
         </span>
       </div>
     </div>
   );
+}
+
+/**
+ * One of the two compared values, set as an identifier where the field holds one.
+ *
+ * The rows align the values on purpose, and only a monospaced face puts the character
+ * that changed directly under the one it replaced — which is the whole mechanism this
+ * comparison relies on instead of a strikethrough and an arrow.
+ */
+function CompareValue({ defect, value }: { defect: Defect; value: string }) {
+  if (!isIdentifierTarget(defect.target)) return <>{value}</>;
+  return <Identifier value={value} label={defect.target.label} />;
 }
 
 /* ───────────────────────── Keeping your own value ───────────────────────── */

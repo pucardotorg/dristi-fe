@@ -1,6 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { FileSearchIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useSourceFieldLabel } from "@/components/filing/form-field";
 
 import type { Option } from "@/lib/filing/options";
 import { cn } from "@/lib/utils";
@@ -29,8 +32,44 @@ import {
 import {
   useFieldReadOnly,
   useFieldReadOnlyHint,
+  useInCorrection,
   useLockedDisabled,
 } from "@/components/filing/posture";
+import { useSourceDock } from "@/hooks/use-min-width";
+
+/**
+ * From `xl` the source rail is a permanent column beside the form (`useSourceDock`), so a
+ * machine-read field opens the rail on click, as it always has. Below `xl` — phones and
+ * tablets, and any correction round where the rail gives up its column — the rail is a
+ * slide-in sheet, so the field edits normally and an adjacent button opens the sheet
+ * (owner, 2026-09-29). This keeps the desktop untouched and adds the button only where
+ * the small screens needed a separate affordance.
+ */
+export function useSourceDocked() {
+  const wide = useSourceDock();
+  const inCorrection = useInCorrection();
+  return wide && !inCorrection;
+}
+
+/** Shared filing composition: editing and inspecting provenance are separate actions. */
+export function SourceField({ children, onViewSource, disabled }: {
+  children: React.ReactNode;
+  onViewSource?: () => void;
+  disabled?: boolean;
+}) {
+  const label = useSourceFieldLabel();
+  if (!onViewSource) return children;
+  return (
+    <div className="flex min-w-0 items-start gap-2">
+      <div className="min-w-0 flex-1">{children}</div>
+      <Button type="button" variant="outline" size="icon" disabled={disabled}
+        aria-label={`View source for ${label}`} title={`View source for ${label}`}
+        aria-haspopup="dialog" onClick={onViewSource}>
+        <FileSearchIcon aria-hidden />
+      </Button>
+    </div>
+  );
+}
 
 /**
  * A flagged field's value, shown but not editable — for the controls that have no
@@ -64,7 +103,7 @@ export function ReadOnlyValue({
 
 /**
  * Text input that may carry a machine-read value. When `prefilled`, the DS amber fill
- * shows and clicking the field opens its source (`onViewSource`) — typing still edits.
+ * shows; an adjacent button opens its source (`onViewSource`). The field edits normally.
  */
 export function TextField({
   value,
@@ -84,18 +123,25 @@ export function TextField({
      inset beneath the field rather than typed over here (brief §15.2). */
   const readOnly = useFieldReadOnly();
   const hint = useFieldReadOnlyHint();
+  const docked = useSourceDocked();
+  const amber = prefilled && !!value && !readOnly;
+  /* Docked (desktop): the field itself opens the rail, unchanged. Undocked: the field
+     edits and the adjacent SourceField button opens the sheet. */
+  const inlineOpen = amber && !!onViewSource && docked;
   return (
+    <SourceField onViewSource={amber && !docked ? onViewSource : undefined} disabled={disabled}>
     <Input
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-describedby={hint}
-      prefilled={prefilled && !readOnly}
-      onClick={prefilled && onViewSource && !readOnly ? onViewSource : undefined}
-      className={cn(prefilled && onViewSource && !readOnly && "cursor-pointer", className)}
+      prefilled={amber}
+      onClick={inlineOpen ? onViewSource : undefined}
+      className={cn(inlineOpen && "cursor-pointer", className)}
       {...props}
       readOnly={readOnly || props.readOnly}
       disabled={disabled}
     />
+    </SourceField>
   );
 }
 
@@ -118,8 +164,13 @@ export function PrefixInput({
   const disabled = useLockedDisabled(props.disabled);
   const readOnly = useFieldReadOnly();
   const hint = useFieldReadOnlyHint();
-  const amber = prefilled && !readOnly;
+  const docked = useSourceDocked();
+  const amber = prefilled && !!value && !readOnly;
+  /* Docked (desktop): click the field to open the rail, unchanged. Undocked: edit here,
+     open the sheet from the adjacent button. */
+  const inlineOpen = amber && !!onViewSource && docked;
   return (
+    <SourceField onViewSource={amber && !docked ? onViewSource : undefined} disabled={disabled}>
     <InputGroup
       data-disabled={disabled || undefined}
       className={cn(
@@ -138,21 +189,22 @@ export function PrefixInput({
       <InputGroupInput
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onClick={amber && onViewSource ? onViewSource : undefined}
+        onClick={inlineOpen ? onViewSource : undefined}
         aria-describedby={hint}
         aria-description={amber ? "Machine filled, not yet verified" : undefined}
-        className={cn(amber && onViewSource && "cursor-pointer")}
+        className={cn(inlineOpen && "cursor-pointer")}
         {...props}
         readOnly={readOnly || props.readOnly}
         disabled={disabled}
       />
     </InputGroup>
+    </SourceField>
   );
 }
 
 /**
  * Select over an `Option[]` with a placeholder row. `prefilled` applies the amber fill;
- * `onViewSource` opens the source panel from the trigger's pointer-down (the menu still opens).
+ * `onViewSource` opens the source panel from the adjacent source button.
  */
 export function OptionSelect({
   value,
@@ -182,6 +234,7 @@ export function OptionSelect({
   );
   const isDisabled = useLockedDisabled(disabled);
   const readOnly = useFieldReadOnly();
+  const docked = useSourceDocked();
   /* A Select has no read-only state — a flagged one therefore shows its chosen option as
      a read-only value (brief §15.5, "rendered as text where the control type cannot be
      read-only"). Focusable and announced; simply not re-openable. */
@@ -196,15 +249,17 @@ export function OptionSelect({
       />
     );
   }
+  const inlineOpen = prefilled && !!value && !!onViewSource && docked;
   return (
+    <SourceField onViewSource={prefilled && !!value && !docked ? onViewSource : undefined} disabled={isDisabled}>
     <Select value={value || undefined} onValueChange={onValueChange} disabled={isDisabled}>
       <SelectTrigger
         id={id}
         aria-label={ariaLabel}
-        onPointerDown={prefilled && onViewSource ? onViewSource : undefined}
+        onPointerDown={inlineOpen ? onViewSource : undefined}
         className={cn(
           "w-full",
-          prefilled && "border-dashed border-warning-ink bg-prefilled",
+          prefilled && !!value && "border-dashed border-warning-ink bg-prefilled",
           className
         )}
       >
@@ -223,6 +278,7 @@ export function OptionSelect({
         ))}
       </SelectContent>
     </Select>
+    </SourceField>
   );
 }
 
@@ -240,7 +296,7 @@ export function ComboField({
   items,
   onSelect,
   placeholder = "Search or type",
-  emptyLabel = "No match — what you typed is kept.",
+  emptyLabel = "No match. What you typed is kept.",
   renderItem,
   itemKey = (item) => String(item),
   itemLabel = (item) => String(item),

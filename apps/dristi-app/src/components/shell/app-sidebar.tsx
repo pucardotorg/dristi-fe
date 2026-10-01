@@ -16,7 +16,6 @@ import {
   ScrollTextIcon,
   SearchIcon,
   SettingsIcon,
-  UserPlusIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +27,7 @@ import { BrandGlyph } from "@/components/brand-lockup";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { YourDetailsItem } from "@/components/filing/your-details-item";
 import { useAppSearch } from "@/components/shell/app-search";
+import { useChrome } from "@/components/shell/chrome";
 import { useProfile } from "@/components/shell/profile";
 import { RAIL_THEMES, useRailTheme } from "@/components/shell/rail-theme";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Tooltip,
@@ -114,13 +115,15 @@ type NavItem = { id: string; label: string; icon: LucideIcon; href?: string };
  * shape of the product is the point of a shell, and they say plainly that they do
  * nothing rather than looking available.
  */
+/* Labels are sentence case (DS Law) and match the breadcrumb root for the same area,
+   so the rail, the trail and the page title never call one place three things. */
 const GO: NavItem[] = [
   { id: "search", label: "Search", icon: SearchIcon },
   { id: "home", label: "Home", icon: HouseIcon, href: "/home" },
-  { id: "cases", label: "Your Cases", icon: FolderClosedIcon, href: "/cases" },
+  { id: "cases", label: "Cases", icon: FolderClosedIcon, href: "/cases" },
   {
     id: "tasks",
-    label: "Pending Tasks",
+    label: "Pending tasks",
     icon: ListChecksIcon,
     href: TASKS_HOME,
   },
@@ -128,29 +131,28 @@ const GO: NavItem[] = [
 ];
 
 const START: NavItem[] = [
-  // Both flows already live on this branch; the rail is just finally telling the truth
-  // about them. Join a Case goes to its landing page in this shell — the case-access
-  // design's own shape: a page that says what joining is and what to have ready, whose
-  // CTA starts the dialog journey (lookup → role questions → vakalatnama). The rail
-  // navigates; the page acts.
+  // Join a case is not a destination: its whole journey (lookup → role questions →
+  // vakalatnama) runs in a dialog, so it is the one strong action on the Cases page
+  // rather than a rail item that led to a page holding a single button.
   {
     id: "file-case",
-    label: "File a Case",
+    label: "File a case",
     icon: FilePlusIcon,
     href: "/filings",
   },
-  { id: "file-application", label: "File Application", icon: FileTextIcon },
+  // Raised against a case, so the page behind this starts by asking which one;
+  // from there it is the same flow a case's Make filings menu opens.
+  {
+    id: "raise-application",
+    label: "Raise application",
+    icon: FileTextIcon,
+    href: "/raise-application",
+  },
   {
     id: "vakalatnama",
     label: "Vakalatnama",
     icon: ScrollTextIcon,
     href: "/vakalatnama",
-  },
-  {
-    id: "join-case",
-    label: "Join a Case",
-    icon: UserPlusIcon,
-    href: "/join-case",
   },
 ];
 
@@ -166,7 +168,7 @@ const LABEL = "truncate group-data-[collapsible=icon]:hidden";
 /** The rail's secondary ink, from the selected theme. */
 const MUTED = "text-(--rail-muted)";
 
-const UNBUILT_NOTE = "not part of this build";
+const UNBUILT_NOTE = "not available yet";
 
 /**
  * How many tasks are waiting on you.
@@ -252,12 +254,27 @@ function SearchShortcut() {
 
 function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
   const pathname = usePathname();
+  const { crumbRoot } = useChrome();
+  // On a phone the rail is a sheet over the page. Choosing where to go is the
+  // end of its job, so it puts itself away; left open, it sat over the screen
+  // that had just loaded behind it (owner, Sept 21). A no-op on desktop.
+  const { isMobile, setOpenMobile } = useSidebar();
+  const closeSheet = () => {
+    if (isMobile) setOpenMobile(false);
+  };
   const { id, label, icon: Icon, href } = item;
 
   if (onAction) {
     return (
       <SidebarMenuItem>
-        <SidebarMenuButton tooltip={label} className={ROW} onClick={onAction}>
+        <SidebarMenuButton
+          tooltip={label}
+          className={ROW}
+          onClick={() => {
+            closeSheet();
+            onAction();
+          }}
+        >
           <Icon aria-hidden />
           <span className={LABEL}>{label}</span>
           {id === "search" ? <SearchShortcut /> : null}
@@ -291,7 +308,11 @@ function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
   }
 
   // Highlighted for the whole area; `aria-current="page"` only on the list itself.
-  const inArea = pathname.startsWith(href);
+  // A screen reached through another area's door roots its trail there
+  // (`lib/nav/origin.ts`), and the rail agrees with the trail: the types page
+  // opened from Raise application lives under `/cases`, but Cases is not where
+  // the person is.
+  const inArea = (crumbRoot?.href ?? pathname).startsWith(href);
   const isPage = pathname === href;
   return (
     <SidebarMenuItem>
@@ -301,7 +322,11 @@ function NavRow({ item, onAction }: { item: NavItem; onAction?: () => void }) {
         tooltip={label}
         className={ROW}
       >
-        <Link href={href} aria-current={isPage ? "page" : undefined}>
+        <Link
+          href={href}
+          aria-current={isPage ? "page" : undefined}
+          onClick={closeSheet}
+        >
           <Icon aria-hidden />
           <span className={LABEL}>{label}</span>
           {id === "tasks" ? (
@@ -603,6 +628,25 @@ function ProfileFooter() {
   );
 }
 
+/**
+ * On a phone the primitive renders the rail as a Sheet and keeps `style` and
+ * `className` for the Sheet root, which has no DOM. The theme's vars never land, so
+ * the sheet fell back to the DS default plate with the seams at `currentColor`: a
+ * wireframe. This re-declares the theme on a wrapper inside the sheet, where it can
+ * paint the whole panel. On desktop the vars already land, so it adds nothing.
+ */
+function RailPlate({ vars, children }: { vars: React.CSSProperties; children: React.ReactNode }) {
+  const { isMobile } = useSidebar();
+  if (!isMobile) return <>{children}</>;
+  return (
+    // A pixel wider than the sheet so the plate also covers the sheet's own light
+    // 1px edge border, which otherwise shows as a beige line down the right side.
+    <div style={vars} className="flex h-full w-[calc(100%+1px)] flex-col bg-sidebar text-(--sidebar-foreground)">
+      {children}
+    </div>
+  );
+}
+
 /** Main navigation for the whole app. Icon rail from `md`, sheet below it. */
 export function AppSidebar() {
   const { theme } = useRailTheme();
@@ -642,6 +686,7 @@ export function AppSidebar() {
        * first item. The header is the top bar's own height so its rule and the
        * breadcrumb bar's rule are one continuous line across the whole chrome.
        */}
+      <RailPlate vars={theme.vars as React.CSSProperties}>
       <SidebarHeader className="h-14 flex-row items-center justify-between border-b border-(--rail-seam) px-3 py-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
         {/* The glyph alone, in both states. The full lockup stacks its wordmark under
             the mark, and at the size a 56px bar can spare, "24×7 ON COURTS" cannot be
@@ -660,6 +705,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <ProfileFooter />
+      </RailPlate>
     </Sidebar>
   );
 }

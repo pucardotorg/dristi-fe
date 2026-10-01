@@ -17,6 +17,7 @@ import { IdUpload } from "@/components/vakalatnama/id-upload";
 import { updateVak } from "@/lib/vakalatnama/store";
 import { NOTARY_REGISTRY, type Notary } from "@/lib/vakalatnama/data";
 import type { Address, Attestation, Vakalatnama, WitnessKind } from "@/lib/vakalatnama/types";
+import { Identifier } from "@/components/chrome/identifier";
 
 export function AttestationStep({ vak }: { vak: Vakalatnama }) {
   const a = vak.attestation;
@@ -34,6 +35,7 @@ export function AttestationStep({ vak }: { vak: Vakalatnama }) {
       >
         <FormField label="Witness" asGroup>
           <Segmented
+            size="compact"
             value={a.hasWitness ? "yes" : "no"}
             onValueChange={(v) => set({ hasWitness: v === "yes" })}
             options={[
@@ -49,6 +51,7 @@ export function AttestationStep({ vak }: { vak: Vakalatnama }) {
         <FormCard title="Witness details">
           <FormField label="Type of witness" asGroup>
             <Segmented
+              size="compact"
               value={a.kind}
               onValueChange={(v) => set({ kind: v as WitnessKind })}
               options={[
@@ -77,8 +80,15 @@ export function AttestationStep({ vak }: { vak: Vakalatnama }) {
                     return (
                       <div className="flex w-full flex-col">
                         <span className="text-body-compact">{nt.name}</span>
-                        <span className="font-mono text-caption text-muted-foreground">
-                          {nt.registration} · {nt.place}
+                        <span className="text-caption text-muted-foreground">
+                          {/* A combobox row is an option — no control nested inside it. */}
+                          <Identifier
+                            value={nt.registration}
+                            label="registration number"
+                            copyable={false}
+                          />
+                          <span aria-hidden> · </span>
+                          {nt.place}
                         </span>
                       </div>
                     );
@@ -99,9 +109,11 @@ export function AttestationStep({ vak }: { vak: Vakalatnama }) {
                   <CheckCircle2Icon aria-hidden className="size-5 shrink-0 text-success-ink" />
                   <div className="flex min-w-0 flex-col">
                     <span className="text-body-compact">{a.name}</span>
-                    <span className="font-mono text-caption text-muted-foreground">
-                      {a.registration}
-                    </span>
+                    <Identifier
+                      value={a.registration}
+                      label="registration number"
+                      className="self-start text-caption text-muted-foreground"
+                    />
                   </div>
                 </div>
               ) : null}

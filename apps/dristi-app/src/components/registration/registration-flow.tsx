@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { REGEXP_ONLY_DIGITS } from "input-otp";
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
+  CheckIcon,
+  CircleAlertIcon,
   ClockIcon,
   EyeIcon,
   EyeOffIcon,
@@ -19,9 +20,9 @@ import { UploadedDocField } from "@/components/cases/uploaded-doc-field";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { CENTRED_STEPPER } from "@/components/chrome/stepper-layout";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import {
@@ -38,29 +39,17 @@ import {
   verificationSteps,
   verificationUi,
 } from "@/lib/registration/content";
+import { passwordProblem } from "@/lib/registration/password-policy";
 import { cn } from "@/lib/utils";
+
+import { MaskedOtp, OTP_LENGTH } from "./masked-otp";
+import { Identifier } from "@/components/chrome/identifier";
 
 type Step = "role" | "name" | "contact" | "password" | "verification" | "terms" | "success" | "application";
 type AccountRole = "litigant" | "advocate" | "advocateClerk" | "poa" | "";
 const DIGITS = /\D/g;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
-
-/**
- * What a password has to clear.
- *
- * Kept as four separate tests rather than one regex so the rule the copy states and the
- * rule the form enforces cannot drift apart.
- */
-const PASSWORD_RULES = [
-  { key: "ruleLength", test: (value: string) => value.length >= 8 },
-  { key: "ruleLetter", test: (value: string) => /[A-Za-z]/.test(value) },
-  { key: "ruleNumber", test: (value: string) => /\d/.test(value) },
-  { key: "ruleSymbol", test: (value: string) => /[^A-Za-z0-9]/.test(value) },
-] as const;
-
-const passwordStrong = (value: string) => PASSWORD_RULES.every((rule) => rule.test(value));
 
 /** Which roles the court must approve before the account works. */
 const NEEDS_VERIFICATION = new Set<AccountRole>(["advocate", "advocateClerk"]);
@@ -133,6 +122,9 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
 
   const needsVerification = NEEDS_VERIFICATION.has(role);
   const verification = role === "advocateClerk" ? verificationSteps.advocateClerk : verificationSteps.advocate;
+  // The first policy rule the password fails, against what this person has told us so
+  // far — name from step two, number and email from step three.
+  const problem = passwordProblem(password, { mobile, name: fullName, email });
 
   const journeyKeys: readonly (keyof typeof journeySteps)[] = needsVerification
     ? ["role", "name", "contact", "password", "verification", "terms"]
@@ -183,7 +175,7 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
           <DescriptionRow><DescriptionTerm>{pick(applicationView.mobile, locale)}</DescriptionTerm><DescriptionDetails>+91 {mobile}</DescriptionDetails></DescriptionRow>
           {email ? <DescriptionRow><DescriptionTerm>{pick(applicationView.email, locale)}</DescriptionTerm><DescriptionDetails>{email}</DescriptionDetails></DescriptionRow> : null}
           <DescriptionRow><DescriptionTerm>{pick(applicationView.role, locale)}</DescriptionTerm><DescriptionDetails>{pick(role === "advocateClerk" ? roleStep.advocateClerk : roleStep.advocate, locale)}</DescriptionDetails></DescriptionRow>
-          <DescriptionRow><DescriptionTerm>{pick(verification.numberLabel, locale)}</DescriptionTerm><DescriptionDetails>{regNumber}</DescriptionDetails></DescriptionRow>
+          <DescriptionRow><DescriptionTerm>{pick(verification.numberLabel, locale)}</DescriptionTerm><DescriptionDetails><Identifier value={regNumber} label="registration number" /></DescriptionDetails></DescriptionRow>
           {idFile ? <DescriptionRow className="items-center"><DescriptionTerm>{pick(verification.uploadLabel, locale)}</DescriptionTerm><DescriptionDetails><DocumentRowValue file={idFile} locale={locale} /></DescriptionDetails></DescriptionRow> : null}
         </DescriptionList>
       </div>
@@ -194,11 +186,18 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 md:gap-10">
       <div className="mx-auto w-full max-w-2xl">
         <Stepper
-          className={cn("w-full", "[&_[data-slot=stepper-item]]:items-center", "[&_[data-slot=stepper-item]>div:first-child]:relative [&_[data-slot=stepper-item]>div:first-child]:justify-center", "[&_[data-slot=stepper-connector]]:absolute [&_[data-slot=stepper-connector]]:top-4 [&_[data-slot=stepper-connector]]:left-[calc(50%+1rem)] [&_[data-slot=stepper-connector]]:mx-0 [&_[data-slot=stepper-connector]]:h-px [&_[data-slot=stepper-connector]]:w-[calc(100%-2rem)]", "[&_[data-slot=stepper-item]>div:last-child]:w-full [&_[data-slot=stepper-item]>div:last-child]:pr-0 [&_[data-slot=stepper-item]>div:last-child]:text-center", "max-md:[&_[data-slot=stepper-item]>div:last-child]:hidden")}
+          className={CENTRED_STEPPER}
           aria-label={pick(registrationUi.stepOf, locale).replace("{current}", String(journeyIndex + 1)).replace("{total}", String(journeyKeys.length))}
         >
           {journeyKeys.map((key, index) => <StepperItem key={key} step={index + 1} title={pick(journeySteps[key].title, locale)} status={index < journeyIndex ? "complete" : index === journeyIndex ? "current" : "upcoming"} />)}
         </Stepper>
+        {/* Six names do not fit under six circles on a phone (Malayalam collides
+            even at caption size), so below md one line names the step you are on. */}
+        <p className="mt-3 text-center text-caption text-muted-foreground md:hidden">
+          {pick(registrationUi.stepOf, locale).replace("{current}", String(journeyIndex + 1)).replace("{total}", String(journeyKeys.length))}
+          {" · "}
+          <span className="font-medium text-foreground">{pick(journeySteps[journeyKeys[journeyIndex]].title, locale)}</span>
+        </p>
       </div>
 
       <div className="mx-auto w-full max-w-xl">
@@ -263,8 +262,22 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
 
             {otpRequested && !otpVerified ? (
               <Field data-invalid={otpTouched && otpCode.length !== OTP_LENGTH} className="rounded-lg bg-surface-sunken p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <FieldLabel>{pick(contactStep.otpLabel, locale)}</FieldLabel>
+                {/* Label repeated the description's "6-digit code"; kept for screen
+                    readers, dropped from view (owner, Sept 11). */}
+                <FieldLabel className="sr-only">{pick(contactStep.otpLabel, locale)}</FieldLabel>
+                <FieldDescription>{pick(contactStep.otpSent, locale).replace("{number}", mobile)}</FieldDescription>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                  <MaskedOtp value={otpCode} revealed={otpRevealed} onChange={(value) => { setOtpCode(value); setOtpTouched(false); }} />
+                  <Button type="button" className="sm:h-12" onClick={() => { setOtpTouched(true); if (otpCode.length !== OTP_LENGTH) return; setOtpVerified(true); setOtpTouched(false); setTouched(false); }}>
+                    {pick(contactStep.otpVerify, locale)}
+                  </Button>
+                </div>
+                <FieldError>{otpTouched && otpCode.length !== OTP_LENGTH ? pick(contactStep.otpError, locale) : null}</FieldError>
+                {/* One row under the boxes: reveal on the left, under the code it reveals;
+                    countdown / resend on the right, under the Verify it follows. The
+                    countdown and the resend link share the right-hand slot at a fixed
+                    height, so nothing hops when the timer runs out. */}
+                <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-1">
                   <Button
                     type="button"
                     variant="link"
@@ -276,47 +289,10 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
                     {otpRevealed ? <EyeOffIcon data-icon="inline-start" aria-hidden /> : <EyeIcon data-icon="inline-start" aria-hidden />}
                     {pick(otpRevealed ? contactStep.otpHide : contactStep.otpShow, locale)}
                   </Button>
-                </div>
-                <FieldDescription>{pick(contactStep.otpSent, locale).replace("{number}", mobile)}</FieldDescription>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                  <InputOTP maxLength={OTP_LENGTH} pattern={REGEXP_ONLY_DIGITS} inputMode="numeric" autoComplete="one-time-code" value={otpCode} onChange={(value) => { setOtpCode(value); setOtpTouched(false); }} containerClassName="flex-1">
-                    {/* Masking, without touching the primitive. `InputOTPSlot` renders the
-                        character it reads off the OTP context and takes no children, so
-                        the digits are made transparent and a matching row of dots is laid
-                        over the group — same six equal cells, so they land dead centre.
-                        The caret is drawn separately and survives, and the real value is
-                        never re-encoded, so paste and SMS autofill still work. */}
-                    <InputOTPGroup className="relative w-full">
-                      {Array.from({ length: OTP_LENGTH }, (_, index) => (
-                        <InputOTPSlot
-                          key={index}
-                          index={index}
-                          className={cn("h-12 w-auto flex-1 text-body font-semibold", !otpRevealed && "text-transparent")}
-                        />
-                      ))}
-                      {!otpRevealed ? (
-                        <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center">
-                          {Array.from({ length: OTP_LENGTH }, (_, index) => (
-                            <span key={index} className="flex flex-1 items-center justify-center text-body font-semibold text-foreground">
-                              {index < otpCode.length ? "\u2022" : ""}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </InputOTPGroup>
-                  </InputOTP>
-                  <Button type="button" className="sm:h-12" onClick={() => { setOtpTouched(true); if (otpCode.length !== OTP_LENGTH) return; setOtpVerified(true); setOtpTouched(false); setTouched(false); }}>
-                    {pick(contactStep.otpVerify, locale)}
-                  </Button>
-                </div>
-                <FieldError>{otpTouched && otpCode.length !== OTP_LENGTH ? pick(contactStep.otpError, locale) : null}</FieldError>
-                {/* Countdown and resend occupy the same slot on the same left edge, so the
-                    line does not hop when the timer runs out. */}
-                <div className="flex min-h-8 items-center">
                   {resendIn > 0 ? (
-                    <p className="text-body-compact text-muted-foreground">{pick(contactStep.otpResendIn, locale).replace("{seconds}", String(resendIn))}</p>
+                    <p className="text-body-compact whitespace-nowrap text-muted-foreground tabular-nums">{pick(contactStep.otpResendIn, locale).replace("{seconds}", String(resendIn))}</p>
                   ) : (
-                    <Button type="button" variant="link" className="h-auto p-0" onClick={() => { setResendIn(RESEND_SECONDS); setOtpCode(""); }}>{pick(contactStep.otpResend, locale)}</Button>
+                    <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => { setResendIn(RESEND_SECONDS); setOtpCode(""); }}>{pick(contactStep.otpResend, locale)}</Button>
                   )}
                 </div>
               </Field>
@@ -328,27 +304,11 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
         ) : null}
 
         {step === "password" ? (
-          <form className="flex flex-col gap-6" noValidate onSubmit={(event) => { event.preventDefault(); setTouched(true); if (!passwordStrong(password) || password !== confirmPassword) return; setTouched(false); setStep(needsVerification ? "verification" : "terms"); }}>
+          <form className="flex flex-col gap-6" noValidate onSubmit={(event) => { event.preventDefault(); setTouched(true); if (problem || password !== confirmPassword) return; setTouched(false); setStep(needsVerification ? "verification" : "terms"); }}>
             <Heading title={pick(passwordStep.title, locale)} body={pick(passwordStep.body, locale)} />
 
-            <div className="flex flex-col gap-3">
-            {/* One reveal governs both boxes. Two separate eyes would let someone show
-                the first and check the second against a field they cannot read. */}
-            <Field data-invalid={touched && !passwordStrong(password)}>
-              <div className="flex items-center justify-between gap-4">
-                <FieldLabel>{pick(passwordStep.password, locale)} <span className="text-destructive">*</span></FieldLabel>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0"
-                  aria-pressed={passwordRevealed}
-                  onClick={() => setPasswordRevealed((value) => !value)}
-                >
-                  {passwordRevealed ? <EyeOffIcon data-icon="inline-start" aria-hidden /> : <EyeIcon data-icon="inline-start" aria-hidden />}
-                  {pick(passwordRevealed ? passwordStep.hide : passwordStep.show, locale)}
-                </Button>
-              </div>
+            <Field data-invalid={touched && Boolean(problem)}>
+              <FieldLabel>{pick(passwordStep.password, locale)} <span className="text-destructive">*</span></FieldLabel>
               <Input
                 type={passwordRevealed ? "text" : "password"}
                 autoComplete="new-password"
@@ -356,21 +316,65 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
                 placeholder={pick(passwordStep.passwordPlaceholder, locale)}
                 onChange={(event) => { setPassword(event.target.value); setTouched(false); }}
               />
-              <FieldDescription>{pick(passwordStep.rules, locale)}</FieldDescription>
-              <FieldError>{touched && !passwordStrong(password) ? pick(passwordStep.error, locale) : null}</FieldError>
+              {/* Under the box, one line that changes as they type: the whole policy at
+                  rest, the one rule currently failing once typing starts, the all-clear
+                  when nothing fails. Polite live region — a checklist ticking on every
+                  keystroke is what this replaced. The reveal sits on the same line's
+                  right edge, under the box it reveals; one reveal governs both boxes,
+                  since two eyes would let someone show the first and check the second
+                  against a field they cannot read. */}
+              <div className="flex items-start justify-between gap-4">
+                {touched && problem ? (
+                  <FieldError>{pick(passwordStep.problem[problem], locale)}</FieldError>
+                ) : (
+                  <FieldDescription
+                    aria-live="polite"
+                    className={cn(
+                      "flex items-start gap-1.5",
+                      password && problem && "text-destructive-ink",
+                      password && !problem && "text-success-ink",
+                    )}
+                  >
+                    {password && problem ? <CircleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden /> : null}
+                    {password && !problem ? <CheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden /> : null}
+                    <span>{pick(!password ? passwordStep.rules : problem ? passwordStep.problem[problem] : passwordStep.ok, locale)}</span>
+                  </FieldDescription>
+                )}
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto shrink-0 p-0"
+                  aria-pressed={passwordRevealed}
+                  onClick={() => setPasswordRevealed((value) => !value)}
+                >
+                  {passwordRevealed ? <EyeOffIcon data-icon="inline-start" aria-hidden /> : <EyeIcon data-icon="inline-start" aria-hidden />}
+                  {pick(passwordRevealed ? passwordStep.hide : passwordStep.show, locale)}
+                </Button>
+              </div>
             </Field>
-
-            </div>
 
             <Field data-invalid={touched && password !== confirmPassword}>
               <FieldLabel>{pick(passwordStep.confirm, locale)} <span className="text-destructive">*</span></FieldLabel>
-              <Input
-                type={passwordRevealed ? "text" : "password"}
-                autoComplete="new-password"
-                value={confirmPassword}
-                placeholder={pick(passwordStep.confirmPlaceholder, locale)}
-                onChange={(event) => { setConfirmPassword(event.target.value); setTouched(false); }}
-              />
+              {/* The tick inside the box is the match signal; its absence is the
+                  mismatch signal. Continue stays live either way — pressing it with a
+                  mismatch says so in words below, rather than a button that will not
+                  press and does not say why. */}
+              <InputGroup>
+                <InputGroupInput
+                  type={passwordRevealed ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  placeholder={pick(passwordStep.confirmPlaceholder, locale)}
+                  onChange={(event) => { setConfirmPassword(event.target.value); setTouched(false); }}
+                />
+                {confirmPassword && confirmPassword === password ? (
+                  <InputGroupAddon align="inline-end" className="text-success-ink">
+                    <CheckIcon aria-hidden />
+                    <span className="sr-only">{pick(passwordStep.confirmMatch, locale)}</span>
+                  </InputGroupAddon>
+                ) : null}
+              </InputGroup>
               <FieldError>{touched && password !== confirmPassword ? pick(passwordStep.confirmError, locale) : null}</FieldError>
             </Field>
 

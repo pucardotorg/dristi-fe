@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  TABLE_CELL,
+  TABLE_HEAD,
+  TABLE_HEAD_ROW,
+  tableBodyClass,
+  tableRowClass,
+} from "@/components/chrome/table-plate";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -13,19 +20,13 @@ import {
   formatCopyApplicationDate,
   type CopyApplication,
 } from "@/lib/employee/approve-copy-application";
+import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { cn } from "@/lib/utils";
-
-/* The same table treatment as the two signing queues, the register queue and the
- * rescheduling queue — header separated by fill rather than a second stroke, rows by
- * hairline, the panel edge as the only full-strength border on the screen (ui-craft
- * §1.1). The classes are restated rather than exported because when the advocate shell
- * moves onto the shared `components/chrome` frame, this treatment is what belongs there,
- * and the court-side tables should collapse onto it together rather than one of them
- * becoming the other's parent. */
-const headClass =
-  "h-10 bg-surface-sunken px-4 py-3 text-caption font-semibold text-muted-foreground";
-const cellClass =
-  "border-b border-hairline px-4 py-3 align-middle text-left text-body-compact";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The copy-application queue as a table: which applications are picked for acceptance,
@@ -92,12 +93,8 @@ export function ApproveCopyApplicationTable({
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
-        {/* The panel insets this table by p-6, so the header strip is a well, not a
-            full-bleed band — it rounds itself (ui-craft §4). `border-separate` means each
-            cell paints its own fill, so the radius goes on the end cells rather than the
-            row. */}
-        <TableRow className="hover:bg-transparent [&>th:first-child]:rounded-l-lg [&>th:last-child]:rounded-r-lg">
-          <TableHead className={cn(headClass, "w-12")}>
+        <TableRow className={TABLE_HEAD_ROW}>
+          <TableHead className={cn(TABLE_HEAD, "w-12")}>
             <Checkbox
               checked={
                 allSelected ? true : someSelected ? "indeterminate" : false
@@ -114,29 +111,24 @@ export function ApproveCopyApplicationTable({
               onCheckedChange={(next) => onToggleAll(next === true)}
             />
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Application number
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Case number
           </TableHead>
-          <TableHead className={cn(headClass, "min-w-48 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-48 whitespace-normal")}>
             Petitioner
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Date raised
           </TableHead>
-          <TableHead className={cn(headClass, "min-w-64 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-64 whitespace-normal")}>
             Copy sought
           </TableHead>
         </TableRow>
       </TableHeader>
-      {/* `border-separate` stays even without a sticky column — the header well needs each
-          cell to paint its own fill for the end cells to round (above). It puts the row
-          stroke on the cell, so the DS TableBody rule that clears the last row targets the
-          wrong element. Reach the cells directly, or the final row doubles its line
-          against the panel edge. */}
-      <TableBody className="[&_tr:last-child_td]:border-b-0">
+      <TableBody className={tableBodyClass({ selectable: true })}>
         {/* The header is a well, not a band welded to the rows — it needs the panel's fill
             under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held out
@@ -150,9 +142,9 @@ export function ApproveCopyApplicationTable({
             <TableRow
               key={application.id}
               data-state={selected ? "selected" : undefined}
-              className="bg-card"
+              {...rowActivation(tableRowClass({ selectable: true }))}
             >
-              <TableCell className={cn(cellClass, "w-12")}>
+              <TableCell className={cn(TABLE_CELL, "w-12")}>
                 <Checkbox
                   checked={selected}
                   onCheckedChange={() => onToggle(application)}
@@ -163,36 +155,38 @@ export function ApproveCopyApplicationTable({
                   `text-foreground` rather than the reference's teal underline: the teal is
                   rationed for the one strong action on the screen, and thirty underlined
                   teal numbers down a column is not what ui-craft §4 spends it on. The
-                  underline arrives on hover and focus, where it is an affordance rather
-                  than decoration. */}
+                  underline now arrives on the *row's* hover, wherever the pointer sits,
+                  and on this control's own focus — see `rowOpenerClass`. */}
               <TableCell
-                className={cn(cellClass, "font-medium whitespace-nowrap")}
+                className={cn(TABLE_CELL, "font-medium whitespace-nowrap")}
               >
                 <button
                   type="button"
                   onClick={() => onOpen(application)}
-                  className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground tabular-nums underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+                  {...rowOpener}
+                className={rowOpenerClass}
                 >
                   <span className="sr-only">Review </span>
-                  {application.applicationNumber}
+                  {/* The number is the row's opener — the face without a second control. */}
+                  <Identifier value={application.applicationNumber} label="application number" copyable={false} />
                 </button>
               </TableCell>
               <TableCell
-                className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {application.caseNumber}
+                <Identifier value={application.caseNumber} label="case number" />
               </TableCell>
-              <TableCell className={cn(cellClass, "min-w-48 whitespace-normal")}>
+              <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-normal")}>
                 {application.applicant.name}
               </TableCell>
               <TableCell
-                className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
               >
                 {formatCopyApplicationDate(application.raisedOn)}
               </TableCell>
               {/* Plain text, not a chip. It is a sentence, not a state, and thirty tinted
                   cells down a column would be decoration (ui-craft §4). */}
-              <TableCell className={cn(cellClass, "min-w-64 whitespace-normal")}>
+              <TableCell className={cn(TABLE_CELL, "min-w-64 whitespace-normal")}>
                 {application.record.description}
               </TableCell>
             </TableRow>

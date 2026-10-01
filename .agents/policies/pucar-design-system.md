@@ -1,0 +1,71 @@
+# Pucar DS requirements
+
+This policy applies to UI planning, implementation, and review. Dristi composes screens
+in `apps/dristi-app`; UI rules and primitive source belong to the DS.
+
+## Resolve and verify before relying on the DS
+
+Use the repo resolver, `apps/dristi-app/scripts/resolve-ds.mjs`, rather than searching
+the disk. Normal source: `vendor/pucar-design-system`, created by `npm install`.
+`PUCAR_DS_ROOT` is an explicit local-testing override, never an automatic workaround.
+The resolver also accepts an authoritative legacy sibling; prefer the vendored checkout.
+The accepted origin/marker is `pucardotorg/dristi-design-system`.
+
+Run `npm run check:ds-fresh` before the first DS-dependent work in a task, and again if
+the pin, DS checkout, or override changes. A pass saying OFF PIN or verification skipped
+is not evidence of a pinned build. Do not commit UI based on an override or an unverifiable
+DS. Other gates compare against local DS files and cannot establish their version.
+
+If the DS is missing, use the existing setup procedure in an isolated checkout when
+authorized; otherwise report the blocker. Do not run installation in a checkout another
+tool is building in. Do not broaden disk searches, substitute another DS, or invent UI.
+Continue work that does not depend on the missing DS.
+
+## Read selectively, preserve the requirements
+
+After resolving the DS, use headings to select only applicable Non-negotiable rules
+and token-family meanings in its `AGENTS.md`. Its Precedence, Commands, Recipes, and
+Definition of done govern the DS repo; they are not Dristi app tasks, mandatory Figma
+reads, or completion gates. Read the entire file only when changing DS source or its
+pin. UX planning reads the conformance target, Core subset, and applicable checklist
+sections in DS `ACCESSIBILITY.md`. Every UI build and UI review reads the full
+`ACCESSIBILITY.md` once for the task, reusing it while the DS version remains unchanged.
+Do not shrink accessibility requirements to save reading time.
+
+Every UI build, even a small correction, goes through the pinned DS rules, full
+accessibility guidelines, DS Laws at
+`src/app/(docs)/foundations/laws/page.tsx`, and design principles at
+`src/app/(docs)/principles/page.tsx` inside the resolved DS. Read the real source of
+affected primitives, typography for text roles, and spacing for layout. Reuse unchanged
+guidance already read in the same task; do not skip the baseline because the diff is
+small. A reviewer applies the same baseline when judging the built screen.
+Read `RESPONSIVE.md` for new screens and layout changes. Load colors, elevation, radius,
+icons, or other foundations when making decisions they govern. Reuse unchanged files
+already read in this task; do not reload all foundations on each small iteration.
+
+- Sync missing or drifting primitives with `npm run sync:ui -- <component>`; use
+  `npm run sync:ui -- --tokens-only` only when token sync is needed. Inspect the diff.
+- Never edit synced primitives locally or copy their internals into a second kit.
+  Try supported variants/composition first. A genuine gap belongs in a DS request;
+  it blocks only the dependent part of the task.
+- Use semantic tokens and named DS text roles. Citizen copy defaults to `text-body`;
+  headings use the relevant `text-title-*` role with `font-semibold`. Follow the current
+  DS spacing ladder, control sizes, radius rules, and status foreground/fill pairs.
+- Tables compose from `apps/dristi-app/src/components/chrome/table-plate.ts`. Reuse its
+  header, cell, and row helpers rather than creating private copies. Rounded row fills
+  belong on cells; a `tr` background cannot provide rounded corners under separate borders.
+- Load `ui-craft` for UI work; its optional references are selected by subject. Confirm
+  changed UI on the render. DS legality alone does not prove usable behavior.
+- Report a conflict with an approved reference or current request and recommend the
+  smallest resolution. Do not silently change action scope or invent product behavior.
+
+## Upgrade separately
+
+`ds.lock.json` is changed only by `npm run ds:bump` in a dedicated upgrade branch from
+`origin/design`, reviewed by PR into `design`; never commit straight to `design` and
+never bump during unrelated feature work. Read the DS changelog for the adopted range,
+sync affected files, and verify the rendered impact. Existing script messages saying
+to commit on `design` do not override this branch policy.
+
+For completion use `.agents/policies/verification.md`; for a human-readable overview
+see `docs/design/design-system.md`.

@@ -3,7 +3,11 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 
-import { ChromeRailFolds } from "@/components/chrome/app-chrome";
+import {
+  ChromeRailFolds,
+  RAIL_WIDTH,
+  RAIL_WIDTH_ICON,
+} from "@/components/chrome/app-chrome";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/shell/app-sidebar";
@@ -13,6 +17,7 @@ import {
   type Crumb,
 } from "@/components/shell/chrome";
 import { AppSearchProvider } from "@/components/shell/app-search";
+import { AppToaster } from "@/components/shell/app-toaster";
 import { ProfileProvider } from "@/components/shell/profile";
 import { RailThemeProvider } from "@/components/shell/rail-theme";
 import { TopBar } from "@/components/shell/top-bar";
@@ -99,14 +104,31 @@ export function AppShell({
                 <SidebarProvider
                   open={navOpen}
                   onOpenChange={setNavOpen}
-                  style={{ "--sidebar-width-icon": "4rem" } as React.CSSProperties}
+                  style={
+                    { "--sidebar-width-icon": RAIL_WIDTH_ICON } as React.CSSProperties
+                  }
                 >
                   <AppSidebar />
                   {/* Not `SidebarInset`: that primitive is itself a `<main>`, and the screens
                   below already own that landmark. */}
-                  <div className="flex min-h-svh min-w-0 flex-1 flex-col bg-background">
+                  <div
+                    className="flex min-h-svh min-w-0 flex-1 flex-col bg-background"
+                    /* The column's left inset, for chrome that is fixed to the window and
+                       has to centre on the page instead — see `chromePageInset`. This shell
+                       has not migrated onto `ChromeShell` yet, so it publishes the same
+                       property itself rather than inheriting it. */
+                    style={
+                      {
+                        "--chrome-page-inset": navOpen ? RAIL_WIDTH : RAIL_WIDTH_ICON,
+                      } as React.CSSProperties
+                    }
+                  >
                     {topBar ?? <TopBar />}
                     <div className="flex min-h-0 flex-1">{children}</div>
+                    {/* One toaster per area, mounted with the column it centres on rather
+                        than by each layout — five layouts mounted one and the whole
+                        /filings tree silently had none. */}
+                    <AppToaster />
                   </div>
                 </SidebarProvider>
               </ChromeRailFolds>

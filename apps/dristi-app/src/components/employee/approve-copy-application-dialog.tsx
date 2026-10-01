@@ -26,16 +26,24 @@ import {
   type CopyApplicationDocument,
 } from "@/lib/employee/approve-copy-application";
 import { causeTitle } from "@/lib/employee/hearings";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One copy application, read and then allowed or refused — the single-application path
  * off the queue.
  *
  * The same overlay as `ReschedulingRequestDialog`, because it is the same job: an
- * application somebody filed, in front of a bench that has to say yes or no. Facts sit in
- * a compact sunken well; the document itself is the thing being reviewed, so it takes the
- * rest of the height as a `DocumentPreview` filling the grid's `1fr` row and the overlay's
- * full width — the bench reads and decides here, it does not annotate.
+ * application somebody filed, in front of a bench that has to say yes or no. The
+ * particulars sit in a compact sunken well, and the application itself is what is being
+ * reviewed — so from `xl` the two stand side by side, well on the left and a
+ * `DocumentPreview` filling the full height of the column on the right. The bench reads
+ * and decides here, it does not annotate.
+ *
+ * Stacked, the well ate the first fold and left the document a strip you had to open
+ * Full view to read. Side by side it keeps around 700px of width and the whole height of
+ * the overlay, which is a page of it on screen at once. The split waits for `xl` because
+ * the rail takes 17rem off the page column first: below that width two columns leave
+ * neither the particulars nor the document a usable measure, so they stack.
  *
  * Download does not sit in the footer. `DocumentPreview` owns a sticky header with
  * Download and Full view in it, and repeating Download below would be the same control
@@ -99,7 +107,7 @@ function ApplicationBody({
 
   return (
     <ChromeDialogContent
-      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh]"
+      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh] xl:max-w-6xl"
       onCloseAutoFocus={(event) => {
         event.preventDefault();
         onReturnFocus();
@@ -119,42 +127,60 @@ function ApplicationBody({
           <Badge variant="warning">Pending approval</Badge>
         </div>
         <DialogDescription className="text-body-compact text-muted-foreground">
-          <span className="tabular-nums">{application.applicationNumber}</span>
+          {/* No copy control inside the dialog's accessible description. */}
+          <Identifier
+            value={application.applicationNumber}
+            label="application number"
+            copyable={false}
+          />
           {" · "}
           {causeTitle(application)}
         </DialogDescription>
       </DialogHeader>
       <Separator />
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto] gap-6 overflow-y-auto p-6 md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto] gap-6 overflow-y-auto p-6 md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:grid-rows-1">
         {/* The particulars a bench checks before reading the application itself. The
             reference's three rows — type, submission date and filer — are thin for a
             copy application, where what is asked for and how much of it is the whole
-            question, so the case and the record sought join them. */}
-        <div className="rounded-lg bg-surface-sunken p-4">
-          <DescriptionList>
-            <ReviewRow term="Application type">Copy application</ReviewRow>
-            <ReviewRow term="Case number">
-              <span className="font-mono">{application.caseNumber}</span>
-            </ReviewRow>
-            <ReviewRow term="Copy sought">
-              {application.record.description}
-              {", dated "}
-              <span className="tabular-nums">
-                {formatCopyApplicationLongDate(application.record.dated)}
-              </span>
-            </ReviewRow>
-            <ReviewRow term="Copies required">
-              {copiesLine(application)}
-            </ReviewRow>
-            <ReviewRow term="Submission date">
-              <span className="tabular-nums">
-                {formatCopyApplicationLongDate(application.raisedOn)}
-              </span>
-            </ReviewRow>
-            <ReviewRow term="Application filer">
-              {copyApplicationFiler(application)}
-            </ReviewRow>
-          </DescriptionList>
+            question, so the case and the record sought join them.
+
+            The wrapper is the grid cell and the well is its content, so the well keeps
+            its own height instead of stretching into a tall empty panel. Six rows fit
+            the column at the heights a laptop actually has; on a short window, or once a
+            label triples in translation, the cell scrolls rather than cropping the last
+            fact away.
+
+            Both of those are `xl:` on purpose. Stacked, the rows are `auto` inside a
+            container of definite height, and `min-height: 0` is what lets a grid compress
+            such a row below its content — the well then ran straight under the document
+            below it. Off the split, the cell keeps its automatic minimum. */}
+        <div className="xl:min-h-0 xl:overflow-y-auto">
+          <div className="rounded-lg bg-surface-sunken p-4">
+            <DescriptionList>
+              <ReviewRow term="Application type">Copy application</ReviewRow>
+              <ReviewRow term="Case number">
+                <Identifier value={application.caseNumber} label="case number" />
+              </ReviewRow>
+              <ReviewRow term="Copy sought">
+                {application.record.description}
+                {", dated "}
+                <span className="tabular-nums">
+                  {formatCopyApplicationLongDate(application.record.dated)}
+                </span>
+              </ReviewRow>
+              <ReviewRow term="Copies required">
+                {copiesLine(application)}
+              </ReviewRow>
+              <ReviewRow term="Submission date">
+                <span className="tabular-nums">
+                  {formatCopyApplicationLongDate(application.raisedOn)}
+                </span>
+              </ReviewRow>
+              <ReviewRow term="Application filer">
+                {copyApplicationFiler(application)}
+              </ReviewRow>
+            </DescriptionList>
+          </div>
         </div>
         <DocumentPreview
           className="min-h-96 md:min-h-0"

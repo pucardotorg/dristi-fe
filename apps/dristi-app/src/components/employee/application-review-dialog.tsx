@@ -41,11 +41,15 @@ export type CourtApplicationDocument = {
 /**
  * The overlay a bench reviews one application in, and answers.
  *
- * Document-first, in one column: the particulars a bench checks first sit in a
- * compact sunken well, and the application itself takes the rest of the height as
- * a preview filling the grid's `1fr` row. Download is not repeated in the footer —
- * the preview owns a sticky header with Download and Full view in it — so the
- * footer carries only the two decisions the overlay exists to take.
+ * Document-first: the particulars a bench checks first sit in a compact sunken
+ * well, and the application itself is a preview taking the whole height beside
+ * them. Stacked, the well ate the first fold and left the document a strip you had
+ * to open Full view to read; from `xl` the two stand side by side, so a page of the
+ * application is on screen at once. The split waits for `xl` because the rail takes
+ * 17rem off the page column first — below that width neither column gets a usable
+ * measure, so they stack. Download is not repeated in the footer — the preview owns
+ * a sticky header with Download and Full view in it — so the footer carries only
+ * the two decisions the overlay exists to take.
  *
  * The shell is shared rather than copied per queue. Three queues asking the same
  * question of the same kind of paper should not drift into three overlays; what
@@ -89,7 +93,7 @@ export function ApplicationReviewOverlay({
 }) {
   return (
     <ChromeDialogContent
-      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh]"
+      className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl md:h-[85dvh] xl:max-w-6xl"
       onCloseAutoFocus={(event) => {
         event.preventDefault();
         onReturnFocus();
@@ -110,9 +114,21 @@ export function ApplicationReviewOverlay({
         </DialogDescription>
       </DialogHeader>
       <Separator />
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto] gap-6 overflow-y-auto p-6 md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden">
-        <div className="rounded-lg bg-surface-sunken p-4">
-          <DescriptionList>{facts}</DescriptionList>
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto] gap-6 overflow-y-auto p-6 md:grid-rows-[auto_minmax(0,1fr)] md:overflow-hidden xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:grid-rows-1">
+        {/* The wrapper is the grid cell and the well is its content, so the well keeps
+            its own height instead of stretching into a tall empty panel. A queue's facts
+            fit the column at the heights a laptop actually has; on a short window, or
+            once a label triples in translation, the cell scrolls rather than cropping the
+            last fact away.
+
+            Both of those are `xl:` on purpose. Stacked, the rows are `auto` inside a
+            container of definite height, and `min-height: 0` is what lets a grid compress
+            such a row below its content — the well then ran straight under the document
+            below it. Off the split, the cell keeps its automatic minimum. */}
+        <div className="xl:min-h-0 xl:overflow-y-auto">
+          <div className="rounded-lg bg-surface-sunken p-4">
+            <DescriptionList>{facts}</DescriptionList>
+          </div>
         </div>
         <DocumentPreview
           className="min-h-96 md:min-h-0"

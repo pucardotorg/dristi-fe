@@ -11,7 +11,7 @@
  *   npm run ds:bump -- <commit>  # move to a specific commit
  *   npm run ds:bump -- --dry-run # show what would change, touch nothing
  *
- * Run it on main, not on a feature branch. A pin that differs per branch is the
+ * Run it on `design`, not on a feature branch. A pin that differs per branch is the
  * problem this file exists to end.
  */
 import { execFileSync } from "node:child_process";
@@ -133,7 +133,7 @@ git("checkout", "--quiet", "--detach", to);
 /* 2. rewrite the pin */
 const next = {
   _comment:
-    "The one design-system version this repo builds against. Everyone gets this exact commit; npm install checks it out. Change it only via `npm run ds:bump`, on main, never by hand on a feature branch.",
+    "The one design-system version this repo builds against. Everyone gets this exact commit; npm install checks it out. Change it only via `npm run ds:bump`, on `design`, never by hand on a feature branch.",
   remote: lock?.remote ?? "pucardotorg/dristi-design-system",
   commit: to,
   bumpedOn: new Date().toISOString().slice(0, 10),
@@ -161,7 +161,7 @@ console.log(
     "Bumped. Now, in this order:",
     "  1. npm run check:ui-sync     confirm the app matches the new DS",
     "  2. look at the screens       the checks cannot judge a layout",
-    "  3. commit ds.lock.json with the synced files, on main",
+    "  3. commit ds.lock.json with the synced files, on design",
     "",
     "Then tell the others. They pick it up on their next pull — the pin means",
     "nobody is dragged onto it mid-feature.",

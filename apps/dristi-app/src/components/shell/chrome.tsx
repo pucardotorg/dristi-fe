@@ -5,7 +5,16 @@ import * as React from "react";
 /** Height of the top bar — sticky rails hang below it and read the same number. */
 export const TOP_BAR_HEIGHT = "3.5rem";
 
-export type Crumb = { label: string; href?: string };
+export type Crumb = {
+  label: string;
+  href?: string;
+  /**
+   * Set where the label *is* an identifier — a case number, a filing number — so the
+   * bar gives it the same monospaced face the screens do. It travels as a flag rather
+   * than as a node because crumbs reach the chrome through `JSON.stringify`.
+   */
+  mono?: boolean;
+};
 
 export type ChromeValue = {
   /** Breadcrumb after the area root, e.g. [task title, "Pay"]. */

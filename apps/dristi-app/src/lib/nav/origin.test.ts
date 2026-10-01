@@ -51,17 +51,24 @@ describe("withOrigin", () => {
 });
 
 describe("areaOf", () => {
-  it("reads the longer prefix first", () => {
-    assert.equal(areaOf("/join-case/abc").label, "Join a case");
-  });
-
-  it("names the areas the shell hosts", () => {
+  it("names the areas the shell hosts, in the rail's own words", () => {
     assert.equal(areaOf("/filings?tab=returned").label, "File a case");
-    assert.equal(areaOf("/cases/c-1").label, "Your Cases");
+    assert.equal(areaOf("/cases/c-1").label, "Cases");
+    assert.equal(areaOf("/tasks").label, "Pending tasks");
   });
 
-  it("falls back to Tasks, the shell's own home", () => {
-    assert.equal(areaOf("/somewhere-else").label, "Tasks");
+  it("knows the vakalatnama area, rather than filing it under tasks", () => {
+    assert.equal(areaOf("/vakalatnama/v-1").label, "Vakalatnama");
+    assert.equal(areaOf("/vakalatnama/v-1").href, "/vakalatnama");
+  });
+
+  it("gives every area root a way back", () => {
+    assert.equal(areaOf("/home").href, "/home");
+    assert.equal(areaOf("/advocate").href, "/advocate");
+  });
+
+  it("falls back to Pending tasks, the shell's own home", () => {
+    assert.equal(areaOf("/somewhere-else").label, "Pending tasks");
     assert.equal(areaOf("/tasks/t-1/fix").href, "/tasks");
   });
 });

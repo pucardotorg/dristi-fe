@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ChevronRightIcon } from "lucide-react";
 
 import { AlternateAddresses } from "@/components/cases/alternate-addresses";
 import { CaseAddPeople } from "@/components/cases/case-add-people";
@@ -37,6 +38,9 @@ import {
 } from "@/lib/cases/parties";
 import { isViewer } from "@/lib/cases/viewer";
 import { cn } from "@/lib/utils";
+import { PartyDetailSlot } from "@/components/cases/party-detail-slot";
+import { displayName } from "@/lib/cases/names";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Everyone on the case: one grouped list, and a pane for whoever is open.
@@ -142,6 +146,7 @@ export function CaseParticipants({
   viewerCanAct,
   pendingWitnesses,
   selectedId,
+  chosen = false,
 }: {
   file: ParticipantsFile;
   caseId: string;
@@ -157,6 +162,8 @@ export function CaseParticipants({
       seeds; the session's own sends join them through the live layer. */
   pendingWitnesses: string[];
   selectedId: string | undefined;
+  /** The URL named this participant (not the default first row). */
+  chosen?: boolean;
 }) {
   const litigant = file.litigants.find((row) => row.id === selectedId);
   const witness = file.witnesses.find((row) => row.id === selectedId);
@@ -170,14 +177,14 @@ export function CaseParticipants({
       <RestingCard className="min-w-0">
         <CardContent className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 flex-col gap-2">
-            <h2 id={HEADING_ID} className="text-title-s font-semibold">
+            <h2 id={HEADING_ID} className="text-body font-semibold">
               Parties
             </h2>
             {/* Both counts as plain muted text. The mockup put the litigant
                 count in a filled chip and the witness count in plain text —
                 one data type, two presentations, which is the inconsistency
                 ui-craft names outright. */}
-            <p className="text-body text-muted-foreground">
+            <p className="text-caption font-medium text-muted-foreground">
               <span className="tabular-nums">
                 {plural(file.counts.litigants, "litigant", "litigants")}
               </span>
@@ -230,13 +237,12 @@ export function CaseParticipants({
             caseId={caseId}
             pendingWitnesses={pendingWitnesses}
             selectedId={selectedId}
+            chosen={chosen}
           />
-          {/* self-stretch, not h-full: the grid is items-start, so an
-              auto-height track would leave the rule measuring itself. */}
-          <div className="flex self-stretch lg:justify-center">
-            <Separator className="lg:hidden" />
-            <Separator orientation="vertical" className="hidden lg:block" />
-          </div>
+          <PartyDetailSlot
+            title={litigant?.name ?? witness?.name ?? "Participant"}
+            chosen={chosen}
+          >
           {litigant ? (
             <LitigantDetail
               file={file}
@@ -251,6 +257,7 @@ export function CaseParticipants({
           ) : (
             <SectionNote>Select a participant to see their details.</SectionNote>
           )}
+          </PartyDetailSlot>
         </CardContent>
       </RestingCard>
       </PartiesLiveProvider>
@@ -281,7 +288,9 @@ function Eyebrow({ id, children }: { id?: string; children: ReactNode }) {
 }
 
 function SectionNote({ children }: { children: ReactNode }) {
-  return <p className="text-body text-muted-foreground">{children}</p>;
+  return (
+    <p className="text-body-compact text-muted-foreground">{children}</p>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -296,17 +305,19 @@ function MasterList({
   caseId,
   pendingWitnesses,
   selectedId,
+  chosen,
 }: {
   file: ParticipantsFile;
   caseId: string;
   pendingWitnesses: string[];
   selectedId: string | undefined;
+  chosen: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <nav aria-labelledby={LITIGANTS_GROUP_ID} className="flex min-w-0 flex-col gap-2">
         <Eyebrow id={LITIGANTS_GROUP_ID}>All parties</Eyebrow>
-        <ul className="flex min-w-0 flex-col gap-1">
+        <ul className="flex min-w-0 flex-col gap-1 max-lg:gap-2">
           {file.litigants.map((row) => (
             <li key={row.id}>
               <MasterRow
@@ -318,6 +329,7 @@ function MasterList({
                   </SidePill>
                 }
                 selected={row.id === selectedId}
+                quietDefault={!chosen}
               />
             </li>
           ))}
@@ -332,7 +344,7 @@ function MasterList({
             empty note (it alone knows whether the session just sent one).
             The group keeps its heading either way: an empty witness list
             is a fact about this case. */}
-        <ul className="flex min-w-0 flex-col gap-1">
+        <ul className="flex min-w-0 flex-col gap-1 max-lg:gap-2">
           {file.witnesses.map((row) => (
             <li key={row.id}>
               <MasterRow
@@ -343,11 +355,18 @@ function MasterList({
                    colouring the number itself needs no second label, and
                    the side is never colour alone. */
                 badge={
-                  <SidePill side={row.side} mono>
-                    {row.number}
+                  <SidePill side={row.side}>
+                    {/* The whole row is a link, and the pill carries no name of its
+                        own, so the number takes the face without a control. */}
+                    <Identifier
+                      value={row.number}
+                      label="witness number"
+                      copyable={false}
+                    />
                   </SidePill>
                 }
                 selected={row.id === selectedId}
+                quietDefault={!chosen}
               />
             </li>
           ))}
@@ -404,19 +423,14 @@ const SIDE_PILL: Record<
 
 function SidePill({
   side,
-  mono = false,
   children,
 }: {
   side: WitnessSideId;
-  mono?: boolean;
   children: ReactNode;
 }) {
   const { variant, stroke } = SIDE_PILL[side];
   return (
-    <Badge
-      variant={variant}
-      className={cn(stroke, mono && "font-mono tabular-nums")}
-    >
+    <Badge variant={variant} className={stroke}>
       {children}
     </Badge>
   );
@@ -439,11 +453,16 @@ function MasterRow({
   name,
   badge,
   selected,
+  quietDefault = false,
 }: {
   href: string;
   name: string;
   badge: ReactNode;
   selected: boolean;
+  /** This row is only the default first pick. Beside the list that is worth
+   *  marking, since its details show; under `lg` nothing shows until a row is
+   *  tapped, so a marked row would claim something is open. */
+  quietDefault?: boolean;
 }) {
   return (
     <Link
@@ -456,16 +475,28 @@ function MasterRow({
       aria-current={selected ? "page" : undefined}
       className={cn(
         "flex min-h-12 min-w-0 items-center gap-3 rounded-md px-3 py-2 transition-colors",
+        /* Under `lg` a row opens a drawer, and nothing on a bare name said so
+           (owner, Sept 21: "it took me five minutes"). There each row is an
+           outlined card with a chevron, the look of something that opens. */
+        "max-lg:rounded-lg max-lg:border max-lg:border-hairline max-lg:bg-card max-lg:py-3 max-lg:active:bg-accent",
         "focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-1 focus-visible:outline-ring",
-        selected ? "bg-accent-strong" : "hover:bg-accent"
+        selected
+          ? quietDefault
+            ? "lg:bg-accent-strong"
+            : "bg-accent-strong"
+          : "hover:bg-accent"
       )}
     >
       <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
-        <span className="block max-w-full text-body font-semibold text-foreground">
+        <span className="block max-w-full text-body-compact font-semibold text-foreground">
           {name}
         </span>
         {badge}
       </span>
+      <ChevronRightIcon
+        aria-hidden
+        className="size-4 shrink-0 text-muted-foreground lg:hidden"
+      />
     </Link>
   );
 }
@@ -490,11 +521,11 @@ function DetailHeader({
       <div className="min-w-0">
         <h3
           id={DETAIL_HEADING_ID}
-          className="text-title-s font-semibold text-foreground"
+          className="text-body font-semibold text-foreground"
         >
           {name}
         </h3>
-        <p className="mt-1 text-body text-muted-foreground">{subline}</p>
+        <p className="mt-1 text-body-compact text-muted-foreground">{subline}</p>
       </div>
       {badge}
     </div>
@@ -587,21 +618,19 @@ function FactWell({
   primary,
   primarySuffix,
   secondary,
-  secondaryMono = false,
   href,
 }: {
   primary: string;
   /** A muted qualifier after the name — "(you)" on the viewer's own row,
       the same mark the access lists use. */
   primarySuffix?: string;
-  secondary?: string;
-  secondaryMono?: boolean;
+  secondary?: ReactNode;
   href?: string;
 }) {
   const lines = (
     <>
-      <span className="block text-body font-medium text-foreground">
-        {primary}
+      <span className="block text-body-compact font-medium text-foreground">
+        {displayName(primary)}
         {primarySuffix ? (
           <span className="font-normal text-muted-foreground">
             {" "}
@@ -610,12 +639,7 @@ function FactWell({
         ) : null}
       </span>
       {secondary ? (
-        <span
-          className={cn(
-            "block text-body text-muted-foreground",
-            secondaryMono && "font-mono tabular-nums"
-          )}
-        >
+        <span className="block text-caption font-medium text-muted-foreground">
           {secondary}
         </span>
       ) : null}
@@ -787,8 +811,10 @@ function LitigantDetail({
         <FactWell
           key={witness.id}
           primary={witness.name}
-          secondary={witness.number}
-          secondaryMono
+          secondary={
+            /* The well is a link — the face without a nested control. */
+            <Identifier value={witness.number} label="witness number" copyable={false} />
+          }
           href={participantHref(caseId, witness.id)}
         />
       )),
@@ -898,11 +924,8 @@ function WitnessDetail({
             : `Called by ${PARTY_INLINE_LABEL[witness.side]}`)
         }
         badge={
-          <Badge
-            variant="secondary"
-            className="shrink-0 font-mono tabular-nums"
-          >
-            {witness.number}
+          <Badge variant="secondary" className="shrink-0">
+            <Identifier value={witness.number} label="witness number" copyable={false} />
           </Badge>
         }
       />
@@ -951,10 +974,10 @@ function WitnessFact({ term, value }: { term: string; value?: string }) {
       {/* Body, not caption: typography names Body Medium as the role for field
           labels, and caption is 12px — chrome weight for a label the reader is
           here to read. The same term treatment the service pane uses. */}
-      <DescriptionTerm className="text-body text-muted-foreground">
+      <DescriptionTerm>
         {term}
       </DescriptionTerm>
-      <DescriptionDetails className="min-w-0 text-body font-medium text-foreground">
+      <DescriptionDetails className="min-w-0 font-medium">
         {value ?? <span className="text-muted-foreground">None</span>}
       </DescriptionDetails>
     </DescriptionRow>

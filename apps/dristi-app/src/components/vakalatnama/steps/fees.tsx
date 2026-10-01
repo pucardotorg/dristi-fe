@@ -17,6 +17,7 @@ import { updateVak } from "@/lib/vakalatnama/store";
 import { reconcileSigners } from "@/lib/vakalatnama/signers";
 import { feesTotal, rupee } from "@/lib/vakalatnama/format";
 import type { Vakalatnama } from "@/lib/vakalatnama/types";
+import { Identifier } from "@/components/chrome/identifier";
 
 function boundNumber(vak: Vakalatnama): string | undefined {
   if (vak.scope.type !== "specific" || vak.scope.caseState !== "not_filed") return undefined;
@@ -60,7 +61,9 @@ export function FeesStep({ vak }: { vak: Vakalatnama }) {
             {vak.boundCaseNumber ? (
               <>
                 {" "}
-                and carries case number <span className="font-mono">{vak.boundCaseNumber}</span>
+                and carries case number{" "}
+                {/* Inside a `role="alert"` sentence — the face, not a control. */}
+                <Identifier value={vak.boundCaseNumber} label="case number" copyable={false} />
               </>
             ) : null}
             . Sandbox — no real payment or signature service was used.

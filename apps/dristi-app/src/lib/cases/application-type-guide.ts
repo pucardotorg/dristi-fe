@@ -30,15 +30,20 @@ import type { LucideIcon } from "lucide-react";
 import {
   CalendarDaysIcon,
   FileSearchIcon,
+  FileX2Icon,
+  FolderOpenIcon,
   HourglassIcon,
   LandmarkIcon,
   LockOpenIcon,
   PenLineIcon,
+  SendIcon,
   Undo2Icon,
+  UserXIcon,
   UsersIcon,
 } from "lucide-react";
 
 import { APPLICATION_TYPES, type ApplicationTypeId } from "./applications";
+import type { ActiveStage } from "./types";
 
 export type ApplicationTypeGuide = {
   id: ApplicationTypeId;
@@ -56,6 +61,25 @@ export type ApplicationTypeGuide = {
 };
 
 export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
+  {
+    id: "absent-application",
+    label: "Absent application",
+    description:
+      "Ask to be excused from attending a hearing, with the reason you cannot appear.",
+    icon: UserXIcon,
+    keywords: [
+      "absent",
+      "absence",
+      "exemption",
+      "exempt",
+      "excused",
+      "cannot attend",
+      "unable to attend",
+      "not present",
+      "personal appearance",
+      "leave of absence",
+    ],
+  },
   {
     id: "advancement-reschedule",
     label: "Advancement/reschedule",
@@ -144,6 +168,23 @@ export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
     ],
   },
   {
+    id: "reopen-evidence",
+    label: "Reopen evidence",
+    description:
+      "Ask the court to reopen evidence already closed, with your grounds.",
+    icon: FolderOpenIcon,
+    keywords: [
+      "reopen",
+      "re-open",
+      "reopen evidence",
+      "recall witness",
+      "further evidence",
+      "additional evidence",
+      "closed evidence",
+      "lead evidence",
+    ],
+  },
+  {
     id: "settlement",
     label: "Settlement",
     // The offence is compoundable at any stage, so the parties may settle and
@@ -183,6 +224,38 @@ export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
     ],
   },
   {
+    id: "warrant-by-hand",
+    label: "Warrant by hand",
+    description:
+      "Take a warrant by hand to serve it yourself, instead of the usual court process.",
+    icon: SendIcon,
+    keywords: [
+      "warrant by hand",
+      "dasti",
+      "dasti warrant",
+      "serve warrant",
+      "execute warrant",
+      "hand warrant",
+      "personal service",
+      "process by hand",
+    ],
+  },
+  {
+    id: "warrant-recall",
+    label: "Warrant recall",
+    description:
+      "Ask the court to cancel a warrant it has already issued, with your grounds.",
+    icon: FileX2Icon,
+    keywords: [
+      "warrant recall",
+      "recall warrant",
+      "cancel warrant",
+      "withdraw warrant",
+      "quash warrant",
+      "set aside warrant",
+    ],
+  },
+  {
     id: "withdrawal",
     label: "Withdrawal",
     description:
@@ -203,7 +276,7 @@ export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
     // Never "the types above": this same line is read on the second step, where
     // there is no grid, and aloud from the card's aria-label.
     description:
-      "A request the other types do not cover — say what you need in your own words.",
+      "A request the other types do not cover. Say what you need in your own words.",
     icon: PenLineIcon,
     keywords: ["other", "others", "something else", "not listed", "general"],
   },
@@ -222,6 +295,41 @@ export function applicationTypeGuide(
   const label =
     APPLICATION_TYPES.find((type) => type.id === id)?.label ?? id;
   return { id, label, description: "", icon: PenLineIcon, keywords: [] };
+}
+
+/**
+ * What a filer most often asks for at each stage. WORKING GUESS (Sept 21, open
+ * for the PM): read off the national journey, not off a rule the court
+ * publishes. Bail and the warrant asks follow the accused being called;
+ * reopening evidence only means something once evidence has closed.
+ *
+ * Three at most, so the suggestions hold one row on a desktop and stay a
+ * suggestion rather than a second catalogue.
+ *
+ * It orders the chooser and nothing else. Every type stays fileable at every
+ * stage, because the court can hear any of them at any time and a guess here
+ * must never be able to take an application away from someone.
+ */
+const SUGGESTED_BY_STAGE: Record<ActiveStage, ApplicationTypeId[]> = {
+  scrutiny: ["condonation-of-delay", "withdrawal"],
+  cognizance: ["condonation-of-delay", "advancement-reschedule", "withdrawal"],
+  summons: ["warrant-by-hand", "advancement-reschedule", "settlement"],
+  appearance: ["bail", "absent-application", "warrant-recall"],
+  evidence: [
+    "absent-application",
+    "production-of-documents",
+    "advancement-reschedule",
+  ],
+  arguments: ["reopen-evidence", "advancement-reschedule", "absent-application"],
+  judgment: ["reopen-evidence", "settlement"],
+};
+
+/** Empty for a disposed case: nothing about a closed case predicts the ask. */
+export function suggestedApplicationTypes(
+  stage: ActiveStage,
+  disposed: boolean
+): ApplicationTypeId[] {
+  return disposed ? [] : SUGGESTED_BY_STAGE[stage];
 }
 
 /**

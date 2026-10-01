@@ -8,7 +8,10 @@ import {
   defaultSortFor,
   draftClock,
   draftRows,
+  NO_DEADLINE,
   pageWindow,
+  pendingPaymentRows,
+  pendingSignatureRows,
   registeredRows,
   scrutinyRows,
   sortOptionFor,
@@ -16,6 +19,7 @@ import {
   TAB_SORTS,
   type QueueRow,
 } from "./queue";
+import { signatories } from "./selectors";
 import type { FilingDraft } from "./types";
 
 const TODAY = "2026-08-31";
@@ -32,42 +36,47 @@ function draftAt(daysAgo: number, today = TODAY): FilingDraft {
   return draft;
 }
 
-describe("draftClock — the limitation cue", () => {
-  it("says nothing when no cause of action is known", () => {
+const DATE = /^\d{2}\/\d{2}\/\d{4}$/;
+
+describe("draftClock — the File by column", () => {
+  it("says NA, and why, when no cause of action is known", () => {
     const clock = draftClock(createBlankDraft("d1"));
+    assert.equal(clock.lead, NO_DEADLINE);
     assert.equal(clock.tone, "default");
     assert.equal(clock.dueOn, "");
-    assert.match(clock.lead, /% complete$/);
-    assert.doesNotMatch(clock.lead, /File by/);
+    assert.match(clock.sub ?? "", /notice dates/i);
   });
 
-  it("counts down to the due date while in time", () => {
+  it("leads with the date and counts down under it while in time", () => {
     const clock = draftClock(draftAt(10));
-    assert.match(clock.lead, /^File by /);
-    assert.match(clock.sub, /^20 days left/);
+    assert.match(clock.lead, DATE);
+    assert.match(clock.sub ?? "", /^20 days left$/);
     assert.equal(clock.tone, "default");
   });
 
-  it("warns inside the last week without changing the words", () => {
-    const clock = draftClock(draftAt(25));
-    assert.match(clock.sub, /^5 days left/);
+  it("stays in plain ink until the last two days", () => {
+    assert.equal(draftClock(draftAt(25)).tone, "default");
+    assert.equal(draftClock(draftAt(27)).tone, "default");
+    const clock = draftClock(draftAt(28));
+    assert.match(clock.sub ?? "", /^2 days left$/);
     assert.equal(clock.tone, "warning");
   });
 
   it("singularises the last day", () => {
-    assert.match(draftClock(draftAt(29)).sub, /^1 day left/);
+    assert.match(draftClock(draftAt(29)).sub ?? "", /^1 day left$/);
   });
 
-  it("on the final day it is still in time, not late", () => {
+  it("on the final day it is due today — still in time, not late", () => {
     const clock = draftClock(draftAt(30));
-    assert.match(clock.lead, /^File by /);
+    assert.match(clock.lead, DATE);
+    assert.equal(clock.sub, "Due today");
     assert.equal(clock.tone, "warning");
   });
 
-  it("past the window it names condonation — never 'overdue' or 'barred'", () => {
+  it("past the window it keeps the date and names condonation — never 'overdue' or 'barred'", () => {
     const clock = draftClock(draftAt(45));
-    assert.match(clock.lead, /^Window closed /);
-    assert.match(clock.sub, /condonation application/);
+    assert.match(clock.lead, DATE);
+    assert.equal(clock.sub, "Delay condonation applicable");
     assert.equal(clock.tone, "danger");
     const words = `${clock.lead} ${clock.sub}`.toLowerCase();
     for (const banned of ["overdue", "barred", "time-barred", "expired"]) {
@@ -81,7 +90,15 @@ describe("draftClock — the limitation cue", () => {
     // Served 1 Aug → the drawer's 15 days end 16 Aug → due 15 Sep.
     draft.notices[0].delivered = "yes";
     draft.notices[0].deliveryDate = "2026-08-01";
-    assert.match(draftClock(draft).lead, /^File by 15\/09\/2026$/);
+    assert.equal(draftClock(draft).lead, "15/09/2026");
+  });
+
+  it("carries completion separately, as a number and a save date", () => {
+    const [row] = draftRows([draftAt(5)]);
+    assert.ok(row.progress, "a draft row carries progress");
+    assert.ok(row.progress.percent >= 0 && row.progress.percent <= 100);
+    assert.match(row.progress.savedOn, DATE);
+    assert.doesNotMatch(row.info.lead, /% complete/);
   });
 });
 
@@ -108,7 +125,7 @@ describe("each tab has its own order, and the default is the useful one", () => 
       (r) => r.urgencyAt === "9999-12-31" && r.info.lead !== "Awaiting listing"
     );
     assert.ok(past.length > 0, "fixtures should hold at least one past listing");
-    for (const row of past) assert.equal(row.info.sub, "Last listed — no new date yet");
+    for (const row of past) assert.equal(row.info.sub, "Last listed. No new date yet");
   });
 
   it("drafts lead with the tightest deadline", () => {
@@ -155,6 +172,71 @@ describe("each tab has its own order, and the default is the useful one", () => 
     assert.equal(sortOptionFor("registered", null).value, defaultSortFor("registered"));
     // A sort that belongs to another tab is not silently accepted either.
     assert.equal(sortOptionFor("drafts", "hearing").value, defaultSortFor("drafts"));
+  });
+});
+
+describe("pendingSignatureRows and pendingPaymentRows — where a draft goes once drafting is done", () => {
+  function sentForSignature(id: string): FilingDraft {
+    const draft = createBlankDraft(id);
+    draft.sign.requestedAt = "2026-08-20T10:00:00.000Z";
+    return draft;
+  }
+
+  it("a draft still drafting appears on neither tab", () => {
+    const draft = createBlankDraft("d1");
+    assert.equal(draftRows([draft]).length, 1);
+    assert.equal(pendingSignatureRows([draft], null).length, 0);
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
+  });
+
+  it("sending it for signature moves it off Drafts and onto Pending signature", () => {
+    const draft = sentForSignature("d1");
+    assert.equal(draftRows([draft]).length, 0);
+    const [row] = pendingSignatureRows([draft], null);
+    assert.ok(row, "expected a pending-signature row");
+    assert.ok((row.count ?? 0) > 0, "nobody has signed yet");
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
+  });
+
+  it("choosing the paper path counts as sent, even though it sets no requestedAt of its own", () => {
+    const draft = createBlankDraft("d1");
+    draft.sign.mode = "upload";
+    assert.equal(draftRows([draft]).length, 0);
+    assert.equal(pendingSignatureRows([draft], null).length, 1);
+  });
+
+  it("names who it is waiting on, from the filer's own point of view", () => {
+    const draft = sentForSignature("d1");
+    const everyone = [...signatories(draft, null).complainants, ...signatories(draft, null).advocates];
+    const you = everyone.find((s) => s.you);
+    assert.ok(you, "a blank draft always resolves a 'you'");
+
+    const [before] = pendingSignatureRows([draft], null);
+    assert.equal(before.youPending, true);
+    assert.match(before.info.sub ?? "", /waiting on you/i);
+
+    // Sign for "you" — whoever is left, if anyone, is someone else's signature to give.
+    draft.sign.signed[you!.id] = { at: "2026-08-20T10:05:00.000Z", with: "aadhaar" };
+    const after = pendingSignatureRows([draft], null)[0];
+    if (after) {
+      assert.equal(after.youPending, false);
+      assert.doesNotMatch(after.info.sub ?? "", /waiting on you\b/i);
+    }
+  });
+
+  it("moves to Pending payment once everyone has signed, and drops off it once paid", () => {
+    const draft = sentForSignature("d1");
+    const everyone = [...signatories(draft, null).complainants, ...signatories(draft, null).advocates];
+    for (const s of everyone) {
+      draft.sign.signed[s.id] = { at: "2026-08-20T10:05:00.000Z", with: "aadhaar" };
+    }
+    assert.equal(pendingSignatureRows([draft], null).length, 0);
+    const [row] = pendingPaymentRows([draft], null);
+    assert.ok(row, "expected a pending-payment row");
+    assert.ok((row.amount ?? 0) > 0);
+
+    draft.sign.paid = true;
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
   });
 });
 

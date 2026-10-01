@@ -21,6 +21,7 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { RepresentationWell } from "@/components/cases/representation-well";
 import type { CaseRef } from "@/components/cases/party-application";
+import { displayName } from "@/lib/cases/names";
 
 type AddedAdvocates = { names: string[]; partyIds: string[] };
 
@@ -92,7 +93,7 @@ export function WitnessListExtras({
   if (registeredCount === 0 && pending.length === 0) {
     return (
       <li>
-        <p className="text-body text-muted-foreground">
+        <p className="text-body-compact text-muted-foreground">
           No witness has been listed yet.
         </p>
       </li>
@@ -107,8 +108,8 @@ export function WitnessListExtras({
             <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
               {/* The master row's own grammar, in muted ink: this person is
                   not on the register yet, and the row does not open. */}
-              <span className="block max-w-full text-body font-semibold text-muted-foreground">
-                {name}
+              <span className="block max-w-full text-body-compact font-semibold text-muted-foreground">
+                {displayName(name)}
               </span>
               <Badge variant="warning">Awaiting order</Badge>
             </span>
@@ -143,7 +144,7 @@ export function LivePoaPendingSection({ partyId }: { partyId: string }) {
             key={holder}
             className="flex min-h-12 min-w-0 flex-col justify-center gap-1 rounded-md bg-surface-sunken px-3 py-2"
           >
-            <span className="block truncate text-body font-medium text-muted-foreground">
+            <span className="block truncate text-body-compact font-medium text-muted-foreground">
               {holder}
             </span>
             <span className="block truncate text-caption text-muted-foreground">

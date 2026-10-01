@@ -16,15 +16,15 @@ An exploration is working material, not the product:
 - it goes stale the moment the real screen moves, and a stale prototype in a repo is worse
   than no prototype, because someone will read it as intent.
 
-## Where the intent actually lives
+## Record decisions for the owner
 
-The **decisions** an exploration settles belong in the feature's brief under
-[`../proposals/`](../proposals/), which *is* tracked — with the reasoning, the measurements,
-and what was rejected. If a finding from an exploration matters, write it into the brief; do
-not point a reader at a file they will not have.
+Accepted decisions, reasons, and significant rejected alternatives belong in the owner's
+[feature history](../features/README.md). Agents use the current task agreement for
+implementation, not past explorations or proposals. Retrieve an old exploration only
+when explicitly requested; do not turn it into an implicit specification.
 
-If a colour or token change survives exploration, it is **upstream DS feedback** — raise it
-against `pucardotorg/dristi-design-system`, per `.claude/rules/pucar-design-system.md`.
+A surviving token change is an upstream DS request under the
+[DS policy](../../../.agents/policies/pucar-design-system.md), never a local override.
 
 ## Working here
 

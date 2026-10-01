@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  TABLE_CELL,
+  TABLE_HEAD,
+  TABLE_HEAD_ROW,
+  tableBodyClass,
+  tableRowClass,
+} from "@/components/chrome/table-plate";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -11,26 +19,22 @@ import {
 } from "@/components/ui/table";
 import { causeTitle } from "@/lib/employee/hearings";
 import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
+import {
   courtProcessTypeInline,
   courtProcessTypeLabel,
   formatProcessDate,
+  outcomeLabel,
+  outcomeVariant,
   processChannelLabel,
   type CourtProcess,
   type ProcessStage,
 } from "@/lib/employee/sign-process";
 import { cn } from "@/lib/utils";
-
-/* The same table treatment as the four single-act signing queues — header separated by
- * fill rather than a second stroke, rows by hairline, the panel edge as the only
- * full-strength border on the screen (ui-craft §1.1). Restated rather than exported for
- * the reason `SignOrdersTable` restates it: when the advocate shell moves onto the shared
- * `components/chrome` frame, this treatment is what belongs there, and the court-side
- * tables should collapse onto it together rather than one of them becoming the other's
- * parent. */
-const headClass =
-  "h-10 bg-surface-sunken px-4 py-3 text-caption font-semibold text-muted-foreground";
-const cellClass =
-  "border-b border-hairline px-4 py-3 align-middle text-left text-body-compact";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** Seven columns on every stage — the checkbox and the reference's six. */
 const COLUMNS = 7;
@@ -81,6 +85,8 @@ export function SignProcessTable({
   onToggleAll: (select: boolean) => void;
   onOpen: (process: CourtProcess) => void;
 }) {
+  /* What came back is the fact a Completed row exists to show (`DSP-08`). */
+  const showsOutcome = stage.id === "completed";
   const selectedOnPage = rows.filter((row) => selectedIds.has(row.id)).length;
   const allSelected = rows.length > 0 && selectedOnPage === rows.length;
   const someSelected = selectedOnPage > 0 && !allSelected;
@@ -88,12 +94,8 @@ export function SignProcessTable({
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
-        {/* The panel insets this table by p-6, so the header strip is a well, not a
-            full-bleed band — it rounds itself (ui-craft §4). `border-separate` means each
-            cell paints its own fill, so the radius goes on the end cells rather than the
-            row. */}
-        <TableRow className="hover:bg-transparent [&>th:first-child]:rounded-l-lg [&>th:last-child]:rounded-r-lg">
-          <TableHead className={cn(headClass, "w-12")}>
+        <TableRow className={TABLE_HEAD_ROW}>
+          <TableHead className={cn(TABLE_HEAD, "w-12")}>
             <Checkbox
               checked={
                 allSelected ? true : someSelected ? "indeterminate" : false
@@ -110,38 +112,36 @@ export function SignProcessTable({
               }
             />
           </TableHead>
-          <TableHead className={cn(headClass, "min-w-56 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-56 whitespace-normal")}>
             Case name
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Case number
           </TableHead>
-          <TableHead className={cn(headClass, "min-w-40 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-40 whitespace-normal")}>
             Process type
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             {stage.dateColumn}
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Delivery channel
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Hearing date
           </TableHead>
+          {showsOutcome ? (
+            <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>Outcome</TableHead>
+          ) : null}
         </TableRow>
       </TableHeader>
-      {/* `border-separate` stays even without a sticky column — the header well needs
-          each cell to paint its own fill for the end cells to round (above). It puts the
-          row stroke on the cell, so the DS TableBody rule that clears the last row targets
-          the wrong element. Reach the cells directly, or the final row doubles its line
-          against the panel edge. */}
-      <TableBody className="[&_tr:last-child_td]:border-b-0">
+      <TableBody className={tableBodyClass({ selectable: true })}>
         {/* The header is a well, not a band welded to the rows — it needs the panel's
             fill under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held
             out of the accessibility tree. */}
         <tr aria-hidden="true">
-          <td colSpan={COLUMNS} className="h-2 p-0" />
+          <td colSpan={COLUMNS + (showsOutcome ? 1 : 0)} className="h-2 p-0" />
         </tr>
         {rows.map((process) => {
           const selected = selectedIds.has(process.id);
@@ -152,14 +152,9 @@ export function SignProcessTable({
             <TableRow
               key={process.id}
               data-state={selected ? "selected" : undefined}
-              className="cursor-pointer bg-card"
-              onClick={(event) => {
-                const target = event.target as HTMLElement;
-                if (target.closest("button, a, [role=checkbox], label")) return;
-                onOpen(process);
-              }}
+              {...rowActivation(tableRowClass({ selectable: true }))}
             >
-              <TableCell className={cn(cellClass, "w-12")}>
+              <TableCell className={cn(TABLE_CELL, "w-12")}>
                 <Checkbox
                   checked={selected}
                   onCheckedChange={() => onToggle(process)}
@@ -169,46 +164,58 @@ export function SignProcessTable({
               {/* The row's opener. Quiet `text-foreground` rather than a teal underline:
                   the teal is rationed for the one strong action on the screen, and a
                   column of underlined teal names is the colour ui-craft §4 spends it on
-                  instead. The underline arrives on hover and focus, where it is an
-                  affordance rather than decoration. */}
+                  instead. The underline now arrives on the *row's* hover, wherever the
+                  pointer sits, and on this control's own focus — see `rowOpenerClass`. */}
               <TableCell
-                className={cn(cellClass, "min-w-56 font-medium whitespace-normal")}
+                className={cn(TABLE_CELL, "min-w-56 font-medium whitespace-normal")}
               >
                 <button
                   type="button"
                   onClick={() => onOpen(process)}
-                  className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+                  {...rowOpener}
+                className={rowOpenerClass}
                 >
                   <span className="sr-only">Read the {inline} in </span>
                   {causeTitle(process)}
                 </button>
               </TableCell>
               <TableCell
-                className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "whitespace-nowrap")}
               >
-                {process.caseNumber}
+                <Identifier value={process.caseNumber} label="case number" />
               </TableCell>
               {/* Which instrument this is — the fact that tells three rows of one case
                   apart. Plain text: the opener already carries the row's weight. */}
-              <TableCell className={cn(cellClass, "min-w-40 whitespace-normal")}>
+              <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>
                 {type}
               </TableCell>
               <TableCell
-                className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
               >
                 {/* A stage always stamps its own day, so this is never empty in practice.
                     An em dash rather than a blank cell is what a row that somehow reached
                     a stage without its date should say. */}
                 {day ? formatProcessDate(day) : "—"}
               </TableCell>
-              <TableCell className={cn(cellClass, "whitespace-nowrap")}>
+              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
                 {processChannelLabel(process.channel)}
               </TableCell>
               <TableCell
-                className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
               >
                 {formatProcessDate(process.hearingDate)}
               </TableCell>
+              {showsOutcome ? (
+                <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                  {process.outcome ? (
+                    <Badge variant={outcomeVariant(process.outcome.status)}>
+                      {outcomeLabel(process.type, process.outcome.status)}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+              ) : null}
             </TableRow>
           );
         })}

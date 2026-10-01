@@ -5,8 +5,6 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckCircle2Icon,
-  CheckIcon,
-  CopyIcon,
   DownloadIcon,
   Maximize2Icon,
   PenLineIcon,
@@ -14,7 +12,21 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import {
+  ChromeAlertDialogContent,
+  ChromeDialogContent,
+} from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -51,6 +63,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  EMPTY_RICH_TEXT,
+  RichTextField,
+  RichTextValueView,
+  type RichTextValue,
+} from "@/components/cases/rich-text-field";
+import {
   DocumentPreviewDialog,
   DocumentThumbnailButton,
   useObjectUrl,
@@ -69,6 +87,7 @@ import {
 } from "@/lib/filing/content";
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Raise an application → bail. Staged dialog, same shell as the join flows:
@@ -246,7 +265,8 @@ function ApplicationDraft({
   onExpand,
 }: {
   accessCase: AccessCase;
-  grounds: string;
+  /** Rich text, so the generated draft keeps the filer's emphasis and lists. */
+  grounds: RichTextValue;
   locale: Locale;
   expanded?: boolean;
   onExpand?: () => void;
@@ -291,7 +311,10 @@ function ApplicationDraft({
         <p className="text-center text-body-compact text-pretty">
           {fillCopy(bailDialog.draftMatterLine, locale, { title: accessCase.title })}
         </p>
-        <p className="text-body-compact text-pretty text-muted-foreground">{grounds}</p>
+        <RichTextValueView
+          value={grounds}
+          className="text-body-compact text-pretty text-muted-foreground"
+        />
       </article>
     </div>
   );
@@ -313,13 +336,15 @@ export function BailApplicationDialog({
 }) {
   const [stage, setStage] = React.useState<Stage>("details");
 
-  const [appType, setAppType] = React.useState("");
   const [petitionerId, setPetitionerId] = React.useState("");
   const [father, setFather] = React.useState("");
   // The father's name arrives machine-prefilled from the case record when a
   // petitioner is picked; editing clears the prefilled (amber) state.
   const [fatherPrefilled, setFatherPrefilled] = React.useState(false);
-  const [grounds, setGrounds] = React.useState("");
+  // Formatted, like the reason fields of every other application type; the
+  // plain text alongside it is what "is it filled in" is asked of.
+  const [groundsRich, setGroundsRich] = React.useState<RichTextValue>(EMPTY_RICH_TEXT);
+  const grounds = groundsRich.text;
   const [comments, setComments] = React.useState("");
   const [detailsTouched, setDetailsTouched] = React.useState(false);
 
@@ -343,30 +368,25 @@ export function BailApplicationDialog({
   const [downloadNotice, setDownloadNotice] = React.useState(false);
 
   const [paid, setPaid] = React.useState(false);
-  const [copied, setCopied] = React.useState(false);
-  const copyTimerRef = React.useRef<number | null>(null);
   const [doneDownloadNotice, setDoneDownloadNotice] = React.useState(false);
 
   const petitioner = BAIL_PETITIONERS.find((entry) => entry.id === petitionerId);
   const signed = esigned || signedFile !== null;
-  const bailChosen = appType === "bail";
   const activeSureties = suretyChoice === "yes" ? sureties : [];
 
   React.useEffect(
     () => () => {
       if (generateTimerRef.current !== null) window.clearTimeout(generateTimerRef.current);
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
     },
     [],
   );
 
   function reset() {
     setStage("details");
-    setAppType("");
     setPetitionerId("");
     setFather("");
     setFatherPrefilled(false);
-    setGrounds("");
+    setGroundsRich(EMPTY_RICH_TEXT);
     setComments("");
     setDetailsTouched(false);
     setSuretyChoice("yes");
@@ -382,14 +402,52 @@ export function BailApplicationDialog({
     setSignTouched(false);
     setDownloadNotice(false);
     setPaid(false);
-    setCopied(false);
     setDoneDownloadNotice(false);
   }
 
-  function handleOpenChange(next: boolean) {
-    if (!next) reset();
-    onOpenChange(next);
+  /*
+    Closing midway asks first, as every other filing dialog does, and on the
+    same terms: only when something has been entered, and never once the
+    application is filed, since by then there is nothing left to lose.
+  */
+  const [discardOpen, setDiscardOpen] = React.useState(false);
+  const entered =
+    stage !== "done" &&
+    (stage !== "details" ||
+      petitionerId !== "" ||
+      grounds.trim() !== "" ||
+      comments.trim() !== "" ||
+      (father.trim() !== "" && !fatherPrefilled));
+
+  function closeNow() {
+    setDiscardOpen(false);
+    reset();
+    onOpenChange(false);
   }
+
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      onOpenChange(true);
+      return;
+    }
+    if (entered) setDiscardOpen(true);
+    else closeNow();
+  }
+
+  /* On a phone this is a window that slid in, and the phone's own Back works
+     the way the footer does: Cancel on the first step (so the discard warning
+     still guards typed work), the previous step after that. A filed
+     application has nothing to go back to, so Back closes it. */
+  const { phone } = useFlowWindow();
+  useBackCloses(phone && open, () => {
+    if (discardOpen) setDiscardOpen(false);
+    else if (reviewFullscreen) setReviewFullscreen(false);
+    else if (stage === "sureties") setStage("details");
+    else if (stage === "review") setStage("sureties");
+    else if (stage === "sign") setStage("review");
+    else if (stage === "payment") setStage("sign");
+    else handleOpenChange(false);
+  });
 
   function choosePetitioner(id: string) {
     setPetitionerId(id);
@@ -405,7 +463,6 @@ export function BailApplicationDialog({
   function submitDetails(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setDetailsTouched(true);
-    if (!bailChosen) return;
     if (!petitionerId || !father.trim() || !grounds.trim()) return;
     setDetailsTouched(false);
     setStage("sureties");
@@ -450,13 +507,6 @@ export function BailApplicationDialog({
     });
   }
 
-  function copySubmissionId() {
-    void navigator.clipboard?.writeText(BAIL_SUBMISSION_ID);
-    setCopied(true);
-    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = window.setTimeout(() => setCopied(false), 2000);
-  }
-
   const headerCopy: { title: string; body: string } =
     stage === "details"
       ? { title: pick(bailDialog.title, locale), body: pick(bailDialog.detailsBody, locale) }
@@ -476,8 +526,10 @@ export function BailApplicationDialog({
   }, [stage]);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
+        ownBack
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         onInteractOutside={(event) => event.preventDefault()}
@@ -506,7 +558,9 @@ export function BailApplicationDialog({
             <DialogDescription className="text-pretty">{headerCopy.body}</DialogDescription>
             {/* The case this filing belongs to is constant across stages. */}
             <p className="text-caption text-muted-foreground">
-              {accessCase.caseNumber} · {accessCase.title}
+              <Identifier value={accessCase.caseNumber} label="case number" />
+              <span aria-hidden> · </span>
+              {accessCase.title}
             </p>
           </DialogHeader>
         )}
@@ -515,25 +569,6 @@ export function BailApplicationDialog({
           {/* -------------------------------------------- application details */}
           {stage === "details" ? (
             <form id="bail-details" noValidate className="flex flex-col gap-6" onSubmit={submitDetails}>
-              <Field>
-                <FieldLabel>{pick(bailDialog.typeLabel, locale)}</FieldLabel>
-                <Select value={appType} onValueChange={(value) => setAppType(value)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={pick(bailDialog.typePlaceholder, locale)} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {APPLICATION_TYPES.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {pick(option.label, locale)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              {appType && !bailChosen ? (
-                <Banner variant="info">{pick(bailDialog.typeOnlyBailNote, locale)}</Banner>
-              ) : bailChosen ? (
                 <>
                   <Field data-invalid={detailsTouched && !petitionerId}>
                     <FieldLabel>{pick(bailDialog.petitionerLabel, locale)}</FieldLabel>
@@ -578,15 +613,17 @@ export function BailApplicationDialog({
                   </Field>
 
                   <Field data-invalid={detailsTouched && !grounds.trim()}>
-                    <FieldLabel htmlFor="bail-grounds">
+                    {/* A contentEditable region is not labelable, so the
+                        label is tied to it by id. */}
+                    <FieldLabel id="bail-grounds-label">
                       {pick(bailDialog.groundsLabel, locale)}
                     </FieldLabel>
-                    <Textarea
-                      id="bail-grounds"
-                      value={grounds}
-                      rows={5}
-                      onChange={(event) => {
-                        setGrounds(event.target.value);
+                    <RichTextField
+                      labelId="bail-grounds-label"
+                      value={groundsRich}
+                      compact
+                      onChange={(value) => {
+                        setGroundsRich(value);
                         setDetailsTouched(false);
                       }}
                     />
@@ -613,7 +650,6 @@ export function BailApplicationDialog({
                     />
                   </Field>
                 </>
-              ) : null}
             </form>
           ) : null}
 
@@ -964,13 +1000,13 @@ export function BailApplicationDialog({
 
                 <ApplicationDraft
                   accessCase={accessCase}
-                  grounds={grounds}
+                  grounds={groundsRich}
                   locale={locale}
                   onExpand={() => setReviewFullscreen(true)}
                 />
 
                 <Dialog open={reviewFullscreen} onOpenChange={setReviewFullscreen}>
-                  <ChromeDialogContent
+                  <ChromeDialogContent mobileSheet
                     lang={locale}
                     className="inset-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0 sm:max-w-none"
                     onInteractOutside={(event) => event.preventDefault()}
@@ -985,7 +1021,7 @@ export function BailApplicationDialog({
                     </DialogHeader>
                     <ApplicationDraft
                       accessCase={accessCase}
-                      grounds={grounds}
+                      grounds={groundsRich}
                       locale={locale}
                       expanded
                     />
@@ -1116,25 +1152,13 @@ export function BailApplicationDialog({
                     {BAIL_SUBMISSION_DATE}
                   </DescriptionDetails>
                 </DescriptionRow>
-                {/* items-center so the label and the ID share the copy
-                    button's vertical midline instead of hanging above it. */}
+                {/* items-center so the label and the ID share one midline. The ID
+                    is its own copy control now, so the icon button beside it went
+                    with the conversion. */}
                 <DescriptionRow className="items-center border-hairline">
                   <DescriptionTerm>{pick(bailDialog.submissionIdLabel, locale)}</DescriptionTerm>
                   <DescriptionDetails className="flex items-center gap-2">
-                    <span className="font-mono">{BAIL_SUBMISSION_ID}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={pick(copied ? bailDialog.copiedId : bailDialog.copyId, locale)}
-                      onClick={copySubmissionId}
-                    >
-                      {copied ? (
-                        <CheckIcon className="text-success-ink" aria-hidden />
-                      ) : (
-                        <CopyIcon aria-hidden />
-                      )}
-                    </Button>
+                    <Identifier value={BAIL_SUBMISSION_ID} label="submission id" />
                   </DescriptionDetails>
                 </DescriptionRow>
                 <DescriptionRow className="border-hairline">
@@ -1169,11 +1193,11 @@ export function BailApplicationDialog({
         </div>
 
         {/* ------------------------------------------------------------ footer */}
-        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           {stage === "details" ? (
             <>
               <span aria-hidden className="hidden sm:block" />
-              <Button type="submit" form="bail-details" disabled={!bailChosen} data-icon="inline-end">
+              <Button type="submit" form="bail-details" data-icon="inline-end">
                 {pick(joinDialog.continue, locale)}
                 <ArrowRightIcon aria-hidden />
               </Button>
@@ -1305,7 +1329,25 @@ export function BailApplicationDialog({
             </>
           ) : null}
         </footer>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
+
+    <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+      <ChromeAlertDialogContent lang={locale}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{pick(bailDialog.discardTitle, locale)}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {pick(bailDialog.discardBody, locale)}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{pick(bailDialog.discardKeep, locale)}</AlertDialogCancel>
+          <AlertDialogAction variant="destructive-solid" onClick={closeNow}>
+            {pick(bailDialog.discardConfirm, locale)}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </ChromeAlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

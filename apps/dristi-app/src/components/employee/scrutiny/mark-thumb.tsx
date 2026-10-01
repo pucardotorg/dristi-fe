@@ -4,6 +4,7 @@ import { FileTextIcon } from "lucide-react";
 
 import { evidencePreviewStyle } from "@/lib/employee/scrutiny/field";
 import type { Evidence } from "@/lib/employee/scrutiny/types";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 
 /**
  * The crop of a marked region — one tile, one geometry, wherever a mark is shown.
@@ -18,7 +19,8 @@ import type { Evidence } from "@/lib/employee/scrutiny/types";
  * a pale scan from bleeding into the well behind it.
  */
 export function MarkThumb({ evidence }: { evidence: Evidence }) {
-  const previewStyle = evidencePreviewStyle(evidence);
+  const { docById } = useScrutinyCase();
+  const previewStyle = evidencePreviewStyle(evidence, docById);
 
   if (previewStyle) {
     return (

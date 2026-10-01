@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { DocumentPreview } from "@/components/cases/document-preview";
 import { ReviewRow } from "@/components/cases/filing-form-shared";
@@ -23,6 +23,7 @@ import {
 import { type ApplicationDraft } from "@/lib/cases/application-draft";
 import { submissionTypeLabel } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * What Generate application produces — the court-form document, shown before
@@ -60,7 +61,8 @@ export function GeneratedApplicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent
+      <FlowDialogContent
+        ownBack
         className="grid-rows-[auto_auto_1fr_auto] max-h-[85dvh] sm:max-w-3xl"
         // Radix's own restore lands on document.body here, so put focus back
         // on the button that opened the dialog explicitly.
@@ -85,7 +87,9 @@ export function GeneratedApplicationDialog({
             <ReviewRow term="Application type">
               {submissionTypeLabel(draft.type)}
             </ReviewRow>
-            <ReviewRow term="Case">{record.caseNumber}</ReviewRow>
+            <ReviewRow term="Case">
+              <Identifier value={record.caseNumber} label="case number" />
+            </ReviewRow>
             <ReviewRow term="Generated on">{generatedOn}</ReviewRow>
             <ReviewRow term="Filed for">{document.filedFor}</ReviewRow>
           </DescriptionList>
@@ -118,7 +122,7 @@ export function GeneratedApplicationDialog({
             Add signature
           </Button>
         </DialogFooter>
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }

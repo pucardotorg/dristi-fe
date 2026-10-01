@@ -1,0 +1,23 @@
+name: Agent rails
+
+on:
+  pull_request:
+  push:
+    branches: [design, main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  agent-rails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The rails scripts use Node built-ins: no install, DS clone, or app server.
+      - run: npm run verify:agents

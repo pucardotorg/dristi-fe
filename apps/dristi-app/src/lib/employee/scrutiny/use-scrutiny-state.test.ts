@@ -1,15 +1,25 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { Draft, Flag, FlagMap, Rect } from "./types";
+import { DOC_ROW } from "./bundle";
+import { FIELD_BY_ID } from "./sections";
+import type { Draft, Flag, FlagMap, Rect, ScrutinyLookups } from "./types";
 import {
-  applyLinkDoc,
+  applyLinkDoc as applyLinkDocRaw,
   applyRemoveFlag,
-  applySaveFlag,
-  shouldAskReupload,
+  applySaveFlag as applySaveFlagRaw,
+  shouldAskReupload as shouldAskReuploadRaw,
   survivingPartner,
   type ScrutinyState,
 } from "./use-scrutiny-state";
+
+/** The authored case's own maps — the fixture these transitions were written against. */
+const LOOK: ScrutinyLookups = { fieldById: FIELD_BY_ID, docRow: DOC_ROW };
+const applySaveFlag = (s: ScrutinyState) => applySaveFlagRaw(s, LOOK);
+const shouldAskReupload = (s: ScrutinyState, docId: string) =>
+  shouldAskReuploadRaw(s, docId, LOOK);
+const applyLinkDoc = (s: ScrutinyState, docId: string) =>
+  applyLinkDocRaw(s, docId, LOOK);
 
 const RECT: Rect = [10, 20, 30, 40];
 

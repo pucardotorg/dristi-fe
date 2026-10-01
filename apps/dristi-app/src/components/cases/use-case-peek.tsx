@@ -7,6 +7,10 @@ import { type CaseRecord } from "@/lib/cases/types";
 /** Landmark id for the in-table peek — triggers point `aria-controls` here. */
 export const CASE_PEEK_ID = "case-peek";
 
+/** How long the panel takes to slide out; the record is held this long past close so the
+ *  exit can play. Must match the panel's transition duration in `case-peek.tsx`. */
+const PEEK_EXIT_MS = 300;
+
 type CasePeekContextValue = {
   record: CaseRecord | null;
   now: number;
@@ -14,6 +18,13 @@ type CasePeekContextValue = {
    *  register — carried through so "Open case file" doesn't reintroduce a
    *  badge the register already established. */
   hideLongPendingFlag: boolean;
+  /** Docked mode: the panel connects to the viewport edges and pushes the column that
+   *  hosts it (the cases landing). Left off, the panel floats over its host inset from
+   *  the edges — the shape the advocate home and the folder/search screens still use. */
+  docked: boolean;
+  /** True while the panel is sliding out — the record is still set (so the panel stays
+   *  mounted) but everything that made room for it steps back. Drives the exit. */
+  closing: boolean;
   open: (record: CaseRecord, options?: { hideLongPendingFlag?: boolean }) => void;
   close: () => void;
 };
@@ -22,36 +33,58 @@ const CasePeekContext = React.createContext<CasePeekContextValue | null>(null);
 
 export function CasePeekProvider({
   now,
+  docked = false,
   children,
 }: {
   now: number;
+  docked?: boolean;
   children: React.ReactNode;
 }) {
   const [record, setRecord] = React.useState<CaseRecord | null>(null);
   const [hideLongPendingFlag, setHideLongPendingFlag] = React.useState(false);
+  // `closing` is set the moment a close is asked for; the record is cleared one exit
+  // later. Both happen in the close handler — an event, not an effect — so the panel
+  // exit and the chrome easing back start on the same tick and stay in step.
+  const [closing, setClosing] = React.useState(false);
+  const exitTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   const open = React.useCallback(
     (next: CaseRecord, options?: { hideLongPendingFlag?: boolean }) => {
+      clearTimeout(exitTimer.current);
+      setClosing(false);
       setRecord(next);
       setHideLongPendingFlag(options?.hideLongPendingFlag ?? false);
     },
     []
   );
-  const close = React.useCallback(() => setRecord(null), []);
+  const close = React.useCallback(() => {
+    setClosing((already) => {
+      if (already) return already;
+      clearTimeout(exitTimer.current);
+      exitTimer.current = setTimeout(() => {
+        setRecord(null);
+        setClosing(false);
+      }, PEEK_EXIT_MS);
+      return true;
+    });
+  }, []);
+
+  React.useEffect(() => () => clearTimeout(exitTimer.current), []);
 
   React.useEffect(() => {
     if (!record) return;
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      setRecord(null);
+      close();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [record]);
+  }, [record, close]);
 
   const value = React.useMemo(
-    () => ({ record, now, hideLongPendingFlag, open, close }),
-    [record, now, hideLongPendingFlag, open, close]
+    () => ({ record, now, hideLongPendingFlag, docked, closing, open, close }),
+    [record, now, hideLongPendingFlag, docked, closing, open, close]
   );
 
   return (

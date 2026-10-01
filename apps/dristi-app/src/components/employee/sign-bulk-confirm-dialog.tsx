@@ -1,23 +1,25 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon } from "lucide-react";
+import { CircleCheckIcon } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
+import {
+  StagedOverlay,
+  useStagedFlow,
+} from "@/components/chrome/staged-overlay";
+import { PANEL_CLASS } from "@/components/shell/panel";
 
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   DescriptionDetails,
   DescriptionList,
   DescriptionRow,
   DescriptionTerm,
 } from "@/components/ui/description-list";
-import {
-  Dialog,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogDescription } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 /**
  * What the court is acting on in bulk.
@@ -102,6 +104,28 @@ export type SignBulkSelection = {
   kinds?: string[];
 };
 
+/** Where the act is: about to happen, and having happened. */
+type Stage = "confirm" | "success";
+
+/** Both stages, in the order the act moves through them. */
+const ORDER = ["confirm", "success"] as const;
+
+/**
+ * **Two stages, one scene** — and the second fact is the whole of this rewrite.
+ *
+ * A scene is what the reader is looking at, and asking the bench to commit and telling
+ * it what the commitment did are the *same* thing looked at twice: the same count, the
+ * same breakdown, the same cases, in the same card, in the same place on the screen.
+ * Only the strip across the top of that card changes — the sentence warning what the act
+ * will do becomes the sentence reporting what it did, on the product's success fill.
+ *
+ * Stages that share a scene do not remount, and mounting is what plays an entrance, so
+ * the settled stage never slides. That is the registrations overlay's rule, settled by
+ * the owner on 2026-09-11 (approving *"takes two screens that feel like one act"*) and
+ * carried here with it.
+ */
+const SCENE: Record<Stage, string> = { confirm: "act", success: "act" };
+
 /**
  * Confirming a bulk act — the one dialog every court-side signing queue uses.
  *
@@ -112,19 +136,32 @@ export type SignBulkSelection = {
  * different things. This is that moment, once — and since the process line added three
  * acts on one screen, the verb is a parameter (`SignBulkAct`) while the shape is not.
  *
- * Two steps, and the second is the point of the rewrite. Pressing Sign commits and
- * *stays* — the dialog swaps to a success state instead of vanishing and leaving the
+ * Two stages, and the second is the point of the dialog. Pressing Sign commits and
+ * *stays* — the overlay settles into its outcome instead of vanishing and leaving the
  * bench to infer from a shorter list that anything happened. A single Done dismisses it.
  *
- * A `Dialog` rather than an `AlertDialog`: the flow no longer ends on the decision, and
- * an alert has neither a third state nor a close affordance. This gives every queue the
- * X the reference draws, on the step that asks the question.
+ * **And it now settles rather than swaps.** Until this pass the header, the body and the
+ * footer all lived inside the step conditional, so one press replaced every pixel of the
+ * window in a single frame with no movement at all — the abruptness the owner ruled out
+ * for every court-side modal (2026-09-16: *"everything should happen in one modal with
+ * all those motion+interaction"*). Three things were doing it, and the shared frame
+ * (`StagedOverlay`) fixes all three: the chrome holds still on both stages, the window
+ * keeps its height, and the outcome resolves in the card it was signed in.
  *
- * The chrome is the advocate product's own overlay recipe — bordered header, scrolling
- * body, bordered footer — and the confirmation it ends on is `AddSignatureDialog`'s: a
- * solid success panel carrying the heading, the tick beneath it, and the facts in a
- * well under that. Signing off a queue and signing a submission are the same beat of
- * the same product; they should not end on two different kinds of object.
+ * **What that cost, and why the confirmation is still the product's confirmation.** The
+ * old ending was a detached solid success panel carrying its own heading and a 40px tick
+ * chip, with the facts in a sunken well beneath — the shape the advocate side ends a
+ * submission on (`cases/add-signature-dialog.tsx`), adopted on 2026-09-15 because a bulk
+ * act and a submission must not end on two different kinds of object. That ruling stands
+ * and the object holds: solid success fill, a tick, and the facts directly under it.
+ * What changed is that the fill is the top band of the card those facts were already in
+ * rather than a panel that replaces the window, the tick is the mark a band can carry
+ * rather than a chip as tall as the band itself, and the heading is the header's —
+ * because the header is still there, and two headings stating one outcome is one too
+ * many. `bulk-reschedule-screen.tsx` made the same trade first; this is its sibling.
+ *
+ * A `Dialog` rather than an `AlertDialog`: the flow no longer ends on the decision, and
+ * an alert has neither a second stage nor a close affordance.
  *
  * The bulk path asks for no signature method. Choosing between e-sign and an upload is a
  * question about *one* document the bench has read; the queues' single-document paths
@@ -155,12 +192,12 @@ export function SignBulkConfirmDialog({
   /**
    * Commit the demo act — the screen's own `sign` / `onSign` handler.
    *
-   * It must **not** close the dialog: the success step is what the bench sees next, and
+   * It must **not** close the dialog: the settled stage is what the bench sees next, and
    * closing here would take it away before it rendered.
    */
   onConfirm: () => void;
   /**
-   * Take the papers away, offered on the success step only.
+   * Take the papers away, offered on the settled stage only.
    *
    * Optional, and the four single-act queues pass nothing — their footer is the single
    * Done it has always been. The process line passes it because that is the one screen
@@ -191,9 +228,11 @@ export function SignBulkConfirmDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Closed renders nothing, so the body unmounts and its step and captured facts go
-          with it. Re-opening therefore starts at the confirmation with the current
-          selection rather than inheriting the last run's. */}
+      {/* Closed renders nothing, so the body unmounts and its stage and captured facts go
+          with it. Re-opening therefore starts at the question with the current selection
+          rather than inheriting the last run's. Radix still hands `onCloseAutoFocus` out
+          of its own focus-scope cleanup on the way, so the keyboard is not dropped by
+          this. */}
       {open ? (
         <SignBulkConfirmBody
           noun={noun}
@@ -232,150 +271,70 @@ function SignBulkConfirmBody({
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   onReturnFocus: () => void;
 }) {
-  const [step, setStep] = React.useState<"confirm" | "success">("confirm");
-  const titleRef = React.useRef<HTMLHeadingElement>(null);
+  /* The stage, the direction it travelled and where focus lands, from the shared frame.
+     There is no direction to travel here — both stages share one scene — so what this
+     contributes is the settling: no remount, no slide, and focus moved to the header
+     line that has just rewritten itself. */
+  const flow = useStagedFlow({ order: ORDER, scene: SCENE });
+  const done = flow.stage === "success";
 
-  /* What the success step reports, taken before the act consumes it. Signing clears the
-     selection and drops the rows, so by the time that step renders the live figures are
+  /* What the settled stage reports, taken before the act consumes it. Signing clears the
+     selection and drops the rows, so by the time that stage renders the live figures are
      zero — they have to be the ones that were committed, not the ones left behind. It is
-     also why the body is worth keeping after the act: these rows have just left the queue
-     that listed them, and this is the last place they can be read. */
+     also why the card is worth keeping after the act: these rows have just left the queue
+     that listed them, and this is the last place they can be read.
+
+     Captured on the first render rather than at the press, because the same figures are
+     what the question is asked over: the card states them once and cannot disagree with
+     itself across the act. */
   const [signed] = React.useState(() => ({
     count,
     cases: new Set(selection.cases).size,
     kinds: selection.kinds ? tally(selection.kinds) : [],
   }));
 
-  /* Swapping the step replaces the dialog's content wholesale; landing focus on the new
-     title is what announces the change. Initial open keeps Radix's own focus handling —
-     this only runs on a step change. */
-  React.useEffect(() => {
-    if (step === "success") titleRef.current?.focus();
-  }, [step]);
-
   const one = signed.count === 1;
   const many = `${signed.count} ${pluralise(noun)}`;
-  /* Two ways of naming the same rows: the question asks about "this order", the success
+  /* Two ways of naming the same rows: the question asks about "this order", the settled
      heading reports "Order signed". Both are built from the captured count, never the
      live one. */
   const subject = one ? `this ${noun}` : many;
   const phrase = one ? noun : many;
 
   return (
-    <ChromeDialogContent
-      className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
-      /* The DS places a small ghost X top-right, which lands on the success panel's dark
-         fill and disappears into it — the reason the advocate confirmation drew its own.
-         Here the footer's Done is the way out, so the step goes without one. */
-      showCloseButton={step === "confirm"}
+    <StagedOverlay
+      className="sm:max-w-lg"
+      /* The one line that rewrites itself, and therefore the line that carries the
+         outcome: the question before the act, what the act did after it. The header
+         stays up across both stages — dropping it so a success panel could carry its own
+         heading was precisely the moment this overlay stopped looking like the overlay. */
+      title={done ? act.done(phrase) : act.question(subject)}
+      titleRef={flow.titleRef}
+      /* No line under the title. What describes this window at both moments is the card
+         below — the sentence in its band and the figures under it — and the dialog is
+         pointed at that sentence directly (the band's `DialogDescription`) rather than at
+         a second one written for the header to have something to say. */
+      sceneKey={flow.sceneKey}
+      motion={flow.motion}
+      /* The window has no definite height and the card grows a line when the act's
+         warning wraps, so without a floor the panel would shrink and re-centre itself
+         under the bench at the exact moment this design is claiming that nothing moves.
+         The floor takes that difference inside the canvas instead. */
+      floor
       onCloseAutoFocus={(event) => {
         /* Backing out returns the bench to the button it left; signing sends it to the
            search field, because signing is what disabled that button — and on the queues
            whose bar goes away with the last signable row, took it off the page. */
         event.preventDefault();
         const trigger = triggerRef.current;
-        if (step === "confirm" && trigger?.isConnected && !trigger.disabled) {
+        if (!done && trigger?.isConnected && !trigger.disabled) {
           trigger.focus();
           return;
         }
         onReturnFocus();
       }}
-    >
-      {step === "confirm" ? (
-        /* A header and a footer, and nothing between them. The question names the count
-           — the one fact the bench cannot get anywhere else at this moment, having
-           opened none of these documents — and the line under it names the risk. What
-           was ticked is the list it just came from; restating it here is a second
-           reading of the same page at the moment it has to decide.
-
-           `pr-14` keeps the title clear of the close button the DS places top-right —
-           the advocate overlays' own figure for the same bordered header. */
-        <DialogHeader className="min-h-0 shrink overflow-y-auto border-b border-hairline px-6 py-5 pr-14 text-left">
-          <DialogTitle className="text-title-s font-semibold text-balance tabular-nums">
-            {act.question(subject)}
-          </DialogTitle>
-          <DialogDescription className="text-body text-pretty">
-            {act.meaning(one)}
-          </DialogDescription>
-        </DialogHeader>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <div className="flex flex-col gap-4">
-            {/* The advocate product's confirmation, brought across whole: a solid success
-                panel carrying the heading, with the tick under it. */}
-            <div className="flex flex-col items-center gap-4 rounded-lg bg-success p-6 text-center">
-              <div className="flex flex-col gap-1.5">
-                {/* The verb the question asked, answered. */}
-                <DialogTitle
-                  ref={titleRef}
-                  tabIndex={-1}
-                  className="text-title-s font-semibold text-balance tabular-nums text-success-foreground outline-none"
-                >
-                  {act.done(phrase)}
-                </DialogTitle>
-                {/* Focus lands on the heading, which announces the title and its role and
-                    nothing else; `aria-describedby` sits on the dialog and does not re-fire
-                    when the description's contents are swapped underneath it. A live region
-                    is what gets the outcome spoken at all. */}
-                <DialogDescription
-                  role="status"
-                  className="text-body-compact text-pretty text-success-foreground"
-                >
-                  {act.outcome(one)}
-                </DialogDescription>
-              </div>
-              <span className="flex size-10 items-center justify-center rounded-full bg-success-foreground">
-                <CheckIcon className="size-6 text-success" aria-hidden />
-              </span>
-            </div>
-
-            {/* What left the queue, in the well the advocate confirmation puts its facts
-                in. Worth saying here and not on the question: these rows have just gone
-                from the list that held them, and this is the last place they can be read.
-                Facts the screen already holds; no identifier is minted for an act that
-                files nothing. */}
-            <DescriptionList className="rounded-lg bg-surface-sunken px-4 py-1">
-              {signed.kinds.map((kind) => (
-                <DescriptionRow
-                  key={kind.label}
-                  className="grid-cols-[1fr_auto] items-center border-hairline"
-                >
-                  <DescriptionTerm className="text-body">
-                    {kind.label}
-                  </DescriptionTerm>
-                  <DescriptionDetails className="text-body tabular-nums">
-                    {kind.count}
-                  </DescriptionDetails>
-                </DescriptionRow>
-              ))}
-              <DescriptionRow className="grid-cols-[1fr_auto] items-center border-hairline">
-                <DescriptionTerm className="text-body">Cases</DescriptionTerm>
-                <DescriptionDetails className="text-body tabular-nums">
-                  {signed.cases === 1 ? "1 case" : `${signed.cases} cases`}
-                </DescriptionDetails>
-              </DescriptionRow>
-            </DescriptionList>
-          </div>
-        </div>
-      )}
-
-      <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:justify-end">
-        {step === "confirm" ? (
-          <>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Back
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                onConfirm();
-                setStep("success");
-              }}
-            >
-              {act.confirm}
-            </Button>
-          </>
-        ) : (
+      footer={
+        done ? (
           <>
             {/* The rows have just left the queue that listed them, and the bar that could
                 have downloaded them went with the selection. One bordered action beside
@@ -396,9 +355,146 @@ function SignBulkConfirmBody({
               Done
             </Button>
           </>
+        ) : (
+          <>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Back
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                onConfirm();
+                /* The act does not travel: `go` leaves the direction alone when the
+                   stage stays in the scene it is already in, so the card settles where
+                   it stands instead of sliding in as though something had replaced it. */
+                flow.go("success");
+              }}
+            >
+              {act.confirm}
+            </Button>
+          </>
+        )
+      }
+    >
+      {/* Centred in the canvas while there is room for it, and pushed back to the top by
+          its own content when there is not — `my-auto` gives way to overflow, which a
+          `justify-center` on the scroller would not. */}
+      <div className="my-auto flex w-full flex-col">
+        <ActCard act={act} one={one} signed={signed} done={done} />
+      </div>
+    </StagedOverlay>
+  );
+}
+
+/** The captured selection, counted once. */
+type Signed = {
+  count: number;
+  cases: number;
+  kinds: { label: string; count: number }[];
+};
+
+/**
+ * What the act is about to do, and — **in the same card, in the same place** — what it
+ * did.
+ *
+ * One object across both stages. The figures under the band are identical before the act
+ * and after it, because they are the same captured figures: the bench is looking at the
+ * rows it ticked, and then at the rows it committed, which are the same rows. So nothing
+ * is replaced, nothing collapses, and the only thing that changes is the band across the
+ * top — the sentence saying what the act will do gives way to the sentence saying where
+ * the rows went, on the product's success fill with the tick beside it.
+ *
+ * **The band is the product's success treatment at the size a band can carry it.** Solid
+ * `bg-success` with its own ink and a tick, the facts directly beneath: the composition
+ * the advocate submission and every signing queue end on (2026-09-15). What it is not
+ * any more is a detached panel that replaces the window and carries its own heading —
+ * the heading is the dialog's, because the frame stays up.
+ *
+ * Before the act the band is white over a rule rather than a tint: the tint it would
+ * otherwise carry is the stage's own tone, which is how the top of a card ends up
+ * dissolving into the canvas behind it.
+ *
+ * **The figures are the two the bench cannot get anywhere else at this moment**, having
+ * opened none of these documents and covered the list it ticked them in. What kinds are
+ * in the run, and how many *cases* they touch — a queue counts documents, and eight
+ * documents can be six files.
+ */
+function ActCard({
+  act,
+  one,
+  signed,
+  done,
+}: {
+  act: SignBulkAct;
+  /** Whether the run is a single document, which is what the copy branches on. */
+  one: boolean;
+  signed: Signed;
+  /** The act has run: the same card, stamped. */
+  done: boolean;
+}) {
+  return (
+    /* Flush: the band and the rows draw their own rules edge to edge, so the card's own
+       padding is off and `overflow-hidden` is what keeps the band inside the radius. */
+    <Card size="sm" className={cn(PANEL_CLASS, "gap-0 overflow-hidden py-0")}>
+      <div
+        /* Keyed on the act so the band mounts when it changes and plays its entrance;
+           the rows below it are not keyed and do not move. */
+        key={done ? "done" : "asking"}
+        className={cn(
+          "flex items-center gap-2 px-4 py-3",
+          done
+            ? /* The transparent rule is load-bearing: the unstamped band carries a
+                 hairline, and a solid band without one is 1px shorter — which is 1px of
+                 the card moving at the exact moment this design is claiming that nothing
+                 does. */
+              cn(
+                "border-b border-transparent bg-success text-success-foreground",
+                RESOLVE_IN_PLACE,
+              )
+            : "border-b border-hairline",
         )}
-      </footer>
-    </ChromeDialogContent>
+      >
+        {done ? (
+          <CircleCheckIcon aria-hidden className="size-5 shrink-0" />
+        ) : null}
+        {/* The dialog's description, in the card rather than in the header, because this
+            is the sentence that describes the window at both moments — and keeping it
+            inside the stage is what lets the header hold its height while it changes.
+
+            `role="status"` on the settled stage is what gets the outcome spoken: focus
+            lands on the header's heading, which announces the title and its role and
+            nothing under it. */}
+        <DialogDescription
+          role={done ? "status" : undefined}
+          className={cn(
+            "text-body text-pretty",
+            done ? "text-success-foreground" : "text-muted-foreground",
+          )}
+        >
+          {done ? act.outcome(one) : act.meaning(one)}
+        </DialogDescription>
+      </div>
+
+      <DescriptionList className="px-4">
+        {signed.kinds.map((kind) => (
+          <DescriptionRow
+            key={kind.label}
+            className="grid-cols-[1fr_auto] items-center border-hairline"
+          >
+            <DescriptionTerm className="text-body">{kind.label}</DescriptionTerm>
+            <DescriptionDetails className="text-body tabular-nums">
+              {kind.count}
+            </DescriptionDetails>
+          </DescriptionRow>
+        ))}
+        <DescriptionRow className="grid-cols-[1fr_auto] items-center border-hairline">
+          <DescriptionTerm className="text-body">Cases</DescriptionTerm>
+          <DescriptionDetails className="text-body tabular-nums">
+            {signed.cases === 1 ? "1 case" : `${signed.cases} cases`}
+          </DescriptionDetails>
+        </DescriptionRow>
+      </DescriptionList>
+    </Card>
   );
 }
 

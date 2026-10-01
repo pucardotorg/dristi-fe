@@ -7,7 +7,7 @@
 
 import { format } from "date-fns";
 
-import { mainAdvocateOf, needOf, signatoriesOf, TERMINAL, WAITING } from "./permissions";
+import { isBinding, mainAdvocateOf, needOf, signatoriesOf } from "./permissions";
 import { consequenceAt, daysUntil } from "./urgency";
 import type { Case, Person, PersonId, Task } from "./types";
 
@@ -69,7 +69,7 @@ export type DueCue = {
 export function dueCueOf(task: Task, now: Date | string = new Date()): DueCue {
   const at = consequenceAt(task);
   if (!at) return { primary: "No date", overdue: false };
-  const settled = TERMINAL.has(task.status) || WAITING.has(task.status) || task.status === "archived";
+  const settled = !isBinding(task);
   const anchored = !!task.hearingAt && at === task.hearingAt;
   if (settled) {
     return { primary: anchored ? `Hearing ${shortDate(at)}` : `Due ${shortDate(at)}`, overdue: false };

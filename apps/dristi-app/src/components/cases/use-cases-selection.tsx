@@ -12,6 +12,8 @@ import * as React from "react";
 export type CasesSelection = {
   selected: ReadonlySet<string>;
   toggle: (id: string) => void;
+  /** Select or clear several at once — the header checkbox over a page of rows. */
+  setMany: (ids: readonly string[], on: boolean) => void;
   /** True only inside the main all-cases list, where bulk share is offered. */
   enabled: boolean;
 };
@@ -19,6 +21,7 @@ export type CasesSelection = {
 const CasesSelectionContext = React.createContext<CasesSelection>({
   selected: new Set(),
   toggle: () => {},
+  setMany: () => {},
   enabled: false,
 });
 

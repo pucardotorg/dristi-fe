@@ -12,7 +12,6 @@
 import {
   applicationsFile,
   filingStatusLabel,
-  submissionKindLabel,
   type FilingStatus,
 } from "./applications";
 import {
@@ -25,7 +24,9 @@ import {
   isHearingHeld,
   type HearingStatus,
 } from "./hearings";
-import { ordersFile, type OrderRecord } from "./orders";
+import { ordersFile } from "./orders";
+import { taskHref } from "../tasks/routes";
+import { buildTasks } from "../tasks/sandbox";
 import {
   applicationStatusLabel,
   dayStamp,
@@ -37,12 +38,22 @@ import {
   type CaseTask,
   type DueStatusView,
 } from "./peek";
-import { caseSectionHref } from "./sections";
+import {
+  applicationHref,
+  caseSectionHref,
+  hearingHref,
+  orderHref,
+} from "./sections";
 import { formatCaseDate, outcomeLabel, type CaseRecord } from "./types";
+import { displayName } from "./names";
 
 export type OverviewNextHearing = {
-  /** "Today" on the day, the formatted date otherwise, or the absence itself. */
+  /** "Today" on the day, the formatted date otherwise, or "No hearing
+   *  scheduled" (OVW-04). */
   on: string;
+  /** The sitting before this one, carried only while nothing is listed, so
+   *  the block still says where the case last stood. */
+  last?: { on: string; purpose?: string };
   /** What the matter stands listed for — a clause, not a label. */
   purpose?: string;
   /**
@@ -106,8 +117,11 @@ export type OverviewTask = {
   detail?: string;
   /** The deadline in the two parts the row renders, already ranked against
    *  the next sitting. Resolved here rather than in the row — see
-   *  `dueStatusView`. */
-  due: DueStatusView;
+   *  `dueStatusView`. Absent for a task the court set no date on. */
+  due?: DueStatusView;
+  /** Where Respond goes: the task's own workflow on the Pending tasks page
+   *  when it has one (OVW-14), otherwise the related tab. */
+  respondHref?: string;
   /** Where the row goes when it names no action: the whole row is the link
    *  then, and Applications is the tab that owns most pending filings. */
   href: string;
@@ -117,40 +131,30 @@ export type OverviewTask = {
   action?: { label: string; href: string };
 };
 
-/**
- * A passage the court wrote, hanging off the row it came out of. The term
- * travels with the text because it is not always the same word: BoTD is the
- * register's own name for the day's business — the word the Orders screen
- * heads a whole column with — and a case with no direction on record has only
- * this screen's own latest update to show, which is not a business entry, so
- * it is not called one.
- *
- * Two rows can carry it today: the last sitting, from the day's own order,
- * and any published order in the window, from its `botd`. Both are the same
- * fact under the same name; nothing gets a second word for it.
- */
-export type OverviewUpdateNote = {
-  /** "BoTD" for a business entry; "Latest update" otherwise. */
-  term: string;
-  body: string;
-};
+/** The PRD's category set (OVW-09). Process and Parties have no event source
+ *  in the prototype yet; the full catalogue is maintained outside it. */
+export type OverviewUpdateCategory =
+  | "Filing"
+  | "Orders"
+  | "Submissions"
+  | "Process"
+  | "Hearing"
+  | "Parties";
 
 export type OverviewUpdate = {
   id: string;
+  /** One line saying what happened (OVW-06). */
   title: string;
-  /** Kind, outcome when there is one, and date — one caption. */
-  caption: string;
+  category: OverviewUpdateCategory;
+  date: string;
   href: string;
   /** Happened-only: today is current, everything else is past. */
   status: "past" | "current";
-  /** Prose to disclose under the row, when the row has any. Optional
-   *  because most events are the one line the caption already carries. */
-  note?: OverviewUpdateNote;
 };
 
 export type CaseOverviewModel = {
   /** Absent once the case is disposed — there is no next date. */
-  nextHearing: OverviewNextHearing | null;
+  nextHearing: OverviewNextHearing;
   tasks: OverviewTask[];
   /** What the pending work is owed before, when that is true of all of it.
    *  Null otherwise — see `tasksBeforeHearing`. */
@@ -182,9 +186,18 @@ export function caseOverviewModel(
 function overviewNextHearing(
   record: CaseRecord,
   now: number,
-): OverviewNextHearing | null {
-  if (record.disposal) return null;
-  if (!record.nextHearing) return { on: "Not listed yet" };
+): OverviewNextHearing {
+  if (record.disposal || !record.nextHearing) {
+    return {
+      on: "No hearing scheduled",
+      last: record.previousHearingOn
+        ? {
+            on: formatCaseDate(record.previousHearingOn),
+            purpose: peekExtras(record.id).lastHearingPurpose,
+          }
+        : undefined,
+    };
+  }
   const purpose = record.nextHearing.purpose.trim();
   const status = nextHearingStatus(record, record.nextHearing.on);
   return {
@@ -193,10 +206,15 @@ function overviewNextHearing(
       : formatCaseDate(record.nextHearing.on),
     purpose: purpose.length > 0 ? purpose : undefined,
     tile: overviewDateTile(record.nextHearing.on, now),
-    status: {
-      label: hearingStatusLabel(status),
-      variant: hearingStatusVariant(status),
-    },
+    /* A next hearing is scheduled by definition, so that chip said nothing
+       (owner, Sept 18). Any other listing status still shows. */
+    status:
+      status === "scheduled"
+        ? undefined
+        : {
+            label: hearingStatusLabel(status),
+            variant: hearingStatusVariant(status),
+          },
   };
 }
 
@@ -258,7 +276,7 @@ function overviewTasks(
   extras: CasePeekExtras,
   now: number,
 ): OverviewTask[] {
-  return (extras.tasks ?? [])
+  const authored: OverviewTask[] = (extras.tasks ?? [])
     .slice()
     .sort((a, b) => a.dueOn.localeCompare(b.dueOn))
     .map((task) => ({
@@ -277,6 +295,34 @@ function overviewTasks(
           }
         : undefined,
     }));
+  return [...pendingPageTasks(record, now), ...authored];
+}
+
+/**
+ * The case's open tasks on the Pending tasks page. The demo matters that page
+ * runs on appear here as `tw-<its id>`, so those tasks are the same tasks:
+ * Respond opens the task there and enters its real workflow (pay, sign, file,
+ * fix). Cases outside that world keep their authored tasks, which have no
+ * workflow behind them yet.
+ */
+const OPEN_TASK_STATUSES = new Set(["open", "draft", "ready"]);
+function pendingPageTasks(record: CaseRecord, now: number): OverviewTask[] {
+  if (!record.id.startsWith("tw-")) return [];
+  const caseId = record.id.slice(3);
+  return buildTasks()
+    .filter(
+      (task) => task.caseId === caseId && OPEN_TASK_STATUSES.has(task.status)
+    )
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      detail: task.why.event,
+      due: task.dueAt
+        ? dueStatusView(task.dueAt, record.nextHearing?.on, now)
+        : undefined,
+      href: taskHref(task.id),
+      respondHref: taskHref(task.id),
+    }));
 }
 
 /**
@@ -288,9 +334,9 @@ function overviewTasks(
  * print the same date twice; the line is dropped instead.
  */
 function taskDetail(task: CaseTask): string | undefined {
-  if (task.note) return task.note;
+  if (task.note) return displayName(task.note);
   if (task.assignedTo && task.markedOn) {
-    return `Assigned to ${task.assignedTo} · marked ${formatCaseDate(task.markedOn)}`;
+    return `Assigned to ${displayName(task.assignedTo)} · marked ${formatCaseDate(task.markedOn)}`;
   }
   return undefined;
 }
@@ -325,7 +371,6 @@ type RawUpdate = {
   title: string;
   detail?: string;
   href: string;
-  note?: OverviewUpdateNote;
 };
 
 /**
@@ -347,7 +392,7 @@ function overviewUpdates(
       kind: "filing",
       on: filedOn,
       title: "Complaint filed",
-      href: caseSectionHref(record.id, "complaint"),
+      href: caseSectionHref(record.id, "case-file"),
     },
   ];
 
@@ -364,8 +409,7 @@ function overviewUpdates(
         record.substage ??
         hearingTypeLabel(hearingTypeFromCase(record)),
       detail: extras.lastHearingStatus,
-      href: caseSectionHref(record.id, "hearings"),
-      note: lastHearingNote(record, extras),
+      href: lastHearingHref(record),
     });
   }
 
@@ -390,7 +434,7 @@ function overviewUpdates(
       on: dayStamp(application.filedOn),
       title: application.title,
       detail: applicationStatusLabel(application.status),
-      href: caseSectionHref(record.id, "applications"),
+      href: registeredApplicationHref(record, application.title),
     });
   }
 
@@ -414,36 +458,38 @@ function overviewUpdates(
     .slice(0, UPDATE_LIMIT)
     .map((item) => ({
       id: item.id,
-      title: item.title,
-      caption: updateCaption(item),
+      title: updateLine(item),
+      category: updateCategory(item.kind),
+      date: formatCaseDate(item.on),
       href: item.href,
       status: dayStamp(item.on) === today ? "current" : "past",
-      note: item.note,
     }));
 }
 
-/**
- * The day's business on the sitting the case just came out of, in the words
- * it is recorded in. `orderOfTheDay` is the court's own direction; without
- * one the case still has a latest update, and the two are not the same claim
- * — so the term changes with the source rather than the source being dressed
- * as a direction.
- *
- * `orderOfTheDay` is one authored string per case, so it belongs to the last
- * sitting and to no other hearing row. Earlier sittings in the window do
- * carry a `summary` of their own in the hearings register — a real passage,
- * but that register's word for it rather than this one, and putting a second
- * term on a three-row pulse is a product call, not a wiring one. Orders are
- * the row that extends cleanly: `OrderRecord.botd` is already published under
- * the name BoTD, so it arrives here as the same fact under the same word.
- */
-function lastHearingNote(
-  record: CaseRecord,
-  extras: CasePeekExtras,
-): OverviewUpdateNote | undefined {
-  const body = (extras.orderOfTheDay ?? record.latestUpdate).trim();
-  if (!body) return undefined;
-  return { term: extras.orderOfTheDay ? "BoTD" : "Latest update", body };
+/** The application's own record when the register holds one by that title. */
+function registeredApplicationHref(record: CaseRecord, title: string): string {
+  try {
+    const match = applicationsFile(record).submissions.find(
+      (item) => item.title.trim().toLowerCase() === title.trim().toLowerCase()
+    );
+    if (match) return applicationHref(record.id, match.id);
+  } catch {
+    /* No applications register for this case: fall through to the tab. */
+  }
+  return caseSectionHref(record.id, "applications");
+}
+
+/** The last sitting's own record when the register has it, else the list. */
+function lastHearingHref(record: CaseRecord): string {
+  try {
+    const hearing = record.previousHearingOn
+      ? hearingOnDate(hearingsFile(record), record.previousHearingOn)
+      : undefined;
+    if (hearing) return hearingHref(record.id, hearing.id);
+  } catch {
+    /* No hearings register for this case: fall through to the list. */
+  }
+  return caseSectionHref(record.id, "hearings");
 }
 
 function collectRegisterUpdates(
@@ -467,7 +513,7 @@ function collectRegisterUpdates(
         kind: "hearing",
         on: dayStamp(hearing.on),
         title: hearingTypeLabel(hearing.type),
-        href: caseSectionHref(record.id, "hearings"),
+        href: hearingHref(record.id, hearing.id),
       });
     }
   } catch {
@@ -483,8 +529,7 @@ function collectRegisterUpdates(
       kind: "order",
       on: dayStamp(order.issuedOn),
       title: order.title,
-      href: caseSectionHref(record.id, "orders-and-notifications"),
-      note: orderNote(order),
+      href: orderHref(record.id, order.id),
     });
   }
 
@@ -504,24 +549,9 @@ function collectRegisterUpdates(
       on: dayStamp(submission.addedOn),
       title: submission.title,
       detail: submission.courtResult ?? filingStatusLabel(submission.status),
-      href: caseSectionHref(record.id, "applications"),
+      href: applicationHref(record.id, submission.id),
     });
   }
-}
-
-/**
- * The order register's own business of the day, carried onto the row without
- * renaming — Orders & Notifications heads a whole column "BoTD", and a second
- * word for one fact is how two screens stop agreeing.
- *
- * Authored per record and absent until the order is actually passed, so most
- * rows return nothing. A case with no curated pack has none at all:
- * `defaultOrders` synthesises the register's shape but never its prose, on
- * the grounds that business of the day is written, not derived.
- */
-function orderNote(order: OrderRecord): OverviewUpdateNote | undefined {
-  const body = order.botd?.trim();
-  return body ? { term: "BoTD", body } : undefined;
 }
 
 function submissionOccurred(status: FilingStatus): boolean {
@@ -552,23 +582,21 @@ function updateKindRank(kind: UpdateKind): number {
   }
 }
 
-function updateKindLabel(kind: UpdateKind): string {
+function updateCategory(kind: UpdateKind): OverviewUpdateCategory {
   switch (kind) {
     case "hearing":
       return "Hearing";
     case "order":
-      return "Order";
+      return "Orders";
     case "application":
-      return "Application";
     case "document":
-      return submissionKindLabel("document");
+      return "Submissions";
     case "filing":
-      return "Complaint";
+      return "Filing";
   }
 }
 
-function updateCaption(item: RawUpdate): string {
-  return [updateKindLabel(item.kind), item.detail, formatCaseDate(item.on)]
-    .filter((part): part is string => Boolean(part))
-    .join(" · ");
+/** The event and its outcome as the one line the row shows. */
+function updateLine(item: RawUpdate): string {
+  return item.detail ? `${item.title} · ${item.detail}` : item.title;
 }

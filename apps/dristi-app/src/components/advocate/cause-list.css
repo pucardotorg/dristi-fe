@@ -1,0 +1,161 @@
+/* The per-row "Join hearing" reveal in the cause list.
+ *
+ * The docket runs to hundreds of rows across dozens of courts, so a single shared
+ * "join online" control was ambiguous — which of the hundreds? Instead the control
+ * belongs to the row, and only to an ongoing one. On hover (or keyboard focus in
+ * the row) the row's status chip fades and a green Join eases in from the right, so
+ * the row appears to make room for it; moving away restores the status. The Join is
+ * absolutely placed, so it reserves no column width at rest — the header row stays
+ * uncramped. The button keeps its place in the tab order (opacity, not display), so
+ * keyboard and screen-reader users reach every ongoing row's Join and reveal it on
+ * focus. Reduced motion keeps the reveal but drops the travel.
+ */
+.cause-status {
+  transition: opacity 160ms ease-out;
+}
+.cause-row:hover .cause-status,
+.cause-row:focus-within .cause-status {
+  opacity: 0;
+}
+
+.cause-join {
+  opacity: 0;
+  transform: translateX(0.75rem);
+  pointer-events: none;
+  transition:
+    opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cause-row:hover .cause-join,
+.cause-row:focus-within .cause-join {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cause-status,
+  .cause-join {
+    transition: none;
+  }
+}
+
+/* The trace stroke that marks a matter's row when you jump to it from a hearing's
+ * cause-list icon — the same teal "look here" stroke the pending-task flag draws in
+ * the rail. An overlay is positioned over the row (imperatively; see the dialog),
+ * then `.cause-trace-run` arms the draw: the rounded rect strokes on once, holds,
+ * and fades. Chrome-only geometry props, fine for the demo. Reduced motion drops
+ * the travel for a plain fade. */
+.cause-trace-rect {
+  x: 1.5px;
+  y: 1.5px;
+  width: calc(100% - 3px);
+  height: calc(100% - 3px);
+  rx: 8px;
+  fill: none;
+  stroke: var(--brand-accent);
+  stroke-width: 2px;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.cause-trace-run .cause-trace-rect {
+  animation: cause-trace-draw 2000ms 60ms forwards;
+}
+@keyframes cause-trace-draw {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  55% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  74% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cause-trace-run .cause-trace-rect {
+    stroke-dashoffset: 0;
+    animation: cause-trace-fade 1500ms 60ms ease forwards;
+  }
+}
+@keyframes cause-trace-fade {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Full-screen phone composition retains Radix focus containment and safe areas. */
+@media (width < 48rem) {
+  .cause-list-dialog {
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+  .cause-list-close {
+    /* Level with the title, which sits under the header's 24px top padding. */
+    top: calc(env(safe-area-inset-top) + var(--spacing) * 4);
+    right: calc(env(safe-area-inset-right) + var(--spacing) * 2);
+  }
+  .cause-touch-control {
+    min-height: calc(var(--spacing) * 10);
+    min-width: calc(var(--spacing) * 10);
+  }
+}
+
+/* Touch tablets retain the table, with the live status and Join both visible,
+ * side by side. */
+@media (hover: none), (pointer: coarse) {
+  .cause-touch-control {
+    min-height: calc(var(--spacing) * 10);
+    min-width: calc(var(--spacing) * 10);
+  }
+  .cause-row .cause-status,
+  .cause-row:hover .cause-status,
+  .cause-row:focus-within .cause-status {
+    opacity: 1;
+  }
+  .cause-row .cause-join {
+    position: static;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  /* Icon only, so the tag and the Join share one line in the status column. */
+  .cause-join-label {
+    display: none;
+  }
+}
+
+/* Her own matter, while it is being called: the teal stroke breathes on the live
+ * dot's 2.5s beat. Colour only, so nothing reflows; still under reduced motion. */
+@keyframes cause-mine-pulse {
+  0%, 100% { border-color: var(--brand-accent); }
+  50% { border-color: color-mix(in srgb, var(--brand-accent) 35%, transparent); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cause-mine-live { animation: cause-mine-pulse 2.5s ease-in-out infinite; }
+}
+
+/* The header's search, date, download, filter and sort take the lighter tan stroke
+ * the home toolbar uses, at every width. The default input stroke read as a
+ * wireframe. */
+.cause-list-header :is(button, input) { border-color: var(--border); }

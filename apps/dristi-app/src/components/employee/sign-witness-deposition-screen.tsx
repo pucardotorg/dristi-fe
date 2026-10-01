@@ -1,13 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { SearchIcon, SearchXIcon, UserCheckIcon } from "lucide-react";
+import { SearchXIcon, UserCheckIcon } from "lucide-react";
 
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
+import { QueueAnnouncer } from "@/components/employee/queue-announcer";
+import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignWitnessDepositionDialog } from "@/components/employee/sign-witness-deposition-dialog";
 import { SignWitnessDepositionTable } from "@/components/employee/sign-witness-deposition-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
+import {
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -18,13 +25,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { isPendingFilterChange } from "@/lib/employee/filter-state";
 import {
   causeTitle,
   counselFor,
@@ -41,6 +41,7 @@ import {
   type WitnessDeposition,
   type WitnessDepositionFilters,
 } from "@/lib/employee/sign-witness-deposition";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -73,13 +74,12 @@ function plural(count: number, one: string, many: string): string {
  * from the demo queue and nothing else — see `lib/employee/sign-witness-deposition.ts`.
  */
 export function SignWitnessDepositionScreen() {
-  /* The reference filters on a button rather than as you type, so the bench composes a
-     query and then asks for it. `draft` is what the control holds; `applied` is what the
-     table is showing. Clear resets both. */
-  const [draft, setDraft] = React.useState<WitnessDepositionFilters>(
-    EMPTY_WITNESS_DEPOSITION_FILTERS,
-  );
-  const [applied, setApplied] = React.useState<WitnessDepositionFilters>(
+  /* One state, not a draft and an applied one: the list answers the controls as they
+     are used, so there is never a moment where what the bench has asked for and what
+     the table is showing disagree. Every change resets to page one — the old Search
+     button did that, and a keystroke that narrows the list to four rows must not leave
+     the reader on page three of nothing. */
+  const [filters, setFilters] = React.useState<WitnessDepositionFilters>(
     EMPTY_WITNESS_DEPOSITION_FILTERS,
   );
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
@@ -100,13 +100,13 @@ export function SignWitnessDepositionScreen() {
   const remaining = WITNESS_DEPOSITION_QUEUE.filter(
     (deposition) => !signedIds.has(deposition.id),
   );
-  const rows = filterWitnessDepositions(remaining, applied);
+  const rows = filterWitnessDepositions(remaining, filters);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = applied.query !== "";
+  const isFiltered = filters.query !== "";
 
   /**
    * What is selected *and* still in the list.
@@ -124,17 +124,13 @@ export function SignWitnessDepositionScreen() {
     selectedIds.has(deposition.id),
   );
 
-  const canSearch = isPendingFilterChange(draft, applied);
-
-  function applyFilters() {
-    setApplied(draft);
+  function changeFilters(next: WitnessDepositionFilters) {
+    setFilters(next);
     setPage(1);
   }
 
   function clearFilters() {
-    setDraft(EMPTY_WITNESS_DEPOSITION_FILTERS);
-    setApplied(EMPTY_WITNESS_DEPOSITION_FILTERS);
-    setPage(1);
+    changeFilters(EMPTY_WITNESS_DEPOSITION_FILTERS);
   }
 
   function toggle(deposition: WitnessDeposition) {
@@ -189,7 +185,7 @@ export function SignWitnessDepositionScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Sign witness deposition
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
@@ -207,12 +203,16 @@ export function SignWitnessDepositionScreen() {
           inside draws a second frame. */}
       <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
         <DepositionFiltersForm
-          draft={draft}
+          filters={filters}
           searchRef={searchRef}
-          onDraftChange={setDraft}
-          onApply={applyFilters}
-          onClear={clearFilters}
-          canSearch={canSearch}
+          onChange={changeFilters}
+        />
+
+        {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
+        <QueueAnnouncer
+          from={start + 1}
+          to={start + pageRows.length}
+          total={rows.length}
         />
 
         {pageRows.length === 0 ? (
@@ -302,7 +302,7 @@ export function SignWitnessDepositionScreen() {
 }
 
 /**
- * The reference's one control, laid out the way the sibling queues lay out theirs.
+ * The reference's one control, filtering as it is typed.
  *
  * This screen filters on free text and nothing else, because that is all the reference
  * gives it — and it is the right call: the other signing queues cut by a process type
@@ -315,67 +315,44 @@ export function SignWitnessDepositionScreen() {
  * label, so "Search cases" is the deviation, and the smallest one available. The
  * placeholder keeps the reference's reach and adds the witness.
  *
- * "Search" is `secondary`, not the teal one. The Ration Teal Law allows one strong
- * action per view and this screen spends it on the act it exists for — the signature in
- * the bar below.
+ * The Search button is gone: the list answers the box as it is typed, so a button that
+ * only re-asked what the control already said was a step between the bench and the
+ * answer. The way back to the whole queue is the `×` inside the box
+ * (`QueueSearchField`) — which is why there is no "Clear search" beside it either: on
+ * this screen the search *is* the filters, and two controls for one undo is one too many.
+ * The empty state keeps its own Clear, where it is the invitation out of a dead end.
+ *
+ * That also spends the page's teal down to one. Search carried `bg-primary` (whatever
+ * the paragraph above used to claim), and it sat two regions away from the act this
+ * screen exists for. With it gone the only strong fill left is the one in the action bar,
+ * which is what the Ration Teal Law wanted all along.
+ *
+ * The form element stays so Enter in the box is swallowed rather than reloading the page:
+ * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
+ * left to catch it.
  */
 function DepositionFiltersForm({
-  draft,
+  filters,
   searchRef,
-  onDraftChange,
-  onApply,
-  onClear,
-  canSearch,
+  onChange,
 }: {
-  draft: WitnessDepositionFilters;
+  filters: WitnessDepositionFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onDraftChange: (filters: WitnessDepositionFilters) => void;
-  onApply: () => void;
-  onClear: () => void;
-  canSearch: boolean;
+  onChange: (filters: WitnessDepositionFilters) => void;
 }) {
   return (
     <form
       className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onApply();
-      }}
+      onSubmit={(event) => event.preventDefault()}
     >
-      {/* `Field` rather than a bare `Label htmlFor` beside an `Input id`. The DS `Input`
-          destructures `id` out of its props and only puts it back through
-          `useFieldControlProps`, which returns nothing when there is no `Field`
-          context — so an `id` handed to an `Input` outside a `Field` is dropped and the
-          label points at an element that does not exist. `Field` supplies the context,
-          and the label and the control agree on one generated id. Upstream DS bug; see
-          `HearingsFilters`. */}
-      <Field className="min-w-0 sm:w-80">
-        <FieldLabel className="text-body">Search cases</FieldLabel>
-        <InputGroup>
-          <InputGroupAddon>
-            <SearchIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            ref={searchRef}
-            type="search"
-            autoComplete="off"
-            value={draft.query}
-            onChange={(event) =>
-              onDraftChange({ ...draft, query: event.target.value })
-            }
-            placeholder="case name, number or witness"
-          />
-        </InputGroup>
-      </Field>
-
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!canSearch}>
-          Search
-        </Button>
-        <Button type="button" variant="ghost" onClick={onClear}>
-          Clear search
-        </Button>
-      </div>
+      <QueueSearchField
+        label="Search cases"
+        className="sm:w-80"
+        ref={searchRef}
+        value={filters.query}
+        onChange={(query) => onChange({ ...filters, query })}
+        placeholder="Case name, number or witness"
+      />
     </form>
   );
 }
@@ -518,9 +495,9 @@ function DepositionItemList({
       {rows.map((deposition) => {
         const tag = witnessTag(deposition);
         return (
-          <li
+          <QueueItemRow
             key={deposition.id}
-            className="flex gap-3 rounded-lg bg-surface-sunken p-4"
+            className="flex gap-3"
           >
             {/* The DS box expands its own hit area to 40×40; the name it carries is the
                 sheet and its case, not the column, because a row read aloud has no
@@ -536,7 +513,8 @@ function DepositionItemList({
               <button
                 type="button"
                 onClick={() => onOpen(deposition)}
-                className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+                {...rowOpener}
+                className={rowOpenerClass}
               >
                 <span className="sr-only">Read and sign </span>
                 {causeTitle(deposition)}
@@ -550,7 +528,7 @@ function DepositionItemList({
                 <span className="sr-only">{`, ${tag}, ${witnessRoleLabel(deposition)}`}</span>
               </p>
               <p className="text-caption text-muted-foreground">
-                <span className="tabular-nums">{deposition.caseNumber}</span>
+                <Identifier value={deposition.caseNumber} label="case number" />
                 {" · Recorded "}
                 <span className="tabular-nums">
                   {formatDepositionDate(deposition.depositionOn)}
@@ -565,7 +543,7 @@ function DepositionItemList({
                 )}
               />
             </div>
-          </li>
+          </QueueItemRow>
         );
       })}
     </ul>

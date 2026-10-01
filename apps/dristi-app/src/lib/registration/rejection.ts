@@ -6,9 +6,10 @@
  * The mechanism (PM, Sept 3): a rejected registrant is told by SMS to sign
  * in again; the sign-in screen recognises the number and routes them into a
  * correction round — the registration steps minus the role question, their
- * answers pre-filled, the officer's ONE general message shown, and the
- * fields the officer marked flagged in place. Resubmitting sends the same
- * application back for approval.
+ * answers pre-filled and the officer's ONE general message shown on every
+ * step. The officer's field marks only tint the stepper; fields carry no
+ * flags (owner, Sept 18). Resubmitting sends the same application back for
+ * approval.
  */
 
 /** Which parts of the registration the officer marked. */
@@ -19,7 +20,7 @@ export type RejectedRegistration = {
   fullName: string;
   email: string;
   regNumber: string;
-  /** What they uploaded last time — named so the flag can point at it. */
+  /** What they uploaded last time. */
   idFileName: string;
   applicationId: string;
   /** The one general message the checking officer typed on rejection. */

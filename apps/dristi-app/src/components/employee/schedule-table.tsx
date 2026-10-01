@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  TABLE_CELL,
+  TABLE_HEAD,
+  TABLE_HEAD_ROW,
+  tableBodyClass,
+  tableRowClass,
+} from "@/components/chrome/table-plate";
 import { CounselCell } from "@/components/employee/counsel-cell";
 import {
   Table,
@@ -9,21 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { causeTitle, counselFor } from "@/lib/employee/hearings";
 import { caseStageLabel, type SchedulingCase } from "@/lib/employee/schedule";
 import { cn } from "@/lib/utils";
-
-/* The same table treatment as the day's cause list (`hearings-table.tsx`) — header
- * separated by fill rather than a second stroke, rows by hairline, the panel edge as the
- * only full-strength border on the screen (ui-craft §1.1). The two court-side lists are
- * the same object seen at two moments and must not look like two products; the classes are
- * restated rather than exported because when the advocate shell moves onto the shared
- * `components/chrome` frame, this treatment is what belongs there, and these two tables
- * should collapse onto it together rather than one of them becoming the other's parent. */
-const headClass =
-  "h-10 bg-surface-sunken px-4 py-3 text-caption font-semibold text-muted-foreground";
-const cellClass =
-  "border-b border-hairline px-4 py-3 align-middle text-left text-body-compact";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The scheduling queue as a table: the cause, its number, where the case has reached, and
@@ -43,38 +44,40 @@ const cellClass =
  * affordance — a control whose only content is the news that it has no content. Better to
  * leave the column out until scheduling is real than to draw furniture around a hole.
  *
+ * **The cause opens the scheduling flow — which is not built yet, so it lands on a plain
+ * "not built" end state** (owner, 2026-09-15). The row is the same clickable row every
+ * other queue has: it is no longer left inert, which read as a dead line; it is honest
+ * instead about where it goes.
+ *
  * The panel shell (border, fill, shadow) lives on the screen around this, so the table is
  * one panel rather than a box inside a box.
  */
-export function ScheduleTable({ rows }: { rows: SchedulingCase[] }) {
+export function ScheduleTable({
+  rows,
+  onOpen,
+}: {
+  rows: SchedulingCase[];
+  onOpen: (matter: SchedulingCase) => void;
+}) {
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
-        {/* The panel insets this table by p-6, so the header strip is a well, not a
-            full-bleed band — it rounds itself (ui-craft §4). `border-separate` means each
-            cell paints its own fill, so the radius goes on the end cells rather than the
-            row. */}
-        <TableRow className="hover:bg-transparent [&>th:first-child]:rounded-l-lg [&>th:last-child]:rounded-r-lg">
-          <TableHead className={cn(headClass, "min-w-64 whitespace-normal")}>
+        <TableRow className={TABLE_HEAD_ROW}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-64 whitespace-normal")}>
             Case name
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Case number
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Stage
           </TableHead>
-          <TableHead className={cn(headClass, "min-w-48 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-48 whitespace-normal")}>
             Advocates
           </TableHead>
         </TableRow>
       </TableHeader>
-      {/* `border-separate` stays even without the cause list's sticky column — the header
-          well needs each cell to paint its own fill for the end cells to round (above).
-          It puts the row stroke on the cell, so the DS TableBody rule that clears the last
-          row targets the wrong element. Reach the cells directly, or the final row doubles
-          its line against the panel edge. */}
-      <TableBody className="[&_tr:last-child_td]:border-b-0">
+      <TableBody className={tableBodyClass()}>
         {/* The header is a well, not a band welded to the rows — it needs the panel's
             fill under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held
@@ -83,24 +86,30 @@ export function ScheduleTable({ rows }: { rows: SchedulingCase[] }) {
           <td colSpan={4} className="h-2 p-0" />
         </tr>
         {rows.map((matter) => (
-          <TableRow key={matter.id} className="bg-card hover:bg-card">
-            {/* The row's one emphasised cell. Not a link: the reference underlines it
-                because it opens the scheduling flow, and this build has no such flow and
-                no court-side case file to fall back on. Plain text is the honest render —
-                an underline that goes nowhere would promise the clerk a screen that is
-                not there. */}
+          <TableRow key={matter.id} {...rowActivation(tableRowClass())}>
+            {/* The row's one emphasised cell, and its opener — the same clickable cause
+                title every court queue carries. It opens the scheduling flow, which is not
+                built yet (see the screen's `NotBuiltDialog`). */}
             <TableCell
-              className={cn(cellClass, "min-w-64 font-medium whitespace-normal")}
+              className={cn(TABLE_CELL, "min-w-64 font-medium whitespace-normal")}
             >
-              {causeTitle(matter)}
+              <button
+                type="button"
+                onClick={() => onOpen(matter)}
+                {...rowOpener}
+                className={rowOpenerClass}
+              >
+                <span className="sr-only">Open </span>
+                {causeTitle(matter)}
+              </button>
             </TableCell>
-            <TableCell className={cn(cellClass, "tabular-nums whitespace-nowrap")}>
-              {matter.caseNumber}
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+              <Identifier value={matter.caseNumber} label="case number" />
             </TableCell>
-            <TableCell className={cn(cellClass, "whitespace-nowrap")}>
+            <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
               {caseStageLabel(matter.stage)}
             </TableCell>
-            <TableCell className={cn(cellClass, "min-w-48 whitespace-normal")}>
+            <TableCell className={cn(TABLE_CELL, "min-w-48 whitespace-normal")}>
               <CounselCell
                 complainant={counselFor(matter, "complainant").map(
                   (counsel) => counsel.name,

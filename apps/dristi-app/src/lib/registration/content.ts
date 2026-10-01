@@ -5,9 +5,11 @@ const t = (en: string, ml: string): Copy => ({ en, ml });
 
 export const registrationUi = {
   backToSignIn: t("Back to sign in", "സൈൻ ഇൻ പേജിലേക്ക് മടങ്ങുക"),
+  /** Phone header: the arrow says "back", this names the destination. */
+  backToSignInShort: t("Sign in", "സൈൻ ഇൻ"),
   back: t("Back", "പുറകോട്ട്"),
   continue: t("Continue", "തുടരുക"),
-  stepOf: t("Step {current} of {total}", "{total} ഘട്ടങ്ങളിൽ {current}-ാം ഘട്ടം"),
+  stepOf: t("Step {current} of {total}", "ഘട്ടം {current} / {total}"),
 } as const;
 
 export const journeySteps = {
@@ -69,7 +71,10 @@ export const contactStep = {
   otpShow: t("Show the code", "കോഡ് കാണിക്കുക"),
   otpHide: t("Hide the code", "കോഡ് മറയ്ക്കുക"),
   otpResend: t("Send the code again", "കോഡ് വീണ്ടും അയയ്ക്കുക"),
-  otpResendIn: t("You can ask for a new code in {seconds} seconds.", "{seconds} സെക്കൻഡിനുള്ളിൽ പുതിയ കോഡ് ചോദിക്കാം."),
+  /* Short on purpose: it sits in the slot the resend link takes over when the timer
+     ends, so the two must be about one width — a sentence there wrapped under the
+     reveal and then jumped to the right (owner, Sept 9). */
+  otpResendIn: t("Send again in {seconds}s", "{seconds}സെ. കഴിഞ്ഞ് വീണ്ടും അയയ്ക്കാം"),
   verified: t("Mobile number verified", "മൊബൈൽ നമ്പർ പരിശോധിച്ചു"),
   changeNumber: t("Change number", "നമ്പർ മാറ്റുക"),
   verifyFirst: t("Verify your mobile number to continue.", "തുടരാൻ നിങ്ങളുടെ മൊബൈൽ നമ്പർ പരിശോധിക്കുക."),
@@ -79,8 +84,10 @@ export const contactStep = {
  * Creating the password the account signs in with.
  *
  * Sign-in offers a password as well as a one-time code, so registration has to produce
- * one — the flow used to reach the end without ever asking. What the password has to
- * clear is stated once, under the field, in the same words the error uses.
+ * one — the flow used to reach the end without ever asking. The policy (REG-40 to 44,
+ * `lib/registration/password-policy.ts`) is stated once under the field at rest; while
+ * the person types, that line becomes the one rule they are currently failing, or the
+ * confirmation that the password works. One sentence at a time, never a checklist.
  */
 export const passwordStep = {
   title: t("Create a password", "ഒരു പാസ്‌വേഡ് ഉണ്ടാക്കുക"),
@@ -91,14 +98,23 @@ export const passwordStep = {
   confirmPlaceholder: t("Enter it again", "വീണ്ടും നൽകുക"),
   show: t("Show password", "പാസ്‌വേഡ് കാണിക്കുക"),
   hide: t("Hide password", "പാസ്‌വേഡ് മറയ്ക്കുക"),
+  /** At rest, before anything is typed. The whole policy in two short sentences. */
   rules: t(
-    "At least 8 characters, with a letter, a number and a symbol.",
-    "കുറഞ്ഞത് 8 പ്രതീകങ്ങൾ, ഒരു അക്ഷരവും ഒരു അക്കവും ഒരു ചിഹ്നവും ഉൾപ്പെടെ.",
+    "At least 8 characters. Not your name, mobile number or email, and nothing too common.",
+    "കുറഞ്ഞത് 8 പ്രതീകങ്ങൾ. നിങ്ങളുടെ പേരോ മൊബൈൽ നമ്പറോ ഇമെയിലോ ആകരുത്; സാധാരണമായവയും പാടില്ല.",
   ),
-  error: t(
-    "Use at least 8 characters, with a letter, a number and a symbol.",
-    "കുറഞ്ഞത് 8 പ്രതീകങ്ങൾ ഉപയോഗിക്കുക — ഒരു അക്ഷരവും ഒരു അക്കവും ഒരു ചിഹ്നവും ഉൾപ്പെടെ.",
-  ),
+  /** Live, while typing — the first rule the password is failing. */
+  problem: {
+    length: t("Use at least 8 characters.", "കുറഞ്ഞത് 8 പ്രതീകങ്ങൾ ഉപയോഗിക്കുക."),
+    mobile: t("Your mobile number cannot be the password.", "നിങ്ങളുടെ മൊബൈൽ നമ്പർ പാസ്‌വേഡാക്കാൻ കഴിയില്ല."),
+    name: t("Your name cannot be the password.", "നിങ്ങളുടെ പേര് പാസ്‌വേഡാക്കാൻ കഴിയില്ല."),
+    email: t("Your email cannot be the password.", "നിങ്ങളുടെ ഇമെയിൽ പാസ്‌വേഡാക്കാൻ കഴിയില്ല."),
+    common: t("Too easy to guess. Pick something less common.", "ഊഹിക്കാൻ എളുപ്പമാണ്. അത്ര സാധാരണമല്ലാത്തത് തിരഞ്ഞെടുക്കുക."),
+  },
+  /** Live, once every rule passes. */
+  ok: t("This password works.", "ഈ പാസ്‌വേഡ് ഉപയോഗിക്കാം."),
+  /** Read out beside the tick in the confirm box; sighted people see the tick. */
+  confirmMatch: t("Passwords match", "പാസ്‌വേഡുകൾ ഒരുപോലെയാണ്"),
   confirmError: t("Both passwords must match.", "രണ്ട് പാസ്‌വേഡുകളും ഒരുപോലെ ആയിരിക്കണം."),
 } as const;
 
@@ -139,8 +155,9 @@ export const verificationUi = {
 
 /**
  * The rejected-and-resubmit round. The officer types ONE general message on
- * rejection (PM, Sept 3); fields the officer marked are flagged in place, and
- * the person corrects them and resubmits the same application.
+ * rejection (PM, Sept 3); it shows on every step and is the whole feedback
+ * (owner, Sept 18: no per-field flags), and the person corrects their details
+ * and resubmits the same application.
  */
 export const rejectionUi = {
   /** The first step's headline — the rejection is page structure, not an
@@ -150,28 +167,22 @@ export const rejectionUi = {
     "നിങ്ങളുടെ രജിസ്ട്രേഷൻ അംഗീകരിച്ചില്ല",
   ),
   notApprovedBody: t(
-    "Correct the flagged details and resubmit for approval.",
-    "ഫ്ലാഗ് ചെയ്ത വിവരങ്ങൾ തിരുത്തി അംഗീകാരത്തിനായി വീണ്ടും സമർപ്പിക്കുക.",
+    "Correct your details and resubmit for approval.",
+    "നിങ്ങളുടെ വിവരങ്ങൾ തിരുത്തി അംഗീകാരത്തിനായി വീണ്ടും സമർപ്പിക്കുക.",
   ),
   /** `{id}` is the application number the rejection belongs to. */
   messageMeta: t(
     "Application {id} · message from the verifying officer",
     "അപേക്ഷ {id} · പരിശോധിക്കുന്ന ഉദ്യോഗസ്ഥന്റെ സന്ദേശം",
   ),
-  /** The field marker — it points; the officer's message explains. */
-  flagged: t("Flagged", "ഫ്ലാഗ് ചെയ്തു"),
   /** A long message clamps to three lines; these toggle the rest. */
   readMore: t("Read more", "കൂടുതൽ വായിക്കുക"),
   showLess: t("Show less", "ചുരുക്കുക"),
-  /** sr-only suffix on a flagged stepper step. */
-  stepFlagged: t("has flagged details", "ഫ്ലാഗ് ചെയ്ത വിവരങ്ങളുണ്ട്"),
+  /** sr-only suffix on a stepper step that needs correcting. */
+  stepFlagged: t("has details to correct", "തിരുത്തേണ്ട വിവരങ്ങളുണ്ട്"),
   mobileVerified: t(
     "Verified. This is the number you sign in with.",
     "പരിശോധിച്ചു. ഇതാണ് നിങ്ങൾ സൈൻ ഇൻ ചെയ്യുന്ന നമ്പർ.",
-  ),
-  previousUpload: t(
-    "The earlier upload ({name}) was rejected. Upload a clear scan.",
-    "മുമ്പ് അപ്‌ലോഡ് ചെയ്തത് ({name}) നിരസിച്ചു. വ്യക്തമായ സ്കാൻ അപ്‌ലോഡ് ചെയ്യുക.",
   ),
   resubmit: t("Resubmit for approval", "അംഗീകാരത്തിനായി വീണ്ടും സമർപ്പിക്കുക"),
   resubmittedTitle: t(

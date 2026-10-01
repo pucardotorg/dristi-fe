@@ -1,6 +1,6 @@
 "use client";
 
-import { BUNDLE, shortDocName } from "@/lib/employee/scrutiny/bundle";
+import { shortDocName } from "@/lib/employee/scrutiny/bundle";
 import { docMarkCount } from "@/lib/employee/scrutiny/field";
 import type { FlagMap } from "@/lib/employee/scrutiny/types";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 
 /**
  * The bundle's index.
@@ -40,14 +46,24 @@ export function IndexRail({
 }) {
   return (
     <aside
-      className="flex h-full flex-col gap-1 overflow-y-auto bg-card p-2"
+      className="flex h-full flex-col overflow-hidden bg-card"
       aria-label="Document index"
     >
-      <IndexRows
-        flags={flags}
-        relatedDocId={relatedDocId}
-        onGoToDoc={onGoToDoc}
-      />
+      {/* The same chrome bar the bundle and fields panels carry — `h-14`, a hairline
+          seam below it — so all three pane headers line up across the workbench. */}
+      <div className="flex h-14 shrink-0 items-center border-b border-hairline px-4">
+        <b className="text-body-compact font-semibold">Index</b>
+      </div>
+      {/* The row content sits on the 16px line — aligned with the "Index" header above and
+          the fields panel's own 16px margin — while the row fill is a gentler 8px pill, so
+          the numbers read as balanced rather than pushed in (owner, 2026-09-15). */}
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 py-2">
+        <IndexRows
+          flags={flags}
+          relatedDocId={relatedDocId}
+          onGoToDoc={onGoToDoc}
+        />
+      </div>
     </aside>
   );
 }
@@ -72,13 +88,14 @@ export function IndexSheet({
   relatedDocId: string | null;
   onGoToDoc: (docId: string) => void;
 }) {
+  const { bundle } = useScrutinyCase();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="data-[side=right]:sm:max-w-100">
         <SheetHeader>
           <SheetTitle>Documents</SheetTitle>
           <SheetDescription>
-            {BUNDLE.length} documents in this bundle. Picking one opens it in the
+            {bundle.length} documents in this bundle. Picking one opens it in the
             bundle.
           </SheetDescription>
         </SheetHeader>
@@ -105,9 +122,10 @@ function IndexRows({
   relatedDocId: string | null;
   onGoToDoc: (docId: string) => void;
 }) {
+  const { bundle } = useScrutinyCase();
   return (
     <>
-      {BUNDLE.map((doc) => {
+      {bundle.map((doc) => {
         const marks = docMarkCount(doc.id, flags);
         const current = relatedDocId === doc.id;
         return (
@@ -115,13 +133,20 @@ function IndexRows({
             key={doc.id}
             variant="ghost"
             className={cn(
-              "h-10 w-full justify-start gap-2 px-2 font-normal",
+              // A tidy index, not a nav menu: 36px rows on a fine pointer, but never
+              // below the 40px touch floor where the registry works on a tablet. `px-2`
+              // puts the number on the 16px content line (8px list + 8px here) with the
+              // fill a gentle pill inside the gutter.
+              "h-9 [@media(pointer:coarse)]:h-10 w-full justify-start gap-2 px-2 font-normal",
               current && "bg-accent",
             )}
             aria-current={current ? "true" : undefined}
             onClick={() => onGoToDoc(doc.id)}
           >
-            <span className="w-4 shrink-0 text-end text-caption text-muted-foreground tabular-nums">
+            {/* Left-aligned: with only single-digit documents, right-aligning them in the
+                box pushed the numeral toward the middle and read as "too inset" (owner,
+                2026-09-15). Left-aligned, the numeral sits on the same line as the header. */}
+            <span className="w-4 shrink-0 text-caption text-muted-foreground tabular-nums">
               {doc.no}
             </span>
             {/* The row shows the short name because the rail is narrow; a screen reader
@@ -137,18 +162,32 @@ function IndexRows({
                 cannot read a shape — never a `title` attribute, which no touch or
                 keyboard user reaches. */}
             {doc.poorScan ? (
-              <Badge variant="warning" className="shrink-0">
-                <span aria-hidden="true">!</span>
-                <span className="sr-only">poor scan</span>
-              </Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="warning" className="shrink-0">
+                    <span aria-hidden="true">!</span>
+                    <span className="sr-only">poor scan</span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Poor scan — may be blurred or missing pages
+                </TooltipContent>
+              </Tooltip>
             ) : null}
             {marks > 0 ? (
-              <Badge variant="destructive" className="shrink-0 tabular-nums">
-                {marks}
-                <span className="sr-only">
-                  {marks === 1 ? " item raised" : " items raised"}
-                </span>
-              </Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="destructive" className="shrink-0 tabular-nums">
+                    {marks}
+                    <span className="sr-only">
+                      {marks === 1 ? " item raised" : " items raised"}
+                    </span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {marks === 1 ? "1 item raised on this document" : `${marks} items raised on this document`}
+                </TooltipContent>
+              </Tooltip>
             ) : null}
           </Button>
         );

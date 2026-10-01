@@ -1,12 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { FileSignatureIcon, SearchIcon, SearchXIcon } from "lucide-react";
+import { FileSignatureIcon, SearchXIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
+import { QueueAnnouncer } from "@/components/employee/queue-announcer";
+import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignBailBondDialog } from "@/components/employee/sign-bail-bond-dialog";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignBailBondsTable } from "@/components/employee/sign-bail-bonds-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
+import {
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -17,13 +24,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { isPendingFilterChange } from "@/lib/employee/filter-state";
 import {
   causeTitle,
   PAGE_SIZE,
@@ -39,6 +39,7 @@ import {
   type SignBailBond,
   type SignBailBondFilters,
 } from "@/lib/employee/sign-bail-bonds";
+import { Identifier } from "@/components/chrome/identifier";
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -81,13 +82,12 @@ export function SignBailBondsScreen() {
   const [bonds, setBonds] = React.useState<SignBailBond[]>(
     SIGN_BAIL_BOND_QUEUE,
   );
-  /* The reference searches on a button rather than as you type, so the clerk composes a
-     query and then asks for it. `draft` is what the field holds; `applied` is what the
-     table is showing. */
-  const [draft, setDraft] = React.useState<SignBailBondFilters>(
-    EMPTY_SIGN_BAIL_BOND_FILTERS,
-  );
-  const [applied, setApplied] = React.useState<SignBailBondFilters>(
+  /* One state, not a draft and an applied one: the list answers the controls as they
+     are used, so there is never a moment where what the bench has asked for and what
+     the table is showing disagree. Every change resets to page one — the old Search
+     button did that, and a keystroke that narrows the list to four rows must not leave
+     the reader on page three of nothing. */
+  const [filters, setFilters] = React.useState<SignBailBondFilters>(
     EMPTY_SIGN_BAIL_BOND_FILTERS,
   );
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
@@ -105,14 +105,14 @@ export function SignBailBondsScreen() {
   const signRef = React.useRef<HTMLButtonElement>(null);
 
   const pending = filterSignBailBonds(bonds, EMPTY_SIGN_BAIL_BOND_FILTERS);
-  const rows = filterSignBailBonds(bonds, applied);
+  const rows = filterSignBailBonds(bonds, filters);
   const openBond = bonds.find((bond) => bond.id === openId) ?? null;
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isSearched = applied.query !== "";
+  const isSearched = filters.query !== "";
 
   /* What the footer will actually sign: only bonds the bench can currently see. A row
      signed out from under the selection, or searched out of view, is dropped rather than
@@ -123,17 +123,13 @@ export function SignBailBondsScreen() {
   /* In list order, so the signature step's note reads the way the table does. */
   const selectedBonds = rows.filter((bond) => selectedIds.has(bond.id));
 
-  const canSearch = isPendingFilterChange(draft, applied);
-
-  function applySearch() {
-    setApplied(draft);
+  function changeFilters(next: SignBailBondFilters) {
+    setFilters(next);
     setPage(1);
   }
 
   function clearSearch() {
-    setDraft(EMPTY_SIGN_BAIL_BOND_FILTERS);
-    setApplied(EMPTY_SIGN_BAIL_BOND_FILTERS);
-    setPage(1);
+    changeFilters(EMPTY_SIGN_BAIL_BOND_FILTERS);
   }
 
   function toggle(bond: SignBailBond) {
@@ -200,7 +196,7 @@ export function SignBailBondsScreen() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 pb-0 md:p-8 md:pb-0">
         <header className="flex flex-col gap-2">
-          <h1 className="text-title text-balance font-semibold sm:text-title-l">
+          <h1 className="text-title text-balance font-semibold">
             Sign bail bonds
           </h1>
           {/* The count is the whole point of the queue, so the supporting line carries it
@@ -218,12 +214,16 @@ export function SignBailBondsScreen() {
             Nothing inside draws a second frame. */}
         <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
           <SignBailBondSearch
-            draft={draft}
+            filters={filters}
             searchRef={searchRef}
-            onDraftChange={setDraft}
-            onApply={applySearch}
-            onClear={clearSearch}
-            canSearch={canSearch}
+            onChange={changeFilters}
+          />
+
+          {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
+          <QueueAnnouncer
+            from={start + 1}
+            to={start + pageRows.length}
+            total={rows.length}
           />
 
           {pageRows.length === 0 ? (
@@ -357,77 +357,51 @@ export function SignBailBondsScreen() {
 }
 
 /**
- * One box and the two buttons that work it — the reference's whole filter row.
+ * One box, filtering as it is typed — the reference's whole filter row.
  *
  * The label is the reference's own words, and here they are a real label rather than a
  * placeholder standing in for one, so ACCESSIBILITY §12 needs no deviation: the field is
  * named "Case name or number" above the control. The placeholder adds the third column the
  * search also reaches.
  *
- * "Search" is not the teal one, and that is the one place this screen departs from the
- * reference's colour. The Ration Teal Law allows a single strong action per view, and on a
- * screen whose whole purpose is signing it belongs to Sign selected bail bonds in the
- * footer below.
+ * The Search button is gone: the list answers the box as it is typed, so a button that
+ * only re-asked what the control already said was a step between the clerk and the
+ * answer. The way back to the whole queue is the `×` inside the box
+ * (`QueueSearchField`) — which is why there is no "Clear search" beside it either: on
+ * this screen the search *is* the filters, and two controls for one undo is one too many.
+ * The empty state keeps its own Clear, where it is the invitation out of a dead end.
+ *
+ * That also spends the page's teal down to one. Search carried `bg-primary` (whatever the
+ * paragraph above used to claim), and it sat two regions away from the act this screen
+ * exists for. With it gone the only strong fill left is Sign selected bail bonds in the
+ * footer, which is what the Ration Teal Law wanted all along.
+ *
+ * The form element stays so Enter in the box is swallowed rather than reloading the page:
+ * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
+ * left to catch it.
  */
 function SignBailBondSearch({
-  draft,
+  filters,
   searchRef,
-  onDraftChange,
-  onApply,
-  onClear,
-  canSearch,
+  onChange,
 }: {
-  draft: SignBailBondFilters;
+  filters: SignBailBondFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onDraftChange: (filters: SignBailBondFilters) => void;
-  onApply: () => void;
-  onClear: () => void;
-  canSearch: boolean;
+  onChange: (filters: SignBailBondFilters) => void;
 }) {
   return (
     <form
       className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onApply();
-      }}
+      onSubmit={(event) => event.preventDefault()}
     >
-      {/* `Field` rather than a bare `Label htmlFor` beside an `Input id`. The DS `Input`
-          destructures `id` out of its props and only puts it back through
-          `useFieldControlProps`, which returns nothing when there is no `Field` context —
-          so an `id` handed to an `Input` outside a `Field` is dropped and the label points
-          at an element that does not exist. `Field` supplies the context, and the label
-          and the control agree on one generated id. Upstream DS bug; see
-          `HearingsFilters`. */}
-      <Field className="min-w-0 sm:w-80">
-        <FieldLabel className="text-body">Case name or number</FieldLabel>
-        <InputGroup>
-          <InputGroupAddon>
-            <SearchIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            ref={searchRef}
-            type="search"
-            autoComplete="off"
-            value={draft.query}
-            onChange={(event) =>
-              onDraftChange({ ...draft, query: event.target.value })
-            }
-            placeholder="case name, number or litigant"
-          />
-        </InputGroup>
-      </Field>
-
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!canSearch}>
-          Search
-        </Button>
-        {/* "Clear search" rather than the sibling queues' "Clear": the search is the only
-            control on this screen, so the reference's own label is the accurate one. */}
-        <Button type="button" variant="ghost" onClick={onClear}>
-          Clear search
-        </Button>
-      </div>
+      <QueueSearchField
+        label="Case name or number"
+        className="sm:w-80"
+        ref={searchRef}
+        value={filters.query}
+        onChange={(query) => onChange({ ...filters, query })}
+        placeholder="Case name, number or litigant"
+      />
     </form>
   );
 }
@@ -500,9 +474,9 @@ function SignBailBondsItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((bond) => (
-        <li
+        <QueueItemRow
           key={bond.id}
-          className="flex gap-3 rounded-lg bg-surface-sunken p-4"
+          className="flex gap-3"
         >
           {/* The DS box expands its own hit area to 40×40; the name it carries is the bond
               and its case, not the column, because a row read aloud has no column
@@ -518,7 +492,8 @@ function SignBailBondsItemList({
             <button
               type="button"
               onClick={() => onOpen(bond)}
-              className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+              {...rowOpener}
+                className={rowOpenerClass}
             >
               <span className="sr-only">
                 {`Read the bail bond of ${bond.litigant} in `}
@@ -528,11 +503,13 @@ function SignBailBondsItemList({
             <p className="min-w-0 text-body-compact">
               Litigant: {bond.litigant}
             </p>
-            <p className="text-caption text-muted-foreground tabular-nums">
-              {bond.caseNumber}
-            </p>
+            <Identifier
+              value={bond.caseNumber}
+              label="case number"
+              className="self-start text-caption text-muted-foreground"
+            />
           </div>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

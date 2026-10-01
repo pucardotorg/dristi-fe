@@ -168,7 +168,7 @@ export function JurisdictionSection() {
           {j.otherPending === "yes" ? (
             <>
               <SectionNotice variant="neutral">
-                List each one — the court and the case number.
+                List each one: the court and the case number.
               </SectionNotice>
               <div className="flex flex-col gap-4">
                 {j.otherCases.map((oc, i) => (
@@ -271,7 +271,7 @@ export function JurisdictionSection() {
           {limitation.causeDate ? null : (
             <SectionNotice variant="neutral">
               The cause of action is worked out from the demand notice. Record when it was
-              delivered — or returned unserved — under{" "}
+              delivered, or returned unserved, under{" "}
               <Link
                 href={hrefFor("demand-notice")}
                 className="font-medium text-current underline underline-offset-2"
@@ -289,7 +289,7 @@ export function JurisdictionSection() {
           */}
           {delay === null ? null : withinLimit ? (
             <SectionNotice variant="success" announce="polite">
-              Within the limitation period — filed {delay} day{delay === 1 ? "" : "s"}{" "}
+              Within the limitation period: filed {delay} day{delay === 1 ? "" : "s"}{" "}
               after the cause of action arose.
             </SectionNotice>
           ) : (

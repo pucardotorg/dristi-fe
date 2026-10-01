@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 328" font-family="Helvetica, Arial, sans-serif" role="img" aria-label="Specimen bar council identity card, pale scan">
+  <!-- The same SPECIMEN card as `bar-id-card-specimen.svg`, scanned flat and
+       near-white — the real weather this well has to survive. A blown-out scan
+       on a light surface is what tests whether the preview well still reads as
+       a boundary (brief §11, pass 8 (a)). Same rule as its sibling: no real
+       name, number, photograph or seal, and the shapes spell nothing. -->
+  <rect width="520" height="328" fill="#fdfdfc"/>
+
+  <rect x="30" y="24" width="460" height="280" rx="10" fill="#ffffff"/>
+
+  <!-- header band, washed out by the scanner -->
+  <rect x="30" y="24" width="460" height="50" rx="10" fill="#f7f8f8"/>
+  <rect x="30" y="62" width="460" height="12" fill="#f7f8f8"/>
+  <circle cx="66" cy="50" r="15" fill="#eceeee"/>
+  <rect x="94" y="39" width="188" height="10" rx="5" fill="#e6e9e9"/>
+  <rect x="94" y="56" width="120" height="7" rx="3.5" fill="#f0f2f2"/>
+
+  <!-- photograph panel -->
+  <rect x="54" y="98" width="116" height="140" rx="5" fill="#f9f9f8" stroke="#f0efee"/>
+  <circle cx="112" cy="144" r="25" fill="#eeedec"/>
+  <path d="M71 222 q41 -50 82 0 z" fill="#eeedec"/>
+
+  <!-- detail bars, faint -->
+  <rect x="194" y="104" width="118" height="7" rx="3.5" fill="#f2f1f0"/>
+  <rect x="194" y="119" width="206" height="12" rx="6" fill="#e9e8e6"/>
+  <rect x="194" y="148" width="94" height="7" rx="3.5" fill="#f2f1f0"/>
+  <rect x="194" y="163" width="158" height="11" rx="5.5" fill="#e9e8e6"/>
+  <rect x="194" y="192" width="84" height="7" rx="3.5" fill="#f2f1f0"/>
+  <rect x="194" y="207" width="130" height="9" rx="4.5" fill="#efeeed"/>
+
+  <path d="M288 250 q17 -13 31 0 t33 -6 t27 8" fill="none" stroke="#e4e3e1" stroke-width="2" stroke-linecap="round"/>
+  <rect x="278" y="264" width="138" height="4" rx="2" fill="#f2f1f0"/>
+
+  <text x="260" y="192" text-anchor="middle" font-size="56" font-weight="bold" fill="#c8c6c3" opacity="0.5" transform="rotate(-16 260 176)" letter-spacing="10">SPECIMEN</text>
+</svg>

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { MessageSquareIcon, PaperclipIcon } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { DocumentPreview } from "@/components/cases/document-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -47,6 +47,8 @@ import {
 } from "@/lib/cases/documents";
 import { formatCaseDate } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
+import { displayName } from "@/lib/cases/names";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The record overlay chrome: header, a scrolling left pane, comments on the
@@ -74,7 +76,7 @@ export function DocumentRecordFrame({
   children: ReactNode;
 }) {
   return (
-    <ChromeDialogContent
+    <FlowDialogContent
       className={cn(
         "flex max-h-[90svh] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl",
         className,
@@ -101,7 +103,7 @@ export function DocumentRecordFrame({
         <Separator orientation="vertical" className="hidden md:block" />
         <CommentsPane fieldId={commentId} />
       </div>
-    </ChromeDialogContent>
+    </FlowDialogContent>
   );
 }
 
@@ -171,10 +173,10 @@ function DocumentBody({
     >
       <DescriptionList>
         <RecordRow term="Filing ID">
-          <span className="font-mono">{document.id}</span>
+          <Identifier value={document.id} label="filing id" />
         </RecordRow>
         <RecordRow term="Case number">
-          <span className="font-mono">{file.caseNumber}</span>
+          <Identifier value={file.caseNumber} label="case number" />
         </RecordRow>
         <RecordRow term="Document type">
           {documentTypeLabel(document.type)}
@@ -187,7 +189,7 @@ function DocumentBody({
         </RecordRow>
         <RecordRow term="Submitted by">
           <span className="flex min-w-0 flex-col gap-1">
-            <span>{submittedByName(document, peopleById)}</span>
+            <span>{displayName(submittedByName(document, peopleById))}</span>
             {submittedByRole(document, peopleById) ? (
               <span className="text-caption font-medium text-muted-foreground">
                 {submittedByRole(document, peopleById)}
@@ -197,7 +199,7 @@ function DocumentBody({
         </RecordRow>
         {document.evidenceNumber ? (
           <RecordRow term="Evidence no.">
-            {document.evidenceNumber}
+            <Identifier value={document.evidenceNumber} label="evidence number" />
           </RecordRow>
         ) : null}
         {document.evidenceStatus ? (
@@ -207,7 +209,7 @@ function DocumentBody({
         ) : null}
         {document.linkedApplication ? (
           <RecordRow term="Filed with">
-            <span className="font-mono">{document.linkedApplication.id}</span>
+            <Identifier value={document.linkedApplication.id} label="application id" />
             <span className="text-muted-foreground">
               {" "}
               ({document.linkedApplication.label})
@@ -216,7 +218,7 @@ function DocumentBody({
         ) : null}
         {document.linkedHearing ? (
           <RecordRow term="Hearing">
-            <span className="font-mono">{document.linkedHearing.id}</span>
+            <Identifier value={document.linkedHearing.id} label="hearing id" />
             <span className="text-muted-foreground">
               {" "}
               ({document.linkedHearing.label})
@@ -234,6 +236,7 @@ function DocumentBody({
       {previewSrc ? (
         <DocumentPreview
           title={document.title}
+          surface="ground"
           source={{ kind: "src", src: previewSrc }}
           download={{
             href: previewSrc,

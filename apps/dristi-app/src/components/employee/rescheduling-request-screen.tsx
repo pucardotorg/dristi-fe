@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { FolderCheckIcon, SearchIcon, SearchXIcon } from "lucide-react";
+import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
+import { QueueAnnouncer } from "@/components/employee/queue-announcer";
+import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { ReschedulingRequestDialog } from "@/components/employee/rescheduling-request-dialog";
 import { ReschedulingRequestTable } from "@/components/employee/rescheduling-request-table";
 import { Button } from "@/components/ui/button";
@@ -15,13 +17,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { isPendingFilterChange } from "@/lib/employee/filter-state";
 import {
   causeTitle,
   formatListingDate,
@@ -36,6 +31,7 @@ import {
   type ReschedulingFilters,
   type ReschedulingRequest,
 } from "@/lib/employee/rescheduling-request";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Rescheduling request — applications asking this court to move a listed date.
@@ -56,10 +52,12 @@ import {
  * do not write an order or move the listing.
  */
 export function ReschedulingRequestScreen() {
-  const [draft, setDraft] = React.useState<ReschedulingFilters>(
-    EMPTY_RESCHEDULING_FILTERS,
-  );
-  const [applied, setApplied] = React.useState<ReschedulingFilters>(
+  /* One state, not a draft and an applied one: the list answers the controls as they
+     are used, so there is never a moment where what the bench has asked for and what
+     the table is showing disagree. Every change resets to page one — the old Search
+     button did that, and a keystroke that narrows the list to four rows must not leave
+     the reader on page three of nothing. */
+  const [filters, setFilters] = React.useState<ReschedulingFilters>(
     EMPTY_RESCHEDULING_FILTERS,
   );
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
@@ -73,25 +71,21 @@ export function ReschedulingRequestScreen() {
   const remaining = RESCHEDULING_QUEUE.filter(
     (request) => !decidedIds.has(request.id),
   );
-  const rows = filterReschedulingRequests(remaining, applied);
+  const rows = filterReschedulingRequests(remaining, filters);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = applied.query !== "";
+  const isFiltered = filters.query !== "";
 
-  const canSearch = isPendingFilterChange(draft, applied);
-
-  function applyFilters() {
-    setApplied(draft);
+  function changeFilters(next: ReschedulingFilters) {
+    setFilters(next);
     setPage(1);
   }
 
   function clearFilters() {
-    setDraft(EMPTY_RESCHEDULING_FILTERS);
-    setApplied(EMPTY_RESCHEDULING_FILTERS);
-    setPage(1);
+    changeFilters(EMPTY_RESCHEDULING_FILTERS);
   }
 
   function decide(request: ReschedulingRequest) {
@@ -106,7 +100,7 @@ export function ReschedulingRequestScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Rescheduling request
         </h1>
         <p className="text-body text-muted-foreground">
@@ -118,12 +112,16 @@ export function ReschedulingRequestScreen() {
 
       <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
         <ReschedulingFiltersRow
-          draft={draft}
+          filters={filters}
           searchRef={searchRef}
-          onDraftChange={setDraft}
-          onApply={applyFilters}
-          onClear={clearFilters}
-          canSearch={canSearch}
+          onChange={changeFilters}
+        />
+
+        {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
+        <QueueAnnouncer
+          from={start + 1}
+          to={start + pageRows.length}
+          total={rows.length}
         />
 
         {pageRows.length === 0 ? (
@@ -171,56 +169,45 @@ export function ReschedulingRequestScreen() {
   );
 }
 
+/**
+ * One text box, filtering as it is typed — the whole filter row.
+ *
+ * The Search button is gone: with one control there is nothing to compose before asking,
+ * so it only ever stood between the clerk and the answer. The way back to the whole queue
+ * is the `×` inside the box (`QueueSearchField`), which is why there is no "Clear" beside
+ * it either — on this screen the search *is* the filters. The empty state keeps its own
+ * Clear, where it is the invitation out of a dead end.
+ *
+ * The page is left with no `bg-primary` at all, and that is right: Search was the only
+ * one, and this page has no page-level act for the Ration Teal Law to spend it on. A
+ * request is approved or refused inside a row's overlay, where the teal already lives.
+ *
+ * The form element stays so Enter in the box is swallowed rather than reloading the page:
+ * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
+ * left to catch it.
+ */
 function ReschedulingFiltersRow({
-  draft,
+  filters,
   searchRef,
-  onDraftChange,
-  onApply,
-  onClear,
-  canSearch,
+  onChange,
 }: {
-  draft: ReschedulingFilters;
+  filters: ReschedulingFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onDraftChange: (filters: ReschedulingFilters) => void;
-  onApply: () => void;
-  onClear: () => void;
-  canSearch: boolean;
+  onChange: (filters: ReschedulingFilters) => void;
 }) {
   return (
     <form
       className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onApply();
-      }}
+      onSubmit={(event) => event.preventDefault()}
     >
-      <Field className="min-w-0 sm:w-80">
-        <FieldLabel className="text-body">Search cases</FieldLabel>
-        <InputGroup>
-          <InputGroupAddon>
-            <SearchIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            ref={searchRef}
-            type="search"
-            autoComplete="off"
-            value={draft.query}
-            onChange={(event) =>
-              onDraftChange({ ...draft, query: event.target.value })
-            }
-            placeholder="case name, number or advocate"
-          />
-        </InputGroup>
-      </Field>
-
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!canSearch}>
-          Search
-        </Button>
-        <Button type="button" variant="ghost" onClick={onClear}>
-          Clear
-        </Button>
-      </div>
+      <QueueSearchField
+        label="Search cases"
+        className="sm:w-80"
+        ref={searchRef}
+        value={filters.query}
+        onChange={(query) => onChange({ ...filters, query })}
+        placeholder="Case name, number or advocate"
+      />
     </form>
   );
 }
@@ -283,7 +270,7 @@ function ReschedulingRequestItemList({
         <li key={request.id}>
           <button
             type="button"
-            className="flex w-full min-h-10 flex-col gap-2 rounded-lg bg-surface-sunken p-4 text-left transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none"
+            className="flex w-full min-h-10 flex-col gap-2 rounded-lg bg-surface-sunken p-4 text-left transition-colors hover:bg-accent-strong focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none"
             aria-label={`Review ${causeTitle(request)}`}
             onClick={() => onOpen(request)}
           >
@@ -291,7 +278,7 @@ function ReschedulingRequestItemList({
               {causeTitle(request)}
             </p>
             <p className="text-caption text-muted-foreground">
-              <span className="tabular-nums">{request.caseNumber}</span>
+              <Identifier value={request.caseNumber} label="case number" />
               {" · Applied "}
               <span className="tabular-nums">
                 {formatRequestLongDate(request.appliedOn)}

@@ -244,7 +244,7 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
             </DocCell>
             <DocCell label="Jurisdiction invoked under Section 142(2)">
               {jurisdiction.depositedByPayee
-                ? `${jurisdiction.bankBranch} — complainant’s bank branch`
+                ? `${jurisdiction.bankBranch}, the complainant’s bank branch`
                 : "Drawer (accused) bank branch"}
             </DocCell>
             <DocCell label="Any other complaint pending between the same parties?">
@@ -307,7 +307,7 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
         </DocTable>
       ) : (
         <DocP className="text-paper-muted-foreground">
-          No advocate has been added — the complainant appears as a party in person.
+          No advocate has been added. The complainant appears as a party in person.
         </DocP>
       )}
 

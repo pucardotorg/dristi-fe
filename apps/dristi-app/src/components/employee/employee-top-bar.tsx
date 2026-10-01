@@ -12,11 +12,13 @@ import {
   useRailCollapsed,
 } from "@/components/chrome/app-chrome";
 import { courtTrail, type CourtCrumb } from "@/lib/employee/navigation";
+import { cn } from "@/lib/utils";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
+  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
@@ -166,13 +168,16 @@ function CourtNavTrigger({ hasTrail }: { hasTrail: boolean }) {
 }
 
 /**
- * The steps above this page. `courtTrail` decides what they are; this decides how they
- * survive a narrow bar.
+ * The steps above this page, and then this page. `courtTrail` decides what they are; this
+ * decides how they survive a narrow bar.
  *
- * Every step is muted. In an ordinary trail the last step is where you are, so it goes to
- * full ink — but here the page is never a step, its own heading is directly below and
- * several sizes up, and so nothing in this row is "you". A step in darker ink would claim
- * to be.
+ * **The last step is where you are, so it goes to full ink** — the ordinary trail
+ * convention, restored on 2026-09-11 when the trail started carrying the current page
+ * (owner). It is the DS `BreadcrumbPage` slot rather than a recoloured span: the
+ * primitive is what sets `aria-current="page"` and `aria-disabled`, so a screen reader is
+ * told which step is the page and told that it is not a link — neither of which a colour
+ * can say. The steps above it stay muted, which is now a real distinction rather than a
+ * flat row.
  *
  * **The root is pinned and the rest shrink.** Left to itself flex takes width off every
  * child in proportion, which on the thirteen queue screens means the trail gives up its
@@ -187,9 +192,21 @@ function CourtNavTrigger({ hasTrail }: { hasTrail: boolean }) {
  * The chevrons are pinned for a different reason: a squashed separator would be worse
  * than a clipped word.
  *
- * Below `md` the middle steps leave outright. What a phone can least afford to lose is
- * the two ends — the root, and the nearest step above this page.
+ * Below `md` the middle steps leave outright — but "middle" is not simply "not an end"
+ * any more. Now that the trail ends where the reader is, dropping everything but the two
+ * ends would take the *way back* off every nested page: a phone would show `Court home`
+ * and `CMP/1840/2025`, and the queue the complaint is waiting in — the only route back to
+ * it, and the reason the file itself carries no back control — would be the thing that
+ * left. So a phone keeps three: the root, the last step that is a link, and the page. On
+ * a queue screen there is no such link and it keeps two, which is what it had before.
  */
+/**
+ * The identifier face, for a step that names a record by its number. No copy affordance:
+ * the crumb is already a link, and a control cannot hold another one.
+ */
+const crumbFace = (crumb: CourtCrumb) =>
+  crumb.mono ? "font-mono tabular-nums" : undefined;
+
 function CourtTrail({ crumbs }: { crumbs: CourtCrumb[] }) {
   const last = crumbs.length - 1;
 
@@ -201,7 +218,9 @@ function CourtTrail({ crumbs }: { crumbs: CourtCrumb[] }) {
         {crumbs.map((crumb, index) => {
           const isRoot = index === 0;
           const isLast = index === last;
-          const dropped = !isRoot && !isLast;
+          // The step directly above the page, when it goes somewhere: the way back.
+          const wayBack = index === last - 1 && crumb.href !== undefined;
+          const dropped = !isRoot && !isLast && !wayBack;
           return (
             <React.Fragment key={crumb.label}>
               {index > 0 ? (
@@ -224,14 +243,28 @@ function CourtTrail({ crumbs }: { crumbs: CourtCrumb[] }) {
               >
                 {crumb.href ? (
                   <BreadcrumbLink asChild className={CRUMB_LINK}>
-                    <Link href={crumb.href}>{crumb.label}</Link>
+                    <Link href={crumb.href} className={crumbFace(crumb)}>
+                      {crumb.label}
+                    </Link>
                   </BreadcrumbLink>
+                ) : isLast ? (
+                  /* Where the reader is. On a queue that is the queue's name; on a
+                     complaint's file, a listing or a scrutiny workbench it is the
+                     record's number, which is the one thing the page's own heading does
+                     not already say. */
+                  <BreadcrumbPage
+                    className={cn("truncate", crumbFace(crumb))}
+                  >
+                    {crumb.label}
+                  </BreadcrumbPage>
                 ) : (
                   /* A section with no href is still a disclosure in the rail, not a
-                     route — there is no page called "Sign". Nested hearing routes give
-                     the section the queue's href in `courtTrail`, so the same label is
-                     a link there. It is not dressed as a link it cannot be. */
-                  <span className="truncate">{crumb.label}</span>
+                     route — there is no page called "Sign". Nested routes give the
+                     section the queue's href in `courtTrail`, so the same label is a
+                     link there. It is not dressed as a link it cannot be. */
+                  <span className={cn("truncate", crumbFace(crumb))}>
+                    {crumb.label}
+                  </span>
                 )}
               </BreadcrumbItem>
             </React.Fragment>

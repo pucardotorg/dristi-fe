@@ -16,6 +16,7 @@ import {
   type DelayCondonationCase,
 } from "@/lib/employee/delay-condonation";
 import { causeTitle } from "@/lib/employee/hearings";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One delay-condonation application, read and then allowed or refused.
@@ -87,7 +88,8 @@ function MatterBody({
       title={DELAY_CONDONATION_TYPE_LABEL}
       description={
         <>
-          <span className="tabular-nums">{matter.caseNumber}</span>
+          {/* The overlay renders this as its accessible description. */}
+          <Identifier value={matter.caseNumber} label="case number" copyable={false} />
           {" · "}
           {causeTitle(matter)}
         </>
@@ -98,7 +100,7 @@ function MatterBody({
             {DELAY_CONDONATION_TYPE_LABEL}
           </ReviewRow>
           <ReviewRow term="Case number">
-            <span className="font-mono">{matter.caseNumber}</span>
+            <Identifier value={matter.caseNumber} label="case number" />
           </ReviewRow>
           <ReviewRow term="Stage">
             {delayCondonationStageLabel(matter.stage)}

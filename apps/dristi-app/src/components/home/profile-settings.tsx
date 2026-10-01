@@ -15,6 +15,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Locale } from "@/lib/onboarding/content";
+import { Identifier } from "@/components/chrome/identifier";
 
 const REQUIRED_MARK = <span className="text-destructive">*</span>;
 
@@ -162,7 +163,7 @@ export function ProfileSettings({ locale, profileName, idSubmitted, submittedId,
         {advocateRequest && !advocateProfileAvailable ? <Alert variant="success"><CheckCircle2Icon aria-hidden /><AlertTitle>Your request has been submitted</AlertTitle><AlertDescription>We will notify you when your advocate profile is approved. Your litigant profile remains active.</AlertDescription></Alert> : null}
         {upgradeDetailsOpen && advocateRequest ? (
           <DescriptionList className="rounded-lg bg-muted px-4">
-            <DescriptionRow><DescriptionTerm>Bar registration number</DescriptionTerm><DescriptionDetails>{advocateRequest.barNumber}</DescriptionDetails></DescriptionRow>
+            <DescriptionRow><DescriptionTerm>Bar registration number</DescriptionTerm><DescriptionDetails><Identifier value={advocateRequest.barNumber} label="bar registration number" /></DescriptionDetails></DescriptionRow>
             <DescriptionRow className="items-center"><DescriptionTerm>Bar Council ID</DescriptionTerm><DescriptionDetails><DocumentRowValue file={advocateRequest.idFile} locale={locale} /></DescriptionDetails></DescriptionRow>
           </DescriptionList>
         ) : null}

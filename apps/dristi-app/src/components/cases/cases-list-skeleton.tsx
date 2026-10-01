@@ -1,5 +1,40 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
+/**
+ * Just the table — head strip over six rows, no elevation of its own. Used inside the
+ * cases panel while a filter apply re-sorts the list, so it must sit flat within the
+ * panel that already lifts (no shadow inside a shadow). The full-page skeleton below
+ * carries the same block with the panel's `shadow-raised`, since it stands alone.
+ */
+export function CasesResultsSkeleton() {
+  return (
+    <div
+      className="overflow-hidden rounded-xl border border-hairline bg-card"
+      aria-busy
+    >
+      <span className="sr-only" role="status">
+        Sorting cases
+      </span>
+      <div className="flex h-10 items-center gap-4 bg-surface-sunken px-4">
+        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="hidden h-3 w-1/4 md:block" />
+        <Skeleton className="h-3 w-1/6" />
+      </div>
+      {Array.from({ length: 6 }, (_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-4 border-b border-hairline px-4 py-3 last:border-b-0"
+        >
+          <Skeleton className="h-5 w-1/3" />
+          <Skeleton className="hidden h-5 w-1/4 md:block" />
+          <Skeleton className="h-5 w-1/6" />
+          <Skeleton className="ml-auto h-5 w-8" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Folder and search list pages share this chrome while rows load. */
 export function CasesListSkeleton() {
   return (

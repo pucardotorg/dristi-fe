@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * The preview control for an uploaded document — one implementation, two callers.
+ * The preview control for a document on file — one implementation, now three callers.
  *
- * It began on the case-documents row (`slot-row.tsx`) and the scrutiny inset needs the
- * same thing: the officer's evidence, and the flagged scan itself, are shown as the small
- * page-shaped thumbnail the advocate already knows from the upload screen, and clicking it
- * opens the full view (brief §15.2). Two copies of a control that opens a document is how
- * a product ends up with two ways to do the same thing, so it lives here.
+ * It began on the case-documents row (`slot-row.tsx`); the scrutiny inset needed the same
+ * thing (the officer's evidence and the flagged scan itself, brief §15.2); and the
+ * court's complaint file needs it a third time, for the documents a §138 filing carried
+ * (`employee/register-case-file.tsx`). Two copies of a control that opens a document is
+ * how a product ends up with two ways to do the same thing, so it lives here.
  *
  * Always a `<button>`: a PDF with no image preview must still be openable by keyboard and
  * by voice. "You can enlarge this" cannot live on hover alone (`ACCESSIBILITY.md` §7), so
@@ -26,34 +26,34 @@ import type { StoredFileRef } from "@/lib/filing/types";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function SlotThumbnail({
-  file,
+/**
+ * The control itself, without an opinion about where the picture comes from.
+ *
+ * Split out of `SlotThumbnail` on 2026-09-11 so the court side can share it. The filing
+ * callers reach a stored file through `useFilePreview`; the court's complaint file has no
+ * document store at all and shows a drawn facsimile instead, so it has nothing to hand a
+ * `StoredFileRef`-shaped API. The *control* is what both need to be the same — one
+ * button, one scrim, one focus treatment, one voice label — and that is exactly what is
+ * here. `SlotThumbnail` below composes it and renders byte-identical markup to before.
+ */
+export function ThumbnailButton({
   label,
   onPreview,
+  children,
 }: {
-  file: StoredFileRef | undefined;
-  /** What this document is, for the accessible name when the file has no name. */
+  /** The whole accessible name, spoken. Callers own the verb. */
   label: string;
-  onPreview: () => void;
+  onPreview: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  children: React.ReactNode;
 }) {
-  const preview = useFilePreview(file);
   return (
     <button
       type="button"
       onClick={onPreview}
-      aria-label={`Preview ${file?.name ?? label}`}
+      aria-label={label}
       className="group/thumb relative size-full cursor-pointer rounded-md outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
     >
-      {preview.status === "loading" ? (
-        <Skeleton className="size-full rounded-md" />
-      ) : preview.status === "ready" && preview.imageUrl ? (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={preview.imageUrl} alt="" className="size-full object-cover" />
-      ) : (
-        <span className="flex size-full items-center justify-center text-caption font-semibold text-muted-foreground">
-          {file?.ext ?? "File"}
-        </span>
-      )}
+      {children}
 
       <span
         aria-hidden
@@ -66,6 +66,36 @@ export function SlotThumbnail({
         </span>
       </span>
     </button>
+  );
+}
+
+export function SlotThumbnail({
+  file,
+  label,
+  onPreview,
+}: {
+  file: StoredFileRef | undefined;
+  /** What this document is, for the accessible name when the file has no name. */
+  label: string;
+  onPreview: () => void;
+}) {
+  const preview = useFilePreview(file);
+  return (
+    <ThumbnailButton
+      label={`Preview ${file?.name ?? label}`}
+      onPreview={onPreview}
+    >
+      {preview.status === "loading" ? (
+        <Skeleton className="size-full rounded-md" />
+      ) : preview.status === "ready" && preview.imageUrl ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img src={preview.imageUrl} alt="" className="size-full object-cover" />
+      ) : (
+        <span className="flex size-full items-center justify-center text-caption font-semibold text-muted-foreground">
+          {file?.ext ?? "File"}
+        </span>
+      )}
+    </ThumbnailButton>
   );
 }
 

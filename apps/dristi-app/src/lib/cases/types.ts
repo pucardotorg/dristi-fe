@@ -10,14 +10,6 @@
  * journey.md has no discrete registration step.
  */
 
-/**
- * The four global views. Ongoing and the long pending register partition
- * live cases — a long-pending case is not also ongoing. Bookmarked is a
- * personal marker that can sit on a live or disposed case, so that count
- * overlaps the others.
- */
-export type CasesView = "ongoing" | "long-pending" | "disposed" | "bookmarked";
-
 export type ActiveStage =
   | "scrutiny"
   | "cognizance"
@@ -104,23 +96,12 @@ export const DISPOSED_OUTCOMES: { value: DisposedOutcome; label: string }[] = [
   { value: "dismissed", label: "Complaint dismissed" },
 ];
 
-export const CASES_VIEWS: { value: CasesView; label: string }[] = [
-  { value: "ongoing", label: "Ongoing" },
-  { value: "long-pending", label: "Long pending register" },
-  { value: "disposed", label: "Disposed" },
-  { value: "bookmarked", label: "Bookmarked" },
-];
-
 export function stageLabel(stage: ActiveStage): string {
   return ACTIVE_STAGES.find((s) => s.value === stage)?.label ?? stage;
 }
 
 export function outcomeLabel(outcome: DisposedOutcome): string {
   return DISPOSED_OUTCOMES.find((o) => o.value === outcome)?.label ?? outcome;
-}
-
-export function viewLabel(view: CasesView): string {
-  return CASES_VIEWS.find((v) => v.value === view)?.label ?? view;
 }
 
 export function bucketLabel(bucket: BucketKey): string {

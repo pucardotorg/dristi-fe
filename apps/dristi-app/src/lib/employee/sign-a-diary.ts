@@ -43,7 +43,7 @@
  */
 
 import { addDays } from "./bulk-reschedule";
-import { CURRENT_STAFF } from "./content";
+import { CURRENT_STAFF, PRESIDING_MAGISTRATE } from "./content";
 import {
   causeTitle,
   counselFor,
@@ -66,12 +66,41 @@ export type ADiaryEntry = {
   /** The day this entry records, `YYYY-MM-DD`. */
   dated: string;
   /**
+   * The order sheet's opening recital: who was before the court, and what the case was
+   * called for that day.
+   *
+   * **Not part of the business of the day, though it is part of the order.** It was, for
+   * one render, and the table it feeds gave five rows opening "Both sides are represented
+   * by counsel" — a column whose whole job is to say what was *done*, clamped to two
+   * lines, reading as five copies of the same boilerplate. An order sheet states
+   * appearances in its own block above the operative part (`order-screen.tsx` draws them
+   * as two rolls), so that is where this belongs, beside the appearance table that
+   * carries the same fact in names.
+   *
+   * Standing furniture, so the bench does not edit it: who appeared and what the matter
+   * was called for are facts about the listing, not the court's own words. The business
+   * below is what the bench writes, corrects and signs.
+   */
+  attendance: string;
+  /**
+   * Which order the court passed that day — the heading its order sheet carries.
+   *
+   * Descriptive rather than the bare "Order" the composer prints (`order-draft.ts`),
+   * because this queue shows one day's order out of its own case: the bench opening a
+   * row has not just dictated it and needs the heading to say which decision it is
+   * reading. Sentence case, like every other title in the court-side catalogues.
+   */
+  orderTitle: string;
+  /**
    * What the court did that day, in the court's own words — the reference's
-   * "Proceedings/Business of the day".
+   * "Proceedings/Business of the day", and the operative passage of the order sheet the
+   * entry dialog renders.
    *
    * One string rather than a list of acts, because that is what it is on the paper: a
-   * paragraph the bench writes, corrects and signs. It always ends with the sentence
-   * that fixes the next date, which is the part the register is read for.
+   * passage the bench writes, corrects and signs. Paragraphs are separated by a blank
+   * line, the way the editor holds them and the way the page prints them. It always ends
+   * with the sentence that fixes the next date, which is the part the register is read
+   * for.
    */
   business: string;
   /** The day the case comes back, and what it is listed for. */
@@ -90,13 +119,19 @@ type ADiarySeed = Omit<ADiaryEntry, "dated" | "nextHearing" | "business"> & {
   datedOffset: number;
   nextOffset: number;
   /**
-   * What was done, when the day's business was more than fixing the next date.
+   * What was done, as the paragraphs of the order.
    *
-   * Optional because most of the reference's own entries are the next-hearing sentence
-   * and nothing else — a matter called, the parties heard on a date, the case adjourned.
-   * Where a seed carries this, `composeBusiness` puts it in front of that sentence.
+   * Required, and a list rather than one string: the entry dialog renders this as the
+   * operative passage of the day's order sheet, and an order that recites nothing but
+   * the date it is posted to is not an order the bench can read back.
+   *
+   * **The first paragraph is what the court did**, never who turned up — that is
+   * `attendance`, and it is kept out of here so the table's clamped column opens on the
+   * one fact that tells one day from another. `composeBusiness` puts the next-hearing
+   * sentence after these as the last paragraph, which is where an order sheet fixes the
+   * next date.
    */
-  proceedings?: string;
+  proceedings: string[];
 };
 
 /**
@@ -118,8 +153,13 @@ const A_DIARY_SEED: ADiarySeed[] = [
     datedOffset: 0,
     nextOffset: 7,
     nextPurpose: "evidence-of-complainant",
-    proceedings:
-      "The complainant was present and was examined as PW1. Chief examination was completed and the cheque and the bank memo were marked. Cross examination could not be taken up for want of time.",
+    attendance:
+      "The complainant is present in person and is represented by counsel. The accused is represented by counsel. The case stands posted today for the evidence of the complainant.",
+    orderTitle: "Order on the evidence of the complainant",
+    proceedings: [
+      "The complainant was sworn and examined as PW1 and his chief examination was completed. The cheque on which the complaint is founded, the memo by which the bank returned it and the statutory notice issued to the accused were marked through him, subject to proof, and the objections of the accused to their marking are left open.",
+      "Counsel for the accused applied to take up the cross examination of PW1 today. The marking of the documents took up the sitting and the cross examination could not be taken up for want of time. PW1 is directed to be present on the next date.",
+    ],
   },
   {
     id: "ad-658",
@@ -132,6 +172,13 @@ const A_DIARY_SEED: ADiarySeed[] = [
     datedOffset: 0,
     nextOffset: 10,
     nextPurpose: "appearance",
+    attendance:
+      "The complainant is represented by counsel. Counsel for the accused has filed his vakalat and entered appearance. The accused is not present in person.",
+    orderTitle: "Order on the personal appearance of the accused",
+    proceedings: [
+      "Counsel for the accused reported that the accused is away from the district on work and applied that his personal appearance on this date be excused. The complainant has no objection. The application is allowed for today alone.",
+      "The accused is directed to be present in person on the next date to enter his appearance and to furnish bail. No further exemption will be granted except on his own application.",
+    ],
   },
   {
     id: "ad-662",
@@ -144,8 +191,13 @@ const A_DIARY_SEED: ADiarySeed[] = [
     datedOffset: 0,
     nextOffset: 14,
     nextPurpose: "plea",
-    proceedings:
-      "The accused appeared and was released on bail on the bond already executed. The substance of the accusation was read over and explained.",
+    attendance:
+      "The complainant is represented by counsel. The accused, Bindu Rajagopal, appeared before this court in person on the summons served on her. There is no advocate on record for the accused.",
+    orderTitle: "Order releasing the accused on bail",
+    proceedings: [
+      "The accused is released on bail on the bond already executed before this court, with the surety already accepted. The substance of the accusation under section 138 of the Negotiable Instruments Act, 1881 was read over and explained to her in the language she understands, and she was told that she is not bound to answer it today.",
+      "The accused submitted that she wishes to engage counsel before answering the accusation. She is at liberty to do so, and a copy of the complaint and of the documents produced with it was furnished to her.",
+    ],
   },
   {
     id: "ad-665",
@@ -158,6 +210,13 @@ const A_DIARY_SEED: ADiarySeed[] = [
     datedOffset: 0,
     nextOffset: 5,
     nextPurpose: "arguments",
+    attendance:
+      "Both sides are represented by counsel. The accused is present in person. The case stands posted today for the evidence of the accused.",
+    orderTitle: "Order closing the evidence on both sides",
+    proceedings: [
+      "The accused reported that she does not propose to adduce any evidence on her side, and that she will rely on the answers recorded in her examination under S. 351 BNSS and on the documents already marked in the evidence of the complainant. The evidence on both sides is accordingly closed.",
+      "Both counsel applied for time to prepare their submissions.",
+    ],
   },
   {
     id: "ad-669",
@@ -170,8 +229,13 @@ const A_DIARY_SEED: ADiarySeed[] = [
     datedOffset: 0,
     nextOffset: 21,
     nextPurpose: "for-reports",
-    proceedings:
-      "Both sides reported that the reference to mediation is pending before the centre. The report of the mediator has not been received.",
+    attendance:
+      "Both sides are represented by counsel. The case stands posted today for the report on the reference this court made to the mediation centre attached to it.",
+    orderTitle: "Order on the reference to mediation",
+    proceedings: [
+      "Both counsel reported that the parties have appeared before the mediator and that the reference is still in progress. The report of the mediator has not been received by this court.",
+      "The mediation centre is directed to report the result of the reference to this court, and the parties are directed to appear before the mediator on the dates the centre appoints.",
+    ],
   },
   /* Left unsigned from earlier days. They are the reason the date filter is a control
      and not decoration, and the reason the page's count and the table's count differ:
@@ -187,6 +251,13 @@ const A_DIARY_SEED: ADiarySeed[] = [
     datedOffset: -1,
     nextOffset: 9,
     nextPurpose: "examination-of-accused-351",
+    attendance:
+      "Both sides are represented by counsel. The accused is present in person. The case stands posted today for the cross examination of PW1.",
+    orderTitle: "Order closing the evidence of the complainant",
+    proceedings: [
+      "PW1 was recalled and was cross examined by counsel for the accused. The cross examination was completed and the witness was discharged. The complainant reported that she has no further witness to examine, and the evidence on the side of the complainant is closed.",
+      "The accused is directed to be present in person on the next date for his examination on the circumstances appearing against him in the evidence.",
+    ],
   },
   {
     id: "ad-1046",
@@ -199,8 +270,13 @@ const A_DIARY_SEED: ADiarySeed[] = [
     datedOffset: -1,
     nextOffset: 4,
     nextPurpose: "cognizance",
-    proceedings:
-      "The complaint was taken up for cognizance. The sworn statement of the complainant was recorded.",
+    attendance:
+      "The complainant is represented by counsel. The accused has not been summoned at this stage and there is no advocate on record for him. The complaint under section 138 of the Negotiable Instruments Act, 1881 is taken up before cognizance.",
+    orderTitle: "Order recording the sworn statement of the complainant",
+    proceedings: [
+      "The authorised representative of the complainant was examined on oath and his sworn statement was recorded separately and placed on the file. The authorisation under which he speaks for the complainant firm was produced and is on record.",
+      "The originals of the cheque, of the memo by which the bank returned it and of the statutory notice with its postal acknowledgement were produced for verification. They were compared with the copies filed along with the complaint and were returned to the complainant.",
+    ],
   },
   {
     id: "ad-676",
@@ -213,6 +289,13 @@ const A_DIARY_SEED: ADiarySeed[] = [
     datedOffset: -3,
     nextOffset: 2,
     nextPurpose: "delay-condonation",
+    attendance:
+      "Both sides are represented by counsel. The case stands posted today on the application filed by the complainant to condone the delay in filing the complaint.",
+    orderTitle: "Order on the application to condone the delay",
+    proceedings: [
+      "Counsel for the accused filed an objection to the application today and applied for time to address the court on it. A copy of the objection was furnished to counsel for the complainant across the bar.",
+      "Both sides are to be heard on the application before the complaint is taken on file.",
+    ],
   },
 ];
 
@@ -248,8 +331,10 @@ function nextHearingSentence(day: string, purpose: CourtHearingPurposeId): strin
 }
 
 function composeBusiness(seed: ADiarySeed, nextHearing: string): string {
-  const sentence = nextHearingSentence(nextHearing, seed.nextPurpose);
-  return seed.proceedings ? `${seed.proceedings} ${sentence}` : sentence;
+  return [
+    ...seed.proceedings,
+    nextHearingSentence(nextHearing, seed.nextPurpose),
+  ].join("\n\n");
 }
 
 /**
@@ -266,6 +351,8 @@ export function aDiaryEntries(today: string): ADiaryEntry[] {
       caseNumber: seed.caseNumber,
       parties: seed.parties,
       counsel: seed.counsel,
+      attendance: seed.attendance,
+      orderTitle: seed.orderTitle,
       dated: addDays(today, seed.datedOffset),
       business: composeBusiness(seed, nextHearing),
       nextHearing,
@@ -341,23 +428,50 @@ export function formatADiaryDate(day: string): string {
 }
 
 /**
- * The entry as paper: what the preview renders and what Download writes.
+ * The order the court passed that day — what the preview renders and what Download
+ * writes.
  *
- * Shaped like the other court-side facsimiles — a court heading, the cause, the body,
- * and the block that signs it — so the court side's documents read as one product. What
- * the A-Diary adds is the **appearance table** the reference draws: who was on each side
- * and who appeared for them, which is the part of the day's record that says the hearing
- * happened at all.
+ * **The document is the order, not the register line** (owner, 2026-09-15). The bench
+ * opening a diary row is reading back a day it sat, and what it has to check before
+ * signing is the paper that day produced: the order. So the entry dialog draws an order
+ * sheet, built on the one the order composer prints (`order-screen.tsx`) so the two
+ * halves of the court side cannot disagree about what an order looks like — the court
+ * heading, the cause, the offence every case here is prosecuted for, the order's own
+ * title, who appeared, the operative passage, and the block that signs it.
+ *
+ * Two things it keeps from the register it replaced. The **appearance table** is the
+ * reference's own drawing and is the part of the day's record that says the hearing
+ * happened at all, so it stays, as the order sheet's Present roll. And the operative
+ * passage is `entry.business` — the same string the editor corrects — so correcting the
+ * day's record still visibly changes the paper beside it.
+ *
+ * **The order wording is demo text, not a court-approved order.** `docs/product/` defines
+ * no §138 order template, the entries carry no sums, sureties or dates of payment, and
+ * the passages below recite none. They claim nothing more than that. The one statute
+ * they name is the one every case on this platform is about.
  */
 export type ADiaryDocument = {
   court: string;
   caseNumber: string;
   matter: string;
-  /** "Monday, 31 August 2026" — the day the register records, named in full. */
+  /** "Monday, 31 August 2026" — the day the order was passed, named in full. */
   dated: string;
+  /**
+   * The offence, as an order sheet prints it above the operative part.
+   *
+   * A fact about the platform rather than about the row — every case DRISTI runs is a
+   * cheque-dishonour prosecution — and worded exactly as the order composer's own page
+   * prints it, for the reason the titles are the register's: one product, one sentence.
+   */
+  offence: string;
+  /** Which order this is — "Order on the evidence of the complainant". */
+  title: string;
+  /** Who was before the court, and what the matter was called for. */
+  attendance: string;
   /** The reference's bordered table: a label and a value, in the order it draws them. */
   appearances: { label: string; value: string }[];
-  business: string;
+  /** The operative passage, in paragraphs — the business of the day as the bench left it. */
+  paragraphs: string[];
   /** The signature block. Nothing in this build ever signs it. */
   signature: string;
 };
@@ -377,6 +491,9 @@ export function buildADiaryDocument(entry: ADiaryEntry): ADiaryDocument {
     caseNumber: entry.caseNumber,
     matter: causeTitle(entry),
     dated: formatCourtDay(entry.dated),
+    offence: "Offence under S. 138 of the Negotiable Instruments Act, 1881",
+    title: entry.orderTitle,
+    attendance: entry.attendance,
     /* The reference's own four rows, in its own order: each side, then who appeared for
        it. "1" is the reference's numbering — a case can carry more than one complainant
        or accused, and the register numbers them. */
@@ -386,8 +503,14 @@ export function buildADiaryDocument(entry: ADiaryEntry): ADiaryDocument {
       { label: "Accused 1", value: entry.parties.accused },
       { label: "Advocate(s)", value: appearanceFor(entry, "accused") },
     ],
-    business: entry.business,
-    signature: "Pending the signature of the magistrate.",
+    /* Split on the blank line the editor holds and the seed writes. A passage the bench
+       has flattened into one paragraph is one paragraph, which is what it asked for. */
+    paragraphs: entry.business.split(/\n\s*\n/).filter((text) => text.trim() !== ""),
+    /* The signature block names whose signature the page is waiting for — the magistrate,
+       never the seat working the screen. An unsigned order says so plainly rather than
+       showing an empty rule that could be mistaken for a signature that failed to
+       render. */
+    signature: `Pending the signature of ${PRESIDING_MAGISTRATE.name}, ${PRESIDING_MAGISTRATE.designation}, ${COURT}.`,
   };
 }
 
@@ -397,18 +520,24 @@ export function aDiaryDocumentText(document: ADiaryDocument): string {
     `Case no. ${document.caseNumber}`,
     `In the matter of ${document.matter}`,
     `Dated ${document.dated}`,
+    document.offence,
+    "",
+    document.title,
     "",
     ...document.appearances.map(({ label, value }) => `${label}: ${value}`),
     "",
-    "Business of the day",
-    document.business,
+    document.attendance,
+    "",
+    ...document.paragraphs.map(
+      (paragraph, index) => `${index + 1}. ${paragraph}`,
+    ),
     "",
     document.signature,
   ].join("\n");
 }
 
 export function aDiaryDocumentFilename(entry: ADiaryEntry): string {
-  return `${entry.caseNumber.replace(/\//g, "-")}-a-diary-${entry.dated}.txt`;
+  return `${entry.caseNumber.replace(/\//g, "-")}-order-${entry.dated}.txt`;
 }
 
 export function downloadADiaryDocument(entry: ADiaryEntry): void {

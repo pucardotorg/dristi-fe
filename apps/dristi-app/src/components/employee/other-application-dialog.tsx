@@ -15,6 +15,7 @@ import {
   otherApplicationTypeLabel,
   type OtherApplication,
 } from "@/lib/employee/other-applications";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One application off the Others queue, read and then allowed or refused.
@@ -84,7 +85,8 @@ function ApplicationBody({
       title={otherApplicationTypeLabel(application.type)}
       description={
         <>
-          <span className="tabular-nums">{application.caseNumber}</span>
+          {/* The overlay renders this as its accessible description. */}
+          <Identifier value={application.caseNumber} label="case number" copyable={false} />
           {" · "}
           {causeTitle(application)}
         </>
@@ -95,7 +97,7 @@ function ApplicationBody({
             {otherApplicationTypeLabel(application.type)}
           </ReviewRow>
           <ReviewRow term="Case number">
-            <span className="font-mono">{application.caseNumber}</span>
+            <Identifier value={application.caseNumber} label="case number" />
           </ReviewRow>
           <ReviewRow term="Stage">
             {otherApplicationStageLabel(application.stage)}

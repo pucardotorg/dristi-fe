@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { useBottomSheet } from "@/components/chrome/flow-window";
 import { cn } from "@/lib/utils";
 import type { RailPlate } from "@/components/chrome/rail-plate";
 import { AlertDialogContent } from "@/components/ui/alert-dialog";
@@ -86,8 +87,8 @@ const STICKY_TOP = `calc(${BAR_HEIGHT} + 2rem)`;
  * docked rail on purpose — a phone has no second column to lose the width to, and the
  * court's footer names a court in full without truncating.
  */
-const RAIL_WIDTH = "16rem";
-const RAIL_WIDTH_ICON = "4rem";
+export const RAIL_WIDTH = "16rem";
+export const RAIL_WIDTH_ICON = "4rem";
 const RAIL_WIDTH_SHEET = "18rem";
 const PAGE_LEFT_OPEN = "md:left-68";
 const PAGE_LEFT_FOLDED = "md:left-20";
@@ -268,6 +269,27 @@ export function useChromePageDialog(): string {
 }
 
 /**
+ * How far into the window the page column starts — the rail's current width.
+ *
+ * The companion to `useChromePageDialog`, for chrome that cannot be handed a class.
+ * A dialog gets `left`/`right` utilities computed in-tree; the toaster's own stylesheet
+ * sets `left` at a specificity no utility can reach, so what it is handed instead is
+ * this number, as a custom property on an ancestor, and one rule in `globals.css` does
+ * the arithmetic. The value is *read* in-tree, where the rail state is in scope — the
+ * same discipline, a different delivery.
+ *
+ * Nothing here cares about the off-canvas rail below `md`. The rule that consumes this
+ * is gated at `md`, so below it the window and the page are the same box and the
+ * variable goes unread rather than having to say zero.
+ */
+export function chromePageInset(
+  folds: boolean,
+  state: "expanded" | "collapsed"
+): string {
+  return folds && state === "collapsed" ? RAIL_WIDTH_ICON : RAIL_WIDTH;
+}
+
+/**
  * `useSidebar` always calls `useContext`; the throw is after that, when there is no
  * provider. Catching it lets a dialog render on a page without chrome (the ds-audit
  * sandbox, a test) and keep the DS's viewport centre, instead of crashing the overlay.
@@ -293,18 +315,31 @@ function useSidebarStateOrNull(): "expanded" | "collapsed" | null {
  */
 export function ChromeDialogContent({
   className,
+  style,
+  mobileSheet = false,
   ...props
-}: React.ComponentProps<typeof DialogContent>) {
+}: React.ComponentProps<typeof DialogContent> & { mobileSheet?: boolean }) {
   const pageDialog = useChromePageDialog();
-  return <DialogContent className={cn(className, pageDialog)} {...props} />;
+  const sheet = useBottomSheet();
+  return <DialogContent className={cn(className, pageDialog, mobileSheet && sheet.className)}
+    style={{ ...style, ...(mobileSheet ? sheet.style : undefined) }} {...props} />;
 }
 
 export function ChromeAlertDialogContent({
   className,
+  style,
   ...props
 }: React.ComponentProps<typeof AlertDialogContent>) {
   const pageDialog = useChromePageDialog();
-  return <AlertDialogContent className={cn(className, pageDialog)} {...props} />;
+  // On a phone every confirmation is a bottom sheet; see `useBottomSheet`.
+  const sheet = useBottomSheet();
+  return (
+    <AlertDialogContent
+      className={cn(className, pageDialog, sheet.className)}
+      style={{ ...style, ...sheet.style }}
+      {...props}
+    />
+  );
 }
 
 /**
@@ -529,7 +564,12 @@ function ChromePageColumn({
     <div
       className="group/chrome-page flex min-h-svh min-w-0 flex-1 flex-col bg-background"
       data-rail-folded={folds && state === "collapsed"}
-      style={{ "--chrome-sticky-top": STICKY_TOP } as React.CSSProperties}
+      style={
+        {
+          "--chrome-sticky-top": STICKY_TOP,
+          "--chrome-page-inset": chromePageInset(folds, state),
+        } as React.CSSProperties
+      }
     >
       {topBar}
       <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
@@ -552,7 +592,19 @@ function RailBody({
   return (
     <>
       {header ? <SidebarHeader className="p-0">{header}</SidebarHeader> : null}
-      <SidebarContent>
+      {/*
+        * **The folded strip scrolls.** The DS turns overflow off when the rail folds
+        * (`SidebarContent`: `group-data-[collapsible=icon]:overflow-hidden`), which is
+        * safe for the stock sidebar's handful of icon rows and is not safe here: the
+        * court's open layout folds to twenty-two squares, about 1050px of column, and in
+        * a 900px window roughly 400px of it — every Sign queue — became unclickable with
+        * no way to reach it. An area whose strip is taller than the viewport has to be
+        * able to move.
+        *
+        * No scrollbar appears: `SidebarContent` already carries `no-scrollbar`, so this
+        * restores the movement without putting a gutter in a 4rem strip.
+        */}
+      <SidebarContent className="group-data-[collapsible=icon]:overflow-y-auto">
         {/* The primitives are all `div`s, so an area that wants one landmark over the
             whole rail asks for it here. An area that labels each group instead — as the
             advocate's does — passes no `navLabel` and brings its own. */}

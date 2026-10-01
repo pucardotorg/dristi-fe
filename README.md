@@ -21,6 +21,16 @@ Open [http://localhost:3000](http://localhost:3000).
 No sibling clones, no home-path config. `npm install` places the authoritative DS at
 `vendor/pucar-design-system` (`pucardotorg` only) and refuses wrong-org trees.
 
+## Branches
+
+Three long-lived branches on `pucardotorg/dristi-fe`: `main` (default, dev team),
+`design` (design team), `develop` (dev team). Nothing lands on them except through a PR;
+PRs into `design` need the design owner's approval.
+
+```bash
+git checkout -b feature/<kebab-case> origin/design   # design work
+```
+
 ## Layout
 
 | Path | Role |
@@ -36,6 +46,7 @@ No sibling clones, no home-path config. `npm install` places the authoritative D
 ```bash
 npm run sync:ui -- button      # copy a primitive from vendor DS
 npm run check:ui-sync          # primitives must match that DS
+npm run check:spacing          # spacing stays on the ladder
 ```
 
 ## Docs

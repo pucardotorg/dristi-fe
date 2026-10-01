@@ -19,9 +19,11 @@ import {
   advocateRosterOn,
   boardOf,
   caseRecordFor,
+  causeListOn,
   courtLabelsOf,
   courtRooms,
   dayKeyOf,
+  daySlotsOn,
   hearingsOn,
   holdsVakalatnama,
   matterCountOn,
@@ -31,9 +33,11 @@ import {
   railGroups,
   railTasks,
   teamOf,
+  timelineOn,
   weekOf,
   weightOf,
 } from "./home";
+import { V1_LAUNCH, V1_TWO_SITTINGS, V3_FULL } from "./config";
 
 const NOW_MS = new Date(NOW).getTime();
 
@@ -112,6 +116,41 @@ describe("hearingsOn", () => {
     assert.deepEqual(blocked.blockers.map((t) => t.id), ["t-block"]);
     assert.equal(blocked.ready, false);
     assert.equal(clear.ready, true);
+  });
+});
+
+describe("passedOver", () => {
+  it("carries a matter's passed-over flag onto the hearing and cause-list row", () => {
+    const w = world([
+      { ...listed("po", 0, 6), passedOver: true },
+      listed("done", 0, 6),
+    ]);
+    const day = dayKeyOf(at(0, 12));
+    const items = hearingsOn(w, kase.court, day, NOW_MS);
+    assert.equal(items.find((h) => h.kase.id === "po")?.passedOver, true);
+    assert.equal(items.find((h) => h.kase.id === "done")?.passedOver, false);
+    assert.equal(causeListOn(w, day, NOW_MS).find((r) => r.id === "po")?.passedOver, true);
+  });
+
+  it("keeps a matter passed over today among the upcoming, not the concluded", () => {
+    const w = world([
+      { ...listed("po", 0, 6), passedOver: true },
+      listed("done", 0, 6),
+    ]);
+    const day = dayKeyOf(at(0, 12));
+    const items = hearingsOn(w, kase.court, day, NOW_MS);
+    assert.equal(items.find((h) => h.kase.id === "po")?.status, "upcoming");
+    assert.equal(items.find((h) => h.kase.id === "done")?.status, "concluded");
+  });
+
+  it("tags a matter carried over from an earlier day with that day, and lists it normally", () => {
+    const carried = "2026-01-01T12:00:00.000Z";
+    const w = world([{ ...listed("co", 0, 22), passedOverOn: carried }]);
+    const day = dayKeyOf(at(0, 12));
+    const [h] = hearingsOn(w, kase.court, day, NOW_MS);
+    assert.equal(h.status, "upcoming");
+    assert.equal(h.passedOver, true);
+    assert.equal(h.passedOverOn, carried);
   });
 });
 
@@ -562,5 +601,178 @@ describe("railTasks", () => {
       railTasks(w).map((t) => t.id),
       ["t-overdue", "t-block", "t-later"]
     );
+  });
+});
+
+describe("timelineOn", () => {
+  const startedJustNow = new Date(NOW_MS - 10 * 60 * 1000).toISOString();
+  // A day across two courts: a concluded slot both share, one matter being
+  // called now, a clear upcoming slot, and an upcoming slot both share.
+  const day = dayKeyOf(at(0, 12));
+  const scene = () =>
+    world([
+      listed("c1", 0, 6, "Court A"),
+      listed("c2", 0, 6, "Court B"),
+      { ...listed("live", 0, 12, "Court A"), nextHearingAt: startedJustNow },
+      listed("u1", 0, 22, "Court A"),
+      listed("x1", 0, 23, "Court A"),
+      listed("x2", 0, 23, "Court B"),
+    ]);
+
+  it("groups matters across courts into time slots, splitting the day into zones", () => {
+    const t = timelineOn(scene(), day, NOW_MS);
+
+    assert.deepEqual(t.concluded.map((s) => s.key), ["06:00"]);
+    assert.equal(t.now.length, 1);
+    assert.equal(t.now[0].hearings[0].kase.id, "live");
+    assert.deepEqual(t.upcoming.map((s) => s.key), ["22:00", "23:00"]);
+  });
+
+  it("flags a slot with two or more hearings as a conflict", () => {
+    const t = timelineOn(scene(), day, NOW_MS);
+    const conflict = t.slots.find((s) => s.key === "23:00")!;
+    assert.equal(conflict.conflict, true);
+    assert.equal(conflict.hearings.length, 2);
+    assert.deepEqual(conflict.courts.sort(), ["Court A", "Court B"]);
+
+    const clear = t.slots.find((s) => s.key === "22:00")!;
+    assert.equal(clear.conflict, false);
+  });
+
+  it("counts the summary over every slot", () => {
+    const { summary } = timelineOn(scene(), day, NOW_MS);
+    assert.equal(summary.total, 6);
+    assert.equal(summary.conflictSlots, 2); // 06:00 and 23:00
+    assert.equal(summary.overlap, 4); // two hearings in each conflict slot
+    assert.equal(summary.clearSlots, 2); // the now slot and 22:00
+    assert.equal(summary.courts, 2);
+  });
+
+  it("keeps each court's own cause-list numbering inside a shared slot", () => {
+    const t = timelineOn(scene(), day, NOW_MS);
+    const conflict = t.slots.find((s) => s.key === "23:00")!;
+    const b = conflict.hearings.find((h) => h.court === "Court B")!;
+    // Court B lists only c2 (06:00) then x2 (23:00), so x2 is its item 2.
+    assert.equal(b.item, 2);
+    assert.equal(b.courtLabel, "Court B");
+  });
+
+  it("marks only the latest started slot as now, not every recent one", () => {
+    // Two slots both inside the 90-minute window; only the later one is "now",
+    // the earlier has been called and concluded.
+    const earlier = new Date(NOW_MS - 60 * 60 * 1000).toISOString();
+    const later = new Date(NOW_MS - 10 * 60 * 1000).toISOString();
+    const w = world([
+      { ...listed("earlier", 0, 11, "Court A"), nextHearingAt: earlier },
+      { ...listed("later", 0, 11, "Court A"), nextHearingAt: later },
+    ]);
+    const t = timelineOn(w, dayKeyOf(at(0, 12)), NOW_MS);
+    assert.equal(t.now.length, 1);
+    assert.equal(t.now[0].hearings[0].kase.id, "later");
+    assert.equal(
+      t.concluded.some((s) => s.hearings[0].kase.id === "earlier"),
+      true
+    );
+  });
+
+  it("points the next hint at the first upcoming slot", () => {
+    const t = timelineOn(scene(), day, NOW_MS);
+    assert.equal(t.next?.key, "22:00");
+  });
+
+  it("narrows to the chosen courts and rescopes the summary", () => {
+    const t = timelineOn(scene(), day, NOW_MS, ["Court B"]);
+    assert.deepEqual(
+      t.slots.map((s) => s.key),
+      ["06:00", "23:00"]
+    );
+    assert.equal(t.summary.total, 2);
+    assert.equal(t.summary.conflictSlots, 0);
+    assert.equal(t.summary.courts, 1);
+  });
+
+  it("treats an empty filter as every court", () => {
+    const all = timelineOn(scene(), day, NOW_MS);
+    const none = timelineOn(scene(), day, NOW_MS, []);
+    assert.equal(none.summary.total, all.summary.total);
+  });
+});
+
+describe("daySlotsOn", () => {
+  const startedJustNow = new Date(NOW_MS - 10 * 60 * 1000).toISOString();
+  const day = dayKeyOf(at(0, 12));
+  // A day across two courts: a concluded pair (06:00), one matter being called
+  // now, a clear upcoming matter (22:00), and an upcoming pair sharing a clock
+  // time (23:00). Hours are picked to bracket NOW in any daytime timezone, as the
+  // other selector tests do.
+  const scene = () =>
+    world([
+      listed("c1", 0, 6, "Court A"),
+      listed("c2", 0, 6, "Court B"),
+      { ...listed("live", 0, 12, "Court A"), nextHearingAt: startedJustNow },
+      listed("u1", 0, 22, "Court A"),
+      listed("x1", 0, 23, "Court A"),
+      listed("x2", 0, 23, "Court B"),
+    ]);
+
+  it("builds one flat board for a single sitting — ongoing grouped, the rest one slot each", () => {
+    const slots = daySlotsOn(scene(), day, NOW_MS, V1_LAUNCH);
+    assert.equal(slots.length, 1); // one sitting → one slot, no tab bar
+    const { board } = slots[0];
+    // Concluded and upcoming are single-hearing slots (a flat list), even where
+    // two share a clock time — x1/x2 at 23:00 are NOT merged.
+    assert.equal(board.concluded.length, 2);
+    assert.ok(board.concluded.every((s) => s.hearings.length === 1));
+    assert.equal(board.upcoming.length, 3);
+    assert.ok(board.upcoming.every((s) => s.hearings.length === 1));
+    // The matters being called now are the one group.
+    assert.equal(board.now.length, 1);
+    assert.deepEqual(board.now[0].hearings.map((h) => h.kase.id), ["live"]);
+    // No conflict is surfaced in the flat view.
+    assert.equal(board.summary.conflictSlots, 0);
+    assert.equal(board.summary.total, 6);
+  });
+
+  it("restores time-grouping and conflicts under the full config", () => {
+    const slots = daySlotsOn(scene(), day, NOW_MS, V3_FULL);
+    assert.equal(slots.length, 1);
+    const { board } = slots[0];
+    // 23:00 is now one shared slot with both matters — a conflict.
+    const conflict = board.upcoming.find((s) => s.key === "23:00")!;
+    assert.equal(conflict.hearings.length, 2);
+    assert.equal(conflict.conflict, true);
+    assert.ok(board.summary.conflictSlots > 0);
+  });
+
+  it("splits the day into two sittings, nothing dropped", () => {
+    const slots = daySlotsOn(scene(), day, NOW_MS, V1_TWO_SITTINGS);
+    assert.equal(slots.length, 2);
+    const idsIn = (i: number) =>
+      slots[i].board.slots.flatMap((sl) => sl.hearings.map((h) => h.kase.id));
+    // Matters outside both windows join the nearest sitting, so the concluded
+    // pair (06:00) lands in the morning and the upcoming trio (22:00/23:00) in
+    // the afternoon.
+    assert.ok(["c1", "c2"].every((id) => idsIn(0).includes(id)));
+    assert.ok(["u1", "x1", "x2"].every((id) => idsIn(1).includes(id)));
+  });
+
+  it("marks the sitting the clock is inside as live, today only", () => {
+    // A window built around NOW's own local hour so it holds the clock whatever
+    // the timezone; a second window that cannot.
+    const h = new Date(NOW_MS).getHours();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const config = {
+      ...V1_LAUNCH,
+      sittings: [
+        { start: `${pad(h)}:00`, end: `${pad(h)}:59` },
+        { start: "00:00", end: "00:01" },
+      ],
+    };
+    const today = daySlotsOn(scene(), day, NOW_MS, config);
+    assert.equal(today[0].live, true);
+    assert.equal(today[1].live, false);
+    // A past day is over, so no sitting throbs even where the clock's hour falls.
+    const past = daySlotsOn(scene(), dayKeyOf(at(-1, 12)), NOW_MS, config);
+    assert.ok(past.every((s) => !s.live));
   });
 });

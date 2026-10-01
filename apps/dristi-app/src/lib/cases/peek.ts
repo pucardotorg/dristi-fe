@@ -94,6 +94,8 @@ export type CasePeekExtras = {
    * per-state format is unconfirmed — see docs/product/open-questions.md.
    */
   altCaseNumber?: string;
+  /** The day the registry allotted `altCaseNumber`. Fixture guess, worklist K. */
+  altCaseNumberOn?: string;
   chequeAmount?: number;
   /** How the accused is described on the cause title beyond the short name. */
   accusedRepresentation?: string;
@@ -333,6 +335,7 @@ export function peekHistory(record: CaseRecord, now: number): PeekHistoryItem[] 
 const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
   "c-1001": {
     altCaseNumber: "ST 412/2026",
+    altCaseNumberOn: "2026-07-03",
     chequeAmount: 450000,
     accusedRepresentation: "represented by proprietor Anand Krishnan",
     appearingFor: "complainant",
@@ -462,6 +465,7 @@ const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
   },
   "c-1004": {
     altCaseNumber: "ST 1204/2026",
+    altCaseNumberOn: "2026-05-04",
     chequeAmount: 275000,
     appearingFor: "complainant",
     orderOfTheDay:
@@ -480,6 +484,7 @@ const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
   },
   "c-2002": {
     altCaseNumber: "ST 88/2024",
+    altCaseNumberOn: "2024-06-10",
   },
   /* The ON Court demo cases sit at the top of Your Cases (newest updatedOn),
      so the first screens a demo opens carry authored pending work beyond the
@@ -510,6 +515,47 @@ const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
         consequence:
           "If it is not filed, the plea cannot be recorded on the next posting, subject to the court's direction.",
         action: { label: "Upload proof", section: "documents" },
+      },
+    ],
+  },
+  // Today's cause-list matters that still owe work before the hearing — the
+  // home timeline flags these, and the peek states the task with its action.
+  "tw-c-hd3": {
+    appearingFor: "complainant",
+    tasks: [
+      {
+        id: "t-twhd3-1",
+        title: "Pay the process fee for the summons to the accused",
+        dueOn: "2026-09-14",
+        consequence:
+          "If it is not paid, the summons cannot issue and the matter may be adjourned, subject to the court's direction.",
+        action: { label: "Pay process fee", section: "applications" },
+      },
+    ],
+  },
+  "tw-c-hd5": {
+    appearingFor: "complainant",
+    tasks: [
+      {
+        id: "t-twhd5-1",
+        title: "File the chief affidavit of PW-1 before the evidence posting",
+        dueOn: "2026-09-14",
+        consequence:
+          "If it is not filed, evidence cannot be led on the next posting, subject to the court's direction.",
+        action: { label: "File affidavit", section: "documents" },
+      },
+    ],
+  },
+  "tw-c-hd8": {
+    appearingFor: "complainant",
+    tasks: [
+      {
+        id: "t-twhd8-1",
+        title: "Produce the postal acknowledgement of the demand notice",
+        dueOn: "2026-09-14",
+        consequence:
+          "If it is not produced, service may remain unproved on the next posting, subject to the court's direction.",
+        action: { label: "Upload acknowledgement", section: "documents" },
       },
     ],
   },

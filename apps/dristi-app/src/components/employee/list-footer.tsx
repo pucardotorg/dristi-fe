@@ -59,10 +59,12 @@ export function ListFooter({
   return (
     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div className="flex flex-wrap items-center gap-3">
-        <p
-          className="text-body-compact text-muted-foreground tabular-nums"
-          aria-live="polite"
-        >
+        {/* Printed, not announced. The spoken copy of this sentence lives in
+            `QueueAnnouncer`, which every queue mounts for all of its states — this footer
+            disappears when nothing matches, and a live region that is not in the DOM when
+            the count changes is a live region that says nothing about the change worth
+            hearing. */}
+        <p className="text-body-compact text-muted-foreground tabular-nums">
           Showing {from}–{to} of {total}
         </p>
         <div className="flex items-center gap-2">

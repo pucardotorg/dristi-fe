@@ -510,7 +510,8 @@ export function selectDocuments(options: {
   submittedById: string | null;
   /** Case-insensitive filing-id fragment; empty/whitespace means no search. */
   filingQuery?: string;
-  pageSize: DocumentsPageSize;
+  /** A pager size, or any count when the list grows by "Show more". */
+  pageSize: number;
   page: number;
 }): DocumentsSelection {
   const query = options.filingQuery?.trim().toLowerCase() ?? "";

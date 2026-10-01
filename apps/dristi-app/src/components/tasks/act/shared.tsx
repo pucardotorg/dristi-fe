@@ -11,7 +11,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { CheckIcon, FileTextIcon, SignatureIcon, TrashIcon } from "lucide-react";
 
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 
 import { fileUrl, formatBytes, storeUpload } from "@/lib/tasks/data";
 import { dateTime, nameOf } from "@/lib/tasks/format";
@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PersonAvatar } from "@/components/tasks/person-avatar";
 import { useTaskActions } from "@/components/tasks/use-task-actions";
+import { Identifier } from "@/components/chrome/identifier";
 
 /** Everything an act body needs, built by the act modal. */
 export type ActContext = {
@@ -345,10 +346,10 @@ export function OtpDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChromeDialogContent className="sm:max-w-md">
+      <FlowDialogContent className="sm:max-w-md">
         {/* Mounted per open, so the code always starts empty. */}
         {open ? <OtpForm signer={signer} onSign={onSign} title={title} confirmLabel={confirmLabel} /> : null}
-      </ChromeDialogContent>
+      </FlowDialogContent>
     </Dialog>
   );
 }
@@ -438,7 +439,7 @@ export function CourtSandbox({ ctx }: { ctx: ActContext }) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <ChromeDialogContent className="sm:max-w-md">
+        <FlowDialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Return with defects</DialogTitle>
             <DialogDescription>
@@ -478,7 +479,7 @@ export function CourtSandbox({ ctx }: { ctx: ActContext }) {
               Return
             </Button>
           </DialogFooter>
-        </ChromeDialogContent>
+        </FlowDialogContent>
       </Dialog>
     </RailCard>
   );
@@ -507,7 +508,9 @@ export function RecordCard({ ctx, title }: { ctx: ActContext; title: string }) {
             {task.completion.receipt ? (
               <div className="flex justify-between gap-3">
                 <dt className="text-muted-foreground">Reference</dt>
-                <dd className="font-mono tabular-nums">{task.completion.receipt}</dd>
+                <dd>
+                  <Identifier value={task.completion.receipt} label="receipt" />
+                </dd>
               </div>
             ) : null}
           </>

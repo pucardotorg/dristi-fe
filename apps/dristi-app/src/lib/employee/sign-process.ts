@@ -66,7 +66,8 @@ export type CourtProcessTypeId =
   | "section-223-notice"
   | "dca-notice"
   | "warrant"
-  | "proclamation";
+  | "proclamation"
+  | "attachment";
 
 export const COURT_PROCESS_TYPES: {
   id: CourtProcessTypeId;
@@ -95,6 +96,9 @@ export const COURT_PROCESS_TYPES: {
   { id: "dca-notice", label: "DCA notice", inline: "DCA notice" },
   { id: "warrant", label: "Warrant", inline: "warrant" },
   { id: "proclamation", label: "Proclamation", inline: "proclamation" },
+  /* Added 2026-10-01: the handover's sixth process type with a police channel, and one
+     whose outcome is recorded from the Sent tab like the other two (§6.3, §10.1). */
+  { id: "attachment", label: "Attachment", inline: "attachment" },
 ];
 
 export function courtProcessTypeLabel(id: CourtProcessTypeId): string {
@@ -155,7 +159,126 @@ export type CourtProcess = {
   sentOn?: string;
   /** ISO day the channel closed the round off. */
   completedOn?: string;
+  /** What came back, as recorded from the Sent tab (`DSP-08`, `DSP-09`). */
+  outcome?: ProcessOutcome;
 };
+
+/**
+ * What came back from a delivery channel — §10.1 of `handovers/process-handover.md`.
+ *
+ * Three terminal outcomes a person records: it reached its destination; the attempt
+ * reached it and failed (refused, not found); or it could not be carried at all.
+ * Expired and Recalled are terminal too, but nobody records them — the system does
+ * (`EXP-02`, `PIA-01`) — so they are not offered here.
+ */
+export type ProcessOutcomeStatus = "delivered" | "not-delivered" | "failed";
+
+export type ProcessOutcome = {
+  status: ProcessOutcomeStatus;
+  /** Required where the outcome is negative (`DSP-09`). From `NON_DELIVERY_REASONS`. */
+  reason?: string;
+  comment: string;
+  /** The supporting file's name. Nothing is stored — there is no backend. */
+  fileName?: string;
+  recordedOn: string;
+};
+
+/**
+ * Why a process was not delivered or not executed (`DSP-09`). The handover makes this a
+ * state-configurable master; these are demo values standing in for Kerala's list until
+ * it is supplied.
+ */
+export const NON_DELIVERY_REASONS = [
+  "Refused to accept",
+  "Addressee not found at the address",
+  "Address incomplete or incorrect",
+  "Premises locked",
+  "Addressee has left the address",
+  "Addressee deceased",
+] as const;
+
+/** The instruments addressed to the police are *executed*, not delivered (§10.1). */
+function executes(type: CourtProcessTypeId): boolean {
+  return type === "warrant" || type === "proclamation" || type === "attachment";
+}
+
+export function outcomeOptions(type: CourtProcessTypeId): {
+  id: ProcessOutcomeStatus;
+  label: string;
+  description: string;
+}[] {
+  const done = executes(type) ? "Executed" : "Delivered";
+  const notDone = executes(type) ? "Not executed" : "Not delivered";
+  return [
+    {
+      id: "delivered",
+      label: done,
+      description: executes(type)
+        ? "The police report it was carried out."
+        : "It reached the person — the acknowledgement or report says so.",
+    },
+    {
+      id: "not-delivered",
+      label: notDone,
+      description:
+        "The attempt reached the address and failed — refused, not found, returned.",
+    },
+    {
+      id: "failed",
+      label: "Failed",
+      description:
+        "It could not be carried at all, so no attempt was made at the address.",
+    },
+  ];
+}
+
+export function outcomeLabel(
+  type: CourtProcessTypeId,
+  status: ProcessOutcomeStatus,
+): string {
+  return outcomeOptions(type).find((option) => option.id === status)?.label ?? status;
+}
+
+/**
+ * Whether a person records this channel's outcome, rather than the receiving system
+ * reporting it (§6.2, `DSP-03`). Every channel this screen carries is recorded by hand
+ * today: RPAD from the acknowledgement card, the police and the court bailiff from
+ * their return. A channel whose status comes back by API would answer false here.
+ */
+export function outcomeRecordedByHand(channel: ProcessChannelId): boolean {
+  return channel === "rpad" || channel === "police" || channel === "court-bailiff";
+}
+
+/** The badge an outcome wears: reached, failed at the address, or never carried. */
+export function outcomeVariant(
+  status: ProcessOutcomeStatus,
+): "success" | "warning" | "destructive" {
+  return status === "delivered" ? "success" : status === "failed" ? "destructive" : "warning";
+}
+
+/** Whether an outcome can be saved: a status, a comment, and a reason if negative. */
+export function outcomeComplete(outcome: {
+  status?: ProcessOutcomeStatus;
+  reason?: string;
+  comment: string;
+}): boolean {
+  if (!outcome.status) return false;
+  if (outcome.status === "not-delivered" && !outcome.reason) return false;
+  return outcome.comment.trim() !== "";
+}
+
+/** Record what came back: the process closes on it and moves to Completed (`DSP-06`). */
+export function recordOutcome(
+  rows: CourtProcess[],
+  id: string,
+  outcome: ProcessOutcome,
+): CourtProcess[] {
+  return rows.map((process) =>
+    process.id === id && process.stage === "sent"
+      ? { ...process, stage: "completed", completedOn: outcome.recordedOn, outcome }
+      : process,
+  );
+}
 
 /** The court whose process this is. One bench, one line. */
 const COURT = CURRENT_STAFF.court;
@@ -215,6 +338,22 @@ export type ProcessStage = {
   onlyChannel?: ProcessChannelId;
   /** Whether the hearing-date filter is offered. The reference omits it on the first tab. */
   hearingDateFilter: boolean;
+  /**
+   * Whether this stage is the clerk matching paper in their hands against this list.
+   *
+   * True at exactly one stage, and the tray above the table is read off it rather than
+   * off the stage's id, so the reason travels with the data the way every other
+   * per-stage difference on this screen does.
+   *
+   * The three working stages are the same loop with the paper pointing different ways.
+   * At collection it points **at** the screen: the cover is in hand and its row has to be
+   * found, so the risk is missing one or ticking one twice and the answer is to keep
+   * everything picked visible. At signing there is no paper at all, so there is nothing
+   * to keep visible and the tray would be furniture copied for symmetry. At dispatch it
+   * points **away** from the screen — the document is produced for a cover — which is a
+   * different problem again and not this one.
+   */
+  reconcilesCovers?: boolean;
   /** What moves a row out of here. Absent where nothing on this screen does. */
   act?: ProcessAct;
   /** What an empty stage means, when no filter is what emptied it. */
@@ -244,6 +383,7 @@ export const PROCESS_STAGES: ProcessStage[] = [
     dateOf: (process) => process.paidOn,
     onlyChannel: "rpad",
     hearingDateFilter: false,
+    reconcilesCovers: true,
     act: {
       advancesTo: "pending-sign",
       bar: (count) =>
@@ -341,15 +481,14 @@ export const PROCESS_STAGES: ProcessStage[] = [
     label: "Sent",
     summary: (count) =>
       count === 1
-        ? "1 process is out with its delivery channel."
-        : `${count} processes are out with their delivery channels.`,
+        ? "1 process is out with its delivery channel. Open it to record what came back."
+        : `${count} processes are out with their delivery channels. Open one to record what came back.`,
     dateColumn: "Sent on",
     dateOf: (process) => process.sentOn,
     hearingDateFilter: true,
-    /* Nothing on this screen moves a row out of Sent. What closes a round off is the
-       channel reporting back — an RPAD acknowledgement returned, a police or bailiff
-       return filed — which arrives from outside the court's own worklist. The tab is
-       therefore a record: readable, downloadable, and not actionable. */
+    /* No bulk act: an outcome is one process's, read off its own acknowledgement or
+       return, so it is recorded from the row's window (`recordOutcome`), one at a
+       time. Recording it moves the row to Completed. */
     empty: {
       title: "Nothing is out",
       description: "No process this court has sent is still with a channel.",
@@ -795,6 +934,34 @@ export const PROCESS_LINE: CourtProcess[] = [
     sentOn: "2026-08-20",
     hearingDate: "2026-09-20",
   },
+  /* One of each police-executed instrument out at once, so the Sent tab has a warrant,
+     a proclamation and an attachment to record an outcome on. */
+  {
+    id: "pr-1391",
+    caseNumber: "ST/1391/2026",
+    parties: { complainant: "Chavara Cashew Exporters", accused: "Sajeev Kumar R" },
+    type: "warrant",
+    channel: "police",
+    stage: "sent",
+    paidOn: "2026-08-01",
+    issuedOn: "2026-08-06",
+    signedOn: "2026-08-12",
+    sentOn: "2026-08-22",
+    hearingDate: "2026-09-25",
+  },
+  {
+    id: "pr-1392",
+    caseNumber: "ST/1392/2026",
+    parties: { complainant: "Paravur Fisheries Co-operative", accused: "Biju Thomas" },
+    type: "attachment",
+    channel: "police",
+    stage: "sent",
+    paidOn: "2026-08-02",
+    issuedOn: "2026-08-07",
+    signedOn: "2026-08-13",
+    sentOn: "2026-08-23",
+    hearingDate: "2026-09-27",
+  },
   {
     id: "pr-1675",
     caseNumber: "CMP/1675/2026",
@@ -875,6 +1042,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-27",
     sentOn: "2026-08-03",
     completedOn: "2026-08-18",
+    outcome: { status: "delivered", comment: "Acknowledgement card returned signed by the accused.", recordedOn: "2026-08-18" },
     hearingDate: "2026-09-14",
   },
   {
@@ -892,6 +1060,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-24",
     sentOn: "2026-07-31",
     completedOn: "2026-08-14",
+    outcome: { status: "not-delivered", reason: "Addressee not found at the address", comment: "Police report: the accused was not found at the address; neighbours say he has moved.", recordedOn: "2026-08-14" },
     hearingDate: "2026-09-22",
   },
   {
@@ -906,6 +1075,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-22",
     sentOn: "2026-07-29",
     completedOn: "2026-08-11",
+    outcome: { status: "delivered", comment: "Acknowledgement card returned.", fileName: "acknowledgement-card.pdf", recordedOn: "2026-08-11" },
     hearingDate: "2026-09-10",
   },
   {
@@ -920,6 +1090,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-20",
     sentOn: "2026-07-27",
     completedOn: "2026-08-07",
+    outcome: { status: "not-delivered", reason: "Refused to accept", comment: "Bailiff return: the accused refused to accept the summons.", recordedOn: "2026-08-07" },
     hearingDate: "2026-09-06",
   },
   {
@@ -934,6 +1105,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-17",
     sentOn: "2026-07-24",
     completedOn: "2026-08-04",
+    outcome: { status: "delivered", comment: "Proclamation affixed at the residence and the courthouse; report of compliance filed.", recordedOn: "2026-08-04" },
     hearingDate: "2026-09-29",
   },
   {
@@ -948,6 +1120,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-15",
     sentOn: "2026-07-22",
     completedOn: "2026-07-30",
+    outcome: { status: "failed", comment: "Returned by the post office: the PIN code does not exist.", recordedOn: "2026-07-30" },
     hearingDate: "2026-09-05",
   },
 ];
@@ -958,6 +1131,94 @@ export function processesAt(
   stage: ProcessStageId,
 ): CourtProcess[] {
   return rows.filter((process) => process.stage === stage);
+}
+
+/** One envelope's worth of selection: a case, and the process picked out of it. */
+export type SelectedCase = {
+  caseNumber: string;
+  parties: CourtProcess["parties"];
+  processes: CourtProcess[];
+};
+
+/**
+ * The selection as the pile of envelopes it stands for.
+ *
+ * A cover is one per **case**, so the thing the clerk is holding is a case number, not a
+ * process — a case with a summons, a Section 223 notice and a DCA notice arrives in one
+ * envelope. Grouping here is what lets the table stay one row per process, the way the
+ * other four stages draw it, while the tray above it counts in the unit the clerk counts
+ * in. Both numbers are wanted and neither can be derived from the other by eye, which is
+ * why callers get the cases and can still count the process inside them.
+ *
+ * **Order is the order they were picked**, not the order the line holds them. A `Set`
+ * keeps insertion order, so walking `selectedIds` walks the clerk's own morning: the
+ * envelope just ticked lands at the end of the tray, where the eye that ticked it
+ * already is. Grouping by first appearance means a case ticked at envelope three stays
+ * at position three even when its second process is ticked at envelope nine.
+ *
+ * Ids that name nothing in `rows` are dropped rather than counted — a row that has since
+ * advanced out of this stage is no longer selected, and the tray must not claim it.
+ */
+export function groupSelectionByCase(
+  rows: CourtProcess[],
+  selectedIds: ReadonlySet<string>,
+): SelectedCase[] {
+  const byId = new Map(rows.map((process) => [process.id, process]));
+  const cases = new Map<string, SelectedCase>();
+
+  for (const id of selectedIds) {
+    const process = byId.get(id);
+    if (!process) continue;
+    const existing = cases.get(process.caseNumber);
+    if (existing) {
+      existing.processes.push(process);
+      continue;
+    }
+    cases.set(process.caseNumber, {
+      caseNumber: process.caseNumber,
+      parties: process.parties,
+      processes: [process],
+    });
+  }
+
+  return [...cases.values()];
+}
+
+/**
+ * The one case a request names, or nothing.
+ *
+ * What Enter in the search box commits on. A cover is one per case, so a request that
+ * lands on a single case names a single envelope and putting it on the pile is
+ * unambiguous — every process that case has waiting goes on, because they all travel in
+ * that one cover.
+ *
+ * **Two cases still matching is not a near miss, it is an unfinished number.** Picking
+ * between them — the first row, the closest, the shortest — would put one court's
+ * process into a batch bound for another's envelope on a keystroke the clerk did not
+ * mean as a choice. So anything but exactly one case answers `null` and the clerk keeps
+ * typing. Nothing matching answers `null` for the same reason: there is no envelope here
+ * to pick.
+ */
+export function singleCaseMatch(
+  rows: CourtProcess[],
+  filters: ProcessFilters,
+): CourtProcess[] | null {
+  const matches = filterProcesses(rows, filters);
+  const first = matches[0];
+  if (!first) return null;
+  return matches.every((process) => process.caseNumber === first.caseNumber)
+    ? matches
+    : null;
+}
+
+/** Every id at this stage belonging to one case — what removing an envelope takes out. */
+export function processIdsForCase(
+  rows: CourtProcess[],
+  caseNumber: string,
+): string[] {
+  return rows
+    .filter((process) => process.caseNumber === caseNumber)
+    .map((process) => process.id);
 }
 
 /**
@@ -978,7 +1239,7 @@ export type ProcessFilters = {
   channel: ProcessChannelId | "all";
   /** ISO day of the listing the process is returnable for, or `""` for any day. */
   hearingDate: string;
-  /** Free text over the cause title and the case number, token by token. */
+  /** Free text over the case number only, token by token. */
   query: string;
 };
 
@@ -1011,14 +1272,10 @@ export function filterProcesses(
     if (filters.hearingDate && process.hearingDate !== filters.hearingDate) {
       return false;
     }
-    /* The cause title rather than the two parties, because the cause title is what the
-       Case name column prints and therefore what gets typed back into the box. See
-       `matchesQuery`. */
-    return matchesQuery(
-      filters.query,
-      causeTitle(process),
-      process.caseNumber,
-    );
+    /* Case number only. The box used to take a cause title as well, because that is
+       what the Case name column prints; the search now matches the number and nothing
+       else, so a name typed back from that column finds nothing. */
+    return matchesQuery(filters.query, process.caseNumber);
   });
 }
 
@@ -1171,12 +1428,13 @@ export type ProcessDocument = {
 /**
  * Who each instrument is addressed to.
  *
- * A warrant commands an officer to arrest; everything else commands the accused to
+ * A warrant, proclamation or attachment is addressed to the police, who execute it
+ * (§6.3 of `handovers/process-handover.md`); everything else commands the accused to
  * appear. `docs/product/domain/actors.md` puts process execution with the police for a
- * §138 case, which is who a warrant is written to.
+ * §138 case.
  */
 function addresseeFor(process: CourtProcess): string {
-  if (process.type === "warrant") {
+  if (executes(process.type)) {
     return "To the officer in charge of the police station";
   }
   return `To ${process.parties.accused}, the accused`;
@@ -1219,6 +1477,11 @@ function paragraphsFor(process: CourtProcess): string[] {
       return [
         `Whereas a warrant issued by this court for the arrest of ${accused} has been returned unexecuted, and this court has reason to believe that the said ${accused} is absconding or concealing themselves so that the warrant cannot be executed,`,
         `a proclamation is published requiring the said ${accused} to appear before this court on ${returnable}. It shall be read publicly, affixed at the accused's last known place of residence and at this courthouse, and the officer publishing it shall report compliance to this court.`,
+      ];
+    case "attachment":
+      return [
+        `Whereas a proclamation has been issued requiring ${accused}, the accused in this case, to appear before this court, and the said ${accused} has not appeared, on the complaint of ${complainant},`,
+        `you are directed to attach the movable property belonging to the said ${accused} within the local limits of your jurisdiction, to hold it subject to the further orders of this court, and to report the manner of execution to this court on ${returnable}.`,
       ];
   }
 }

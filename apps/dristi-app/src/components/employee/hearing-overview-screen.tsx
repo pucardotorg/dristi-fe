@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { CalendarX2Icon } from "lucide-react";
 
+import { Identifier } from "@/components/chrome/identifier";
 import { useCourtToday } from "@/components/employee/use-court-today";
 import { useHearingSession } from "@/components/employee/use-hearing-session";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Timeline, TimelineItem } from "@/components/ui/timeline";
+import { Step, StepGroup } from "@/components/employee/step-timeline";
 import {
   Tooltip,
   TooltipContent,
@@ -42,8 +43,9 @@ import {
   type CourtHearing,
 } from "@/lib/employee/hearings";
 import {
-  caseHistory,
+  caseTimeline,
   formatCaseDate,
+  formatTimelineDate,
   formatCaseWeekday,
   formatChequeAmount,
   formatCounselList,
@@ -56,7 +58,7 @@ import {
  *
  * `page` is the route: a section is a lifted sheet, the same recipe as today's cause
  * list (`HearingsScreen`) and the order composer — hairline edge, no nested second
- * frame inside it. `overlay` is the sheet Start hearing opens over the cause list,
+ * frame inside it. `overlay` is the sheet the cause title opens over the cause list,
  * which is *itself* the lifted surface: the sheet's body is the sunken stage, and
  * the sections sit on it as white cards. A `shadow-raised` panel inside a
  * `shadow-modal` sheet is depth spent twice, so the overlay cards stay flat, and
@@ -243,9 +245,12 @@ function HearingOverview({ hearing }: { hearing: CourtHearing }) {
 export function HearingOverviewCaption({ hearing }: { hearing: CourtHearing }) {
   return (
     <>
+      {/* The item is a *position* in today's board and keeps plain figures; the case
+          number is an identifier and takes the treatment. The rule is by kind of fact,
+          which is why these two sit side by side wearing different faces. */}
       Item <span className="tabular-nums">{hearing.item}</span>
       {" · "}
-      <span className="tabular-nums">{hearing.caseNumber}</span>
+      <Identifier value={hearing.caseNumber} label="case number" />
       {" · "}
       {courtHearingPurposeLabel(hearing.purpose)}
     </>
@@ -334,10 +339,15 @@ export function HearingOverviewSections({
  * Connecting it is a decision that has been taken and deferred, not one this screen
  * gets to make.
  *
- * So it is a real button, in the page's one teal, that says plainly it goes nowhere
- * — `aria-disabled` rather than `disabled`, so it keeps focus and the tooltip is
- * reachable by keyboard. The same bargain Join VC makes on the cause list. No icon:
- * the label is the whole of it.
+ * So it is a real button that says plainly it goes nowhere — `aria-disabled` rather
+ * than `disabled`, so it keeps focus and the tooltip is reachable by keyboard. The
+ * same bargain Join VC makes on the cause list. No icon: the label is the whole of it.
+ *
+ * **Teal only where it is the act.** On this page it is the one thing the band offers,
+ * so it takes the page's one primary. In the cause-list overlay it shares the footer
+ * with the call on the sitting — a real act, against a promise — so there it steps down
+ * to `outline` and the teal goes to Start hearing. One surface, one primary (ui-craft
+ * §1.2): a promise and an act cannot both be it, and the act wins.
  *
  * `aria-disabled` is a promise to assistive tech and nothing else: the DS Button
  * hangs its dimming off `:disabled` (`button.tsx`), which this control does not
@@ -355,14 +365,30 @@ export function HearingOverviewSections({
  * bar pinned under the reading, permanently, on the one control here that goes
  * nowhere. The band still stacks if a second action ever joins it.
  */
-export function ViewCaseAction() {
+/**
+ * The hover each dress has to have cancelled, because the DS hangs it off the variant:
+ * `default` lifts to `primary-hover`, `outline` to `accent`. Both would be the button
+ * answering a pointer it is not going to answer.
+ */
+const VIEW_CASE_DEAD_HOVER = {
+  default: "aria-disabled:hover:bg-primary",
+  outline: "aria-disabled:hover:bg-card",
+} as const;
+
+export function ViewCaseAction({
+  variant = "default",
+}: {
+  /** `outline` where a real act shares the band — see above. */
+  variant?: "default" | "outline";
+}) {
   return (
     <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             aria-disabled
-            className="w-fit shrink-0 aria-disabled:opacity-50 aria-disabled:hover:bg-primary aria-disabled:active:translate-y-0"
+            variant={variant}
+            className={`w-fit shrink-0 aria-disabled:opacity-50 ${VIEW_CASE_DEAD_HOVER[variant]} aria-disabled:active:translate-y-0`}
           >
             View case
           </Button>
@@ -661,33 +687,68 @@ function CaseHistoryPanel({
   surface: HearingOverviewSurface;
   className?: string;
 }) {
-  const items = caseHistory(hearing, extras, today);
+  const timeline = caseTimeline(hearing, extras, today);
 
   return (
+    /* `@container` is what lets a step split into three columns: the group is the same
+       component the waiting complaint's file uses (`step-timeline.tsx`), and it reads its
+       width from whatever holds it rather than from the viewport — so it lays out
+       correctly in a page panel and in a dialog sheet without either knowing the other's
+       width. */
     <section
-      className={`${PANEL[surface]} flex flex-col gap-4 ${className ?? ""}`}
+      className={`${PANEL[surface]} @container flex flex-col gap-6 ${className ?? ""}`}
       aria-labelledby="case-history"
     >
       <h2 id="case-history" className="text-body font-semibold">
         Case history
       </h2>
-      {/* Title over date, as the primitive composes it. Putting the date on the
-          step's own line would read denser and use more of the width, and the DS
-          declares `title` as a ReactNode — but `TimelineItem` spreads
-          `ComponentProps<"li">`, whose own `title` attribute is a `string`, so the
-          intersection makes the prop string-only and the composition impossible.
-          Reaching around it through the primitive's internal markup would be a fork
-          in all but name. Raised as upstream DS feedback instead. */}
-      <Timeline>
-        {items.map((item) => (
-          <TimelineItem
-            key={`${item.on}-${item.title}`}
-            status={item.status}
-            title={item.title}
-            description={formatCaseDate(item.on)}
-          />
-        ))}
-      </Timeline>
+      {/* Two phases, stacked, in the order they happened. Everything in the first
+          happened to two private parties and is measured against §138; everything in
+          the second is the court's own record. The full width the panel takes is spent
+          on three columns — the step, the statutory window it closes, and the day — so
+          the dates share one edge down the whole chain and a reader can check a limit
+          against the two dates either side of it. */}
+      <div className="flex flex-col gap-8">
+        {timeline.beforeFiling.length > 0 ? (
+          <StepGroup heading="Before filing">
+            {timeline.beforeFiling.map((step) => (
+              <Step
+                key={step.id}
+                label={step.label}
+                note={step.note}
+                aside={step.aside}
+                tone={step.tone}
+                date={
+                  step.on ? (
+                    <time dateTime={step.on}>{formatTimelineDate(step.on)}</time>
+                  ) : (
+                    "Today"
+                  )
+                }
+              />
+            ))}
+          </StepGroup>
+        ) : null}
+        <StepGroup heading="In court">
+          {timeline.inCourt.map((step) => (
+            <Step
+              key={step.id}
+              status={step.status}
+              label={step.label}
+              note={step.note}
+              aside={step.aside}
+              tone={step.tone}
+              date={
+                step.on ? (
+                  <time dateTime={step.on}>{formatTimelineDate(step.on)}</time>
+                ) : (
+                  "Today"
+                )
+              }
+            />
+          ))}
+        </StepGroup>
+      </div>
     </section>
   );
 }

@@ -1,18 +1,48 @@
 import {
+  CalendarClockIcon,
   CalendarDaysIcon,
+  CalendarIcon,
+  CalendarXIcon,
+  CopyIcon,
+  EllipsisIcon,
+  FileCheckIcon,
+  FilePenIcon,
+  FilePlusIcon,
   FileSearchIcon,
   FolderIcon,
+  HourglassIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  MessageSquareIcon,
+  NotebookPenIcon,
+  PaperclipIcon,
+  RefreshCwIcon,
+  ScanIcon,
+  SendIcon,
+  SettingsIcon,
   SignatureIcon,
+  StampIcon,
+  UserCheckIcon,
+  UserPenIcon,
   type LucideIcon,
 } from "lucide-react";
 
 import { APPROVE_COPY_QUEUE_COUNT } from "./approve-copy-application";
+import {
+  COGNIZANCE_QUEUE_COUNT,
+  cognizanceCaseById,
+  cognizanceTabCount,
+} from "./cognizance";
+import { type CognizanceLayout, readCognizanceLayout } from "./cognizance-layout";
 import { DELAY_CONDONATION_QUEUE_COUNT } from "./delay-condonation";
 import { hearingById, TODAYS_HEARING_COUNT } from "./hearings";
+import type { CourtNavLayout } from "./nav-layout";
 import { OTHER_APPLICATIONS_QUEUE_COUNT } from "./other-applications";
-import { REGISTER_QUEUE_COUNT } from "./register-cases";
+import {
+  APPROVE_REGISTRATIONS_TITLE,
+  REGISTRATIONS_QUEUE_COUNT,
+} from "./approve-registrations";
+import { registerCaseById, REGISTER_QUEUE_COUNT } from "./register-cases";
 import { findFiling, SCRUTINY_QUEUE_COUNT } from "./scrutiny/queue";
 import { RESCHEDULING_QUEUE_COUNT } from "./rescheduling-request";
 import { SCHEDULING_QUEUE_COUNT } from "./schedule";
@@ -32,8 +62,9 @@ import { WITNESS_DEPOSITION_QUEUE_COUNT } from "./sign-witness-deposition";
  * not markup: the rail renders whatever is here, so a row's destination, its count or
  * its position is a change to this file rather than to a component.
  *
- * **Most of it is not wired yet.** The three Hearings rows, both Actions rows —
- * Register cases and Approve copy application — all three Review applications rows —
+ * **Most of it is not wired yet.** The three Hearings rows, all five Actions rows —
+ * Scrutinise submitted cases, Register cases, Take cognizance, Approve copy application
+ * and Register advocates — all three Review applications rows —
  * Rescheduling request, Delay condonation and Others — and all seven of the Sign rows —
  * Sign forms, Sign orders, Sign process, Sign bail bonds, Sign witness deposition, Sign
  * evidence and Sign A-Diary — have an `href`, and they point at the court-side routes
@@ -46,7 +77,9 @@ import { WITNESS_DEPOSITION_QUEUE_COUNT } from "./sign-witness-deposition";
  * decides how a row truncates). None of these labels describes an action this build
  * performs. The exceptions are the built rows whose counts are derived from the lists
  * they lead to (`lib/employee/hearings.ts`, `lib/employee/schedule.ts`,
- * `lib/employee/register-cases.ts`, `lib/employee/approve-copy-application.ts`,
+ * `lib/employee/register-cases.ts`, `lib/employee/cognizance.ts`,
+ * `lib/employee/approve-copy-application.ts`,
+ * `lib/employee/approve-registrations.ts`,
  * `lib/employee/rescheduling-request.ts`,
  * `lib/employee/delay-condonation.ts`, `lib/employee/other-applications.ts`,
  * `lib/employee/sign-forms.ts`, `lib/employee/sign-orders.ts`,
@@ -73,14 +106,38 @@ export type CourtNavItem = {
    */
   href?: string;
   /**
-   * A leading mark. Only the two standalone links above the groups carry one — they are
-   * destinations in their own right, not items in a list of work.
+   * A leading mark. **Every row carries one** (owner, 2026-09-18).
+   *
+   * It used to be the two standalone links alone, on the argument that marking a group's
+   * rows would flatten its header back into the list. That argument was sound while the
+   * header was a 40px disclosure control wearing a glyph of its own; it is not sound now.
+   * The header is a quiet caption label (`SidebarGroupLabel`) with no mark, so nothing is
+   * left for a row's glyph to compete with — and eighteen same-size labels in one column
+   * had to be *read* rather than scanned, which was the owner's complaint.
+   *
+   * It also makes the folded 4rem strip worth having: it used to show six squares, none
+   * of which was a queue you could reach.
+   *
+   * **Five of these are not on the DS icon allowlist** (`{DS}/src/lib/icons.ts`, 146
+   * names mirroring the Figma Icons page): `calendar-clock`, `file-pen`, `user-pen`,
+   * `notebook-pen` here, and `folder-search` in `court-cases-screen.tsx`. The owner's own
+   * picks, kept deliberately with an upstream request to add them — the allowlist's
+   * nearest substitutes are less precise, and two of them collide with each other at
+   * 20px (`pen-line` for Sign orders against `pencil` for the A-Diary). Every other mark
+   * below is on the allowlist. Owner's call, 2026-09-23.
    */
   icon?: LucideIcon;
   /** The destination lives outside DRISTI. Spoken, not marked — see `RowContents`. */
   external?: boolean;
   /** How much of this kind of work is waiting on the bench. Demo data; see above. */
   count?: number;
+  /**
+   * Rows of their own under this one — today, only `cognizance-layout.ts`'s "split"
+   * setting gives any row these (`courtNavGroupsFor`). Generic rather than named after
+   * that one case, so a future row that wants the same shape does not need a second
+   * mechanism.
+   */
+  children?: CourtNavItem[];
 };
 
 export type CourtNavGroup = {
@@ -92,27 +149,100 @@ export type CourtNavGroup = {
    * An addition to the reference, which left the headers bare — asked for so the four
    * kinds of work are findable without reading.
    *
-   * The rows inside a group stay unmarked: giving every row a glyph would flatten the
-   * header back into the list. The two standalone links above the groups are the
-   * exception — they are destinations, not work items.
+   * **It is the disclosure header's mark, and only the disclosure layouts have one.**
+   * `"grouped"` renders this beside the section label; `"open"` does not — there the
+   * label is a quiet caption and every row below it carries its own glyph, so a header
+   * mark would read as a nineteenth row. See `CourtNavItem.icon`.
    */
   icon: LucideIcon;
   items: CourtNavItem[];
 };
 
-/** The two rows that stand on their own, above the grouped work. Both leave the app. */
+/**
+ * The dashboard — this court's health check.
+ *
+ * It replaces `COURT_HOME`, which was an empty placeholder nothing linked to: it was not
+ * a rail row and could not be one, so the top bar's trail was the only path to it, and
+ * the trail no longer has a root (see `courtTrail`). The screen and the rail row both
+ * take their label from here, so a row and the screen it opens cannot end up calling one
+ * destination two things.
+ *
+ * **It is not where signing in lands.** The day's cause list is (`court-sign-in-block`),
+ * on the owner's call that a dashboard is not the common thing court staff open the
+ * product to see.
+ */
+export const COURT_DASHBOARD = { href: "/employee", label: "Dashboard" } as const;
+
+/**
+ * The register — every case on this court's file, searchable.
+ *
+ * **A separate screen from the dashboard, on the owner's second look** (2026-09-14).
+ * The two were briefly one: the priority tiles filtered a register below them, which was
+ * the owner's own first suggestion and which they rejected once built — *"the dashboard
+ * is more of a health check, that is the intent of a dashboard, and it should look like
+ * one; by mixing these two we are complicating things for ourselves."* Which is right.
+ * A health check answers "how is this court doing"; a register answers "where is that
+ * file". One screen answering both had to compromise on the form of each.
+ *
+ * The two are still joined, by a link rather than by a filter: a dashboard tile opens
+ * this screen already narrowed to its category (`?priority=`). Navigation is also the
+ * strongest feedback a press can give — the whole screen changes — which is the problem
+ * the filtering version never solved.
+ */
+export const COURT_CASES_PAGE = {
+  href: "/employee/cases",
+  label: "All cases",
+} as const;
+
+/**
+ * The rows that stand on their own, above the grouped work.
+ *
+ * Dashboard and All cases were transcribed from the reference as `Dashboards` and
+ * `All cases`, both then marked `external`; both are built now and both are internal —
+ * see `COURT_DASHBOARD` and `COURT_CASES_PAGE` above.
+ *
+ * **Configurations is no longer one of them** — see `COURT_NAV_TRAILING` below.
+ *
+ * **None carries a count.** Every other number in this rail is work waiting on the
+ * bench, and the rail prints them in the destructive red its badge is painted in. Forty
+ * cases on the file is not a backlog — a red 40 beside "All cases" reads as forty
+ * problems — so these rows stay bare and each screen's own line says its number.
+ */
 export const COURT_NAV_LINKS: CourtNavItem[] = [
   {
-    id: "dashboards",
-    label: "Dashboards",
+    id: "dashboard",
+    label: COURT_DASHBOARD.label,
+    href: COURT_DASHBOARD.href,
     icon: LayoutDashboardIcon,
-    external: true,
   },
   {
     id: "all-cases",
-    label: "All cases",
+    label: COURT_CASES_PAGE.label,
+    href: COURT_CASES_PAGE.href,
     icon: FolderIcon,
-    external: true,
+  },
+];
+
+/**
+ * The rows that close the rail, under every layout (owner, 2026-09-23).
+ *
+ * Configurations opens the order-template configuration screen for the magistrate. It
+ * sat at the head of `COURT_NAV_LINKS`, above Dashboard, and it is the one row in this
+ * rail that is not a destination the bench works *in*: everything above it is either a
+ * place to look at this court or a queue with work waiting, and a settings-shaped screen
+ * read as the first of those by sitting first. Last is where it belongs, for the same
+ * reason the person and the seat sit at the foot rather than the top.
+ *
+ * It is a list of its own rather than a flag on the item, because the rail renders the
+ * leading links, then whatever the layout puts in the middle, then this — and a layout
+ * must not be able to lose it by choosing a different middle.
+ */
+export const COURT_NAV_TRAILING: CourtNavItem[] = [
+  {
+    id: "configurations",
+    label: "Configurations",
+    icon: SettingsIcon,
+    href: "/employee/configurations",
   },
 ];
 
@@ -131,18 +261,21 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "todays-hearings",
         label: "Today’s hearings",
+        icon: CalendarClockIcon,
         href: "/employee/hearings",
         count: TODAYS_HEARING_COUNT,
       },
       {
         id: "schedule-hearing",
         label: "Schedule hearing",
+        icon: CalendarIcon,
         href: "/employee/hearings/schedule",
         count: SCHEDULING_QUEUE_COUNT,
       },
       {
         id: "bulk-reschedule",
         label: "Bulk reschedule hearings",
+        icon: RefreshCwIcon,
         href: "/employee/hearings/bulk-reschedule",
       },
     ],
@@ -159,20 +292,59 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "scrutiny",
         label: "Scrutinise submitted cases",
+        icon: ScanIcon,
         href: "/employee/scrutiny",
         count: SCRUTINY_QUEUE_COUNT,
       },
       {
         id: "register-cases",
         label: "Register cases",
+        icon: FilePlusIcon,
         href: "/employee/register-cases",
         count: REGISTER_QUEUE_COUNT,
+      },
+      /* Straight after the register, because that is the order a complaint meets them:
+         the registry numbers it, and hours later the magistrate decides whether the case
+         goes ahead. Registering is not taking cognizance — it puts the complaint on the
+         register and nothing more, and this row is the act that follows.
+
+         One row by default, not two. The reference split this queue into *With Delay*
+         and *Without delay* as two counted children opening two screens that differed
+         by three lines; the PRD (v6, §2) keeps the split — it decides which positive
+         action the bench is offered — but keeps it inside the screen, as two tabs.
+         That stands as the default. `cognizance-layout.ts` now also lets the bench
+         choose the reference's own shape instead — two rows of their own, each its own
+         screen (`/employee/cognizance/without-delay`, `/employee/cognizance/with-delay`)
+         — as a preference rather than a replacement, from Court settings (owner,
+         2026-09-26). `courtNavGroupsFor` attaches the two as this row's `children` only
+         when that setting is live; see it and `isCourtNavGroupActive`/`courtTrail`
+         below for how a child is matched and traced the same way a nested case record
+         is. */
+      {
+        id: "cognizance",
+        label: "Take cognizance",
+        icon: StampIcon,
+        href: "/employee/cognizance",
+        count: COGNIZANCE_QUEUE_COUNT,
       },
       {
         id: "approve-copy",
         label: "Approve copy application",
+        icon: CopyIcon,
         href: "/employee/approve-copy-application",
         count: APPROVE_COPY_QUEUE_COUNT,
+      },
+      /* Last in the group, and deliberately so. The three rows above it are a complaint's
+         own progression — scrutiny, then the register, then what the office does for a
+         party afterwards. An advocate's registration is not part of any case's life at
+         all, so putting it at the head would break that reading for the three rows that
+         share the group with it. */
+      {
+        id: "approve-registrations",
+        label: APPROVE_REGISTRATIONS_TITLE,
+        icon: UserCheckIcon,
+        href: "/employee/approve-registrations",
+        count: REGISTRATIONS_QUEUE_COUNT,
       },
     ],
   },
@@ -184,18 +356,21 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "rescheduling-request",
         label: "Rescheduling request",
+        icon: CalendarXIcon,
         href: "/employee/rescheduling-request",
         count: RESCHEDULING_QUEUE_COUNT,
       },
       {
         id: "delay-condonation",
         label: "Delay condonation",
+        icon: HourglassIcon,
         href: "/employee/delay-condonation",
         count: DELAY_CONDONATION_QUEUE_COUNT,
       },
       {
         id: "other-applications",
         label: "Others",
+        icon: EllipsisIcon,
         href: "/employee/other-applications",
         count: OTHER_APPLICATIONS_QUEUE_COUNT,
       },
@@ -209,12 +384,14 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "sign-forms",
         label: "Sign forms",
+        icon: FileCheckIcon,
         href: "/employee/sign-forms",
         count: SIGN_FORM_QUEUE_COUNT,
       },
       {
         id: "sign-orders",
         label: "Sign orders",
+        icon: FilePenIcon,
         href: "/employee/sign-orders",
         /* The pending rows, not the whole queue: the screen also holds the orders
            this bench has already signed, and a badge that counted those would send
@@ -224,6 +401,7 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "sign-process",
         label: "Sign process",
+        icon: SendIcon,
         href: "/employee/sign-process",
         /* The three stages of the line that still need an act, not its whole length:
            that screen also holds what has been sent and what has come back, and a badge
@@ -233,18 +411,21 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
       {
         id: "sign-bail-bonds",
         label: "Sign bail bonds",
+        icon: UserPenIcon,
         href: "/employee/sign-bail-bonds",
         count: SIGN_BAIL_BOND_QUEUE_COUNT,
       },
       {
         id: "sign-deposition",
         label: "Sign witness deposition",
+        icon: MessageSquareIcon,
         href: "/employee/sign-witness-deposition",
         count: WITNESS_DEPOSITION_QUEUE_COUNT,
       },
       {
         id: "sign-evidence",
         label: "Sign evidence",
+        icon: PaperclipIcon,
         href: "/employee/sign-evidence",
         count: SIGN_EVIDENCE_QUEUE_COUNT,
       },
@@ -252,6 +433,7 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
         // The A-Diary is the court's own register — a proper name, so it keeps its case.
         id: "sign-a-diary",
         label: "Sign A-Diary",
+        icon: NotebookPenIcon,
         href: "/employee/sign-a-diary",
         /* The whole unsigned register, every day of it, not just the day the screen
            opens on: a bench a day behind should be able to see that from the rail. The
@@ -262,58 +444,202 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
   },
 ];
 
-/**
- * The court's home, and the head of every trail.
- *
- * It is not a rail row and cannot be one — the two rows that stand above the groups both
- * leave DRISTI — so the top bar's trail is the only path back to it anywhere in the
- * court's chrome. `app/employee/page.tsx` takes its heading from here rather than
- * spelling it again, so a crumb and the screen it leads to cannot end up calling one
- * destination two things.
- */
-export const COURT_HOME = { href: "/employee", label: "Court home" } as const;
+/** The two rows `cognizance-layout.ts`'s "split" setting gives Take cognizance. */
+function cognizanceChildren(): CourtNavItem[] {
+  return [
+    {
+      id: "cognizance-without-delay",
+      label: "Without delay",
+      href: "/employee/cognizance/without-delay",
+      count: cognizanceTabCount("without-delay"),
+    },
+    {
+      id: "cognizance-with-delay",
+      label: "With delay",
+      href: "/employee/cognizance/with-delay",
+      count: cognizanceTabCount("with-delay"),
+    },
+  ];
+}
 
 /**
- * A row is current when its href is this page. Today's hearings also owns the two
- * routes nested under one of its listings — that listing's case overview
- * (`/employee/hearings/<id>`) and the order composer under it
- * (`/employee/hearings/<id>/order`). Both are still the day's list seen closer up,
- * not a new destination.
+ * `COURT_NAV_GROUPS`, with Take cognizance's two rows attached when the "split" setting
+ * is live. Read fresh rather than cached: the setting can change without a reload, and
+ * the counts are the queue's own and can move with it. Every other row and group is
+ * returned exactly as `COURT_NAV_GROUPS` holds it — `"tabs"` returns that same array,
+ * unchanged and uncopied.
+ */
+export function courtNavGroupsFor(
+  cognizanceLayout: CognizanceLayout,
+): CourtNavGroup[] {
+  if (cognizanceLayout !== "split") return COURT_NAV_GROUPS;
+  return COURT_NAV_GROUPS.map((group) =>
+    group.id !== "actions"
+      ? group
+      : {
+          ...group,
+          items: group.items.map((item) =>
+            item.id !== "cognizance"
+              ? item
+              : { ...item, children: cognizanceChildren() },
+          ),
+        },
+  );
+}
+
+/**
+ * The rows each combined layout keeps standing apart from its one folded row, leading
+ * it or trailing it — the owner's two passes, 2026-09-21. `"actions"` keeps hearings a
+ * tab of its own next to actions, the way `COURT_NAV_GROUPS` already keeps Hearings a
+ * group of its own; `"schedule"` folds hearings in with everything else instead and
+ * gives them a prominent block inside that one screen (`TodaysScheduleScreen`), not a
+ * row of their own. Both keep Bulk reschedule hearings and Sign process apart either
+ * way — a hearing put off to a range the bench chooses is not a due item, and a process
+ * line has its own three-stage count already (`sign-process`'s own count comment).
+ */
+const COURT_NAV_KEPT_APART: Record<
+  CombinedCourtNavLayout,
+  { leading: string[]; trailing: string[] }
+> = {
+  actions: {
+    leading: ["todays-hearings"],
+    trailing: ["bulk-reschedule", "sign-process"],
+  },
+  schedule: { leading: [], trailing: ["bulk-reschedule", "sign-process"] },
+};
+
+/** Every group's rows, in the rail's own order — the one pass every function below shares. */
+function courtNavAllItems(): CourtNavItem[] {
+  return COURT_NAV_GROUPS.flatMap((group) => group.items);
+}
+
+/** The rows named by a list of ids, in the order the ids were given — not the source's. */
+function courtNavItemsByIds(ids: string[]): CourtNavItem[] {
+  const all = courtNavAllItems();
+  return ids
+    .map((id) => all.find((item) => item.id === id))
+    .filter((item): item is CourtNavItem => item !== undefined);
+}
+
+/**
+ * The rows a layout keeps standing on their own, leading rows before trailing rows —
+ * `"actions"`: Today's hearings, then Bulk reschedule hearings, then Sign process.
+ * `"schedule"`: Bulk reschedule hearings, then Sign process.
+ */
+export function courtNavKeptApart(layout: CombinedCourtNavLayout): CourtNavItem[] {
+  const spec = COURT_NAV_KEPT_APART[layout];
+  return courtNavItemsByIds([...spec.leading, ...spec.trailing]);
+}
+
+/**
+ * Everything a layout folds into its one row — every `COURT_NAV_GROUPS` item except
+ * what that layout keeps apart, still in the source's own order.
+ */
+export function courtNavClubbed(layout: CombinedCourtNavLayout): CourtNavItem[] {
+  const apart = new Set(courtNavKeptApart(layout).map((item) => item.id));
+  return courtNavAllItems().filter((item) => !apart.has(item.id));
+}
+
+/** The combined row's own count — every clubbed item's, summed, never restated by hand. */
+export function courtNavClubbedTotal(layout: CombinedCourtNavLayout): number {
+  return courtNavClubbed(layout).reduce(
+    (total, item) => total + (item.count ?? 0),
+    0,
+  );
+}
+
+/** A layout that folds work into one row, rather than the rail's default four groups. */
+type CombinedCourtNavLayout = Exclude<CourtNavLayout, "grouped" | "open">;
+
+/** The one row `"actions"` and `"schedule"` differ on — same destination shape, two names. */
+const COURT_NAV_COMBINED_ROW: Record<CombinedCourtNavLayout, CourtNavItem> = {
+  actions: {
+    id: "todays-actions",
+    label: "Today’s actions",
+    href: "/employee/todays-actions",
+  },
+  schedule: {
+    id: "todays-schedule",
+    label: "Today’s schedule",
+    href: "/employee/todays-schedule",
+  },
+};
+
+/**
+ * The rail's rows under a combined layout: the leading kept-apart rows, then the one
+ * row everything else folds into (its count derived rather than restated), then the
+ * trailing kept-apart rows. `"grouped"` has no use for this — it renders
+ * `COURT_NAV_LINKS` and `COURT_NAV_GROUPS` as it always has.
+ */
+export function courtNavRowsFor(
+  layout: CombinedCourtNavLayout,
+): CourtNavItem[] {
+  const spec = COURT_NAV_KEPT_APART[layout];
+  /* A promoted row keeps the mark it already carries in its group. It used to be given a
+     different one here, because a group's rows were bare and a standalone row could not
+     be — now that every row is marked, overriding would draw one destination two ways
+     depending on which layout the rail is in. */
+  const combined: CourtNavItem = {
+    ...COURT_NAV_COMBINED_ROW[layout],
+    icon: CalendarDaysIcon,
+    count: courtNavClubbedTotal(layout),
+  };
+  return [
+    ...courtNavItemsByIds(spec.leading),
+    combined,
+    ...courtNavItemsByIds(spec.trailing),
+  ];
+}
+
+/**
+ * Whether a row is the one `courtNavRowsFor` builds rather than one it passed through —
+ * the row whose active state has to ask `isCourtNavCombinedActive` about the
+ * destinations folded into it, instead of matching its own href the ordinary way.
+ */
+export function isCourtNavCombinedRow(item: CourtNavItem): boolean {
+  return (
+    item.id === COURT_NAV_COMBINED_ROW.actions.id ||
+    item.id === COURT_NAV_COMBINED_ROW.schedule.id
+  );
+}
+
+/**
+ * The queues that own routes nested under them, and how each one tells a real child
+ * from a sibling that merely looks like one.
  *
- * The nested segment is resolved against the cause list rather than matched as a bare
- * `[^/]+`, which would steal `/employee/hearings/schedule` and
- * `/employee/hearings/bulk-reschedule` — siblings, not children. Asking `hearingById`
- * is the one test that cannot go stale on the next route: a third sibling added
- * tomorrow will not be a listing id either, so it will not be captured either, and
- * nobody has to remember to add it to a list of exceptions here. An id no cause list
- * holds gets no section, which is the truth about it and the same answer both screens
- * behind these routes give.
+ * Today's hearings owns a listing's case overview (`/employee/hearings/<id>`) and the
+ * order composer under it (`/employee/hearings/<id>/order`). Scrutiny owns one filing's
+ * workbench (`/employee/scrutiny/<filing no.>`). Register cases owns one waiting
+ * complaint's file (`/employee/register-cases/<id>`). None of them is a new destination
+ * — each is its queue seen closer up.
+ *
+ * The nested segment is resolved against the queue's own data rather than matched as a
+ * bare `[^/]+`, which would steal `/employee/hearings/schedule` and
+ * `/employee/hearings/bulk-reschedule` — siblings, not children. Asking the queue is
+ * the one test that cannot go stale on the next route: a sibling added tomorrow will
+ * not be a listing id or a complaint id either, so it will not be captured either, and
+ * nobody has to remember to add it to a list of exceptions here. An id no queue holds
+ * gets no section, which is the truth about it and the same answer the screens behind
+ * these routes give.
  *
  * It sits with the data rather than in the rail because the rail is no longer the only
  * thing that asks. The top bar's trail works out which section it is standing in from
  * the same answer, and two implementations of "which row is this page" would eventually
- * disagree — about these two routes first, since they are the ones whose answer is not
+ * disagree — about these routes first, since they are the ones whose answer is not
  * simply their own href.
  */
-const NESTED_LISTING = /^\/employee\/hearings\/([^/]+)(?:\/order)?\/?$/;
-
 /**
- * The scrutiny workbench, `/employee/scrutiny/<filing no.>`. Same shape and same guard
- * as the hearings listing above: the segment counts only when it names a filing the
- * queue actually holds, so a typed URL that names nothing gets no section rather than a
- * trail that claims a place the officer is not in.
+ * What the scrutiny queue calls the filing a path names, or nothing.
  *
  * A filing number carries slashes (`F/AHM/2026/00341`), so the segment is percent-encoded
- * in the path and has to be decoded before the queue is asked about it.
+ * in the path and has to be decoded before the queue is asked about it. Every other
+ * nested segment is an id that survives a path intact, which is why this is the one row
+ * below that names a function rather than asking its queue in a line.
  */
-const NESTED_SCRUTINY = /^\/employee\/scrutiny\/([^/]+)\/?$/;
-
-function scrutinyFilingIn(pathname: string): string | undefined {
-  const nested = NESTED_SCRUTINY.exec(pathname);
-  if (!nested) return undefined;
+function scrutinyFilingNumber(segment: string): string | undefined {
   let decoded: string;
   try {
-    decoded = decodeURIComponent(nested[1]);
+    decoded = decodeURIComponent(segment);
   } catch {
     // A malformed escape is not a filing number.
     return undefined;
@@ -321,85 +647,235 @@ function scrutinyFilingIn(pathname: string): string | undefined {
   return findFiling(decoded)?.no;
 }
 
+/**
+ * `identify` answers both questions this file asks about a nested segment, and it has to
+ * be one function to answer them consistently: *is this a real child of that queue* (the
+ * rail's active row) and *what is the record called* (the last crumb). Two functions
+ * would eventually disagree — a route the rail lit up and the trail could not name, or
+ * the reverse.
+ *
+ * It returns the record's **identifier**, never its cause title. The title is the page's
+ * own `h1`, several sizes down and a few pixels below; a crumb repeating it would restate
+ * the loudest type on the screen in the quietest, which is the defect the old
+ * omit-the-page convention was written to avoid. A case number does not restate anything.
+ */
+/*
+ * **There is no `leaf` any more** (`register-cases` brief D25). Register cases was the
+ * one queue with a step *past* the record: its complaint split in two, the glance at
+ * `/<id>` and the whole file at `/<id>/file`, and a trail ending at the case number on
+ * both could not say which of the two a magistrate was on. The file is now a disclosure
+ * of the complaint's own route rather than a second page, so there is one view again and
+ * the trail ends at the case number. The field's own comment said *a leaf is added when a
+ * route earns one*; the route stopped earning it, so it goes rather than sitting here
+ * with nobody to answer for it.
+ */
+const NESTED_ROUTES: {
+  queue: string;
+  pattern: RegExp;
+  identify: (segment: string) => string | undefined;
+}[] = [
+  {
+    queue: "/employee/hearings",
+    pattern: /^\/employee\/hearings\/([^/]+)(?:\/order)?\/?$/,
+    identify: (id) => hearingById(id)?.caseNumber,
+  },
+  {
+    queue: "/employee/scrutiny",
+    pattern: /^\/employee\/scrutiny\/([^/]+)\/?$/,
+    identify: scrutinyFilingNumber,
+  },
+  {
+    queue: "/employee/register-cases",
+    pattern: /^\/employee\/register-cases\/([^/]+)\/?$/,
+    identify: (id) => registerCaseById(id)?.filingNumber,
+  },
+  {
+    queue: "/employee/cognizance",
+    pattern: /^\/employee\/cognizance\/([^/]+)\/?$/,
+    identify: (id) => cognizanceCaseById(id)?.caseNumber,
+  },
+];
+
+/** What this path is a nested view *of*, when it is one. */
+function nestedRecordOf(pathname: string, queue: string): string | undefined {
+  const nested = NESTED_ROUTES.find((entry) => entry.queue === queue);
+  if (!nested) return undefined;
+  const segment = nested.pattern.exec(pathname);
+  return segment ? nested.identify(segment[1]) : undefined;
+}
+
 export function isCourtNavActive(pathname: string, href: string): boolean {
   if (pathname === href) return true;
-  if (href === "/employee/scrutiny") {
-    return scrutinyFilingIn(pathname) !== undefined;
-  }
-  if (href !== "/employee/hearings") return false;
-  const nested = NESTED_LISTING.exec(pathname);
-  return nested !== null && hearingById(nested[1]) !== undefined;
+  return nestedRecordOf(pathname, href) !== undefined;
+}
+
+/**
+ * Whether the page open is one of the rows this layout folded together — so the one
+ * row it renders can still say "you are here" for the destinations behind it, the way
+ * each of those destinations already answers for itself and its own nested records via
+ * `isCourtNavActive`.
+ */
+export function isCourtNavCombinedActive(
+  pathname: string,
+  layout: CombinedCourtNavLayout,
+): boolean {
+  return courtNavClubbed(layout).some(
+    (item) => item.href !== undefined && isCourtNavActive(pathname, item.href),
+  );
 }
 
 /** One step of the trail. */
 export type CourtCrumb = {
   label: string;
   /**
-   * Where the crumb goes. Absent on a section when this page *is* one of its queues —
-   * a section is a disclosure in the rail, and there is no page called "Sign". Present
-   * on that same section when the page is nested under a queue: the section then borrows
-   * the queue's href, because that is the way back and a trail step that cannot be taken
-   * is a crumb that does not work.
+   * Where the crumb goes. Absent on three kinds of step, all of which are a place you
+   * cannot navigate to: the **current page**, which is where you already are; a
+   * **section** when this page is one of its queues, because a section is a disclosure
+   * in the rail and there is no page called "Sign"; and nothing else. Present on that
+   * same section when the page is nested under a queue — the section then borrows the
+   * queue's href, because that is the way back and a trail step that cannot be taken is
+   * a crumb that does not work.
    */
   href?: string;
+  /**
+   * Set on a step whose label *is* a record's number, so the bar gives it the same
+   * monospaced face the record wears on the page. Every nested route names its record
+   * by its number (`NESTED_ROUTES`), so that last step always carries this.
+   */
+  mono?: boolean;
 };
 
 /**
- * Where this page sits, as the steps above it — root, section, and the queue it is
- * nested under.
+ * Where this page sits, as the steps above it — and, last, the page itself.
  *
- * **The page itself is never a step.** Every one of the thirteen queue screens already
- * opens with a heading that is its rail label word for word — "Sign orders" under Sign
- * orders — so a trail ending in the same words would restate, in the quietest type on
- * the screen and eight pixels up, what the loudest type is about to say. What the heading
- * cannot say is which of the four kinds of work this is one of, and how to get back out
- * of it. That is what is left here, and all of it is a step you can actually take.
+ * **Every trail ends with the current page** (owner, 2026-09-11), rendered through the
+ * DS `BreadcrumbPage` slot: a non-link step, `aria-current="page"`, in full ink. The
+ * convention until then was the opposite — the page was never a step — on the argument
+ * that each queue screen opens with a heading that is its rail label word for word, so a
+ * last crumb would restate the loudest type on the screen in the quietest. That argument
+ * is still true of the *queue* screens and is now overruled for the whole area, because
+ * it was never true of the nested ones and because a trail whose last step is somewhere
+ * else is a trail that reads as unfinished. The nested pages are where it earns itself:
+ * their heading is a cause title, and the crumb carries the case number instead — an
+ * identifier no heading on the page repeats.
  *
  * It reads the rail's own data, so a section renamed in `COURT_NAV_GROUPS` is renamed in
- * the trail by the same edit. Nothing below names a section.
+ * the trail by the same edit. Nothing below names a section, a queue or a record.
+ *
+ * **There is no root crumb** (owner, 2026-09-14). Every trail used to open with
+ * `Court home`, which was a placeholder screen nothing else linked to; when that screen
+ * became the dashboard, rooting every trail at it would have put a page nobody routinely
+ * opens at the head of every other page, and rooting them at the landing — the day's
+ * cause list — would have read as if signing orders happened underneath today's hearings.
+ * Neither is true, so the trail starts where the work is. The rail is what gets you
+ * anywhere; the trail says where you are and lets you climb one step.
  *
  * Three shapes come out of it:
  *
- * - `/employee` — empty. Nothing is above the court home, and the rule has no exception:
- *   a lone `Court home` crumb would restate the heading 40-odd pixels below it, which is
- *   the one thing this function exists to prevent. The bar keeps its fill and its seam
- *   and carries no trail, which is what chrome looks like at the origin.
- * - `/employee/sign-orders` — root, then `Sign`. The heading says which queue.
- * - `/employee/hearings/<id>` and `/employee/hearings/<id>/order` — root, `Hearings`,
- *   then `Today's hearings`. Both of the last two are links back to the day's list.
- *   Here the heading names a case rather than a queue, so the queue is genuinely above
- *   the page and genuinely somewhere to return to. The section has no page of its own,
- *   so it borrows the queue's href rather than sitting in the trail as text a click
- *   cannot follow.
+ * - `/employee` and any other route with no section — no trail at all. The bar keeps its
+ *   fill and its seam and carries nothing, which is what chrome looks like at a
+ *   destination with nothing above it. A route this file does not know gets the same
+ *   answer: the current step is omitted rather than guessed, because a crumb naming a
+ *   page this file cannot identify would be an invented label.
+ * - `/employee/sign-orders` — `Sign`, then **`Sign orders`** as the current page. The
+ *   section is still text: it has no page of its own.
+ * - `/employee/hearings/<id>`, `/employee/hearings/<id>/order`,
+ *   `/employee/scrutiny/<filing no.>`, `/employee/register-cases/<id>` — the section, the
+ *   queue, then the record: `ST/241/2026`, `F/AHM/2026/00341`, `CMP/1840/2025`. Both of
+ *   the middle steps link back to the queue, which is where the record came from and, on
+ *   a complaint's file, the whole of the way back — which is why that screen carries no
+ *   back control of its own.
  *
- * A route this file does not know gets the root as a link and stops. That is the whole of
- * what can be said honestly about it, and it is still the way home. The two standalone
- * links are absent from every trail because both leave DRISTI; a route nested under one
- * of them would need its own step, on the day one exists.
+ * The standalone Dashboard row is absent from every trail because nothing nests under it.
  */
 export function courtTrail(pathname: string): CourtCrumb[] {
-  if (pathname === COURT_HOME.href) return [];
-
-  const home: CourtCrumb = { label: COURT_HOME.label, href: COURT_HOME.href };
-
-  for (const group of COURT_NAV_GROUPS) {
+  const groups = courtNavGroupsFor(readCognizanceLayout());
+  for (const group of groups) {
     for (const item of group.items) {
-      if (!item.href || !isCourtNavActive(pathname, item.href)) continue;
-      const nested = pathname !== item.href;
-      const trail: CourtCrumb[] = [
-        home,
-        nested
-          ? { label: group.label, href: item.href }
-          : { label: group.label },
-      ];
-      // The row earns a step only when it is above this page rather than being it —
-      // which is exactly when the path is not the row's own href.
-      if (nested) {
-        trail.push({ label: item.label, href: item.href });
+      // A row's child (only Take cognizance's two, while "split" is live) is itself a
+      // screen, not a nested record — traced the same three steps as one, but the last
+      // is the child's own label rather than an identifier read off the page.
+      const child = item.children?.find(
+        (entry) => entry.href !== undefined && isCourtNavActive(pathname, entry.href),
+      );
+      if (child) {
+        return [
+          { label: group.label, href: item.href },
+          { label: item.label, href: item.href },
+          { label: child.label },
+        ];
       }
-      return trail;
+
+      if (!item.href || !isCourtNavActive(pathname, item.href)) continue;
+      // Nested exactly when the path is not the row's own href — which is also when the
+      // row is above this page rather than being it, and so becomes a link.
+      const record = nestedRecordOf(pathname, item.href);
+      if (record === undefined) {
+        return [{ label: group.label }, { label: item.label }];
+      }
+      return [
+        { label: group.label, href: item.href },
+        { label: item.label, href: item.href },
+        { label: record, mono: true },
+      ];
     }
   }
 
-  return [home];
+  return [];
+}
+
+
+/** One queue with work waiting in it. */
+export type CourtWaitingItem = {
+  id: string;
+  label: string;
+  href: string;
+  count: number;
+};
+
+/** A rail group and the built, non-empty queues under it. */
+export type CourtWaitingGroup = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  /** Everything waiting in this group, so the dashboard can print a sub-total. */
+  total: number;
+  items: CourtWaitingItem[];
+};
+
+/**
+ * What is waiting on this court, kept in the rail's own four groups.
+ *
+ * The dashboard's "Waiting on this court" panel reads this rather than importing sixteen
+ * count constants of its own, so the panel and the rail can never disagree about how much
+ * is in a queue. It keeps the grouping — Hearings, Actions, Review, Sign — because that
+ * is how the bench already thinks about its work, and because the rail's groups are
+ * collapsed by default, so laying the four out at once is the whole reason the panel earns
+ * its place. The group's mark rides along so the panel and the rail wear the same icon.
+ *
+ * Only rows that are **built and populated** survive: a row with no `href` goes nowhere,
+ * a row at zero is waiting on nobody, and a group with nothing left in it is dropped
+ * whole rather than printed as an empty heading.
+ */
+export function courtWaitingGroups(): CourtWaitingGroup[] {
+  return COURT_NAV_GROUPS.map((group) => {
+    const items = group.items
+      .filter(
+        (item): item is CourtNavItem & { href: string; count: number } =>
+          Boolean(item.href) && typeof item.count === "number" && item.count > 0,
+      )
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        href: item.href,
+        count: item.count,
+      }));
+    return {
+      id: group.id,
+      label: group.label,
+      icon: group.icon,
+      total: items.reduce((sum, item) => sum + item.count, 0),
+      items,
+    };
+  }).filter((group) => group.items.length > 0);
 }

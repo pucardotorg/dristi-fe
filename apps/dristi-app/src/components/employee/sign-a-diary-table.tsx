@@ -1,6 +1,13 @@
 "use client";
 
 import {
+  TABLE_CELL,
+  TABLE_HEAD,
+  TABLE_HEAD_ROW,
+  tableBodyClass,
+  tableRowClass,
+} from "@/components/chrome/table-plate";
+import {
   Table,
   TableBody,
   TableCell,
@@ -9,22 +16,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
+import {
   formatADiaryDate,
   type ADiaryEntry,
 } from "@/lib/employee/sign-a-diary";
 import { cn } from "@/lib/utils";
+import { Identifier } from "@/components/chrome/identifier";
 
-/* The same table treatment as the two signing queues above it in the rail, the register
- * queue and the review queues — header separated by fill rather than a second stroke, rows
- * by hairline, the panel edge as the only full-strength border on the screen (ui-craft
- * §1.1). The classes are restated rather than exported because when the advocate shell
- * moves onto the shared `components/chrome` frame, this treatment is what belongs there,
- * and the court-side tables should collapse onto it together rather than one of them
- * becoming the other's parent. */
-const headClass =
-  "h-10 bg-surface-sunken px-4 py-3 text-caption font-semibold text-muted-foreground";
-const cellClass =
-  "border-b border-hairline px-4 py-3 align-top text-left text-body-compact";
+/* The A-Diary's rows run to several lines, and centring strands the short
+ * cells against them. */
+const cellClass = cn(TABLE_CELL, "align-top");
 
 /**
  * One day of the A-Diary as a table: the case, what the court did, and when it comes
@@ -68,28 +73,19 @@ export function SignADiaryTable({
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
       <TableHeader>
-        {/* The panel insets this table by p-6, so the header strip is a well, not a
-            full-bleed band — it rounds itself (ui-craft §4). `border-separate` means each
-            cell paints its own fill, so the radius goes on the end cells rather than the
-            row. */}
-        <TableRow className="hover:bg-transparent [&>th:first-child]:rounded-l-lg [&>th:last-child]:rounded-r-lg">
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+        <TableRow className={TABLE_HEAD_ROW}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Case number
           </TableHead>
-          <TableHead className={cn(headClass, "min-w-80 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-80 whitespace-normal")}>
             Proceedings / business of the day
           </TableHead>
-          <TableHead className={cn(headClass, "whitespace-nowrap")}>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Next hearing date
           </TableHead>
         </TableRow>
       </TableHeader>
-      {/* `border-separate` stays even without a sticky column — the header well needs each
-          cell to paint its own fill for the end cells to round (above). It puts the row
-          stroke on the cell, so the DS TableBody rule that clears the last row targets the
-          wrong element. Reach the cells directly, or the final row doubles its line
-          against the panel edge. */}
-      <TableBody className="[&_tr:last-child_td]:border-b-0">
+      <TableBody className={tableBodyClass()}>
         {/* The header is a well, not a band welded to the rows — it needs the panel's fill
             under it or its rounded bottom corners read as cut off (ui-craft §4).
             `border-separate` has no per-edge row gap, so the gap is one inert row held out
@@ -98,23 +94,24 @@ export function SignADiaryTable({
           <td colSpan={3} className="h-2 p-0" />
         </tr>
         {rows.map((entry) => (
-          <TableRow key={entry.id} className="bg-card">
+          <TableRow key={entry.id} {...rowActivation(tableRowClass())}>
             <TableCell
-              className={cn(cellClass, "tabular-nums whitespace-nowrap")}
+              className={cn(cellClass, "whitespace-nowrap")}
             >
-              {entry.caseNumber}
+              <Identifier value={entry.caseNumber} label="case number" />
             </TableCell>
             {/* The row's one emphasised cell, and its only opener. Quiet
                 `text-foreground` rather than the reference's teal underline: the teal is
                 rationed for the one strong action on the screen, and a column of
                 underlined teal paragraphs is not what ui-craft §4 spends it on. The
-                underline arrives on hover and focus, where it is an affordance rather
-                than decoration. */}
+                underline now arrives on the *row's* hover, wherever the pointer sits,
+                and on this control's own focus — see `rowOpenerClass`. */}
             <TableCell className={cn(cellClass, "min-w-80 whitespace-normal")}>
               <button
                 type="button"
                 onClick={() => onOpen(entry)}
-                className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+                {...rowOpener}
+                className={rowOpenerClass}
               >
                 <span className="sr-only">
                   Read and sign the entry in {entry.caseNumber}.{" "}

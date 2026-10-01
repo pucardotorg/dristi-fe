@@ -11,9 +11,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 
-import { DOC_BY_ID, DOC_ROW } from "@/lib/employee/scrutiny/bundle";
 import { docName } from "@/lib/employee/scrutiny/field";
-import { FIELD_BY_ID } from "@/lib/employee/scrutiny/sections";
 import type {
   Flag as FlagType,
   FlatField,
@@ -21,8 +19,11 @@ import type {
 import type { ScrutinyController } from "@/lib/employee/scrutiny/use-scrutiny-state";
 import { cn } from "@/lib/utils";
 import { FlagComposer } from "@/components/employee/scrutiny/flag-composer";
+import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
+import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
 import { MarkThumb } from "@/components/employee/scrutiny/mark-thumb";
 import {
+  FieldValue,
   RecordLink,
   RecordList,
   RecordRow,
@@ -34,6 +35,11 @@ import {
   DescriptionRow,
   DescriptionTerm,
 } from "@/components/ui/description-list";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /**
  * One filed field = one `DescriptionRow`, made interactive.
@@ -59,6 +65,7 @@ export function FieldRow({
   onGoToDoc: (docId: string) => void;
   onGoToItem: (fieldId: string) => void;
 }) {
+  const { docById } = useScrutinyCase();
   const flag = controller.flags[field.id];
   const selected = controller.selectedId === field.id;
   const composing = controller.composeField === field.id;
@@ -72,7 +79,10 @@ export function FieldRow({
     <DescriptionRow
       id={`row-${field.id}`}
       className={cn(
-        "group/frow relative -mx-2 cursor-pointer grid-cols-[minmax(5.5rem,9rem)_1fr] px-2 transition-colors",
+        // `border-hairline` overrides the DS row default (`border-border`, a darker rule)
+        // so the divider between rows matches the lighter hairline the case file uses
+        // (owner, 2026-09-15).
+        "group/frow relative -mx-2 cursor-pointer grid-cols-[minmax(5.5rem,9rem)_1fr] border-hairline px-2 transition-colors",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
         "hover:bg-accent",
         // A machine observation carries no row fill. The `HintLine` under the value —
@@ -124,34 +134,46 @@ export function FieldRow({
              * form, and hover-only affordances are unreachable by keyboard and touch.
              */}
             {field.doc && !field.thumb ? (
-              /* The glyph says "this value came from a document"; which document it was
-                 is text, not a `title` — a tooltip attribute is unreachable by touch and
-                 by keyboard, so it cannot be the only place a fact lives. */
-              <span className="inline-flex size-8 shrink-0 items-center justify-center text-muted-foreground">
-                <FileTextIcon className="size-3" aria-hidden="true" />
-                <span className="sr-only">
-                  {`Read from Doc ${DOC_BY_ID[field.doc]?.no}, ${DOC_BY_ID[field.doc]?.name}${
+              /* The glyph says "this value came from a document"; the tooltip names which,
+                 and the same text stays in `sr-only` so it is not a hover-only fact. */
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex size-8 shrink-0 items-center justify-center text-muted-foreground">
+                    <FileTextIcon className="size-4" aria-hidden="true" />
+                    <span className="sr-only">
+                      {`Read from Doc ${docById[field.doc]?.no}, ${docById[field.doc]?.name}${
+                        field.srcnote ? ` — ${field.srcnote}` : ""
+                      }`}
+                    </span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {`Read from Doc ${docById[field.doc]?.no}, ${docById[field.doc]?.name}${
                     field.srcnote ? ` — ${field.srcnote}` : ""
                   }`}
-                </span>
-              </span>
+                </TooltipContent>
+              </Tooltip>
             ) : null}
-            <Button
-              variant="destructive-ghost"
-              size="icon-sm"
-              /* Dense by design inside the record, but never below the touch floor:
-                 the registry works on tablets, so a coarse pointer gets the full 40px
-                 (DS Laws, ACCESSIBILITY §5). */
-              className="[@media(pointer:coarse)]:size-10"
-              title={flagTitle}
-              aria-label={`${flagTitle}: ${field.label}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                controller.openComposer(field.id);
-              }}
-            >
-              <FlagIcon />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="destructive-ghost"
+                  size="icon-sm"
+                  /* Dense by design inside the record, but never below the touch floor:
+                     the registry works on tablets, so a coarse pointer gets the full 40px
+                     (DS Laws, ACCESSIBILITY §5). */
+                  className="[@media(pointer:coarse)]:size-10"
+                  aria-label={`${flagTitle}: ${field.label}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    controller.openComposer(field.id);
+                  }}
+                >
+                  <FlagIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{flagTitle}</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </DescriptionDetails>
@@ -188,7 +210,7 @@ function ValueLines({ field, flag }: { field: FlatField; flag?: FlagType }) {
     // record of "what changed and why" reads as one block instead of three.
     return (
       <div className="text-body-compact font-medium break-words">
-        {flag.correction}
+        <FieldValue field={field} value={flag.correction} />
       </div>
     );
   }
@@ -200,7 +222,7 @@ function ValueLines({ field, flag }: { field: FlatField; flag?: FlagType }) {
         field.long ? "text-muted-foreground" : "font-medium",
       )}
     >
-      {field.value}
+      <FieldValue field={field} value={field.value} />
     </div>
   );
 }
@@ -223,10 +245,11 @@ function Hints({
   flag?: FlagType;
   aiOn: boolean;
 }) {
+  const { docById } = useScrutinyCase();
   const lines: React.ReactNode[] = [];
   const flagged = !!flag;
   const thumbId = field.thumb ?? field.docrow;
-  const thumbDoc = thumbId ? DOC_BY_ID[thumbId] : undefined;
+  const thumbDoc = thumbId ? docById[thumbId] : undefined;
   // The item's crop is strictly more specific than the row's source thumbnail. Showing
   // both stacks two sunken boxes of the same document in one row.
   const croppedHere = flag?.evidence?.doc === thumbId;
@@ -250,14 +273,14 @@ function Hints({
   if (aiOn && field.docread && !flagged) {
     lines.push(
       <HintLine key="docread" tone="warning" icon={<TriangleAlertIcon />}>
-        The uploaded document shows a different value.
+        Document shows a different value.
       </HintLine>,
     );
   }
   if (aiOn && field.ocrfail && !flagged) {
     lines.push(
       <HintLine key="ocrfail" tone="warning" icon={<TriangleAlertIcon />}>
-        The value could not be read from the uploaded document.
+        Couldn&rsquo;t read this in the document.
       </HintLine>,
     );
   }
@@ -330,13 +353,14 @@ function RaisedItem({
   onGoToDoc: (docId: string) => void;
   onGoToItem: (fieldId: string) => void;
 }) {
+  const { docById, docRow, fieldById } = useScrutinyCase();
   const evidence = flag.evidence;
-  const evidenceDoc = evidence ? DOC_BY_ID[evidence.doc] : undefined;
+  const evidenceDoc = evidence ? docById[evidence.doc] : undefined;
   const partnerId = flag.linkedTo ?? flag.linkedFrom ?? null;
-  const partner = partnerId ? FIELD_BY_ID[partnerId] : undefined;
+  const partner = partnerId ? fieldById[partnerId] : undefined;
   // A field sourced from an uploaded document could have had a re-upload requested,
   // so the row states the answer either way. Generated pages have nothing to re-upload.
-  const reuploadApplies = !field.docrow && !!field.doc && !!DOC_ROW[field.doc];
+  const reuploadApplies = !field.docrow && !!field.doc && !!docRow[field.doc];
   const silent = !flag.comment && !flag.correction && !flag.reason;
 
   /*
@@ -352,7 +376,14 @@ function RaisedItem({
    * Remove) takes a hairline.
    */
   return (
-    <div className="col-span-full my-1 flex flex-col gap-3 rounded-lg border border-hairline bg-surface-sunken p-3 @container">
+    <div
+      className={cn(
+        "col-span-full my-1 flex flex-col gap-3 rounded-lg border border-hairline bg-surface-sunken p-3 @container",
+        // The item settles into place when it is saved — the same resolve the case file
+        // uses for a fact taking its outcome (`motion.ts`).
+        RESOLVE_IN_PLACE,
+      )}
+    >
       <div className="flex items-center gap-2">
         <Badge variant={flag.correction ? "info" : "destructive"}>
           {flag.correction
@@ -389,7 +420,8 @@ function RaisedItem({
                */
               toast(
                 `Flag removed. The document issue on ${docName(
-                  FIELD_BY_ID[stranded]?.docrow ?? "",
+                  fieldById[stranded]?.docrow ?? "",
+                  docById,
                 )} stays.`,
                 {
                   action: {
@@ -408,11 +440,21 @@ function RaisedItem({
       <RecordList>
         {flag.correction ? (
           <>
-            <RecordRow label="FSO’s value">
-              <span className="font-medium">{flag.correction}</span>
+            {/* Original first, then the correction under it — the reader sees what was
+                filed, then what it becomes (owner, 2026-09-15). */}
+            <RecordRow label="Original value">
+              <span className="text-muted-foreground line-through">
+                {field.value ? (
+                  <FieldValue field={field} value={field.value} copyable={false} />
+                ) : (
+                  "—"
+                )}
+              </span>
             </RecordRow>
-            <RecordRow label="Filed value">
-              <span className="text-muted-foreground">{field.value || "—"}</span>
+            <RecordRow label="FSO’s value">
+              <span className="font-medium">
+                <FieldValue field={field} value={flag.correction} />
+              </span>
             </RecordRow>
           </>
         ) : null}
@@ -445,12 +487,12 @@ function RaisedItem({
                 event.stopPropagation();
                 onGoToDoc(evidence.doc);
               }}
-              aria-label={`Go to the annotation on Doc ${evidenceDoc.no}, ${docName(evidence.doc)}`}
+              aria-label={`Go to the annotation on Doc ${evidenceDoc.no}, ${docName(evidence.doc, docById)}`}
             >
               <MarkThumb evidence={evidence} />
               <span className="min-w-0 truncate">
                 <span className="tabular-nums">Doc {evidenceDoc.no}</span> ·{" "}
-                {docName(evidence.doc)}
+                {docName(evidence.doc, docById)}
               </span>
               <ArrowUpRightIcon
                 className="size-3 shrink-0 text-muted-foreground"
@@ -464,7 +506,7 @@ function RaisedItem({
           <RecordRow label="Re-upload requested">
             {partner ? (
               <RecordLink onClick={() => onGoToItem(partner.id)}>
-                Yes — {docName(partner.docrow ?? "")}
+                Yes — {docName(partner.docrow ?? "", docById)}
                 {controller.flags[partner.id]?.reason
                   ? ` · ${controller.flags[partner.id]?.reason}`
                   : ""}

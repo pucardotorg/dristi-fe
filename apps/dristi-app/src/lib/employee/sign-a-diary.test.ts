@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAUSE_LIST, courtHearingPurposeLabel, formatListingDate } from "./hearings";
+import { CURRENT_STAFF, PRESIDING_MAGISTRATE } from "./content";
 import {
   A_DIARY_PENDING_COUNT,
   DEFAULT_A_DIARY_FILTERS,
+  aDiaryDocumentFilename,
   aDiaryDocumentText,
   aDiaryEntries,
   buildADiaryDocument,
@@ -89,6 +91,32 @@ describe("aDiaryEntries", () => {
 
   it("keeps a business line long enough to clamp in its column", () => {
     assert.ok(ENTRIES.some((entry) => entry.business.length > 200));
+  });
+
+  it("opens the business on what was done, never on who turned up", () => {
+    /* The table clamps this column to two lines and it is the row's only opener, so the
+       first sentence has to be the one fact that tells one day from another. Recite the
+       appearances here and five rows open "Both sides are represented by counsel" — which
+       is what `attendance` exists to carry instead. */
+    for (const entry of ENTRIES) {
+      assert.ok(
+        !entry.business.startsWith(entry.attendance),
+        `${entry.id} opens its business with the appearance recital`,
+      );
+      assert.ok(
+        !/^(Both sides are|The complainant is|The accused is) represented by counsel/.test(
+          entry.business,
+        ),
+        `${entry.id} opens its business on who appeared`,
+      );
+    }
+  });
+
+  it("gives the clamped column a distinct opening sentence on every row", () => {
+    const openings = ENTRIES.map(
+      (entry) => entry.business.split(". ")[0],
+    );
+    assert.equal(new Set(openings).size, openings.length);
   });
 
   it("holds a side with no vakalat, so the appearance table has an empty row to answer for", () => {
@@ -182,18 +210,102 @@ describe("buildADiaryDocument", () => {
     assert.ok(values.includes("No advocate on record"));
   });
 
-  it("says the signature is not on it, because nothing here signs", () => {
-    assert.equal(
-      buildADiaryDocument(ENTRIES[0]).signature,
-      "Pending the signature of the magistrate.",
+  it("recites who was before the court, beside the table that names them", () => {
+    for (const entry of ENTRIES) {
+      const document = buildADiaryDocument(entry);
+      assert.equal(document.attendance, entry.attendance);
+      assert.ok(
+        document.attendance.trim().endsWith("."),
+        `${entry.id} does not recite its attendance as a sentence`,
+      );
+    }
+  });
+
+  it("heads the page with the order this day passed, and the offence under it", () => {
+    for (const entry of ENTRIES) {
+      const document = buildADiaryDocument(entry);
+      assert.equal(document.title, entry.orderTitle);
+      assert.ok(
+        document.title.startsWith("Order"),
+        `${entry.id} does not head its page with an order`,
+      );
+      assert.equal(
+        document.offence,
+        "Offence under S. 138 of the Negotiable Instruments Act, 1881",
+      );
+    }
+  });
+
+  it("gives every entry its own order, never the same one twice", () => {
+    const titles = ENTRIES.map((entry) => entry.orderTitle);
+    assert.equal(new Set(titles).size, titles.length);
+  });
+
+  it("breaks the operative passage where the bench broke it", () => {
+    const entry = ENTRIES[0];
+    const { paragraphs } = buildADiaryDocument(entry);
+    assert.ok(paragraphs.length > 1, "the order reads as a single block");
+    assert.equal(paragraphs.join("\n\n"), entry.business);
+    /* The last paragraph is where an order sheet fixes the next date. */
+    assert.ok(
+      paragraphs[paragraphs.length - 1].includes(
+        formatListingDate(entry.nextHearing),
+      ),
     );
   });
 
-  it("writes a download that carries the business of the day", () => {
+  it("prints the correction the bench saved, so Save changes the paper", () => {
+    const target = ENTRIES[0];
+    const rows = saveBusinessOfTheDay(
+      ENTRIES,
+      target.id,
+      "Heard both sides.\n\nThe case is adjourned.",
+    );
+    const corrected = rows.find((entry) => entry.id === target.id);
+    assert.ok(corrected);
+    assert.deepEqual(buildADiaryDocument(corrected).paragraphs, [
+      "Heard both sides.",
+      "The case is adjourned.",
+    ]);
+  });
+
+  it("renders a flattened passage as one paragraph, not an empty list", () => {
+    const rows = saveBusinessOfTheDay(ENTRIES, ENTRIES[0].id, "One block only.");
+    const corrected = rows.find((entry) => entry.id === ENTRIES[0].id);
+    assert.ok(corrected);
+    assert.deepEqual(buildADiaryDocument(corrected).paragraphs, [
+      "One block only.",
+    ]);
+  });
+
+  it("says the signature is not on it, and whose it is waiting for", () => {
+    const { signature } = buildADiaryDocument(ENTRIES[0]);
+    assert.ok(signature.startsWith("Pending the signature of "));
+    assert.ok(signature.includes(PRESIDING_MAGISTRATE.name));
+    assert.ok(signature.includes(PRESIDING_MAGISTRATE.designation));
+    /* Never the seat working the screen — the order is not the bench clerk's to sign. */
+    assert.ok(!signature.includes(CURRENT_STAFF.name));
+  });
+
+  it("writes a download that carries the order the court passed", () => {
     const entry = ENTRIES[0];
-    const text = aDiaryDocumentText(buildADiaryDocument(entry));
+    const document = buildADiaryDocument(entry);
+    const text = aDiaryDocumentText(document);
     assert.ok(text.includes(entry.caseNumber));
-    assert.ok(text.includes(entry.business));
-    assert.ok(text.includes("Business of the day"));
+    assert.ok(text.includes(entry.orderTitle));
+    assert.ok(text.includes(document.offence));
+    assert.ok(text.includes(document.attendance));
+    for (const paragraph of document.paragraphs) {
+      assert.ok(text.includes(paragraph), "a paragraph is missing from the download");
+    }
+    assert.ok(text.includes(document.signature));
+  });
+
+  it("names the download for the order and the day it was passed", () => {
+    const entry = ENTRIES[0];
+    assert.equal(
+      aDiaryDocumentFilename(entry),
+      `ST-655-2026-order-${entry.dated}.txt`,
+    );
   });
 });

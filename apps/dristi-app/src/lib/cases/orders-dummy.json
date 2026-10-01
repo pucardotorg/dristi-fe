@@ -30,12 +30,63 @@
   },
   "orders": [
     {
+      "orderId": "KL-DUMMY-001386-2026-OR14",
+      "type": "Summons",
+      "status": "Published",
+      "issuedOn": "2026-07-24",
+      "botd": "Summons was ordered to PW-2, the bank official, to appear and produce the account records on the next date.",
+      "participantIds": [
+        "PARTY-C-001"
+      ],
+      "partiesDisplay": "Sunil Varghese (Complainant)",
+      "issuedDocument": null
+    },
+    {
+      "orderId": "KL-DUMMY-001386-2026-OR13",
+      "type": "Proclamation",
+      "status": "Published",
+      "issuedOn": "2026-07-02",
+      "botd": "Proclamation was ordered against the accused and attachment of property was directed, the warrant having been returned unexecuted.",
+      "participantIds": [
+        "PARTY-A-001"
+      ],
+      "partiesDisplay": "Arun Das (Accused)",
+      "issuedDocument": null
+    },
+    {
+      "orderId": "KL-DUMMY-001386-2026-OR12",
+      "type": "Warrant",
+      "status": "Published",
+      "issuedOn": "2026-05-10",
+      "botd": "A bailable warrant was ordered against the accused for failure to appear on summons.",
+      "participantIds": [
+        "PARTY-A-001"
+      ],
+      "partiesDisplay": "Arun Das (Accused)",
+      "issuedDocument": null
+    },
+    {
+      "orderId": "KL-DUMMY-001386-2026-OR11",
+      "type": "Summons",
+      "status": "Published",
+      "issuedOn": "2026-03-02",
+      "botd": "Summons was ordered to the accused for appearance on the date fixed.",
+      "participantIds": [
+        "PARTY-A-001"
+      ],
+      "partiesDisplay": "Arun Das (Accused)",
+      "issuedDocument": null
+    },
+    {
       "orderId": "KL-DUMMY-001386-2025-OR10",
       "type": "Schedule of hearing date",
       "status": "Pending signature",
       "issuedOn": "2026-01-05",
       "botd": "The case was posted for reporting compliance with the payment directed and the date of hearing was notified to both sides.",
-      "participantIds": ["PARTY-C-001", "PARTY-A-001"],
+      "participantIds": [
+        "PARTY-C-001",
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Sunil Varghese (Complainant), Arun Das (Accused)",
       "issuedDocument": null
     },
@@ -45,7 +96,10 @@
       "status": "Published",
       "issuedOn": "2025-12-20",
       "botd": "The compensation awarded on conviction was directed to be paid within the time allowed and the matter was taken up for execution.",
-      "participantIds": ["PARTY-C-001", "PARTY-A-001"],
+      "participantIds": [
+        "PARTY-C-001",
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Sunil Varghese (Complainant), Arun Das (Accused)",
       "issuedDocument": null
     },
@@ -55,7 +109,10 @@
       "status": "Published",
       "issuedOn": "2025-12-15",
       "botd": "Judgment was pronounced in open court and the operative portion was read out to the parties present.",
-      "participantIds": ["PARTY-C-001", "PARTY-A-001"],
+      "participantIds": [
+        "PARTY-C-001",
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Sunil Varghese (Complainant), Arun Das (Accused)",
       "issuedDocument": {
         "label": "Issued order",
@@ -69,7 +126,9 @@
       "status": "Published",
       "issuedOn": "2025-11-18",
       "botd": "Batta payable to the defence witness examined on 10 November 2025 was sanctioned and ordered to be disbursed.",
-      "participantIds": ["PARTY-A-001"],
+      "participantIds": [
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Arun Das (Accused)",
       "issuedDocument": null
     },
@@ -79,7 +138,10 @@
       "status": "Published",
       "issuedOn": "2025-10-02",
       "botd": "The case was posted for examination of the accused and the date of hearing was notified to both sides.",
-      "participantIds": ["PARTY-C-001", "PARTY-A-001"],
+      "participantIds": [
+        "PARTY-C-001",
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Sunil Varghese (Complainant), Arun Das (Accused)",
       "issuedDocument": null
     },
@@ -99,7 +161,10 @@
       "status": "Published",
       "issuedOn": "2025-08-04",
       "botd": "The accused was released on bail on executing a bond with one surety for the like sum.",
-      "participantIds": ["PARTY-C-001", "PARTY-A-001"],
+      "participantIds": [
+        "PARTY-C-001",
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Sunil Varghese (Complainant), Arun Das (Accused)",
       "issuedDocument": {
         "label": "Issued order",
@@ -114,7 +179,9 @@
       "status": "Published",
       "issuedOn": "2025-07-21",
       "botd": "Service on the accused was reported incomplete and fresh summons was ordered for appearance on the date fixed.",
-      "participantIds": ["PARTY-A-001"],
+      "participantIds": [
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Arun Das (Accused)",
       "issuedDocument": null
     },
@@ -125,7 +192,10 @@
       "status": "Published",
       "issuedOn": "2025-06-23",
       "botd": "The case was posted for appearance of the accused and directions were issued on the pending items.",
-      "participantIds": ["PARTY-C-001", "PARTY-A-001"],
+      "participantIds": [
+        "PARTY-C-001",
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Sunil Varghese (Complainant), Arun Das (Accused)",
       "issuedDocument": null
     },
@@ -135,7 +205,9 @@
       "status": "Published",
       "issuedOn": "2025-06-23",
       "botd": "Summons was ordered to the accused for appearance on the date fixed.",
-      "participantIds": ["PARTY-A-001"],
+      "participantIds": [
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Arun Das (Accused)",
       "issuedDocument": {
         "label": "Issued summons",
@@ -149,7 +221,10 @@
       "status": "Published",
       "issuedOn": "2025-06-23",
       "botd": "Cognizance was taken of the offence alleged and the complaint was taken on file.",
-      "participantIds": ["PARTY-C-001", "PARTY-A-001"],
+      "participantIds": [
+        "PARTY-C-001",
+        "PARTY-A-001"
+      ],
       "partiesDisplay": "Sunil Varghese (Complainant), Arun Das (Accused)",
       "issuedDocument": {
         "label": "Issued order",

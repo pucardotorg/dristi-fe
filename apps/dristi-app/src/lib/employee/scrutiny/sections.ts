@@ -45,7 +45,12 @@ export const SECTIONS: SectionDef[] = [
         fields: [
           { id: "adv-name", label: "Advocate name", value: "Adv. Bijini Rejen" },
           { id: "adv-for", label: "Advocate for", value: "Complainant" },
-          { id: "adv-bar", label: "BAR registration", value: "G/60/1992" },
+          {
+            id: "adv-bar",
+            label: "BAR registration",
+            value: "G/60/1992",
+            ident: true,
+          },
         ],
       },
       {
@@ -87,6 +92,7 @@ export const SECTIONS: SectionDef[] = [
             id: "q-no",
             label: "Cheque number",
             value: "230270",
+            ident: true,
             doc: "cheque",
             region: [25, 77, 52, 16],
             srcnote: "MICR band",
@@ -111,6 +117,7 @@ export const SECTIONS: SectionDef[] = [
             id: "q-ifsc",
             label: "IFSC code",
             value: "SBIN0007558",
+            ident: true,
             doc: "cheque",
             region: [36, 7, 32, 10],
           },

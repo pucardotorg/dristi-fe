@@ -1,0 +1,19 @@
+# Protect the running Dristi app
+
+Use `http://localhost:3000` for the owner's running app. A responding server is not
+proof it serves your branch: confirm its checkout before treating the render as evidence.
+In an isolated worktree, an app served from another checkout cannot verify your changes.
+
+- Never start, restart, or stop the owner's server, kill Node/Next processes, delete
+  `.next`, or start a second server automatically.
+- Never run a production build in a checkout with an active dev server: they share
+  `.next`. Use an isolated worktree for build verification when required.
+- If the server is unavailable, report that visual verification is pending and continue
+  source review and safe checks. If a render is required, ask the owner to start the
+  correct checkout in their persistent terminal with `npm run dev`.
+- Before diagnosing an application bug from an inert page, confirm the origin is
+  `localhost` and check whether the expected Next process is alive. A stopped server
+  or failed hydration must not be mistaken for a product defect.
+
+Starting or changing a server setup requires the owner's explicit instruction. Shared
+worktrees do not authorize touching another checkout's files or processes.

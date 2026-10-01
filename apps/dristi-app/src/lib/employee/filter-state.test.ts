@@ -47,13 +47,25 @@ describe("matchesQuery", () => {
     assert.ok(!matchesQuery("st/1307", CAUSE, undefined));
   });
 
-  it("agrees with the Search button about what counts as a request", () => {
-    /* A query the button will not let you submit must also be one that changes nothing:
-       otherwise a blank-looking box quietly filters the list. */
-    const applied = { query: "" };
+  it("agrees with the empty state about what counts as a request", () => {
+    /* The two have to answer the same way about a blank-looking box. The queues filter as
+       they are typed now, so this pairing decides what a reader is *told*: a box holding
+       only spaces filters nothing, so the screen must not call itself filtered and offer
+       "no results match this search" over a list that is simply empty. */
+    const unfiltered = { query: "" };
     for (const query of ["", " ", "   "]) {
-      assert.equal(isPendingFilterChange({ query }, applied), false);
+      assert.equal(isPendingFilterChange({ query }, unfiltered), false);
       assert.equal(matchesQuery(query, CAUSE, NUMBER), true);
     }
+  });
+
+  it("calls a real query a filtered view", () => {
+    /* The other half of the same contract, and the one that survived the Search button:
+       once there is something to match on, the screen is filtered and its empty state
+       should say so. */
+    assert.equal(
+      isPendingFilterChange({ query: "girija" }, { query: "" }),
+      true,
+    );
   });
 });

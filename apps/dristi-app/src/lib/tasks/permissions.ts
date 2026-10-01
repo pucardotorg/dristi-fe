@@ -9,7 +9,7 @@
  * everything.
  */
 
-import type { Case, CardKind, Person, PersonId, Task, TaskStatus, TaskView, Verb } from "./types";
+import type { Case, PillKind, Person, PersonId, Task, TaskStatus, TaskView, Verb } from "./types";
 
 function idOf(user: Person | PersonId): PersonId {
   return typeof user === "string" ? user : user.id;
@@ -64,6 +64,16 @@ export const TERMINAL: ReadonlySet<TaskStatus> = new Set(["done", "expired", "ob
 export const WAITING: ReadonlySet<TaskStatus> = new Set(["awaiting-court", "payment-confirming"]);
 /** States someone on the case can still act on. */
 export const ACTIONABLE: ReadonlySet<TaskStatus> = new Set(["open", "draft", "ready"]);
+
+/**
+ * Whether the task's deadline still binds anyone. Once it is closed, archived, or
+ * waiting on the court or the gateway, the date is history — which is why the Due cell
+ * drops the overdue ink there, and why the Overdue filter and the Overdue band have to
+ * ask this same question rather than compare dates on their own (2026-09-15).
+ */
+export function isBinding(task: Task): boolean {
+  return !TERMINAL.has(task.status) && !WAITING.has(task.status) && task.status !== "archived";
+}
 /** Verbs that make a task this viewer's move — the Needs-action test. */
 const ACTING: ReadonlySet<Verb> = new Set(["Sign", "Pay", "File", "Re-file", "Continue", "Respond", "Mark done"]);
 
@@ -82,7 +92,18 @@ export function viewOf(task: Task, user: Person | PersonId, kase: Case): TaskVie
 }
 
 /**
- * Which overview card a task counts under — by the **act it still needs**, never by how
+ * The advocates who can act on this task now: those for whom it is their move. For a
+ * signing, paying or filing task that is the vakalatnama holders; for a courtroom task
+ * or a draft it is everyone on the case; for a task closed or waiting on the court it is
+ * nobody. Derived from `viewOf`, so the answer cannot drift from the tab a person finds
+ * the task under.
+ */
+export function whoCanActOn(task: Task, kase: Case, people: Person[]): Person[] {
+  return advocatesOf(kase, people).filter((p) => viewOf(task, p, kase) === "needs-action");
+}
+
+/**
+ * Which kind pill a task counts under — by the **act it still needs**, never by how
  * far along it is (owner, 2026-08-24).
  *
  * The cards are a list of things to do, so every one of them has to name an act: sign,
@@ -94,7 +115,7 @@ export function viewOf(task: Task, user: Person | PersonId, kase: Case): TaskVie
  * Nothing is lost: that a task is in progress still shows on the row (the second line
  * says who saved it and when) and in its verb, which reads *Continue* rather than *Start*.
  */
-export function cardKindOf(task: Task): CardKind {
+export function cardKindOf(task: Task): PillKind {
   if (task.kind === "draft") return "file";
   return task.kind;
 }

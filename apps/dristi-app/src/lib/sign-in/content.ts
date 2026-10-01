@@ -135,6 +135,20 @@ export const form = {
     "Enter the 10 digits of your mobile number.",
     "മൊബൈൽ നമ്പറിന്റെ 10 അക്കങ്ങൾ നൽകുക.",
   ),
+  /** The number step's one action — it checks the number before asking for anything
+   *  else, so nobody types a password for an account that does not exist. */
+  continue: t("Continue", "തുടരുക"),
+  /* Said as a fact under the field, the way Google says it. No offer to register here:
+     the standing "Create an account" link is one line down, and a person who mistyped a
+     digit wants to fix the digit, not be sent to a form. */
+  notFound: t(
+    "Couldn't find an account for this number.",
+    "ഈ നമ്പറിൽ ഒരു അക്കൗണ്ടും കണ്ടെത്താനായില്ല.",
+  ),
+
+  /* The second step keeps the same headline as the first. A "Welcome back" to someone
+     with a case on them reads as odd, not warm (owner, Sept 9). */
+  changeNumber: t("Change number", "നമ്പർ മാറ്റുക"),
 
   methodLegend: t("Sign in with", "പ്രവേശിക്കാൻ"),
 
@@ -217,13 +231,14 @@ export const otp = {
   ),
   label: t("6-digit code", "6 അക്ക കോഡ്"),
   error: t("Enter all 6 digits.", "6 അക്കങ്ങളും നൽകുക."),
+  show: t("Show the code", "കോഡ് കാണിക്കുക"),
+  hide: t("Hide the code", "കോഡ് മറയ്ക്കുക"),
   verify: t("Verify and sign in", "പരിശോധിച്ച് പ്രവേശിക്കുക"),
   resend: t("Send the code again", "കോഡ് വീണ്ടും അയയ്ക്കുക"),
-  /** `{seconds}` counts down. Saying when beats greying a button out silently. */
-  resendIn: t(
-    "You can ask for a new code in {seconds} seconds.",
-    "{seconds} സെക്കൻഡിനുള്ളിൽ പുതിയ കോഡ് ചോദിക്കാം.",
-  ),
+  /** `{seconds}` counts down. Saying when beats greying a button out silently. Short
+   *  on purpose: it shares a slot with the resend link that replaces it, so the two
+   *  must be about one width or the line hops when the timer ends. */
+  resendIn: t("Send again in {seconds}s", "{seconds}സെ. കഴിഞ്ഞ് വീണ്ടും അയയ്ക്കാം"),
   changeNumber: t("Use a different number", "മറ്റൊരു നമ്പർ ഉപയോഗിക്കുക"),
 } satisfies Record<string, Copy>;
 

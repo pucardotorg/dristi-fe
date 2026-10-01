@@ -4,8 +4,13 @@ import * as React from "react";
 import { BookCheckIcon, CalendarXIcon, NotebookPenIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
+import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import { SignADiaryDialog } from "@/components/employee/sign-a-diary-dialog";
 import { SignADiaryTable } from "@/components/employee/sign-a-diary-table";
+import {
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -16,7 +21,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { isPendingFilterChange } from "@/lib/employee/filter-state";
 import {
   causeTitle,
   formatCourtDay,
@@ -35,6 +39,8 @@ import {
   type ADiaryEntry,
   type ADiaryFilters,
 } from "@/lib/employee/sign-a-diary";
+import { Identifier } from "@/components/chrome/identifier";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 
 /**
  * The day the bench is sitting on is the reader's, not the server's — a court in Kollam
@@ -60,8 +66,8 @@ const readToday = () => isoDay(new Date());
  *
  * - **It is read a day at a time.** The one filter is a date, and it opens on the day the
  *   court is sitting, as the reference draws it. There is no "every day": the register is
- *   dated paper, and Clear returns to today rather than pouring three days into a table
- *   whose columns cannot tell them apart.
+ *   dated paper, and clearing the picker returns to today rather than pouring three days
+ *   into a table whose columns cannot tell them apart.
  * - **There is no bulk act.** The reference gives this queue no checkboxes, and it is
  *   right to: the two signing queues above it sign papers the court has already
  *   finished, while signing the diary means reading what was written and correcting it
@@ -87,13 +93,11 @@ export function SignADiaryScreen() {
   const [register, setRegister] = React.useState<ADiaryEntry[]>(() =>
     aDiaryEntries(today),
   );
-  /* The reference filters on a button rather than as you pick, so the bench chooses a day
-     and then asks for it. `draft` is what the control holds; `applied` is what the table
-     is showing. Clear resets both to today. */
-  const [draft, setDraft] = React.useState<ADiaryFilters>(
-    DEFAULT_A_DIARY_FILTERS,
-  );
-  const [applied, setApplied] = React.useState<ADiaryFilters>(
+  /* One state, not a draft and an applied one: picking a day shows that day's register.
+     A calendar hands over a whole date or nothing — there is no half-typed day whose
+     intermediate state would be meaningless — so there was never anything for a Search
+     button to wait for. Every change resets to page one. */
+  const [filters, setFilters] = React.useState<ADiaryFilters>(
     DEFAULT_A_DIARY_FILTERS,
   );
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
@@ -105,8 +109,8 @@ export function SignADiaryScreen() {
   const [announcement, setAnnouncement] = React.useState("");
   const headingRef = React.useRef<HTMLHeadingElement>(null);
 
-  const appliedDay = resolveADiaryDay(applied, today);
-  const rows = filterADiary(register, applied, today);
+  const shownDay = resolveADiaryDay(filters, today);
+  const rows = filterADiary(register, filters, today);
   const open = register.find((entry) => entry.id === openId) ?? null;
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -114,20 +118,13 @@ export function SignADiaryScreen() {
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
 
-  const canSearch = isPendingFilterChange(
-    { dated: resolveADiaryDay(draft, today) },
-    { dated: appliedDay },
-  );
-
-  function applyFilters() {
-    setApplied(draft);
+  function changeFilters(next: ADiaryFilters) {
+    setFilters(next);
     setPage(1);
   }
 
   function showToday() {
-    setDraft(DEFAULT_A_DIARY_FILTERS);
-    setApplied(DEFAULT_A_DIARY_FILTERS);
-    setPage(1);
+    changeFilters(DEFAULT_A_DIARY_FILTERS);
   }
 
   /** Record the corrected words. The entry stays unsigned and stays in the register. */
@@ -171,7 +168,7 @@ export function SignADiaryScreen() {
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="text-title text-balance font-semibold outline-none sm:text-title-l"
+          className="text-title text-balance font-semibold outline-none"
         >
           Sign A-Diary
         </h1>
@@ -194,17 +191,21 @@ export function SignADiaryScreen() {
           Nothing inside draws a second frame. */}
       <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
         <SignADiaryFilters
-          draft={draft}
+          filters={filters}
           today={today}
-          onDraftChange={setDraft}
-          onApply={applyFilters}
-          onClear={showToday}
-          canSearch={canSearch}
+          onChange={changeFilters}
+        />
+
+        {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
+        <QueueAnnouncer
+          from={start + 1}
+          to={start + pageRows.length}
+          total={rows.length}
         />
 
         {pageRows.length === 0 ? (
           <SignADiaryEmpty
-            day={appliedDay}
+            day={shownDay}
             today={today}
             hasUnsigned={register.length > 0}
             onShowToday={showToday}
@@ -265,41 +266,39 @@ export function SignADiaryScreen() {
 }
 
 /**
- * Which day's register is on screen — the reference's one control, and its two buttons.
+ * Which day's register is on screen — the reference's one control.
  *
- * "Search" keeps the reference's teal. The Ration Teal Law allows one strong action per
- * view, and unlike the two signing queues above it this screen has no bulk act to spend
- * it on: asking for a day *is* what the bench does here, so the teal stays where the
- * reference put it.
+ * The Search button is gone, and this is the screen where it was least defensible: the
+ * control is a calendar, so the only thing it can hand over is a whole day, and the
+ * button existed to re-ask for a day the bench had already named. Picking one now shows
+ * it. There is no meaningless in-between state to protect, which is the test for whether
+ * a control can go live.
  *
- * "Clear" rather than the reference's "Clear search": it returns the register to today
- * rather than emptying the control, and a label naming only the search would undersell
- * what it does.
+ * That leaves the page with no `bg-primary` at all. Search used to carry it on the
+ * argument that asking for a day *is* the act here — but that act is now the picker
+ * itself, and the Ration Teal Law does not ask for a strong fill where there is no
+ * button to put one on. Signing happens one entry at a time in the overlay, where the
+ * teal already is. Nothing was promoted to fill the gap.
+ *
+ * There is no "Show today" beside the picker either. The register always shows one day,
+ * so clearing the calendar means today, and naming a second day is already the picker's
+ * job. A way back from an empty other day lives on that empty state, not on this row.
  */
 function SignADiaryFilters({
-  draft,
+  filters,
   today,
-  onDraftChange,
-  onApply,
-  onClear,
-  canSearch,
+  onChange,
 }: {
-  draft: ADiaryFilters;
+  filters: ADiaryFilters;
   today: string;
-  onDraftChange: (filters: ADiaryFilters) => void;
-  onApply: () => void;
-  onClear: () => void;
-  canSearch: boolean;
+  onChange: (filters: ADiaryFilters) => void;
 }) {
-  const day = resolveADiaryDay(draft, today);
+  const day = resolveADiaryDay(filters, today);
 
   return (
     <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onApply();
-      }}
+      className="flex min-w-0 flex-col"
+      onSubmit={(event) => event.preventDefault()}
     >
       {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names a
           group around it rather than pointing `htmlFor` at a control that does not exist.
@@ -307,11 +306,11 @@ function SignADiaryFilters({
 
           The `key` is not decoration. `DatePicker` treats `value === undefined` as "I am
           uncontrolled" and falls back to its own last selection, so a date driven from
-          outside — Clear returning the filter to today — would keep showing the day the
+          outside — the empty state's return to today — would keep showing the day the
           bench had picked. Remounting on the value is the only fix that does not edit the
           primitive; upstream DS bug, logged in the build report. */}
       <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-a-diary-date-label" className="w-fit text-body font-medium">
+        <span id="sign-a-diary-date-label" className="w-fit text-body-compact font-medium">
           A-Diary dated
         </span>
         <div role="group" aria-labelledby="sign-a-diary-date-label">
@@ -321,20 +320,11 @@ function SignADiaryFilters({
             onValueChange={(next) =>
               /* Clearing the picker itself means today: the register always shows one
                  day, and "no day" is not a view this screen has. */
-              onDraftChange({ dated: next ? isoDay(next) : null })
+              onChange({ dated: next ? isoDay(next) : null })
             }
             className="w-full sm:w-52"
           />
         </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!canSearch}>
-          Search
-        </Button>
-        <Button type="button" variant="ghost" onClick={onClear}>
-          Clear
-        </Button>
       </div>
     </form>
   );
@@ -430,11 +420,12 @@ function SignADiaryItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((entry) => (
-        <li key={entry.id} className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-4">
+        <QueueItemRow key={entry.id} className="flex flex-col gap-2">
           <button
             type="button"
             onClick={() => onOpen(entry)}
-            className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+            {...rowOpener}
+                className={rowOpenerClass}
           >
             <span className="sr-only">
               Read and sign the entry in {entry.caseNumber}.{" "}
@@ -442,13 +433,13 @@ function SignADiaryItemList({
             <span className="line-clamp-4">{entry.business}</span>
           </button>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{entry.caseNumber}</span>
+            <Identifier value={entry.caseNumber} label="case number" />
             {" · Next hearing "}
             <span className="tabular-nums">
               {formatADiaryDate(entry.nextHearing)}
             </span>
           </p>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

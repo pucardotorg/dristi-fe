@@ -1,5 +1,10 @@
-import { JoinCasePage } from "@/components/shell/join-case-page";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <JoinCasePage />;
+/**
+ * Join a case is no longer a page: it is the one strong action on the Cases page,
+ * whose whole journey runs in a dialog over that list. The route stays so an old
+ * link or bookmark still lands somewhere that can do the thing it promised.
+ */
+export default function JoinCaseRedirect() {
+  redirect("/cases");
 }

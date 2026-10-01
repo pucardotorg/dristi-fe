@@ -17,7 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { CaseAccessList, initials } from "@/components/access/access-list";
 import { formatPhone, useAccess, type InviteResult } from "@/components/access/access-state";
 import { RemoveAdvocateDialog } from "@/components/cases/remove-advocate-dialog";
-import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import {
   FREQUENT_COLLABORATORS,
@@ -28,6 +28,7 @@ import {
   type AccessCase,
   type AccessPerson,
 } from "@/lib/access/content";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * The share-access modal — the single surface behind every entry point.
@@ -175,7 +176,7 @@ export function ShareDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChromeDialogContent className="flex max-h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <FlowDialogContent className="flex max-h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         {/* Header: what this is, then exactly what it applies to. */}
         <DialogHeader className="gap-2.5 border-b border-hairline px-6 py-5 text-left">
           <DialogTitle className="text-title-s font-semibold">
@@ -191,15 +192,26 @@ export function ShareDialog({
           {single ? (
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="truncate text-body-compact font-medium">{single.title}</p>
-              <p className="text-caption text-muted-foreground">{single.caseNumber}</p>
+              <Identifier
+                value={single.caseNumber}
+                label="case number"
+                className="self-start text-caption text-muted-foreground"
+              />
             </div>
           ) : (
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="text-body-compact font-medium">
                 {fillCopy(shareCopy.scopeManyTitle, locale, { count: String(cases.length) })}
               </p>
+              {/* Split rather than joined, so each number keeps the identifier face
+                  and can be taken on its own. */}
               <p className="truncate text-caption text-muted-foreground">
-                {cases.map((c) => c.caseNumber).join(" · ")}
+                {cases.map((c, i) => (
+                  <React.Fragment key={c.id}>
+                    {i > 0 ? <span aria-hidden> · </span> : null}
+                    <Identifier value={c.caseNumber} label="case number" />
+                  </React.Fragment>
+                ))}
               </p>
             </div>
           )}
@@ -443,7 +455,7 @@ export function ShareDialog({
             </>
           ) : null}
         </div>
-      </ChromeDialogContent>
+      </FlowDialogContent>
 
       <RemoveAdvocateDialog
         open={Boolean(removeTarget)}

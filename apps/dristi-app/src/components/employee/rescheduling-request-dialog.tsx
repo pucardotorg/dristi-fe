@@ -16,6 +16,7 @@ import {
   senderLine,
   type ReschedulingRequest,
 } from "@/lib/employee/rescheduling-request";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * One rescheduling application, in the shared court-side review overlay, with the
@@ -86,7 +87,7 @@ function RequestBody({
       facts={
         <>
           <ReviewRow term="Case number">
-            <span className="font-mono">{request.caseNumber}</span>
+            <Identifier value={request.caseNumber} label="case number" />
           </ReviewRow>
           <ReviewRow term="Application sent on">
             {formatRequestLongDate(request.appliedOn)}

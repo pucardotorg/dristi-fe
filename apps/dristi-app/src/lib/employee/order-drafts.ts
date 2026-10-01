@@ -14,21 +14,30 @@
  * out of a component changed how long it lives on one device; it changed nothing about
  * what it claims.
  *
+ * The map opens empty — see `OPENING_DRAFTS` below.
+ *
  * Read it through `components/employee/use-order-draft.ts`, never directly from a
  * render — the hook is what subscribes.
  */
 
 import { EMPTY_ORDER_DRAFT, type OrderDraft } from "./order-draft";
 
-/** Every listing that has been dictated on, keyed by hearing id. */
+/** Every listing that has an order open on it, keyed by hearing id. */
 export type OrderDrafts = Readonly<Record<string, OrderDraft>>;
 
-/* One frozen empty map, shared: `useSyncExternalStore` compares snapshots by identity,
-   so an untouched sitting has to read as the same object every time or the composer
-   would re-render on every tick of anything. */
-const NO_DRAFTS: OrderDrafts = {};
+/* One frozen map, shared: `useSyncExternalStore` compares snapshots by identity, so an
+   untouched sitting has to read as the same object every time or the composer would
+   re-render on every tick of anything.
 
-let drafts: OrderDrafts = NO_DRAFTS;
+   **It is empty**, because a draft is somebody's own half-written order and the court
+   opens before anyone has written one (owner, 2026-09-16). This court did briefly open
+   on a seeded set so the Draft orders queue had rows on a cold load; that put the board
+   in a state the person using it had not reached, which is the opposite of what the
+   screen is for. A key here says an order on this listing has been started and not sent
+   for signature — now only ever because somebody started it. */
+const OPENING_DRAFTS: OrderDrafts = Object.freeze({});
+
+let drafts: OrderDrafts = OPENING_DRAFTS;
 const listeners = new Set<() => void>();
 
 export function subscribeToOrderDrafts(listener: () => void): () => void {

@@ -1,15 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { FolderCheckIcon, SearchIcon, SearchXIcon } from "lucide-react";
+import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
+import { QueueAnnouncer } from "@/components/employee/queue-announcer";
+import { CourtFilters } from "@/components/employee/court-filters";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignFormDialog } from "@/components/employee/sign-form-dialog";
 import { SignFormsTable } from "@/components/employee/sign-forms-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
+import {
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DatePicker } from "@/components/ui/date-picker";
 import {
   Empty,
   EmptyContent,
@@ -18,24 +24,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { isPendingFilterChange } from "@/lib/employee/filter-state";
 import {
   causeTitle,
+  formatListingDate,
   isoDay,
+  parseIsoDay,
   PAGE_SIZE,
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
@@ -49,6 +42,7 @@ import {
   type SignForm,
   type SignFormFilters,
 } from "@/lib/employee/sign-forms";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Sign forms — the forms this court has drawn up and not yet signed.
@@ -71,13 +65,12 @@ import {
  * no document is written, no provider is called, and nothing persists past a reload.
  */
 export function SignFormsScreen() {
-  /* The reference filters on a button rather than as you type, so the bench composes a
-     query and then asks for it. `draft` is what the controls hold; `applied` is what
-     the table is showing. Clear resets both. */
-  const [draft, setDraft] = React.useState<SignFormFilters>(
-    EMPTY_SIGN_FORM_FILTERS,
-  );
-  const [applied, setApplied] = React.useState<SignFormFilters>(
+  /* One state, not a draft and an applied one: the list answers the controls as they
+     are used — every one of them, so the screen has a single rule rather than a live
+     one and a deferred one. Every change resets to page one; the old Search button did
+     that, and a keystroke that narrows the list to four rows must not leave the reader
+     on page three of nothing. */
+  const [filters, setFilters] = React.useState<SignFormFilters>(
     EMPTY_SIGN_FORM_FILTERS,
   );
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
@@ -90,23 +83,20 @@ export function SignFormsScreen() {
   );
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [open, setOpen] = React.useState<SignForm | null>(null);
-  /* Remounting is the only way to put the DS `DatePicker` back to no date — see
-     `SignFormsFilters`. Bumped by Clear. */
-  const [dateKey, setDateKey] = React.useState(0);
   const [announcement, setAnnouncement] = React.useState("");
   const searchRef = React.useRef<HTMLInputElement>(null);
   /* The bulk confirmation hands focus back here on the way out — see its `triggerRef`. */
   const signRef = React.useRef<HTMLButtonElement>(null);
 
   const remaining = SIGN_FORM_QUEUE.filter((form) => !signedIds.has(form.id));
-  const rows = filterSignForms(remaining, applied);
+  const rows = filterSignForms(remaining, filters);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
   const isFiltered =
-    applied.process !== "all" || applied.createdOn !== "" || applied.query !== "";
+    filters.process !== "all" || filters.createdOn !== "" || filters.query !== "";
 
   /**
    * What is selected *and* still in the list.
@@ -120,18 +110,13 @@ export function SignFormsScreen() {
   const selectedForms = rows.filter((form) => picked.has(form.id));
   const selectedIds = new Set(selectedForms.map((form) => form.id));
 
-  const canSearch = isPendingFilterChange(draft, applied);
-
-  function applyFilters() {
-    setApplied(draft);
+  function changeFilters(next: SignFormFilters) {
+    setFilters(next);
     setPage(1);
   }
 
   function clearFilters() {
-    setDraft(EMPTY_SIGN_FORM_FILTERS);
-    setApplied(EMPTY_SIGN_FORM_FILTERS);
-    setDateKey((key) => key + 1);
-    setPage(1);
+    changeFilters(EMPTY_SIGN_FORM_FILTERS);
   }
 
   function toggle(form: SignForm) {
@@ -193,7 +178,7 @@ export function SignFormsScreen() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 pb-0 md:p-8 md:pb-0">
         <header className="flex flex-col gap-2">
-          <h1 className="text-title text-balance font-semibold sm:text-title-l">
+          <h1 className="text-title text-balance font-semibold">
             Sign forms
           </h1>
           {/* The count is the whole point of the queue, so the supporting line carries
@@ -211,13 +196,17 @@ export function SignFormsScreen() {
             inside draws a second frame. */}
         <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
           <SignFormsFilters
-            draft={draft}
-            dateKey={dateKey}
+            filters={filters}
             searchRef={searchRef}
-            onDraftChange={setDraft}
-            onApply={applyFilters}
+            onChange={changeFilters}
             onClear={clearFilters}
-            canSearch={canSearch}
+          />
+
+          {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
+          <QueueAnnouncer
+            from={start + 1}
+            to={start + pageRows.length}
+            total={rows.length}
           />
 
           {pageRows.length === 0 ? (
@@ -363,123 +352,52 @@ export function SignFormsScreen() {
  * the bar below. Search drops to outline.
  */
 function SignFormsFilters({
-  draft,
-  dateKey,
+  filters,
   searchRef,
-  onDraftChange,
-  onApply,
+  onChange,
   onClear,
-  canSearch,
 }: {
-  draft: SignFormFilters;
-  /** Bumped by Clear to remount the date picker — see below. */
-  dateKey: number;
+  filters: SignFormFilters;
   searchRef: React.Ref<HTMLInputElement>;
-  onDraftChange: (filters: SignFormFilters) => void;
-  onApply: () => void;
+  onChange: (filters: SignFormFilters) => void;
   onClear: () => void;
-  canSearch: boolean;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onApply();
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or advocate",
       }}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-forms-process" className="w-fit text-body">
-          Process type
-        </Label>
-        <Select
-          value={draft.process}
-          onValueChange={(value) =>
-            onDraftChange({
-              ...draft,
-              process: value as SignFormFilters["process"],
-            })
-          }
-        >
-          <SelectTrigger id="sign-forms-process" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All process types</SelectItem>
-            {SIGN_FORM_PROCESSES.map((process) => (
-              <SelectItem key={process.id} value={process.id}>
-                {process.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names a
-          group around it rather than pointing `htmlFor` at a control that does not
-          exist. The trigger still announces the date it holds.
-
-          It is also left uncontrolled and remounted to reset. The primitive treats
-          `value === undefined` as "uncontrolled" rather than as "no date", so a
-          controlled empty value is not expressible — passing `undefined` hands the
-          picker back its own state instead of clearing it. Driving it from
-          `onValueChange` and remounting on Clear is the behaviour the reference's empty
-          date field needs without touching the primitive. Logged as upstream DS
-          feedback. */}
-      <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-forms-date-label" className="w-fit text-body font-medium">
-          Date created
-        </span>
-        <div role="group" aria-labelledby="sign-forms-date-label">
-          <DatePicker
-            key={dateKey}
-            placeholder="Any date"
-            onValueChange={(next) =>
-              onDraftChange({
-                ...draft,
-                createdOn: next ? isoDay(next) : "",
-              })
-            }
-            className="w-full sm:w-52"
-          />
-        </div>
-      </div>
-
-      {/* `Field` rather than a bare `Label htmlFor` beside an `Input id`. The DS `Input`
-          destructures `id` out of its props and only puts it back through
-          `useFieldControlProps`, which returns nothing when there is no `Field`
-          context — so an `id` handed to an `Input` outside a `Field` is dropped and the
-          label points at an element that does not exist. `Field` supplies the context,
-          and the label and the control agree on one generated id. Upstream DS bug; see
-          `HearingsFilters`. */}
-      <Field className="min-w-0 sm:w-72">
-        <FieldLabel className="text-body">Search cases</FieldLabel>
-        <InputGroup>
-          <InputGroupAddon>
-            <SearchIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            ref={searchRef}
-            type="search"
-            autoComplete="off"
-            value={draft.query}
-            onChange={(event) =>
-              onDraftChange({ ...draft, query: event.target.value })
-            }
-            placeholder="case name, number or advocate"
-          />
-        </InputGroup>
-      </Field>
-
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!canSearch}>
-          Search
-        </Button>
-        <Button type="button" variant="ghost" onClick={onClear}>
-          Clear
-        </Button>
-      </div>
-    </form>
+      searchRef={searchRef}
+      fields={[
+        {
+          id: "sign-forms-process",
+          label: "Process type",
+          value: filters.process,
+          all: "all",
+          allLabel: "All process types",
+          options: SIGN_FORM_PROCESSES.map((process) => ({
+            value: process.id,
+            label: process.label,
+          })),
+          onApply: (value) =>
+            onChange({ ...filters, process: value as SignFormFilters["process"] }),
+        },
+      ]}
+      date={{
+        label: "Date created",
+        value: filters.createdOn ? parseIsoDay(filters.createdOn) : undefined,
+        active: filters.createdOn !== "",
+        chipLabel: filters.createdOn ? formatListingDate(filters.createdOn) : "",
+        draftActive: (value) => !!value,
+        cleared: undefined,
+        onApply: (value) =>
+          onChange({ ...filters, createdOn: value ? isoDay(value) : "" }),
+      }}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -549,9 +467,9 @@ function SignFormsItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((form) => (
-        <li
+        <QueueItemRow
           key={form.id}
-          className="flex items-start gap-3 rounded-lg bg-surface-sunken p-4"
+          className="flex items-start gap-3"
         >
           <Checkbox
             checked={selectedIds.has(form.id)}
@@ -563,13 +481,14 @@ function SignFormsItemList({
             <button
               type="button"
               onClick={() => onOpen(form)}
-              className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+              {...rowOpener}
+                className={rowOpenerClass}
             >
               <span className="sr-only">Read and sign </span>
               {causeTitle(form)}
             </button>
             <p className="text-caption text-muted-foreground">
-              <span className="tabular-nums">{form.caseNumber}</span>
+              <Identifier value={form.caseNumber} label="case number" />
               {" · "}
               {signFormProcessLabel(form.process)}
               {" · "}
@@ -578,7 +497,7 @@ function SignFormsItemList({
               </span>
             </p>
           </div>
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

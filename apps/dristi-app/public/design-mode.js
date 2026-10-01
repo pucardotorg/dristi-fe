@@ -119,12 +119,30 @@
   root.id = "__dm-root";
   document.body.appendChild(root);
 
+  /* A Radix modal (every review overlay in this app) closes on a pointer press
+     outside itself and pulls focus back inside on focusin. The panel is outside
+     itself — it lives on document.body — so touching the panel dismissed the very
+     dialog under review, and Select could not be reached with a dialog open.
+
+     So the tool's own subtree stops these events before they reach the document
+     listeners that Radix installs. Design mode's own handlers are unaffected: they
+     are all registered on document in the CAPTURE phase, which runs before this. */
+  ["pointerdown", "mousedown", "touchstart", "pointerup", "mouseup", "click", "focusin"].forEach(
+    function (type) {
+      root.addEventListener(type, function (ev) {
+        ev.stopPropagation();
+      });
+    }
+  );
+
   var css = document.createElement("style");
   css.textContent =
-    "#__dm-root{all:initial;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:12px;line-height:1.45;color:#e8e6e3;}" +
+    "#__dm-root{all:initial;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:12px;line-height:1.45;color:#e8e6e3;pointer-events:auto;}" +
     "#__dm-root *{box-sizing:border-box;font-family:inherit;}" +
     "#__dm-panel{position:fixed;top:64px;right:12px;width:256px;max-height:calc(100vh - 88px);overflow-y:auto;background:#1c1a18;border:1px solid #3a3733;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.45);z-index:2147483000;padding:10px;}" +
-    "#__dm-panel h1{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#a8a29b;margin:0 0 8px;display:block;}" +
+    "#__dm-panel h1{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#a8a29b;margin:0 0 8px;display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;}" +
+"#__dm-panel h1 span{font-weight:400;letter-spacing:0;text-transform:none;color:#78716a;font-size:10px;}" +
+"#__dm-panel.dm-dragging{opacity:.92;transition:none;}" +
     "#__dm-panel h2{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#78716a;margin:10px 0 4px;display:block;}" +
     ".dm-modes{display:flex;gap:4px;margin-bottom:8px;}" +
     ".dm-modes button{flex:1;padding:5px 0;border:1px solid #3a3733;background:#26231f;color:#c9c5bf;border-radius:6px;cursor:pointer;font-size:11px;}" +
@@ -171,6 +189,68 @@
   panel.id = "__dm-panel";
   root.appendChild(panel);
 
+  /* The panel floats top-right by default, which is exactly where a screen's
+     primary action tends to live. So the header is a drag handle: put the panel
+     wherever it is not in the way. Position is remembered across pages and
+     reloads (one key for the whole app, not per path — the annoyance is the
+     same everywhere), clamped to the viewport, and double-click resets it. */
+  var POS_KEY = "__designMode:panelPos";
+  function clampPos(x, y) {
+    var w = panel.offsetWidth || 256, h = panel.offsetHeight || 200;
+    return {
+      x: Math.max(0, Math.min(x, innerWidth - w)),
+      y: Math.max(0, Math.min(y, innerHeight - Math.min(h, 120))),
+    };
+  }
+  function applyPos(pos) {
+    if (!pos) {
+      panel.style.left = "";
+      panel.style.top = "";
+      panel.style.right = "";
+      return;
+    }
+    var c = clampPos(pos.x, pos.y);
+    panel.style.right = "auto";
+    panel.style.left = c.x + "px";
+    panel.style.top = c.y + "px";
+  }
+  try {
+    applyPos(JSON.parse(localStorage.getItem(POS_KEY) || "null"));
+  } catch (e) {}
+  var drag = null;
+  panel.addEventListener("mousedown", function (ev) {
+    var h = ev.target.closest && ev.target.closest("h1");
+    if (!h || ev.button !== 0) return;
+    var r = panel.getBoundingClientRect();
+    drag = { dx: ev.clientX - r.left, dy: ev.clientY - r.top };
+    panel.classList.add("dm-dragging");
+    ev.preventDefault();
+    ev.stopPropagation();
+  });
+  document.addEventListener("mousemove", function (ev) {
+    if (!drag) return;
+    applyPos({ x: ev.clientX - drag.dx, y: ev.clientY - drag.dy });
+    ev.preventDefault();
+  }, true);
+  document.addEventListener("mouseup", function () {
+    if (!drag) return;
+    drag = null;
+    panel.classList.remove("dm-dragging");
+    var r = panel.getBoundingClientRect();
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify({ x: r.left, y: r.top }));
+    } catch (e) {}
+  }, true);
+  panel.addEventListener("dblclick", function (ev) {
+    if (!(ev.target.closest && ev.target.closest("h1"))) return;
+    applyPos(null);
+    try { localStorage.removeItem(POS_KEY); } catch (e) {}
+    ev.stopPropagation();
+  });
+  addEventListener("resize", function () {
+    if (panel.style.left) applyPos({ x: parseFloat(panel.style.left), y: parseFloat(panel.style.top) });
+  });
+
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
@@ -194,7 +274,7 @@
   function renderPanel() {
     var el = state.selected;
     var html =
-      "<h1>Design mode</h1>" +
+      "<h1>Design mode<span title=\"Drag to move · double-click to reset\">⠿</span></h1>" +
       '<div class="dm-modes">' +
       ["browse", "select", "comment"]
         .map(function (m) {

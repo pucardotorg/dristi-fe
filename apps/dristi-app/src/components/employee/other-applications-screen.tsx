@@ -1,12 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { FolderCheckIcon, SearchIcon, SearchXIcon } from "lucide-react";
+import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
+import { QueueAnnouncer } from "@/components/employee/queue-announcer";
+import { CourtFilters } from "@/components/employee/court-filters";
 import { OtherApplicationDialog } from "@/components/employee/other-application-dialog";
 import { OtherApplicationsTable } from "@/components/employee/other-applications-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
+import {
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -16,21 +23,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { isPendingFilterChange } from "@/lib/employee/filter-state";
 import {
   causeTitle,
   counselFor,
@@ -49,6 +41,7 @@ import {
   type OtherApplication,
   type OtherApplicationFilters,
 } from "@/lib/employee/other-applications";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * Others — every application in front of this court, whatever it asks for.
@@ -72,13 +65,12 @@ import {
  * only drop the row from this demo queue; they decide nothing and write no order.
  */
 export function OtherApplicationsScreen() {
-  /* The reference filters on a button rather than as you type, so the clerk composes a
-     query and then asks for it. `draft` is what the controls hold; `applied` is what the
-     table is showing. Clear resets both. */
-  const [draft, setDraft] = React.useState<OtherApplicationFilters>(
-    EMPTY_OTHER_APPLICATION_FILTERS,
-  );
-  const [applied, setApplied] = React.useState<OtherApplicationFilters>(
+  /* One state, not a draft and an applied one: the list answers the controls as they
+     are used — every one of them, so the screen has a single rule rather than a live
+     one and a deferred one. Every change resets to page one; the old Search button did
+     that, and a keystroke that narrows the list to four rows must not leave the reader
+     on page three of nothing. */
+  const [filters, setFilters] = React.useState<OtherApplicationFilters>(
     EMPTY_OTHER_APPLICATION_FILTERS,
   );
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
@@ -94,26 +86,22 @@ export function OtherApplicationsScreen() {
   const remaining = OTHER_APPLICATIONS_QUEUE.filter(
     (application) => !decidedIds.has(application.id),
   );
-  const rows = filterOtherApplications(remaining, applied);
+  const rows = filterOtherApplications(remaining, filters);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
   const isFiltered =
-    applied.stage !== "all" || applied.query !== "" || applied.type !== "all";
+    filters.stage !== "all" || filters.query !== "" || filters.type !== "all";
 
-  const canSearch = isPendingFilterChange(draft, applied);
-
-  function applyFilters() {
-    setApplied(draft);
+  function changeFilters(next: OtherApplicationFilters) {
+    setFilters(next);
     setPage(1);
   }
 
   function clearFilters() {
-    setDraft(EMPTY_OTHER_APPLICATION_FILTERS);
-    setApplied(EMPTY_OTHER_APPLICATION_FILTERS);
-    setPage(1);
+    changeFilters(EMPTY_OTHER_APPLICATION_FILTERS);
   }
 
   function decide(application: OtherApplication) {
@@ -130,7 +118,7 @@ export function OtherApplicationsScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold sm:text-title-l">
+        <h1 className="text-title text-balance font-semibold">
           Others
         </h1>
         {/* The count is the whole point of the queue, so the supporting line carries it
@@ -148,12 +136,17 @@ export function OtherApplicationsScreen() {
           Nothing inside draws a second frame. */}
       <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
         <OtherApplicationFiltersForm
-          draft={draft}
+          filters={filters}
           searchRef={searchRef}
-          onDraftChange={setDraft}
-          onApply={applyFilters}
+          onChange={changeFilters}
           onClear={clearFilters}
-          canSearch={canSearch}
+        />
+
+        {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
+        <QueueAnnouncer
+          from={start + 1}
+          to={start + pageRows.length}
+          total={rows.length}
         />
 
         {pageRows.length === 0 ? (
@@ -219,122 +212,61 @@ export function OtherApplicationsScreen() {
  * the reference paints Search as the primary.
  */
 function OtherApplicationFiltersForm({
-  draft,
+  filters,
   searchRef,
-  onDraftChange,
-  onApply,
+  onChange,
   onClear,
-  canSearch,
 }: {
-  draft: OtherApplicationFilters;
+  filters: OtherApplicationFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onDraftChange: (filters: OtherApplicationFilters) => void;
-  onApply: () => void;
+  onChange: (filters: OtherApplicationFilters) => void;
   onClear: () => void;
-  canSearch: boolean;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onApply();
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or advocate",
       }}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="other-applications-stage" className="w-fit text-body">
-          Stage
-        </Label>
-        <Select
-          value={draft.stage}
-          onValueChange={(value) =>
-            onDraftChange({
-              ...draft,
+      searchRef={searchRef}
+      fields={[
+        {
+          id: "other-applications-stage",
+          label: "Stage",
+          value: filters.stage,
+          all: "all",
+          allLabel: "All stages",
+          options: OTHER_APPLICATION_STAGES.map((stage) => ({
+            value: stage.id,
+            label: stage.label,
+          })),
+          onApply: (value) =>
+            onChange({
+              ...filters,
               stage: value as OtherApplicationFilters["stage"],
-            })
-          }
-        >
-          <SelectTrigger id="other-applications-stage" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All stages</SelectItem>
-            {OTHER_APPLICATION_STAGES.map((stage) => (
-              <SelectItem key={stage.id} value={stage.id}>
-                {stage.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* `Field` rather than a bare `Label htmlFor` beside an `Input id`. The DS `Input`
-          destructures `id` out of its props and only puts it back through
-          `useFieldControlProps`, which returns nothing when there is no `Field` context —
-          so an `id` handed to an `Input` outside a `Field` is dropped and the label points
-          at an element that does not exist. `Field` supplies the context, and the label
-          and the control agree on one generated id. Upstream DS bug; see
-          `HearingsFilters`. */}
-      <Field className="min-w-0 sm:w-72">
-        <FieldLabel className="text-body">Search cases</FieldLabel>
-        <InputGroup>
-          <InputGroupAddon>
-            <SearchIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            ref={searchRef}
-            type="search"
-            autoComplete="off"
-            value={draft.query}
-            onChange={(event) =>
-              onDraftChange({ ...draft, query: event.target.value })
-            }
-            placeholder="case name, number or advocate"
-          />
-        </InputGroup>
-      </Field>
-
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="other-applications-type" className="w-fit text-body">
-          Application type
-        </Label>
-        {/* The two longest heads run past the trigger and clamp to one line — the
-            primitive's own behaviour, kept rather than widened. All fourteen are unique
-            well inside the width that survives, the full text is in the list, and a
-            trigger wide enough for "Application for extension of submission deadline"
-            would push the filter row onto two lines at every laptop width. */}
-        <Select
-          value={draft.type}
-          onValueChange={(value) =>
-            onDraftChange({
-              ...draft,
+            }),
+        },
+        {
+          id: "other-applications-type",
+          label: "Application type",
+          value: filters.type,
+          all: "all",
+          allLabel: "All application types",
+          options: OTHER_APPLICATION_TYPES.map((type) => ({
+            value: type.id,
+            label: type.label,
+          })),
+          onApply: (value) =>
+            onChange({
+              ...filters,
               type: value as OtherApplicationFilters["type"],
-            })
-          }
-        >
-          <SelectTrigger id="other-applications-type" className="w-full sm:w-72">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All application types</SelectItem>
-            {OTHER_APPLICATION_TYPES.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                {type.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!canSearch}>
-          Search
-        </Button>
-        <Button type="button" variant="ghost" onClick={onClear}>
-          Clear
-        </Button>
-      </div>
-    </form>
+            }),
+        },
+      ]}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -405,14 +337,15 @@ function OtherApplicationsItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((application) => (
-        <li
+        <QueueItemRow
           key={application.id}
-          className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-4"
+          className="flex flex-col gap-2"
         >
             <button
               type="button"
               onClick={() => onOpen(application)}
-              className="min-h-10 w-full cursor-pointer rounded-sm p-0 text-left text-body-compact font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:underline"
+              {...rowOpener}
+                className={rowOpenerClass}
             >
               <span className="sr-only">Review </span>
               {causeTitle(application)}
@@ -421,7 +354,7 @@ function OtherApplicationsItemList({
             {otherApplicationTypeLabel(application.type)}
           </p>
           <p className="text-caption text-muted-foreground">
-            <span className="tabular-nums">{application.caseNumber}</span>
+            <Identifier value={application.caseNumber} label="case number" />
             {" · "}
             {otherApplicationStageLabel(application.stage)}
             {" · Applied "}
@@ -437,7 +370,7 @@ function OtherApplicationsItemList({
               (counsel) => counsel.name,
             )}
           />
-        </li>
+        </QueueItemRow>
       ))}
     </ul>
   );

@@ -1,15 +1,16 @@
 /**
- * When a court-side filter form has something left to ask for.
+ * Whether a court-side filter form is asking for something narrower than a given baseline.
  *
- * Every queue on the court side filters the same way: the controls hold a `draft`, the
- * table shows what was `applied`, and a Search button moves one to the other. That makes
- * "is there anything to search for?" one question with one answer, asked twelve times —
- * so it is answered here rather than re-derived per screen.
+ * This used to answer "has the Search button anything to do?", when every queue held the
+ * controls in a `draft` and the table showed a separately `applied` copy. Those buttons
+ * are gone — the queues filter as they are typed, from one state — and with them went
+ * eleven of the twelve callers.
  *
- * The button reads this to decide whether it is live. A Search that is always pressable
- * is a Search that means nothing on a form nobody has touched, and since the court asked
- * for these buttons in the primary fill, an always-on one would also be a standing
- * invitation on every queue in the product.
+ * What is left is the other question the same comparison answers, and the one worth
+ * keeping: **is this view filtered at all?** A screen needs it to tell "nothing matches
+ * what you asked for" apart from "there is nothing here", and `SignProcessScreen` needs it
+ * against a per-tab default rather than against empty. Comparing to a baseline is still a
+ * question with one right answer, so it still lives here rather than being re-derived.
  */
 
 /** A filter object as these screens hold one: flat, and only ever text. */

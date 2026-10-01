@@ -9,12 +9,18 @@ import {
   defaultProcessFilters,
   filterProcesses,
   PROCESS_LINE,
+  outcomeComplete,
+  outcomeLabel,
+  recordOutcome,
   PROCESS_QUEUE_COUNT,
   PROCESS_STAGES,
   processDocumentText,
   processStage,
   processesAt,
   processesElsewhere,
+  groupSelectionByCase,
+  singleCaseMatch,
+  processIdsForCase,
   rebaseFilters,
   type CourtProcess,
   type ProcessStageId,
@@ -204,7 +210,7 @@ describe("filterProcesses", () => {
     assert.ok(cut.every((process) => process.channel === "police"));
   });
 
-  it("searches the cause and the number, ignoring case and stray space", () => {
+  it("searches the case number only, ignoring case and stray space", () => {
     const first = rows[0];
     const byNumber = filterProcesses(rows, {
       type: "all",
@@ -225,7 +231,7 @@ describe("filterProcesses", () => {
       hearingDate: "",
       query: first.parties.accused.toUpperCase(),
     });
-    assert.ok(byParty.some((process) => process.id === first.id));
+    assert.ok(!byParty.some((process) => process.id === first.id));
   });
 });
 
@@ -250,15 +256,15 @@ describe("finding a process that has moved on", () => {
     };
   }
 
-  it("finds a row by the cause title the Case name column prints", () => {
+  it("does not find a row by the cause title the Case name column prints", () => {
     const cause = `${moved.parties.complainant} v. ${moved.parties.accused}`;
     const rows = filterProcesses(processesAt(PROCESS_LINE, "signed"), {
       ...defaultProcessFilters(processStage("signed")),
       query: cause,
     });
     assert.ok(
-      rows.some((process) => process.id === moved.id),
-      "a cause title read off the screen finds nothing",
+      !rows.some((process) => process.id === moved.id),
+      "a cause title still finds the row after search became number-only",
     );
   });
 
@@ -427,7 +433,7 @@ describe("buildProcessDocument", () => {
       assert.ok(document.addressee.startsWith("To "), process.id);
       assert.ok(document.title.length > 0, process.id);
     }
-    assert.equal(seen.size, 5);
+    assert.equal(seen.size, 6);
   });
 
   it("addresses a warrant to the officer who must execute it, not to the accused", () => {
@@ -465,6 +471,203 @@ describe("buildProcessDocument", () => {
     for (const process of PROCESS_LINE) {
       const text = processDocumentText(buildProcessDocument(process));
       assert.ok(!/₹|Rs\.?\s*\d/.test(text), `${process.id} names a sum`);
+    }
+  });
+});
+
+describe("the selection, counted as envelopes", () => {
+  const collection = processesAt(PROCESS_LINE, "pending-rpad-collection");
+
+  /** A case this stage holds more than one process for — the interesting shape. */
+  const shared = collection.find(
+    (process) =>
+      collection.filter((other) => other.caseNumber === process.caseNumber)
+        .length > 1,
+  );
+  assert.ok(shared, "the demo line needs a case with several processes waiting");
+
+  const siblings = collection.filter(
+    (process) => process.caseNumber === shared.caseNumber,
+  );
+
+  it("puts one case in one entry, however much process is inside it", () => {
+    const [entry, ...rest] = groupSelectionByCase(
+      collection,
+      new Set(siblings.map((process) => process.id)),
+    );
+    assert.equal(rest.length, 0, "one envelope must not read as several");
+    assert.equal(entry.caseNumber, shared.caseNumber);
+    assert.equal(entry.processes.length, siblings.length);
+  });
+
+  it("counts only what is ticked, never the case's true total", () => {
+    /* Two of three ticked is two covers' worth of nothing — the entry must not round up
+       to the case's total, or it reports a cover as reconciled that is not. */
+    const [entry] = groupSelectionByCase(
+      collection,
+      new Set([siblings[0].id]),
+    );
+    assert.equal(entry.processes.length, 1);
+    assert.ok(siblings.length > 1, "the fixture must have a sibling to leave out");
+  });
+
+  it("keeps the order the envelopes were picked up in", () => {
+    const other = collection.find(
+      (process) => process.caseNumber !== shared.caseNumber,
+    );
+    assert.ok(other, "the demo line needs a second case at this stage");
+
+    /* A Set walks in insertion order, which is the clerk's own morning: the envelope
+       just ticked belongs at the end of the tray, not wherever the line happens to hold
+       it. Ticking the second case first must put it first. */
+    const picked = groupSelectionByCase(
+      collection,
+      new Set([other.id, siblings[0].id]),
+    );
+    assert.deepEqual(
+      picked.map((entry) => entry.caseNumber),
+      [other.caseNumber, shared.caseNumber],
+    );
+  });
+
+  it("holds a case at the place its first process was ticked", () => {
+    const other = collection.find(
+      (process) => process.caseNumber !== shared.caseNumber,
+    );
+    assert.ok(other);
+    /* First, third, second: the case ticked first stays first even though its second
+       process was ticked last. */
+    const picked = groupSelectionByCase(
+      collection,
+      new Set([siblings[0].id, other.id, siblings[1].id]),
+    );
+    assert.deepEqual(
+      picked.map((entry) => entry.caseNumber),
+      [shared.caseNumber, other.caseNumber],
+    );
+    assert.equal(picked[0].processes.length, 2);
+  });
+
+  it("drops an id the stage no longer holds rather than counting it", () => {
+    const gone = processesAt(PROCESS_LINE, "signed")[0];
+    assert.ok(gone, "the demo line needs a row at another stage");
+    const picked = groupSelectionByCase(
+      collection,
+      new Set([siblings[0].id, gone.id]),
+    );
+    assert.equal(picked.length, 1);
+    assert.equal(picked[0].caseNumber, shared.caseNumber);
+  });
+
+  it("takes the whole case out, because the whole case is the envelope", () => {
+    const ids = processIdsForCase(collection, shared.caseNumber);
+    assert.deepEqual(
+      [...ids].sort(),
+      siblings.map((process) => process.id).sort(),
+    );
+  });
+});
+
+describe("what Enter is allowed to commit", () => {
+  const stage = processStage("pending-rpad-collection");
+  const collection = processesAt(PROCESS_LINE, "pending-rpad-collection");
+  const base = defaultProcessFilters(stage);
+
+  const shared = collection.find(
+    (process) =>
+      collection.filter((other) => other.caseNumber === process.caseNumber)
+        .length > 1,
+  );
+  assert.ok(shared, "the demo line needs a case with several processes waiting");
+
+  it("takes the whole envelope when the number names one case", () => {
+    const matches = singleCaseMatch(collection, {
+      ...base,
+      query: shared.caseNumber,
+    });
+    assert.ok(matches, "a complete case number must resolve");
+    assert.ok(matches.length > 1, "the case's other process travels with it");
+    assert.ok(
+      matches.every((process) => process.caseNumber === shared.caseNumber),
+      "nothing from another case rides along",
+    );
+  });
+
+  it("refuses to guess while two cases still match", () => {
+    /* The shared prefix of the court's own numbering: enough to narrow, never enough to
+       choose. Committing here would put one court's process into another's envelope on a
+       keystroke the clerk did not mean as a choice. */
+    const prefix = shared.caseNumber.slice(0, 3);
+    const matching = new Set(
+      collection
+        .filter((process) => process.caseNumber.includes(prefix))
+        .map((process) => process.caseNumber),
+    );
+    assert.ok(matching.size > 1, "the fixture needs an ambiguous prefix");
+    assert.equal(singleCaseMatch(collection, { ...base, query: prefix }), null);
+  });
+
+  it("has nothing to commit when nothing matches", () => {
+    assert.equal(
+      singleCaseMatch(collection, { ...base, query: "ZZ/9999/1999" }),
+      null,
+    );
+  });
+
+  it("stays inside the stage it was asked about", () => {
+    /* A cover waiting for collection cannot be answered with a row that has already been
+       signed, however exactly the number matches. */
+    const elsewhere = processesAt(PROCESS_LINE, "signed").find(
+      (process) =>
+        !collection.some((row) => row.caseNumber === process.caseNumber),
+    );
+    assert.ok(elsewhere, "the demo line needs a case that has moved on");
+    assert.equal(
+      singleCaseMatch(collection, { ...base, query: elsewhere.caseNumber }),
+      null,
+    );
+  });
+});
+
+describe("recording an outcome from the Sent tab (DSP-08, DSP-09)", () => {
+  const sent = PROCESS_LINE.find((process) => process.stage === "sent")!;
+
+  it("needs a status and a comment, and a reason when not delivered", () => {
+    assert.equal(outcomeComplete({ comment: "x" }), false);
+    assert.equal(outcomeComplete({ status: "delivered", comment: " " }), false);
+    assert.equal(outcomeComplete({ status: "delivered", comment: "Card returned." }), true);
+    assert.equal(outcomeComplete({ status: "not-delivered", comment: "Returned." }), false);
+    assert.equal(
+      outcomeComplete({ status: "not-delivered", reason: "Premises locked", comment: "Returned." }),
+      true,
+    );
+  });
+
+  it("closes the process on it and moves it to Completed", () => {
+    const outcome = { status: "delivered" as const, comment: "Card returned.", recordedOn: "2026-10-01" };
+    const after = recordOutcome(PROCESS_LINE, sent.id, outcome).find((p) => p.id === sent.id)!;
+    assert.equal(after.stage, "completed");
+    assert.equal(after.completedOn, "2026-10-01");
+    assert.deepEqual(after.outcome, outcome);
+  });
+
+  it("labels a warrant's outcome Executed / Not executed (§10.1)", () => {
+    assert.equal(outcomeLabel("warrant", "delivered"), "Executed");
+    assert.equal(outcomeLabel("warrant", "not-delivered"), "Not executed");
+    assert.equal(outcomeLabel("summons", "delivered"), "Delivered");
+  });
+});
+
+describe("the police-executed instruments on the Sent tab", () => {
+  it("offers Record outcome on a warrant, a proclamation and an attachment, addressed to the police", () => {
+    for (const type of ["warrant", "proclamation", "attachment"] as const) {
+      const sent = PROCESS_LINE.find((process) => process.type === type && process.stage === "sent");
+      assert.ok(sent, `a ${type} on the Sent tab`);
+      assert.equal(outcomeLabel(type, "delivered"), "Executed");
+      assert.equal(
+        buildProcessDocument(sent).addressee,
+        "To the officer in charge of the police station",
+      );
     }
   });
 });

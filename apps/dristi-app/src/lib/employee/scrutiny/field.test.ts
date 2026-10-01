@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { DOC_ROW } from "./bundle";
 import {
   canSaveDraft,
   collectMarks,
   docMarkCount,
   isLinkedComplete,
   saysSomething,
-  unlocksSentence,
+  unlocksSentence as unlocksSentenceRaw,
 } from "./field";
 import { FIELD_BY_ID } from "./sections";
-import type { Draft, Evidence, Flag, FlagMap, Rect } from "./types";
+import type { Draft, Evidence, Field, Flag, FlagMap, Rect } from "./types";
+
+const unlocksSentence = (field: Field) => unlocksSentenceRaw(field, DOC_ROW);
 
 const RECT: Rect = [10, 20, 30, 40];
 

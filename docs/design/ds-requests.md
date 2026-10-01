@@ -334,6 +334,25 @@ remainder renders as `track` or as an explicit segment.
 
 ---
 
+## Circular progress — a ring for "how much of this is done"
+
+Raised: 2026-09-09, from the File a case queue's Drafts tab
+(`components/filing/dashboard/completion-ring.tsx`).
+
+`Progress` is a linear bar. A table cell wants the same fact at 20px beside a number —
+"62% complete" with a ring that reads at a glance, the way a mail client shows setup
+progress — and a 1px-tall bar in a cell is invisible. Composed locally as a two-circle
+SVG drawn only in tokens (`stroke-track` for the groove, `stroke-primary` for the fill),
+`aria-hidden` because the number beside it is the value. It is a screen-level file, not a
+primitive, and it is the one custom drawing in this round.
+
+**Request:** a `Progress` variant (`shape="ring"` / `size`) or a `ProgressRing` primitive
+that owns the geometry, the stroke tokens, the reduced-motion rule for the fill
+transition, and the accessible summary — so the app's ring and any future one come from
+one place. Delete `completion-ring.tsx` when it lands.
+
+---
+
 ## `Card` clips its children, so a panel cannot hold sticky content
 
 Raised: 2026-08-30, from the e-filing "File a case" work queue
@@ -490,3 +509,18 @@ must keep reaching it. A documented name for the state would help as much as the
 distinction between "you may not" (`disabled`) and "this is not connected yet"
 (`aria-disabled` + explanation) is a real one, and right now every consumer meets it by
 discovering that nothing happened.
+
+---
+
+## Input has no compact size (`size="sm"`)
+
+**Observed (pin e0cadea6):** `SelectTrigger` and `Button` both offer `size="sm"` at 36px
+(`h-9`), but `Input` and `InputGroup` are fixed at `h-10`. A register toolbar that sets
+compact filters beside a search field cannot match their heights from the primitives.
+
+**Consequence:** the View Case registers (Applications, Documents) set `h-9` on the search
+`Input` once, in `components/cases/register-controls.tsx`, returning to `h-10` below `sm:`
+for the 40px touch floor. That is a local height on a synced primitive.
+
+**Request:** add `size?: "sm" | "default"` to `Input` (and `InputGroup`) mirroring
+`SelectTrigger`, so a compact toolbar composes from the primitives alone.

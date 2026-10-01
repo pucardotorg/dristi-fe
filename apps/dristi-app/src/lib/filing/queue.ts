@@ -19,15 +19,24 @@ import type { CaseRecord } from "@/lib/cases/types";
 import type { Case as TaskCase, Task } from "@/lib/tasks/types";
 import { fixHref } from "@/lib/tasks/routes";
 
-import { addDays, daysBetween, toDisplayDate } from "./format";
-import { draftProgress, draftTitle, limitationView, LIMITATION_DAYS } from "./selectors";
+import { addDays, daysBetween, money, toDisplayDate } from "./format";
+import {
+  draftProgress,
+  draftTitle,
+  feeBill,
+  limitationView,
+  LIMITATION_DAYS,
+  signatories,
+} from "./selectors";
 import { stepHref } from "./steps";
-import type { FilingDraft } from "./types";
+import type { FilingDraft, Signatory, UserProfile } from "./types";
 
 export const QUEUE_TABS = [
   { id: "drafts", label: "Drafts" },
+  { id: "pendingSignature", label: "Pending signature" },
+  { id: "pendingPayment", label: "Pending payment" },
   { id: "scrutiny", label: "Pending scrutiny" },
-  { id: "returned", label: "Returned with defects" },
+  { id: "returned", label: "Returned post scrutiny" },
   { id: "registered", label: "Registered" },
 ] as const;
 
@@ -51,6 +60,18 @@ export type QueueRow = {
   /** Empty while no court applies; the column is dropped on tabs where none ever does. */
   court: string;
   info: { lead: string; sub?: string; tone: InfoTone };
+  /** A count the info column shows as a chip instead of `info.lead`. Returned rows. */
+  count?: number;
+  /** How much of the form is filled in, and when it was last touched. Drafts only. */
+  progress?: { percent: number; savedOn: string };
+  /**
+   * Whether the signed-in profile is one of the people still asked to sign. Pending-
+   * signature rows only — this is what a bulk sign can actually act on: you cannot sign
+   * for a party who is not you, however pressing their row looks.
+   */
+  youPending?: boolean;
+  /** The court fee still owed, in rupees. Pending-payment rows only — for the bulk total. */
+  amount?: number;
   action: { label: string; href: string };
   /** When this row needs attention — ascending puts the most pressing first. */
   urgencyAt: string;
@@ -68,7 +89,7 @@ export type QueueRow = {
   haystack: string;
 };
 
-export type ColumnId = "ref" | "parties" | "court" | "info" | "action";
+export type ColumnId = "ref" | "parties" | "court" | "info" | "progress" | "action";
 
 /**
  * What each tab actually shows.
@@ -77,15 +98,29 @@ export type ColumnId = "ref" | "parties" | "court" | "info" | "action";
  * "S-138, NI Act" down the page carried nothing. Court is gone from drafts for the same
  * reason — a draft has not chosen one. A column with a single value is a caption printed
  * once per row.
+ *
+ * Drafts split what used to be one "Time to file" cell into two questions a person asks
+ * separately: by when (File by — the limitation date, or NA while the clock cannot start)
+ * and how far along (Completed — the share of the form filled in, with a ring beside it).
  */
 export const TAB_LAYOUT: Record<
   QueueTab,
   { columns: ColumnId[]; ref?: string; info: string; label: string }
 > = {
   drafts: {
-    columns: ["parties", "info", "action"],
-    info: "Time to file",
+    columns: ["parties", "info", "progress", "action"],
+    info: "File by",
     label: "Drafts you have not filed yet",
+  },
+  pendingSignature: {
+    columns: ["parties", "info", "action"],
+    info: "Signatures",
+    label: "Filings sent for signature",
+  },
+  pendingPayment: {
+    columns: ["parties", "info", "action"],
+    info: "Court fee",
+    label: "Filings signed and awaiting the court fee",
   },
   scrutiny: {
     columns: ["ref", "parties", "court", "info", "action"],
@@ -96,7 +131,7 @@ export const TAB_LAYOUT: Record<
   returned: {
     columns: ["ref", "parties", "court", "info", "action"],
     ref: "E-filing no.",
-    info: "Defects raised",
+    info: "Defects",
     label: "Filings scrutiny returned with defects",
   },
   registered: {
@@ -126,6 +161,14 @@ export const TAB_SORTS: Record<QueueTab, SortOption[]> = {
     { value: "deadline", label: "Deadline first", key: "urgencyAt", dir: "asc" },
     { value: "recent", label: "Recently saved", key: "recencyAt", dir: "desc" },
   ],
+  pendingSignature: [
+    { value: "waiting", label: "Longest waiting", key: "urgencyAt", dir: "asc" },
+    { value: "recent", label: "Recently sent", key: "recencyAt", dir: "desc" },
+  ],
+  pendingPayment: [
+    { value: "waiting", label: "Longest waiting", key: "urgencyAt", dir: "asc" },
+    { value: "recent", label: "Recently signed", key: "recencyAt", dir: "desc" },
+  ],
   scrutiny: [
     { value: "waiting", label: "Longest waiting", key: "urgencyAt", dir: "asc" },
     { value: "recent", label: "Recently filed", key: "recencyAt", dir: "desc" },
@@ -152,66 +195,181 @@ function partiesOf(record: CaseRecord): string {
   return `${record.parties.complainant} v. ${record.parties.accused}`;
 }
 
+/** No clock can start until the draft carries the dates that start it. */
+export const NO_DEADLINE = "NA";
+
+/** Inside this many days the date reads in the warning ink. */
+export const DEADLINE_WARNING_DAYS = 2;
+
 /**
  * What a draft's limitation clock says — the one number on this screen that can cost a
- * client the case.
+ * client the case. The File by column.
  *
  * The complaint is due within one month of the cause of action (NI Act §142(1)(b)); past
  * that, delay may be condoned for sufficient cause, so the copy never says "barred" or
  * "overdue" — it says what filing now costs, which is a condonation application and the
  * fee `feeBill()` already adds. With no cause date and no served notice there is no clock
- * at all: `noticeCauseDate` refuses to guess one, and so does this.
+ * at all: `noticeCauseDate` refuses to guess one, and so does this — the cell says NA and
+ * why, rather than a date it made up.
+ *
+ * The lead is always the date, so the column reads as one. What differs is the line
+ * under it: days left in plain ink, the last two days in warning ink, and a closed
+ * window in the destructive ink with the condonation consequence spelled out.
  */
 export function draftClock(draft: FilingDraft): {
   lead: string;
-  sub: string;
+  sub?: string;
   tone: InfoTone;
   dueOn: string;
 } {
-  const progress = `${draftProgress(draft)}% complete`;
-  const saved = `Last saved ${toDisplayDate(draft.updatedAt.slice(0, 10))}`;
   const lim = limitationView(draft);
   if (!lim.causeDate) {
-    return { lead: progress, sub: saved, tone: "default", dueOn: "" };
+    return { lead: NO_DEADLINE, sub: "Notice dates not entered yet", tone: "default", dueOn: "" };
   }
 
   const dueOn = addDays(lim.causeDate, LIMITATION_DAYS);
   const left = daysBetween(lim.filingDate, dueOn);
-  if (left === null) return { lead: progress, sub: saved, tone: "default", dueOn: "" };
+  if (left === null) {
+    return { lead: NO_DEADLINE, sub: "Notice dates not entered yet", tone: "default", dueOn: "" };
+  }
 
   if (left < 0) {
     return {
-      lead: `Window closed ${toDisplayDate(dueOn)}`,
-      sub: `Filing now needs a condonation application · ${progress}`,
+      lead: toDisplayDate(dueOn),
+      sub: "Delay condonation applicable",
       tone: "danger",
       dueOn,
     };
   }
   return {
-    lead: `File by ${toDisplayDate(dueOn)}`,
-    sub: `${left} ${left === 1 ? "day" : "days"} left · ${progress}`,
-    tone: left <= 7 ? "warning" : "default",
+    lead: toDisplayDate(dueOn),
+    sub: left === 0 ? "Due today" : `${left} ${left === 1 ? "day" : "days"} left`,
+    tone: left <= DEADLINE_WARNING_DAYS ? "warning" : "default",
     dueOn,
   };
 }
 
+/**
+ * Sending for signature is what actually takes a draft out of drafting — see
+ * `sign-section.tsx`'s own `requested`. Choosing the paper path is the same moment for
+ * that path: `sign.mode` only ever becomes `"upload"` when the filer picks it there, and
+ * it never carries a `requestedAt` of its own to read instead.
+ */
+function enteredSigning(draft: FilingDraft): boolean {
+  return draft.sign.requestedAt !== null || draft.sign.mode === "upload";
+}
+
 export function draftRows(drafts: FilingDraft[]): QueueRow[] {
-  return drafts.map((draft) => {
+  return drafts
+    .filter((draft) => !enteredSigning(draft))
+    .map((draft) => {
+      const parties = draftTitle(draft);
+      const { dueOn, ...info } = draftClock(draft);
+      return {
+        id: draft.id,
+        parties,
+        court: "",
+        info,
+        progress: {
+          percent: draftProgress(draft),
+          savedOn: toDisplayDate(draft.updatedAt.slice(0, 10)),
+        },
+        action: { label: "Continue filing", href: stepHref(draft.id, draft.lastStep) },
+        // A draft past its window keeps its real date rather than being pushed to the end:
+        // it is the most pressing row on the tab, not a finished one.
+        urgencyAt: dueOn || NO_URGENCY,
+        recencyAt: draft.updatedAt.slice(0, 10),
+        discardable: true,
+        haystack: parties.toLowerCase(),
+      };
+    });
+}
+
+/** Who is still asked to sign, read from the filer's own point of view. */
+function pendingSummary(everyone: Signatory[]): {
+  count: number;
+  youPending: boolean;
+  sub: string;
+} {
+  const pending = everyone.filter((s) => s.status === "pending");
+  const youPending = pending.some((s) => s.you);
+  const others = pending.filter((s) => !s.you).length;
+  const sub = youPending
+    ? others
+      ? `Waiting on you and ${others} other ${others === 1 ? "party" : "parties"}`
+      : "Waiting on you"
+    : others === 1
+      ? "Waiting on the other party"
+      : `Waiting on ${others} other parties`;
+  return { count: pending.length, youPending, sub };
+}
+
+/**
+ * Sent for signature, at least one signature still outstanding. Some of these are
+ * waiting on the filer; some are waiting entirely on other parties, which is why the
+ * count in the Signatures column, not a date, is the fact the row leads with.
+ */
+export function pendingSignatureRows(
+  drafts: FilingDraft[],
+  profile: UserProfile | null
+): QueueRow[] {
+  return drafts.flatMap((draft) => {
+    if (!enteredSigning(draft)) return [];
+    const { complainants, advocates } = signatories(draft, profile);
+    const everyone = [...complainants, ...advocates];
+    const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
+    if (allSigned) return [];
     const parties = draftTitle(draft);
-    const { dueOn, ...info } = draftClock(draft);
-    return {
+    const { count, youPending, sub } = pendingSummary(everyone);
+    // The moment it left the drafting phase — the paper path never sets `requestedAt`,
+    // so its own last edit is the closest honest stand-in for "waiting since".
+    const since = (draft.sign.requestedAt ?? draft.updatedAt).slice(0, 10);
+    const row: QueueRow = {
       id: draft.id,
       parties,
       court: "",
-      info,
-      action: { label: "Continue filing", href: stepHref(draft.id, draft.lastStep) },
-      // A draft past its window keeps its real date rather than being pushed to the end:
-      // it is the most pressing row on the tab, not a finished one.
-      urgencyAt: dueOn || NO_URGENCY,
+      info: { lead: String(count), sub, tone: youPending ? "warning" : "default" },
+      count,
+      action: { label: "Continue signing", href: stepHref(draft.id, "sign") },
+      urgencyAt: since,
       recencyAt: draft.updatedAt.slice(0, 10),
-      discardable: true,
+      youPending,
       haystack: parties.toLowerCase(),
     };
+    return [row];
+  });
+}
+
+/**
+ * Every signature is in; the court fee is what stands between this draft and a case
+ * number. `feeBill` is the same calculation Sign shows and charges from — this tab
+ * cannot read the fee differently than the screen that collects it.
+ */
+export function pendingPaymentRows(
+  drafts: FilingDraft[],
+  profile: UserProfile | null
+): QueueRow[] {
+  return drafts.flatMap((draft) => {
+    if (draft.sign.paid) return [];
+    const { complainants, advocates } = signatories(draft, profile);
+    const everyone = [...complainants, ...advocates];
+    const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
+    if (!allSigned) return [];
+    const parties = draftTitle(draft);
+    const amount = feeBill(draft).total;
+    const since = (draft.sign.requestedAt ?? draft.updatedAt).slice(0, 10);
+    const row: QueueRow = {
+      id: draft.id,
+      parties,
+      court: "",
+      info: { lead: money(amount), tone: "default" },
+      amount,
+      action: { label: "Pay court fee", href: stepHref(draft.id, "sign") },
+      urgencyAt: since,
+      recencyAt: draft.updatedAt.slice(0, 10),
+      haystack: parties.toLowerCase(),
+    };
+    return [row];
   });
 }
 
@@ -269,11 +427,13 @@ export function returnedRows(tasks: Task[], cases: TaskCase[]): QueueRow[] {
         ref: c?.stNumber || c?.cnr || task.id.toUpperCase(),
         parties,
         court: c?.court ?? "",
+        // The column is headed Defects, so the cell is the number alone, as a chip.
         info: {
-          lead: count === 1 ? "1 defect raised" : `${count} defects raised`,
+          lead: String(count),
           sub: due ? `Cure by ${toDisplayDate(due)}` : undefined,
           tone: "danger" as InfoTone,
         },
+        count,
         action: { label: "Cure defects", href: fixHref(task.id) },
         urgencyAt: due || NO_URGENCY,
         recencyAt: task.returned?.at.slice(0, 10) ?? task.createdAt.slice(0, 10),
@@ -304,7 +464,7 @@ export function registeredRows(today: string, cases: CaseRecord[] = CASES): Queu
         info: on
           ? {
               lead: toDisplayDate(on),
-              sub: upcoming ? record.nextHearing?.purpose : "Last listed — no new date yet",
+              sub: upcoming ? record.nextHearing?.purpose : "Last listed. No new date yet",
               tone: "default" as InfoTone,
             }
           : {

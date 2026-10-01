@@ -17,6 +17,7 @@ import {
   listingApplicationLabel,
   type ListingApplication,
 } from "@/lib/employee/listing-applications";
+import { Identifier } from "@/components/chrome/identifier";
 
 /**
  * An application pending on the matter in front of the bench, read and then answered.
@@ -97,7 +98,12 @@ function ApplicationBody({
       title={listingApplicationLabel(application)}
       description={
         <>
-          <span className="tabular-nums">{application.number}</span>
+          {/* The overlay renders this as its accessible description. */}
+          <Identifier
+            value={application.number}
+            label="application number"
+            copyable={false}
+          />
           {" · item "}
           <span className="tabular-nums">{hearing.item}</span>
           {" · "}
@@ -110,10 +116,10 @@ function ApplicationBody({
             {listingApplicationLabel(application)}
           </ReviewRow>
           <ReviewRow term="Application number">
-            <span className="font-mono">{application.number}</span>
+            <Identifier value={application.number} label="application number" />
           </ReviewRow>
           <ReviewRow term="Case number">
-            <span className="font-mono">{hearing.caseNumber}</span>
+            <Identifier value={hearing.caseNumber} label="case number" />
           </ReviewRow>
           <ReviewRow term="Stage">
             {courtCaseStageLabel(hearing.stage)}

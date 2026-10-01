@@ -47,12 +47,13 @@ import {
   RecordCard,
   signatoryLine,
 } from "@/components/tasks/act/shared";
+import { Identifier } from "@/components/chrome/identifier";
 
-function Row({ label, children, mono }: { label: string; children: React.ReactNode; mono?: boolean }) {
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <DescriptionRow className="border-hairline">
       <DescriptionTerm className="text-body-compact">{label}</DescriptionTerm>
-      <DescriptionDetails className={cn("text-body-compact", mono && "font-mono tabular-nums")}>
+      <DescriptionDetails className="text-body-compact">
         {children}
       </DescriptionDetails>
     </DescriptionRow>
@@ -108,7 +109,15 @@ function PayCard({ ctx }: { ctx: ActContext }) {
             announce={justFailed ? "assertive" : "none"}
             title="Last attempt failed"
           >
-            Ref {task.lastPayment.ref} on {dateTime(task.lastPayment.at)}. Nothing was paid; try again.
+            {/* The notice announces itself on failure, so the reference takes the
+                face without a control whose name would be read into the alert. */}
+            Ref{" "}
+            <Identifier
+              value={task.lastPayment.ref}
+              label="payment reference"
+              copyable={false}
+            />{" "}
+            on {dateTime(task.lastPayment.at)}. Nothing was paid; try again.
           </SectionNotice>
         </div>
       ) : null}
@@ -150,8 +159,14 @@ function PayCard({ ctx }: { ctx: ActContext }) {
             <AlertDialogTitle>Pay {amount}?</AlertDialogTitle>
             <AlertDialogDescription>
               {task.feeHead ?? "Court fee"} · {kase.parties}
-              {kase.stNumber ? ` · ${kase.stNumber}` : ""}. In the live service this goes to the payment
-              gateway now and cannot be recalled.
+              {kase.stNumber ? (
+                <>
+                  <span aria-hidden> · </span>
+                  {/* No copy control inside the prompt's accessible description. */}
+                  <Identifier value={kase.stNumber} label="case number" copyable={false} />
+                </>
+              ) : null}
+              . In the live service this goes to the payment gateway now and cannot be recalled.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -237,10 +252,10 @@ export function PayBody({ ctx }: { ctx: ActContext }) {
             {signatory ? <span className="text-muted-foreground"> · you</span> : null}
           </Row>
           {task.completion?.receipt ? (
-            <Row label="Receipt" mono>
+            <Row label="Receipt">
               <span className="inline-flex items-center gap-1.5">
                 <CircleCheckIcon aria-hidden className="size-4 text-success-ink" />
-                {task.completion.receipt}
+                <Identifier value={task.completion.receipt} label="receipt" />
               </span>
             </Row>
           ) : null}

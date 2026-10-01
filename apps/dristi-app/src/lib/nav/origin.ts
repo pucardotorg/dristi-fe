@@ -27,25 +27,32 @@ export const ORIGIN_PARAM = "from";
 const MAX_ORIGIN_LENGTH = 512;
 
 /**
- * The areas the shell hosts, longest prefix first so `/join-case` is not read as `/join`.
- * The label is what the breadcrumb calls the area; the href is where its root goes when
- * there is no recorded origin to be more specific.
+ * The areas the shell hosts, longest prefix first. The label is what the breadcrumb
+ * calls the area — the same words the rail uses for it — and the href is where its
+ * root goes when there is no recorded origin to be more specific.
  */
 const AREAS: { prefix: string; label: string; href?: string }[] = [
-  { prefix: "/join-case", label: "Join a case" },
   { prefix: "/filings", label: "File a case", href: "/filings" },
-  { prefix: "/tasks", label: "Tasks", href: TASKS_HOME },
-  { prefix: "/cases", label: "Your Cases", href: "/cases" },
+  { prefix: "/tasks", label: "Pending tasks", href: TASKS_HOME },
+  { prefix: "/cases", label: "Cases", href: "/cases" },
+  { prefix: "/vakalatnama", label: "Vakalatnama", href: "/vakalatnama" },
+  {
+    prefix: "/raise-application",
+    label: "Raise application",
+    href: "/raise-application",
+  },
   { prefix: "/people", label: "People", href: "/people" },
   { prefix: "/settings", label: "Settings" },
-  { prefix: "/advocate", label: "Home" },
-  { prefix: "/home", label: "Home" },
+  { prefix: "/advocate", label: "Home", href: "/advocate" },
+  { prefix: "/home", label: "Home", href: "/home" },
 ];
 
-/** The area a path belongs to. Tasks is the fallback: it is the shell's own home. */
+/** The area a path belongs to. Pending tasks is the fallback: it is the shell's own home. */
 export function areaOf(path: string): { label: string; href?: string } {
   const match = AREAS.find((area) => path.startsWith(area.prefix));
-  return match ? { label: match.label, href: match.href } : { label: "Tasks", href: TASKS_HOME };
+  return match
+    ? { label: match.label, href: match.href }
+    : { label: "Pending tasks", href: TASKS_HOME };
 }
 
 /**

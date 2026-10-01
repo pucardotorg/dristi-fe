@@ -42,6 +42,7 @@ export function ExecutantStep({ vak }: { vak: Vakalatnama }) {
       >
         <FormField label="Executant" asGroup>
           <Segmented
+            size="compact"
             value={e.kind}
             onValueChange={(v) => set({ kind: v })}
             options={[

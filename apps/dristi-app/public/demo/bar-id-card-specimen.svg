@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 328" font-family="Helvetica, Arial, sans-serif" role="img" aria-label="Specimen bar council identity card">
+  <!-- Demo stand-in for the photograph of a Bar ID card that an advocate uploads
+       during registration (handover REG-14). Deliberately a SPECIMEN: no real
+       name, enrolment number, photograph or bar council seal may ever ship in
+       this asset, and none of the shapes below spell one. The registration
+       document service is the seam — swapping this URL for its file URL is the
+       whole change. -->
+  <rect width="520" height="328" fill="#e7e5e4"/>
+
+  <!-- the card itself, photographed slightly off-square on a desk -->
+  <g transform="rotate(-1.2 260 164)">
+    <rect x="38" y="30" width="444" height="268" rx="14" fill="#fbfaf9"/>
+    <rect x="38.5" y="30.5" width="443" height="267" rx="13.5" fill="none" stroke="#c9c5c1"/>
+
+    <!-- header band -->
+    <rect x="38" y="30" width="444" height="52" rx="14" fill="#e8eef0"/>
+    <rect x="38" y="68" width="444" height="14" fill="#e8eef0"/>
+    <circle cx="72" cy="56" r="16" fill="#cfd9dc"/>
+    <circle cx="72" cy="56" r="9" fill="#b9c6ca"/>
+    <rect x="100" y="44" width="196" height="11" rx="5.5" fill="#b9c6ca"/>
+    <rect x="100" y="62" width="126" height="8" rx="4" fill="#cfd9dc"/>
+
+    <!-- photograph panel -->
+    <rect x="62" y="106" width="118" height="142" rx="6" fill="#eeecea" stroke="#d9d5d1"/>
+    <circle cx="121" cy="152" r="26" fill="#c9c5c1"/>
+    <path d="M79 232 q42 -52 84 0 z" fill="#c9c5c1"/>
+
+    <!-- detail bars: shapes, never words -->
+    <rect x="204" y="112" width="120" height="8" rx="4" fill="#d9d5d1"/>
+    <rect x="204" y="128" width="210" height="13" rx="6.5" fill="#b5b0ab"/>
+    <rect x="204" y="158" width="96" height="8" rx="4" fill="#d9d5d1"/>
+    <rect x="204" y="174" width="160" height="12" rx="6" fill="#b5b0ab"/>
+    <rect x="204" y="204" width="86" height="8" rx="4" fill="#d9d5d1"/>
+    <rect x="204" y="220" width="132" height="10" rx="5" fill="#c9c5c1"/>
+
+    <!-- signature strip -->
+    <path d="M300 262 q18 -14 32 0 t34 -6 t28 8" fill="none" stroke="#a9a4a0" stroke-width="2" stroke-linecap="round"/>
+    <rect x="290" y="276" width="140" height="5" rx="2.5" fill="#d9d5d1"/>
+
+    <text x="260" y="196" text-anchor="middle" font-size="58" font-weight="bold" fill="#8a8480" opacity="0.24" transform="rotate(-16 260 180)" letter-spacing="10">SPECIMEN</text>
+  </g>
+</svg>

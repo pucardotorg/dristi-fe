@@ -84,7 +84,10 @@ import { initials } from "@/components/access/access-list";
 import { VakalatnamaPicker } from "@/components/advocate/vakalatnama-picker";
 import { FlowStepper } from "@/components/cases/flow-stepper";
 import { usePartiesLive } from "@/components/cases/parties-live";
-import { ChromeDialogContent, ChromeAlertDialogContent } from "@/components/chrome/app-chrome";
+import {
+  ChromeAlertDialogContent,
+} from "@/components/chrome/app-chrome";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import {
   ReviewDocValue,
   UPLOAD_HELP,
@@ -99,6 +102,7 @@ import {
   formatAdvocatePhone,
   type PartyOption,
 } from "@/lib/cases/party-actions";
+import { Identifier } from "@/components/chrome/identifier";
 
 type AdvocateStep = 1 | 2 | 3;
 
@@ -290,7 +294,7 @@ export function AddAdvocateDialog({
           else requestExit();
         }}
       >
-        <ChromeDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <FlowDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
           {done ? (
             /* The join dialog's done stage: icon, outcome, one action. A
                dead disabled button asked the reader to imagine the ending
@@ -541,9 +545,12 @@ export function AddAdvocateDialog({
                                       {formatAdvocatePhone(phoneInput)}
                                     </span>
                                     {" · Bar ID "}
-                                    <span className="font-mono">
-                                      {lookup.barId}
-                                    </span>
+                                    {/* The whole lookup result is the button. */}
+                                    <Identifier
+                                      value={lookup.barId}
+                                      label="bar id"
+                                      copyable={false}
+                                    />
                                   </>
                                 ) : (
                                   "Not on DRISTI yet. They'll be asked to register when they join."
@@ -704,7 +711,7 @@ export function AddAdvocateDialog({
                           {chip.barId ? (
                             <span className="text-muted-foreground">
                               {" · Bar ID "}
-                              <span className="font-mono">{chip.barId}</span>
+                              <Identifier value={chip.barId} label="bar id" />
                             </span>
                           ) : (
                             <span className="text-muted-foreground">
@@ -766,7 +773,7 @@ export function AddAdvocateDialog({
           </footer>
             </>
           )}
-        </ChromeDialogContent>
+        </FlowDialogContent>
       </Dialog>
 
       <AlertDialog

@@ -28,7 +28,9 @@ export function BookmarkButton({
       }}
       className={cn("relative z-10", className)}
     >
-      <BookmarkIcon className={bookmarked ? "fill-current" : undefined} />
+      {/* size-5 in a size-10 button: the mark is the whole point of the control,
+          and at the DS default 16px it disappeared into the row. */}
+      <BookmarkIcon className={cn("size-5", bookmarked && "fill-current")} />
       <span className="sr-only">
         {bookmarked
           ? `Remove bookmark from ${caseLabel}`

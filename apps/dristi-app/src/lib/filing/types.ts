@@ -24,6 +24,7 @@ export type StepId =
   | "jurisdiction"
   | "adr-prayer"
   | "witnesses"
+  | "oath"
   | "documents"
   | "affidavit"
   | "preview"
@@ -157,6 +158,16 @@ export type Representative = {
 /** Field keys that document reading can machine-fill on a complainant. */
 export type ComplainantPrefillKey = "name" | "email" | "res" | "entName" | "age";
 
+/**
+ * A video of the complainant (or, for an institution, their authorised representative)
+ * reciting the oath — its own screen, optional, one per complainant record.
+ */
+export type OathVideoUpload = {
+  file: StoredFileRef;
+  /** Seconds, read from the file's own metadata; null when it could not be read. */
+  durationSeconds: number | null;
+};
+
 export type Complainant = {
   id: string;
   pip: YesNo;
@@ -186,6 +197,8 @@ export type Complainant = {
   rep: Representative;
   /** Party-in-person affidavit body (HTML from the rich text editor). */
   affidavit: string;
+  /** Optional — the recorded oath, if this complainant chose to provide one. */
+  oathVideo: OathVideoUpload | null;
   prefilled: Partial<Record<ComplainantPrefillKey, boolean>>;
   edited: Partial<Record<ComplainantPrefillKey, boolean>>;
   toReview: boolean;
@@ -350,6 +363,8 @@ export type Signatory = {
   name: string;
   role: string;
   status: "pending" | "signed";
+  /** What made the signature, once there is one — Aadhaar OTP, a DSC, or paper. */
+  signedWith?: SignInstrument;
   you?: boolean;
 };
 
@@ -402,10 +417,42 @@ export type AccusedProcessChoice = {
   addresses?: number[];
 };
 
+/**
+ * What one signature was made with. Aadhaar OTP and a DSC are both *digital* — the
+ * difference is the instrument in the signer's own hands, which is theirs to pick and
+ * need not match anyone else's. `paper` is a signature on the uploaded copy.
+ */
+export type SignInstrument = "aadhaar" | "dsc" | "paper";
+
+/** One signature, as the record will have to state it later. */
+export type SignatureRecord = {
+  /** ISO timestamp — IST in the live service. */
+  at: string;
+  with: SignInstrument;
+};
+
 export type SignState = {
-  mode: "esign" | "upload" | null;
-  /** Signatory id → signed. Signatories themselves are derived, not stored. */
-  signed: Record<string, boolean>;
+  /**
+   * How this complaint is signed, at the level of the filing: every party signs in the
+   * system ("digital"), or the complaint is printed, signed by hand and brought back as
+   * one file ("upload"). It is *not* a personal choice — it decides what the court's
+   * system asks of every other party — so it is presumed "digital" and changed
+   * deliberately, never left unset (owner, 2026-09-23).
+   */
+  mode: "digital" | "upload";
+  /**
+   * When the signature requests went out: the moment this stopped being a private draft
+   * and became work in other people's queues. `null` means nobody has been asked yet,
+   * and nothing has left the building.
+   */
+  requestedAt: string | null;
+  /**
+   * Signatory id → when their link was last sent. Kept per party because a reminder is
+   * about one of them, and because "asked at 14:02" is a fact the row has to state.
+   */
+  notified: Record<string, string>;
+  /** Signatory id → their signature. Signatories themselves are derived, not stored. */
+  signed: Record<string, SignatureRecord>;
   /** The signed copy, when signing by upload. */
   signedCopy: StoredFileRef | null;
   /**
@@ -439,7 +486,7 @@ export type DismissedNotices = {
 };
 
 export type FilingDraft = {
-  version: 5;
+  version: 7;
   id: string;
   caseType: "s138";
   status: "draft" | "filed";

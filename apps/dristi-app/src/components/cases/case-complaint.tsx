@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
 import { DigitalRecord } from "@/components/cases/digital-record";
+import { Identifier } from "@/components/chrome/identifier";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -108,6 +109,18 @@ export function CaseComplaint({
     );
   }
 
+  /* The cheque's number comes back apart from the words in front of it, because
+     "Cheque number 000184" as one string leaves nothing to set as an identifier. The
+     heading is the kind of thing, so it is also the copy affordance's name. */
+  const headingText =
+    pane?.title ??
+    (selected && !isComplaintFolder(selected) ? selected.label : "Complaint");
+  const headingId = pane
+    ? pane.titleId
+    : selected && !isComplaintFolder(selected)
+      ? selected.labelId
+      : undefined;
+
   const indexProps = {
     nodes: tree,
     selectedId: partId,
@@ -159,10 +172,16 @@ export function CaseComplaint({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden p-6">
           <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
             <h2 className="min-w-0 text-title-s font-semibold">
-              {pane?.title ??
-                (selected && !isComplaintFolder(selected)
-                  ? selected.label
-                  : "Complaint")}
+              {headingText}
+              {headingId ? (
+                <>
+                  {" "}
+                  {/* The face, not the affordance: a copy control inside the heading
+                      would put "Copy the cheque number" into the heading's accessible
+                      name. The number is copyable in the record below. */}
+                  <Identifier value={headingId} copyable={false} />
+                </>
+              ) : null}
             </h2>
             {pane?.badges && pane.badges.length > 0 ? (
               <div className="flex flex-wrap gap-2">
@@ -212,7 +231,11 @@ function ComplaintIndex({
                     depthPad[Math.min(depth, depthPad.length - 1)]
                   )}
                 >
-                  <IndexLabel number={node.number} label={node.label} />
+                  <IndexLabel
+                    number={node.number}
+                    label={node.label}
+                    labelId={node.labelId}
+                  />
                   <ChevronDownIcon
                     className="pointer-events-none mt-0.5 size-4 shrink-0 text-muted-foreground group-aria-expanded/file-row:hidden"
                     aria-hidden
@@ -258,7 +281,11 @@ function ComplaintIndex({
                     "bg-accent-strong font-medium hover:bg-accent-strong"
                 )}
               >
-                <IndexLabel number={node.number} label={node.label} />
+                <IndexLabel
+                  number={node.number}
+                  label={node.label}
+                  labelId={node.labelId}
+                />
               </button>
             </div>
           )}
@@ -276,13 +303,34 @@ const rowClass =
 
 const depthPad = ["px-2", "pr-2 pl-6", "pr-2 pl-12"] as const;
 
-function IndexLabel({ number, label }: { number: string; label: string }) {
+function IndexLabel({
+  number,
+  label,
+  labelId,
+}: {
+  number: string;
+  label: string;
+  labelId?: string;
+}) {
   return (
     <span className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 text-left">
       <span className="tabular-nums text-muted-foreground">
         {fileNumberLabel(number)}
       </span>
-      <span className="min-w-0 whitespace-normal">{label}</span>
+      <span className="min-w-0 whitespace-normal">
+        {label}
+        {labelId ? (
+          <>
+            {" "}
+            {/* The row itself is the navigation button — no control nested inside it. */}
+            <Identifier
+              value={labelId}
+              label={label.toLowerCase()}
+              copyable={false}
+            />
+          </>
+        ) : null}
+      </span>
     </span>
   );
 }

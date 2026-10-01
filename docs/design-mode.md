@@ -15,7 +15,7 @@ invoke it.
 it checks the server, hands you the link, and implements your pasted report.
 
 **By URL:** open any route with `?design=1`, e.g.
-`http://127.0.0.1:3000/advocate?design=1`. That turns it on for the tab (it
+`http://localhost:3000/advocate?design=1`. That turns it on for the tab (it
 survives reloads); `?design=0` or the panel's *Close* button turns it off.
 Dev-only — production builds compile the loader out.
 

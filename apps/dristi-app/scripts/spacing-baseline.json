@@ -2,9 +2,6 @@
   "src/app/ds-audit/page.tsx": [
     "py-10"
   ],
-  "src/app/employee/login/page.tsx": [
-    "gap-5"
-  ],
   "src/components/access/cases-wireframe.tsx": [
     "py-10",
     "py-10"
@@ -13,7 +10,6 @@
     "pl-9",
     "pl-9",
     "pr-10",
-    "py-10",
     "py-14"
   ],
   "src/components/access/share-dialog.tsx": [
@@ -62,12 +58,6 @@
     "pr-14",
     "py-5",
     "py-5"
-  ],
-  "src/components/cases/case-applications.tsx": [
-    "pl-9"
-  ],
-  "src/components/cases/case-documents.tsx": [
-    "pl-9"
   ],
   "src/components/cases/edit-litigant-dialog.tsx": [
     "pr-14",
@@ -121,12 +111,6 @@
     "mb-3.5",
     "mt-5",
     "py-10"
-  ],
-  "src/components/employee/sign-bulk-confirm-dialog.tsx": [
-    "pr-14",
-    "pr-14",
-    "py-5",
-    "py-5"
   ],
   "src/components/filing/bail-application-dialog.tsx": [
     "gap-5",
@@ -235,10 +219,6 @@
     "px-3.5",
     "px-3.5"
   ],
-  "src/components/shell/join-case-page.tsx": [
-    "gap-5",
-    "py-10"
-  ],
   "src/components/sign-in-block.tsx": [
     "gap-10",
     "gap-10",
@@ -250,10 +230,6 @@
   ],
   "src/components/tasks/act/court-document.tsx": [
     "p-10"
-  ],
-  "src/components/tasks/filter-row.tsx": [
-    "gap-5",
-    "pl-3.5"
   ],
   "src/components/vakalatnama/steps/review-sign.tsx": [
     "gap-5"
