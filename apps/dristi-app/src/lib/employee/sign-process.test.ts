@@ -9,6 +9,9 @@ import {
   defaultProcessFilters,
   filterProcesses,
   PROCESS_LINE,
+  outcomeComplete,
+  outcomeLabel,
+  recordOutcome,
   PROCESS_QUEUE_COUNT,
   PROCESS_STAGES,
   processDocumentText,
@@ -430,7 +433,7 @@ describe("buildProcessDocument", () => {
       assert.ok(document.addressee.startsWith("To "), process.id);
       assert.ok(document.title.length > 0, process.id);
     }
-    assert.equal(seen.size, 5);
+    assert.equal(seen.size, 6);
   });
 
   it("addresses a warrant to the officer who must execute it, not to the accused", () => {
@@ -623,5 +626,48 @@ describe("what Enter is allowed to commit", () => {
       singleCaseMatch(collection, { ...base, query: elsewhere.caseNumber }),
       null,
     );
+  });
+});
+
+describe("recording an outcome from the Sent tab (DSP-08, DSP-09)", () => {
+  const sent = PROCESS_LINE.find((process) => process.stage === "sent")!;
+
+  it("needs a status and a comment, and a reason when not delivered", () => {
+    assert.equal(outcomeComplete({ comment: "x" }), false);
+    assert.equal(outcomeComplete({ status: "delivered", comment: " " }), false);
+    assert.equal(outcomeComplete({ status: "delivered", comment: "Card returned." }), true);
+    assert.equal(outcomeComplete({ status: "not-delivered", comment: "Returned." }), false);
+    assert.equal(
+      outcomeComplete({ status: "not-delivered", reason: "Premises locked", comment: "Returned." }),
+      true,
+    );
+  });
+
+  it("closes the process on it and moves it to Completed", () => {
+    const outcome = { status: "delivered" as const, comment: "Card returned.", recordedOn: "2026-10-01" };
+    const after = recordOutcome(PROCESS_LINE, sent.id, outcome).find((p) => p.id === sent.id)!;
+    assert.equal(after.stage, "completed");
+    assert.equal(after.completedOn, "2026-10-01");
+    assert.deepEqual(after.outcome, outcome);
+  });
+
+  it("labels a warrant's outcome Executed / Not executed (§10.1)", () => {
+    assert.equal(outcomeLabel("warrant", "delivered"), "Executed");
+    assert.equal(outcomeLabel("warrant", "not-delivered"), "Not executed");
+    assert.equal(outcomeLabel("summons", "delivered"), "Delivered");
+  });
+});
+
+describe("the police-executed instruments on the Sent tab", () => {
+  it("offers Record outcome on a warrant, a proclamation and an attachment, addressed to the police", () => {
+    for (const type of ["warrant", "proclamation", "attachment"] as const) {
+      const sent = PROCESS_LINE.find((process) => process.type === type && process.stage === "sent");
+      assert.ok(sent, `a ${type} on the Sent tab`);
+      assert.equal(outcomeLabel(type, "delivered"), "Executed");
+      assert.equal(
+        buildProcessDocument(sent).addressee,
+        "To the officer in charge of the police station",
+      );
+    }
   });
 });

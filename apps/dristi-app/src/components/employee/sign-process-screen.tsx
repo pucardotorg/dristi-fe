@@ -23,6 +23,7 @@ import {
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Empty,
@@ -44,6 +45,9 @@ import {
 } from "@/lib/employee/hearings";
 import {
   advanceProcesses,
+  outcomeLabel,
+  outcomeVariant,
+  recordOutcome,
   courtProcessTypeInline,
   courtProcessTypeLabel,
   COURT_PROCESS_TYPES,
@@ -578,6 +582,13 @@ export function SignProcessScreen() {
           advance(new Set([process.id]));
           setOpen(null);
         }}
+        onRecordOutcome={(process, outcome) => {
+          setLine((current) => recordOutcome(current, process.id, outcome));
+          setOpen(null);
+          setNotice(
+            `${outcomeLabel(process.type, outcome.status)} recorded for the ${courtProcessTypeInline(process.type)} in ${process.caseNumber}. It is now in Completed.`,
+          );
+        }}
         onReturnFocus={returnFocus}
       />
 
@@ -1045,6 +1056,13 @@ function ProcessItemList({
               <p className="min-w-0 text-body-compact">
                 {type} · {processChannelLabel(process.channel)}
               </p>
+              {stage.id === "completed" && process.outcome ? (
+                <span>
+                  <Badge variant={outcomeVariant(process.outcome.status)}>
+                    {outcomeLabel(process.type, process.outcome.status)}
+                  </Badge>
+                </span>
+              ) : null}
               <p className="text-caption text-muted-foreground">
                 <Identifier value={process.caseNumber} label="case number" />
                 {day ? (

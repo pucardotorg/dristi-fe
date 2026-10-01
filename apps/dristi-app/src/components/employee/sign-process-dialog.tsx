@@ -16,24 +16,49 @@ import {
 } from "@/components/employee/sign-method-stage";
 import { useSignatureChoice } from "@/components/employee/sign-signature-fields";
 import { useHeldRecord } from "@/components/employee/use-held-record";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 import { causeTitle } from "@/lib/employee/hearings";
 import {
   buildProcessDocument,
   courtProcessTypeInline,
   downloadProcessDocument,
   formatProcessDate,
+  NON_DELIVERY_REASONS,
+  outcomeComplete,
+  outcomeLabel,
+  outcomeOptions,
+  outcomeRecordedByHand,
+  outcomeVariant,
   processChannelLabel,
   processStage,
+  todayIsoDay,
   type CourtProcess,
   type ProcessDocument,
+  type ProcessOutcome,
+  type ProcessOutcomeStatus,
 } from "@/lib/employee/sign-process";
 import { Identifier } from "@/components/chrome/identifier";
 import { DialogDescription } from "@/components/ui/dialog";
 
 /** What the paper is called in the signature stage's copy. */
 const NOUN = "process";
+
+/**
+ * The window's stages: the paper, the signature, and — for a process out on a channel
+ * whose outcome is recorded by hand — what came back (`DSP-03`, `DSP-08`). Recording an
+ * outcome is its own scene: a form, not the paper.
+ */
+const STAGES = [...SIGN_STAGES, "outcome"] as const;
+type Stage = SignStage | "outcome";
+const SCENES: Record<Stage, string> = { ...SIGN_SCENES, outcome: "outcome" };
 
 /**
  * What the bench is about to sign, in one sentence.
@@ -70,11 +95,13 @@ export function SignProcessDialog({
   process,
   onOpenChange,
   onSign,
+  onRecordOutcome,
   onReturnFocus,
 }: {
   process: CourtProcess | null;
   onOpenChange: (process: CourtProcess | null) => void;
   onSign: (process: CourtProcess) => void;
+  onRecordOutcome: (process: CourtProcess, outcome: ProcessOutcome) => void;
   onReturnFocus: () => void;
 }) {
   const { held, opening } = useHeldRecord(process);
@@ -93,6 +120,7 @@ export function SignProcessDialog({
           key={opening}
           process={held}
           onSign={onSign}
+          onRecordOutcome={onRecordOutcome}
           onReturnFocus={onReturnFocus}
         />
       ) : null}
@@ -103,16 +131,21 @@ export function SignProcessDialog({
 function SignProcessBody({
   process,
   onSign,
+  onRecordOutcome,
   onReturnFocus,
 }: {
   process: CourtProcess;
   onSign: (process: CourtProcess) => void;
+  onRecordOutcome: (process: CourtProcess, outcome: ProcessOutcome) => void;
   onReturnFocus: () => void;
 }) {
-  const flow = useStagedFlow<SignStage>({
-    order: SIGN_STAGES,
-    scene: SIGN_SCENES,
+  const flow = useStagedFlow<Stage>({
+    order: STAGES,
+    scene: SCENES,
   });
+  const [outcome, setOutcome] = React.useState<OutcomeDraft>({ comment: "" });
+  const recordable =
+    process.stage === "sent" && outcomeRecordedByHand(process.channel);
   const choice = useSignatureChoice(NOUN);
   const document = React.useMemo(
     () => buildProcessDocument(process),
@@ -128,7 +161,9 @@ function SignProcessBody({
       /* The width and the height the *document* needs, held for both stages — see
          `SignOrderDialog` for why the height is definite at every width. */
       className="h-[85dvh] sm:max-w-4xl"
-      title={reading ? document.title : "Add signature"}
+      title={
+        reading ? document.title : flow.stage === "outcome" ? "Record outcome" : "Add signature"
+      }
       titleRef={flow.titleRef}
       /* The stage is the overlay's supporting line rather than a badge beside the title:
          the row was opened from a tab that already names it, so what is worth saying here
@@ -158,7 +193,33 @@ function SignProcessBody({
             <Button type="button" onClick={() => flow.go("sign")}>
               Sign this process
             </Button>
+          ) : recordable ? (
+            <Button type="button" onClick={() => flow.go("outcome")}>
+              Record outcome
+            </Button>
           ) : null
+        ) : flow.stage === "outcome" ? (
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => flow.go("read")}>
+              Back
+            </Button>
+            <Button
+              type="button"
+              disabled={!outcomeComplete(outcome)}
+              onClick={() =>
+                outcome.status &&
+                onRecordOutcome(process, {
+                  status: outcome.status,
+                  ...(outcome.status === "not-delivered" ? { reason: outcome.reason } : {}),
+                  comment: outcome.comment.trim(),
+                  ...(outcome.fileName ? { fileName: outcome.fileName } : {}),
+                  recordedOn: todayIsoDay(),
+                })
+              }
+            >
+              Record outcome
+            </Button>
+          </div>
         ) : (
           <SignatureActions
             choice={choice}
@@ -168,8 +229,12 @@ function SignProcessBody({
         )
       }
     >
-      {reading ? (
-        <DocumentPreview
+      {flow.stage === "outcome" ? (
+        <OutcomeForm process={process} draft={outcome} onChange={setOutcome} />
+      ) : reading ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          {process.outcome ? <OutcomeSummary process={process} /> : null}
+          <DocumentPreview
           /* The stage canvas is a flex column, so the preview only takes the height the
              window can spare if it says so: a flex item's height is never stretched for
              it. The grid callers get this from a `minmax(0,1fr)` row; here it is
@@ -186,6 +251,7 @@ function SignProcessBody({
             label: `Download the ${courtProcessTypeInline(process.type)}`,
           }}
         />
+        </div>
       ) : (
         <SignatureStage
           noun={NOUN}
@@ -245,5 +311,153 @@ function ProcessFacsimile({ document }: { document: ProcessDocument }) {
         {document.signature}
       </p>
     </article>
+  );
+}
+
+type OutcomeDraft = {
+  status?: ProcessOutcomeStatus;
+  reason?: string;
+  comment: string;
+  fileName?: string;
+};
+
+/**
+ * What came back, recorded by the person who has the acknowledgement or return in hand
+ * (`DSP-08`): the outcome, a comment, an optional supporting file — and, for a negative
+ * outcome, a reason from the state's list (`DSP-09`).
+ */
+function OutcomeForm({
+  process,
+  draft,
+  onChange,
+}: {
+  process: CourtProcess;
+  draft: OutcomeDraft;
+  onChange: (draft: OutcomeDraft) => void;
+}) {
+  const options = outcomeOptions(process.type);
+  const negative = draft.status === "not-delivered";
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
+      <p className="text-body-compact text-muted-foreground">
+        Record what the {processChannelLabel(process.channel)} acknowledgement or return
+        says for the {courtProcessTypeInline(process.type)} in {process.caseNumber}. The
+        process closes on it and moves to Completed.
+      </p>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-caption mb-1 font-semibold text-muted-foreground">
+          Outcome
+        </legend>
+        <RadioGroup
+          value={draft.status ?? ""}
+          onValueChange={(value) =>
+            onChange({ ...draft, status: value as ProcessOutcomeStatus })
+          }
+          className="flex flex-col gap-1 rounded-lg bg-surface-sunken p-3"
+        >
+          {options.map((option) => (
+            <div key={option.id} className="flex min-h-10 items-start gap-2 py-1">
+              <RadioGroupItem
+                id={`outcome-${option.id}`}
+                value={option.id}
+                className="mt-0.5"
+              />
+              <Label
+                htmlFor={`outcome-${option.id}`}
+                className="flex flex-col items-start gap-0.5 text-left font-normal"
+              >
+                <span className="text-body-compact font-medium text-foreground">
+                  {option.label}
+                </span>
+                <span className="text-caption text-muted-foreground">
+                  {option.description}
+                </span>
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </fieldset>
+
+      {negative ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="outcome-reason" className="text-caption font-semibold text-muted-foreground">
+            Reason
+          </Label>
+          <NativeSelect
+            id="outcome-reason"
+            value={draft.reason ?? ""}
+            onChange={(event) =>
+              onChange({ ...draft, reason: event.target.value || undefined })
+            }
+            className="w-full sm:w-80"
+          >
+            <NativeSelectOption value="">Choose a reason</NativeSelectOption>
+            {NON_DELIVERY_REASONS.map((reason) => (
+              <NativeSelectOption key={reason} value={reason}>
+                {reason}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+      ) : null}
+
+      <Field className="gap-2">
+        <FieldLabel className="text-caption font-semibold text-muted-foreground">
+          Comment
+        </FieldLabel>
+        <Textarea
+          value={draft.comment}
+          onChange={(event) => onChange({ ...draft, comment: event.target.value })}
+          placeholder="What the acknowledgement or return says"
+          rows={3}
+        />
+      </Field>
+
+      <Field className="gap-2">
+        <FieldLabel className="text-caption font-semibold text-muted-foreground">
+          Supporting file <span className="font-normal">(optional)</span>
+        </FieldLabel>
+        <Input
+          type="file"
+          onChange={(event) =>
+            onChange({ ...draft, fileName: event.target.files?.[0]?.name })
+          }
+          className="max-w-sm cursor-pointer file:mr-3 file:font-medium"
+        />
+        <FieldDescription className="text-caption text-muted-foreground">
+          The acknowledgement card, the police return or the bailiff&apos;s report. Only
+          its name is kept here — nothing is uploaded.
+        </FieldDescription>
+      </Field>
+    </div>
+  );
+}
+
+/** What was recorded, shown on a completed process above its paper. */
+function OutcomeSummary({ process }: { process: CourtProcess }) {
+  const outcome = process.outcome;
+  if (!outcome) return null;
+  return (
+    <section
+      aria-label="Outcome"
+      className="flex shrink-0 flex-col gap-1 rounded-lg bg-surface-sunken p-3"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={outcomeVariant(outcome.status)}>
+          {outcomeLabel(process.type, outcome.status)}
+        </Badge>
+        <span className="text-caption tabular-nums text-muted-foreground">
+          Recorded {formatProcessDate(outcome.recordedOn)}
+        </span>
+      </div>
+      {outcome.reason ? (
+        <p className="text-body-compact text-foreground">{outcome.reason}</p>
+      ) : null}
+      <p className="text-body-compact text-muted-foreground">{outcome.comment}</p>
+      {outcome.fileName ? (
+        <p className="text-caption text-muted-foreground">File: {outcome.fileName}</p>
+      ) : null}
+    </section>
   );
 }

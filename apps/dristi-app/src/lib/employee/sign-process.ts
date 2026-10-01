@@ -66,7 +66,8 @@ export type CourtProcessTypeId =
   | "section-223-notice"
   | "dca-notice"
   | "warrant"
-  | "proclamation";
+  | "proclamation"
+  | "attachment";
 
 export const COURT_PROCESS_TYPES: {
   id: CourtProcessTypeId;
@@ -95,6 +96,9 @@ export const COURT_PROCESS_TYPES: {
   { id: "dca-notice", label: "DCA notice", inline: "DCA notice" },
   { id: "warrant", label: "Warrant", inline: "warrant" },
   { id: "proclamation", label: "Proclamation", inline: "proclamation" },
+  /* Added 2026-10-01: the handover's sixth process type with a police channel, and one
+     whose outcome is recorded from the Sent tab like the other two (§6.3, §10.1). */
+  { id: "attachment", label: "Attachment", inline: "attachment" },
 ];
 
 export function courtProcessTypeLabel(id: CourtProcessTypeId): string {
@@ -155,7 +159,126 @@ export type CourtProcess = {
   sentOn?: string;
   /** ISO day the channel closed the round off. */
   completedOn?: string;
+  /** What came back, as recorded from the Sent tab (`DSP-08`, `DSP-09`). */
+  outcome?: ProcessOutcome;
 };
+
+/**
+ * What came back from a delivery channel — §10.1 of `handovers/process-handover.md`.
+ *
+ * Three terminal outcomes a person records: it reached its destination; the attempt
+ * reached it and failed (refused, not found); or it could not be carried at all.
+ * Expired and Recalled are terminal too, but nobody records them — the system does
+ * (`EXP-02`, `PIA-01`) — so they are not offered here.
+ */
+export type ProcessOutcomeStatus = "delivered" | "not-delivered" | "failed";
+
+export type ProcessOutcome = {
+  status: ProcessOutcomeStatus;
+  /** Required where the outcome is negative (`DSP-09`). From `NON_DELIVERY_REASONS`. */
+  reason?: string;
+  comment: string;
+  /** The supporting file's name. Nothing is stored — there is no backend. */
+  fileName?: string;
+  recordedOn: string;
+};
+
+/**
+ * Why a process was not delivered or not executed (`DSP-09`). The handover makes this a
+ * state-configurable master; these are demo values standing in for Kerala's list until
+ * it is supplied.
+ */
+export const NON_DELIVERY_REASONS = [
+  "Refused to accept",
+  "Addressee not found at the address",
+  "Address incomplete or incorrect",
+  "Premises locked",
+  "Addressee has left the address",
+  "Addressee deceased",
+] as const;
+
+/** The instruments addressed to the police are *executed*, not delivered (§10.1). */
+function executes(type: CourtProcessTypeId): boolean {
+  return type === "warrant" || type === "proclamation" || type === "attachment";
+}
+
+export function outcomeOptions(type: CourtProcessTypeId): {
+  id: ProcessOutcomeStatus;
+  label: string;
+  description: string;
+}[] {
+  const done = executes(type) ? "Executed" : "Delivered";
+  const notDone = executes(type) ? "Not executed" : "Not delivered";
+  return [
+    {
+      id: "delivered",
+      label: done,
+      description: executes(type)
+        ? "The police report it was carried out."
+        : "It reached the person — the acknowledgement or report says so.",
+    },
+    {
+      id: "not-delivered",
+      label: notDone,
+      description:
+        "The attempt reached the address and failed — refused, not found, returned.",
+    },
+    {
+      id: "failed",
+      label: "Failed",
+      description:
+        "It could not be carried at all, so no attempt was made at the address.",
+    },
+  ];
+}
+
+export function outcomeLabel(
+  type: CourtProcessTypeId,
+  status: ProcessOutcomeStatus,
+): string {
+  return outcomeOptions(type).find((option) => option.id === status)?.label ?? status;
+}
+
+/**
+ * Whether a person records this channel's outcome, rather than the receiving system
+ * reporting it (§6.2, `DSP-03`). Every channel this screen carries is recorded by hand
+ * today: RPAD from the acknowledgement card, the police and the court bailiff from
+ * their return. A channel whose status comes back by API would answer false here.
+ */
+export function outcomeRecordedByHand(channel: ProcessChannelId): boolean {
+  return channel === "rpad" || channel === "police" || channel === "court-bailiff";
+}
+
+/** The badge an outcome wears: reached, failed at the address, or never carried. */
+export function outcomeVariant(
+  status: ProcessOutcomeStatus,
+): "success" | "warning" | "destructive" {
+  return status === "delivered" ? "success" : status === "failed" ? "destructive" : "warning";
+}
+
+/** Whether an outcome can be saved: a status, a comment, and a reason if negative. */
+export function outcomeComplete(outcome: {
+  status?: ProcessOutcomeStatus;
+  reason?: string;
+  comment: string;
+}): boolean {
+  if (!outcome.status) return false;
+  if (outcome.status === "not-delivered" && !outcome.reason) return false;
+  return outcome.comment.trim() !== "";
+}
+
+/** Record what came back: the process closes on it and moves to Completed (`DSP-06`). */
+export function recordOutcome(
+  rows: CourtProcess[],
+  id: string,
+  outcome: ProcessOutcome,
+): CourtProcess[] {
+  return rows.map((process) =>
+    process.id === id && process.stage === "sent"
+      ? { ...process, stage: "completed", completedOn: outcome.recordedOn, outcome }
+      : process,
+  );
+}
 
 /** The court whose process this is. One bench, one line. */
 const COURT = CURRENT_STAFF.court;
@@ -358,15 +481,14 @@ export const PROCESS_STAGES: ProcessStage[] = [
     label: "Sent",
     summary: (count) =>
       count === 1
-        ? "1 process is out with its delivery channel."
-        : `${count} processes are out with their delivery channels.`,
+        ? "1 process is out with its delivery channel. Open it to record what came back."
+        : `${count} processes are out with their delivery channels. Open one to record what came back.`,
     dateColumn: "Sent on",
     dateOf: (process) => process.sentOn,
     hearingDateFilter: true,
-    /* Nothing on this screen moves a row out of Sent. What closes a round off is the
-       channel reporting back — an RPAD acknowledgement returned, a police or bailiff
-       return filed — which arrives from outside the court's own worklist. The tab is
-       therefore a record: readable, downloadable, and not actionable. */
+    /* No bulk act: an outcome is one process's, read off its own acknowledgement or
+       return, so it is recorded from the row's window (`recordOutcome`), one at a
+       time. Recording it moves the row to Completed. */
     empty: {
       title: "Nothing is out",
       description: "No process this court has sent is still with a channel.",
@@ -812,6 +934,34 @@ export const PROCESS_LINE: CourtProcess[] = [
     sentOn: "2026-08-20",
     hearingDate: "2026-09-20",
   },
+  /* One of each police-executed instrument out at once, so the Sent tab has a warrant,
+     a proclamation and an attachment to record an outcome on. */
+  {
+    id: "pr-1391",
+    caseNumber: "ST/1391/2026",
+    parties: { complainant: "Chavara Cashew Exporters", accused: "Sajeev Kumar R" },
+    type: "warrant",
+    channel: "police",
+    stage: "sent",
+    paidOn: "2026-08-01",
+    issuedOn: "2026-08-06",
+    signedOn: "2026-08-12",
+    sentOn: "2026-08-22",
+    hearingDate: "2026-09-25",
+  },
+  {
+    id: "pr-1392",
+    caseNumber: "ST/1392/2026",
+    parties: { complainant: "Paravur Fisheries Co-operative", accused: "Biju Thomas" },
+    type: "attachment",
+    channel: "police",
+    stage: "sent",
+    paidOn: "2026-08-02",
+    issuedOn: "2026-08-07",
+    signedOn: "2026-08-13",
+    sentOn: "2026-08-23",
+    hearingDate: "2026-09-27",
+  },
   {
     id: "pr-1675",
     caseNumber: "CMP/1675/2026",
@@ -892,6 +1042,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-27",
     sentOn: "2026-08-03",
     completedOn: "2026-08-18",
+    outcome: { status: "delivered", comment: "Acknowledgement card returned signed by the accused.", recordedOn: "2026-08-18" },
     hearingDate: "2026-09-14",
   },
   {
@@ -909,6 +1060,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-24",
     sentOn: "2026-07-31",
     completedOn: "2026-08-14",
+    outcome: { status: "not-delivered", reason: "Addressee not found at the address", comment: "Police report: the accused was not found at the address; neighbours say he has moved.", recordedOn: "2026-08-14" },
     hearingDate: "2026-09-22",
   },
   {
@@ -923,6 +1075,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-22",
     sentOn: "2026-07-29",
     completedOn: "2026-08-11",
+    outcome: { status: "delivered", comment: "Acknowledgement card returned.", fileName: "acknowledgement-card.pdf", recordedOn: "2026-08-11" },
     hearingDate: "2026-09-10",
   },
   {
@@ -937,6 +1090,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-20",
     sentOn: "2026-07-27",
     completedOn: "2026-08-07",
+    outcome: { status: "not-delivered", reason: "Refused to accept", comment: "Bailiff return: the accused refused to accept the summons.", recordedOn: "2026-08-07" },
     hearingDate: "2026-09-06",
   },
   {
@@ -951,6 +1105,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-17",
     sentOn: "2026-07-24",
     completedOn: "2026-08-04",
+    outcome: { status: "delivered", comment: "Proclamation affixed at the residence and the courthouse; report of compliance filed.", recordedOn: "2026-08-04" },
     hearingDate: "2026-09-29",
   },
   {
@@ -965,6 +1120,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     signedOn: "2026-07-15",
     sentOn: "2026-07-22",
     completedOn: "2026-07-30",
+    outcome: { status: "failed", comment: "Returned by the post office: the PIN code does not exist.", recordedOn: "2026-07-30" },
     hearingDate: "2026-09-05",
   },
 ];
@@ -1272,12 +1428,13 @@ export type ProcessDocument = {
 /**
  * Who each instrument is addressed to.
  *
- * A warrant commands an officer to arrest; everything else commands the accused to
+ * A warrant, proclamation or attachment is addressed to the police, who execute it
+ * (§6.3 of `handovers/process-handover.md`); everything else commands the accused to
  * appear. `docs/product/domain/actors.md` puts process execution with the police for a
- * §138 case, which is who a warrant is written to.
+ * §138 case.
  */
 function addresseeFor(process: CourtProcess): string {
-  if (process.type === "warrant") {
+  if (executes(process.type)) {
     return "To the officer in charge of the police station";
   }
   return `To ${process.parties.accused}, the accused`;
@@ -1320,6 +1477,11 @@ function paragraphsFor(process: CourtProcess): string[] {
       return [
         `Whereas a warrant issued by this court for the arrest of ${accused} has been returned unexecuted, and this court has reason to believe that the said ${accused} is absconding or concealing themselves so that the warrant cannot be executed,`,
         `a proclamation is published requiring the said ${accused} to appear before this court on ${returnable}. It shall be read publicly, affixed at the accused's last known place of residence and at this courthouse, and the officer publishing it shall report compliance to this court.`,
+      ];
+    case "attachment":
+      return [
+        `Whereas a proclamation has been issued requiring ${accused}, the accused in this case, to appear before this court, and the said ${accused} has not appeared, on the complaint of ${complainant},`,
+        `you are directed to attach the movable property belonging to the said ${accused} within the local limits of your jurisdiction, to hold it subject to the further orders of this court, and to report the manner of execution to this court on ${returnable}.`,
       ];
   }
 }

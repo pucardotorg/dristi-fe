@@ -7,6 +7,7 @@ import {
   tableBodyClass,
   tableRowClass,
 } from "@/components/chrome/table-plate";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -26,6 +27,8 @@ import {
   courtProcessTypeInline,
   courtProcessTypeLabel,
   formatProcessDate,
+  outcomeLabel,
+  outcomeVariant,
   processChannelLabel,
   type CourtProcess,
   type ProcessStage,
@@ -82,6 +85,8 @@ export function SignProcessTable({
   onToggleAll: (select: boolean) => void;
   onOpen: (process: CourtProcess) => void;
 }) {
+  /* What came back is the fact a Completed row exists to show (`DSP-08`). */
+  const showsOutcome = stage.id === "completed";
   const selectedOnPage = rows.filter((row) => selectedIds.has(row.id)).length;
   const allSelected = rows.length > 0 && selectedOnPage === rows.length;
   const someSelected = selectedOnPage > 0 && !allSelected;
@@ -125,6 +130,9 @@ export function SignProcessTable({
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Hearing date
           </TableHead>
+          {showsOutcome ? (
+            <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>Outcome</TableHead>
+          ) : null}
         </TableRow>
       </TableHeader>
       <TableBody className={tableBodyClass({ selectable: true })}>
@@ -133,7 +141,7 @@ export function SignProcessTable({
             `border-separate` has no per-edge row gap, so the gap is one inert row held
             out of the accessibility tree. */}
         <tr aria-hidden="true">
-          <td colSpan={COLUMNS} className="h-2 p-0" />
+          <td colSpan={COLUMNS + (showsOutcome ? 1 : 0)} className="h-2 p-0" />
         </tr>
         {rows.map((process) => {
           const selected = selectedIds.has(process.id);
@@ -197,6 +205,17 @@ export function SignProcessTable({
               >
                 {formatProcessDate(process.hearingDate)}
               </TableCell>
+              {showsOutcome ? (
+                <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                  {process.outcome ? (
+                    <Badge variant={outcomeVariant(process.outcome.status)}>
+                      {outcomeLabel(process.type, process.outcome.status)}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+              ) : null}
             </TableRow>
           );
         })}
