@@ -86,6 +86,7 @@ type FieldsProps = {
 export function ApplicationTypeFields(props: FieldsProps) {
   switch (props.draft.type) {
     case "advancement-reschedule":
+    case "postpone":
       return <AdvancementFields {...props} />;
     case "bail":
       return <BailFields {...props} />;
@@ -101,6 +102,8 @@ export function ApplicationTypeFields(props: FieldsProps) {
       return <TransferFields {...props} />;
     case "withdrawal":
       return <WithdrawalFields {...props} />;
+    case "objection":
+      return <ObjectionFields {...props} />;
     default:
       return null;
   }
@@ -780,6 +783,41 @@ function OthersFields(props: FieldsProps) {
         <FileField
           label="Document"
           description="Attach anything this application relies on."
+          files={draft.supportingFiles}
+          error={errors.fields.supportingFiles}
+          onFilesChange={(files) => actions.update("supportingFiles", files)}
+          onErrorChange={(error) =>
+            actions.setFieldError("supportingFiles", error)
+          }
+        />
+      </SectionCard>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------ objection --------- */
+
+/**
+ * The lifecycle document leaves an objection's own fields unspecified. Until they are,
+ * it asks for the least an objection can be: what is objected to and why, and anything
+ * it relies on. The application it answers is fixed by the File objection task.
+ */
+function ObjectionFields(props: FieldsProps) {
+  const { draft, errors, actions } = props;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <SectionCard title="Objection">
+        <RichField
+          label="Grounds of objection"
+          value={draft.details}
+          error={errors.fields.details}
+          onChange={(value) => actions.update("details", value)}
+        />
+
+        <FileField
+          label="Document"
+          description="Attach anything this objection relies on."
           files={draft.supportingFiles}
           error={errors.fields.supportingFiles}
           onFilesChange={(files) => actions.update("supportingFiles", files)}

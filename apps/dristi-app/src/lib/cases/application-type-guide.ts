@@ -28,7 +28,13 @@
  */
 import type { LucideIcon } from "lucide-react";
 import {
+  CalendarCheckIcon,
   CalendarDaysIcon,
+  KeyRoundIcon,
+  MessageSquareIcon,
+  PencilIcon,
+  StampIcon,
+  UserPlusIcon,
   FileSearchIcon,
   FileX2Icon,
   FolderOpenIcon,
@@ -82,26 +88,66 @@ export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
   },
   {
     id: "advancement-reschedule",
-    label: "Advancement/reschedule",
+    label: "Advance / prepone",
     description:
-      "Move a listed hearing earlier or later, with the dates you propose.",
+      "Ask for an earlier date for a listed hearing, with the dates you can attend.",
     icon: CalendarDaysIcon,
     keywords: [
       "advance",
       "advancement",
       "prepone",
-      "postpone",
+      "earlier date",
+      "sooner",
+      "bring forward",
       "reschedule",
+      "hearing",
+    ],
+  },
+  {
+    id: "postpone",
+    label: "Postpone",
+    description:
+      "Ask for a later date for a listed hearing, with the dates you can attend.",
+    icon: CalendarCheckIcon,
+    keywords: [
+      "postpone",
+      "postponement",
       "adjourn",
       "adjournment",
       "defer",
-      "hearing",
-      "earlier date",
       "later date",
-      "another date",
-      "change the date",
-      "next date",
+      "reschedule",
+      "hearing",
     ],
+  },
+  {
+    id: "addition-of-witness",
+    label: "Addition of witness",
+    description: "Ask for a witness to be added to the case.",
+    icon: UserPlusIcon,
+    keywords: ["witness", "add witness", "new witness", "examine"],
+  },
+  {
+    id: "certified-copy",
+    label: "Certified copy",
+    description:
+      "Ask for a certified true copy of an order, application or other case paper.",
+    icon: StampIcon,
+    keywords: ["certified", "copy", "true copy", "attested"],
+  },
+  {
+    id: "edit-litigant-details",
+    label: "Edit litigant details",
+    description: "Ask for a litigant's details in the case to be corrected.",
+    icon: PencilIcon,
+    keywords: ["edit", "correct", "correction", "litigant", "details", "address"],
+  },
+  {
+    id: "poa-change",
+    label: "PoA change",
+    description: "Ask for the power-of-attorney holder on the case to be changed.",
+    icon: KeyRoundIcon,
+    keywords: ["power of attorney", "poa", "attorney", "change holder"],
   },
   {
     id: "bail",
@@ -269,6 +315,13 @@ export const APPLICATION_TYPE_GUIDES: ApplicationTypeGuide[] = [
       "do not pursue",
       "cancel the filing",
     ],
+  },
+  {
+    id: "objection",
+    label: "Objection",
+    description: "State your objection to an application the other side has filed.",
+    icon: MessageSquareIcon,
+    keywords: ["objection", "object", "oppose", "reply"],
   },
   {
     id: "application-others",

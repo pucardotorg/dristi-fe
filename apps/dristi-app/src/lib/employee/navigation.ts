@@ -12,6 +12,8 @@ import {
   FolderIcon,
   HourglassIcon,
   LayoutDashboardIcon,
+  GavelIcon,
+  InboxIcon,
   ListChecksIcon,
   MessageSquareIcon,
   NotebookPenIcon,
@@ -353,6 +355,21 @@ export const COURT_NAV_GROUPS: CourtNavGroup[] = [
     label: "Review applications",
     icon: FileSearchIcon,
     items: [
+      /* First, and without counts: the lifecycle's own two queues, read from the
+         applications store in the browser, so the rail cannot know the numbers before
+         the screen loads. The three fixture queues below predate them. */
+      {
+        id: "onboard-applications",
+        label: "Onboard applications",
+        icon: InboxIcon,
+        href: "/employee/onboard-applications",
+      },
+      {
+        id: "decide-applications",
+        label: "Decide on applications",
+        icon: GavelIcon,
+        href: "/employee/decide-applications",
+      },
       {
         id: "rescheduling-request",
         label: "Rescheduling request",

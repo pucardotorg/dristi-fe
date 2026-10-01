@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
-import { HourglassIcon } from "lucide-react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { HourglassIcon, UserIcon } from "lucide-react";
 
 import { AddSignatureDialog } from "@/components/cases/add-signature-dialog";
 import {
@@ -18,9 +19,7 @@ import {
   useDraftExit,
 } from "@/components/cases/filing-form-shared";
 import { GeneratedApplicationDialog } from "@/components/cases/generated-application-dialog";
-import { BailApplicationDialog } from "@/components/filing/bail-application-dialog";
 import { Identifier } from "@/components/chrome/identifier";
-import { useLocale } from "@/components/shell/locale";
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
 import {
@@ -30,6 +29,8 @@ import {
 } from "@/components/shell/page-back-button";
 import { PAGE_TITLE } from "@/components/shell/page-frame";
 import { Badge } from "@/components/ui/badge";
+import { Banner } from "@/components/ui/banner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -65,6 +66,37 @@ import {
 } from "@/lib/cases/applications";
 import { caseSectionHref } from "@/lib/cases/sections";
 import {
+  attachedFileNames,
+  decodeDraft,
+  encodeDraft,
+  lostAttachments,
+} from "@/lib/applications/form-codec";
+import {
+  canCreate,
+  canSign,
+  pay,
+  proceedToSign,
+  sign,
+  typeAvailable,
+  type FilerSeat,
+  type LifecycleApplication,
+} from "@/lib/applications/lifecycle";
+import {
+  allotTemporaryId,
+  applyStep,
+  createDraft,
+  liveFormOf,
+  linkObjection,
+  saveForm,
+  seatOnCase,
+  today,
+  useApplicationsReady,
+  useLifecycleApplications,
+  useSandboxSeat,
+} from "@/lib/applications/store";
+import { seatPersonName } from "@/lib/applications/seat-names";
+import { viewerRepresentation } from "@/lib/cases/viewer";
+import {
   formatCaseDate,
   partiesLabel,
   stageLabel,
@@ -96,14 +128,71 @@ import { cn } from "@/lib/utils";
 export function RaiseApplicationForm({
   record,
   resume = null,
+  liveDraftId,
+  objectionToId,
   backHref,
 }: {
   record: CaseRecord;
   /** A saved draft reopened from the register; null starts a new filing. */
   resume?: Submission | null;
+  /** A draft raised in this browser, from the applications store. */
+  liveDraftId?: string;
+  /** Filing an objection from a File objection task: the application it answers. */
+  objectionToId?: string;
   /** Set when the filer came from the rail's case list; absent, back is the case. */
   backHref?: string;
 }) {
+  const apps = useLifecycleApplications();
+  const ready = useApplicationsReady();
+  const seat = seatOnCase(useSandboxSeat(), viewerRepresentation(record)[0]);
+  /* The store is this browser's, so the server cannot resolve a live draft. Wait
+     for the client's read rather than opening a blank form over a saved one. */
+  if ((liveDraftId || objectionToId) && !ready) {
+    return (
+      <div className="flex flex-col gap-4" aria-busy>
+        <span className="sr-only" role="status">
+          Loading the application
+        </span>
+        <Skeleton className="h-8 w-64 rounded-lg" />
+        <Skeleton className="h-40 w-full rounded-xl" />
+      </div>
+    );
+  }
+  const live = liveDraftId
+    ? apps.find((app) => app.id === liveDraftId && app.caseId === record.id)
+    : undefined;
+  const objectionTo = objectionToId
+    ? apps.find((app) => app.id === objectionToId && app.caseId === record.id)
+    : undefined;
+  return (
+    <RaiseApplicationFlow
+      key={`${live?.id ?? "new"}-${objectionTo?.id ?? ""}-${seat.side}-${seat.role}`}
+      record={record}
+      resume={resume}
+      live={live?.status === "draft" ? live : undefined}
+      objectionTo={objectionTo}
+      seat={seat}
+      backHref={backHref}
+    />
+  );
+}
+
+function RaiseApplicationFlow({
+  record,
+  resume,
+  live,
+  objectionTo,
+  seat,
+  backHref,
+}: {
+  record: CaseRecord;
+  resume: Submission | null;
+  live?: LifecycleApplication;
+  objectionTo?: LifecycleApplication;
+  seat: FilerSeat;
+  backHref?: string;
+}) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const formId = useId();
   /*
@@ -112,27 +201,28 @@ export function RaiseApplicationForm({
     whole reason "Continue draft" was worth wiring. The picker is still one
     click away on the Change type button.
   */
-  const [draft, setDraft] = useState<ApplicationDraft>(() =>
-    resume ? applicationDraftFrom(resume) : EMPTY_APPLICATION_DRAFT
-  );
+  const [draft, setDraft] = useState<ApplicationDraft>(() => {
+    if (live) {
+      return (liveFormOf(live.id) as ApplicationDraft | undefined) ?? decodeDraft(live.form);
+    }
+    if (objectionTo) return { ...EMPTY_APPLICATION_DRAFT, type: "objection" };
+    return resume ? applicationDraftFrom(resume) : EMPTY_APPLICATION_DRAFT;
+  });
+  /* The application in the store this form writes to — created on the first save. */
+  const [liveId, setLiveId] = useState<string | null>(live?.id ?? null);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const filesLost = Boolean(live && !liveFormOf(live.id) && lostAttachments(live.form));
   const [errors, setErrors] = useState<ApplicationErrors>(
     EMPTY_APPLICATION_ERRORS
   );
   /** Choosing the type is step one; its fields are step two. */
   const [stage, setStage] = useState<"type" | "details">(
-    resume && draft.type ? "details" : "type"
+    (resume || live || objectionTo) && draft.type ? "details" : "type"
   );
   const [generatedOpen, setGeneratedOpen] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
   /** What the filer typed into the header search; it re-orders the cards. */
   const [query, setQuery] = useState("");
-  /*
-    Bail keeps its own staged dialog (petitioner, sureties, review, sign, pay):
-    it opens over the chooser rather than as a second page, and it is told the
-    type, so it never asks for one.
-  */
-  const { locale } = useLocale();
-  const [bailOpen, setBailOpen] = useState(false);
   /* Some types are cards without a form yet: the details step shows a notice,
      never the fields, and never a Generate button. */
   const unbuilt = draft.type !== "" && isUnbuiltApplicationType(draft.type);
@@ -140,6 +230,66 @@ export function RaiseApplicationForm({
     draft.type || "application-others"
   );
   const caseHref = caseSectionHref(record.id, "applications");
+  const filerName = seatPersonName(record, seat);
+  const hearingScheduled = Boolean(record.nextHearing) && !record.disposal;
+  const available = useCallback(
+    (type: ApplicationTypeId) =>
+      typeAvailable(type, { side: seat.side, hearingScheduled }),
+    [seat.side, hearingScheduled]
+  );
+
+  /**
+   * Write the form to the store: a new draft on the first save, the same one after.
+   * Every later step — sign, pay — acts on the id this returns.
+   */
+  function persist(current: ApplicationDraft = draft): string {
+    const typeLabel = applicationTypeGuide(
+      (current.type || "application-others") as ApplicationTypeId
+    ).label;
+    const patch = {
+      form: encodeDraft(current),
+      documents: attachedFileNames(current),
+      type: current.type || "application-others",
+      typeLabel,
+    };
+    if (liveId) {
+      saveForm(liveId, patch, current);
+      return liveId;
+    }
+    const id = createDraft(
+      {
+        ...patch,
+        caseId: record.id,
+        side: seat.side,
+        createdBy: seat.role,
+        createdByName: filerName,
+        onBehalfOf: record.parties[seat.side],
+        objectionToId: objectionTo?.id,
+      },
+      current
+    );
+    setLiveId(id);
+    return id;
+  }
+
+  function saveDraft() {
+    persist();
+    setSavedNote(`Draft saved ${formatCaseDate(new Date().toISOString())}`);
+  }
+
+  const onSigned = useCallback(() => {
+    if (!liveId) return;
+    applyStep(liveId, (app) => sign(app, seat, filerName, today()));
+  }, [liveId, seat, filerName]);
+
+  function onPay(): string | null {
+    if (!liveId) return null;
+    const temporaryId = allotTemporaryId(record.caseNumber);
+    const result = applyStep(liveId, (app) => pay(app, seat, temporaryId, today()));
+    if (!result.ok) return null;
+    if (objectionTo) linkObjection(liveId, objectionTo.id);
+    return temporaryId;
+  }
   /* Anything typed, the chosen type aside: opening a form and closing it
      again untouched should not ask whether to throw work away. */
   const typedAnything = useMemo(
@@ -211,10 +361,6 @@ export function RaiseApplicationForm({
    * cost the work you did in the first.
    */
   function chooseType(type: ApplicationTypeId) {
-    if (type === "bail") {
-      setBailOpen(true);
-      return;
-    }
     actions.update("type", type);
     setStage("details");
   }
@@ -242,14 +388,25 @@ export function RaiseApplicationForm({
 
   /** Back to the chooser with a clean slate. */
   function closeForm() {
+    /* An objection has no chooser to return to — it was opened from its task. */
+    if (objectionTo) {
+      router.push(caseHref);
+      return;
+    }
+    setLiveId(null);
+    setSavedNote(null);
     setDiscardOpen(false);
     setDraft(EMPTY_APPLICATION_DRAFT);
     setErrors(EMPTY_APPLICATION_ERRORS);
     setStage("type");
   }
 
+  /* A saved draft is kept, not discarded: closing it saves what is on screen. */
   function requestCloseForm() {
-    if (typedAnything) setDiscardOpen(true);
+    if (liveId) {
+      persist();
+      closeForm();
+    } else if (typedAnything) setDiscardOpen(true);
     else closeForm();
   }
 
@@ -270,7 +427,9 @@ export function RaiseApplicationForm({
     else requestCloseForm();
   });
   const formTitle =
-    draft.type === "application-others"
+    draft.type === "objection"
+      ? "Objection"
+      : draft.type === "application-others"
       ? "Other application"
       : /application$/i.test(chosen.label)
         ? chosen.label
@@ -314,16 +473,37 @@ export function RaiseApplicationForm({
           </div>
         </header>
 
-        <ApplicationTypePicker
-          value=""
-          query={query}
-          suggested={suggestedApplicationTypes(
-            record.stage,
-            record.disposal !== undefined
-          )}
-          stageName={stageLabel(record.stage)}
-          onChoose={chooseType}
-        />
+        {canCreate(seat) ? (
+          <ApplicationTypePicker
+            value=""
+            query={query}
+            suggested={suggestedApplicationTypes(
+              record.stage,
+              record.disposal !== undefined
+            )}
+            stageName={stageLabel(record.stage)}
+            onChoose={chooseType}
+            available={available}
+          />
+        ) : (
+          /* "Users and actions": the advocate or party-in-person raises an
+             application, or a clerk drafts it for them. A litigant or PoA holder
+             pays for what is raised on their behalf. */
+          <Empty className="border border-dashed border-border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <UserIcon aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle className="text-body font-semibold">
+                Your advocate raises applications
+              </EmptyTitle>
+              <EmptyDescription>
+                Anything raised on your behalf appears in the case&apos;s
+                Applications tab, where you can pay its court fee.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
       </div>
 
       {/*
@@ -349,7 +529,7 @@ export function RaiseApplicationForm({
               </DialogTitle>
               {/* The same Draft chip the register uses, so the row you clicked
                   and the dialog you landed in are recognisably one filing. */}
-              {resume ? <Badge variant="warning">Draft</Badge> : null}
+              {resume || liveId ? <Badge variant="warning">Draft</Badge> : null}
             </div>
             <DialogDescription className="text-pretty">
               {chosen.description}
@@ -359,7 +539,19 @@ export function RaiseApplicationForm({
               <span aria-hidden> · </span>
               {partiesLabel(record)}
               {resume ? ` · Started ${formatCaseDate(resume.addedOn)}` : null}
+              {live ? ` · Started ${formatCaseDate(live.createdOn)}` : null}
             </p>
+            {objectionTo ? (
+              <p className="text-body-compact text-foreground">
+                Objecting to {objectionTo.typeLabel.toLowerCase()} application{" "}
+                {objectionTo.applicationNumber ? (
+                  <Identifier
+                    value={objectionTo.applicationNumber}
+                    label="application number"
+                  />
+                ) : null}
+              </p>
+            ) : null}
           </DialogHeader>
 
           {unbuilt ? (
@@ -384,6 +576,12 @@ export function RaiseApplicationForm({
               onSubmit={generate}
               className="min-h-0 flex-1 overflow-y-auto px-6 py-6"
             >
+              {filesLost ? (
+                <Banner variant="warning" className="mb-6">
+                  Attachments are not kept between visits in this prototype.
+                  Add them again before you generate the application.
+                </Banner>
+              ) : null}
               <ApplicationTypeFields
                 draft={draft}
                 errors={errors}
@@ -398,9 +596,22 @@ export function RaiseApplicationForm({
               {unbuilt ? "Close" : "Cancel"}
             </Button>
             {unbuilt ? null : (
-              <Button type="submit" form={formId}>
-                Generate application
-              </Button>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+                {savedNote ? (
+                  <p
+                    role="status"
+                    className="text-caption text-muted-foreground tabular-nums sm:mr-2"
+                  >
+                    {savedNote}
+                  </p>
+                ) : null}
+                <Button type="button" variant="outline" onClick={saveDraft}>
+                  Save draft
+                </Button>
+                <Button type="submit" form={formId}>
+                  {draft.type === "objection" ? "Generate objection" : "Generate application"}
+                </Button>
+              </div>
             )}
           </footer>
         </FlowDialogContent>
@@ -411,7 +622,13 @@ export function RaiseApplicationForm({
         onOpenChange={setGeneratedOpen}
         draft={draft}
         record={record}
+        side={seat.side}
         onAddSignature={() => {
+          // Draft → Pending signature: the form is final from here.
+          const id = persist();
+          applyStep(id, (app) =>
+            app.status === "draft" ? proceedToSign(app, today()) : app
+          );
           setGeneratedOpen(false);
           setSignatureOpen(true);
         }}
@@ -423,6 +640,10 @@ export function RaiseApplicationForm({
         onOpenChange={setSignatureOpen}
         draft={draft}
         record={record}
+        side={seat.side}
+        canSign={canSign(seat)}
+        onSigned={onSigned}
+        onPay={onPay}
         onBack={() => {
           setSignatureOpen(false);
           setGeneratedOpen(true);
@@ -435,20 +656,6 @@ export function RaiseApplicationForm({
           closeForm();
         }}
         onReturnFocus={returnFocusToGenerate}
-      />
-
-      <BailApplicationDialog
-        open={bailOpen}
-        // Closing, filed or not, stays on the chooser like every other type.
-        onOpenChange={setBailOpen}
-        accessCase={{
-          id: record.id,
-          title: partiesLabel(record),
-          caseNumber: record.caseNumber,
-          court: record.court,
-          nextHearing: record.nextHearing?.on ?? "",
-        }}
-        locale={locale}
       />
 
       <DiscardFilingDialog

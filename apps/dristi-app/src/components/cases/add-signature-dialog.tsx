@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2Icon,
   ClockIcon,
@@ -46,7 +46,6 @@ import {
 import { downloadGeneratedApplication } from "@/lib/cases/application-document";
 import { type ApplicationDraft } from "@/lib/cases/application-draft";
 import { applicationTypeGuide } from "@/lib/cases/application-type-guide";
-import { applicationsFile } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { Identifier } from "@/components/chrome/identifier";
 import { cn } from "@/lib/utils";
@@ -58,8 +57,10 @@ type SignatureStep =
   | "signed"
   | "payment"
   | "success"
-  /** Signed by nobody yet — Sign later and Notify senior both land here. */
-  | "pending";
+  /** Signed by nobody yet — Sign later, or a clerk leaving it for the advocate. */
+  | "pending"
+  /** Signed, fee not paid: nothing is with the court yet (`ALC-01`). */
+  | "unpaid";
 
 /**
  * The chain after Generate application, mirroring the legacy portal's
@@ -72,15 +73,15 @@ type SignatureStep =
  * Aadhaar e-sign runs the same labelled sandbox round trip those use, so the
  * screen never claims a real authentication; its failure screen is reachable.
  *
- * Sign later leaves the chain early: it does not
- * sign, so it never reaches payment — an unsigned application has nothing to
- * file yet. Both end on the same confirmation, which states the one thing
- * that is true of each, that the application waits in Applications as Pending
- * signature. Nothing here persists, so nothing claims a signature was taken.
+ * Sign later leaves the chain early: it does not sign, so it never reaches
+ * payment — an unsigned application has nothing to file yet. A clerk gets only
+ * that way out: only the advocate signs.
  *
- * Payment is deliberately not designed: Make payment marks the fee paid on
- * the spot (product's ask), and Skip leaves the submission pending payment —
- * the same state the Applications register already models.
+ * Every step is recorded on the application in the applications store
+ * (`lib/applications/store.ts`): signing moves it to Pending payment, paying
+ * files it. Only a paid application is with the court (`ALC-01`) — Pay later
+ * ends on a Pending payment confirmation, never on "submitted". Payment itself
+ * is not designed: Make payment marks the fee paid on the spot (product's ask).
  */
 export function AddSignatureDialog({
   open,
@@ -90,11 +91,22 @@ export function AddSignatureDialog({
   onBack,
   onComplete,
   onReturnFocus,
+  canSign,
+  onSigned,
+  onPay,
+  side,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: ApplicationDraft;
   record: CaseRecord;
+  /** Only the advocate/PiP signs; a clerk leaves it for them ("Users and actions"). */
+  canSign: boolean;
+  /** The signature is taken — the application moves to Pending payment. */
+  onSigned: () => void;
+  /** The fee is paid — returns the temporary identifier the filing was allotted. */
+  onPay: () => string | null;
+  side?: "complainant" | "accused";
   /** Return to the generated-application dialog. */
   onBack: () => void;
   /** The chain is done — leave for the Applications register. */
@@ -105,7 +117,13 @@ export function AddSignatureDialog({
   const [step, setStep] = useState<SignatureStep>("method");
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | undefined>(undefined);
-  const [paid, setPaid] = useState(false);
+  const [temporaryId, setTemporaryId] = useState<string | null>(null);
+  /* The sandbox round trip must not restart because the parent re-rendered with a
+     fresh callback, so the timer reads the latest one through a ref. */
+  const onSignedRef = useRef(onSigned);
+  useEffect(() => {
+    onSignedRef.current = onSigned;
+  }, [onSigned]);
   const [aadhaar, setAadhaar] = useState<"authenticating" | "failure">(
     "authenticating",
   );
@@ -119,21 +137,12 @@ export function AddSignatureDialog({
    */
   useEffect(() => {
     if (!open || step !== "aadhaar" || aadhaar !== "authenticating") return;
-    const timer = setTimeout(() => setStep("signed"), 2000);
+    const timer = setTimeout(() => {
+      onSignedRef.current();
+      setStep("signed");
+    }, 2000);
     return () => clearTimeout(timer);
   }, [open, step, aadhaar]);
-
-  /**
-   * The next application number this case would allot — existing
-   * applications plus one, in the legacy's {case}-AP{n} shape. Dummy, but
-   * grounded in what the register already holds rather than invented.
-   */
-  const submissionId = useMemo(() => {
-    const count = applicationsFile(record).submissions.filter(
-      (submission) => submission.kind === "application",
-    ).length;
-    return `${record.caseNumber}-AP${count + 1}`;
-  }, [record]);
 
   /**
    * Swapping the step replaces the dialog's content wholesale; landing focus
@@ -149,7 +158,7 @@ export function AddSignatureDialog({
     setStep("method");
     setFile(null);
     setFileError(undefined);
-    setPaid(false);
+    setTemporaryId(null);
     setAadhaar("authenticating");
   }
 
@@ -163,7 +172,7 @@ export function AddSignatureDialog({
       // Once a confirmation is up, closing is finishing — dropping back into
       // the filled form after the screen said the application was submitted,
       // saved, or sent to a senior would contradict what was just shown.
-      if (step === "success" || step === "pending") {
+      if (step === "success" || step === "pending" || step === "unpaid") {
         finish();
         return;
       }
@@ -214,8 +223,8 @@ export function AddSignatureDialog({
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
             <SuccessContent
               titleRef={titleRef}
-              paid={paid}
-              submissionId={submissionId}
+              temporaryId={temporaryId}
+              objection={draft.type === "objection"}
             />
           </div>
         ) : step === "pending" ? (
@@ -239,11 +248,14 @@ export function AddSignatureDialog({
                   tabIndex={-1}
                   className="text-body font-semibold text-balance outline-none"
                 >
-                  Saved. Waiting for your signature
+                  {canSign
+                    ? "Saved. Waiting for your signature"
+                    : "Saved. Waiting for the advocate\u2019s signature"}
                 </DialogTitle>
                 <DialogDescription>
-                  Nothing has gone to the court yet. Sign it from the
-                  case&apos;s Applications tab when you are ready.
+                  {canSign
+                    ? "Nothing has gone to the court yet. Sign it from the case\u2019s Applications tab when you are ready."
+                    : "Nothing has gone to the court yet. It is in the advocate\u2019s Needs attention list on the case\u2019s Applications tab."}
                 </DialogDescription>
               </div>
             </div>
@@ -271,6 +283,35 @@ export function AddSignatureDialog({
                 </dd>
               </div>
             </dl>
+          </div>
+        ) : step === "unpaid" ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6 pr-12">
+            <div className="flex items-center gap-4">
+              <span
+                aria-hidden
+                className="flex size-14 shrink-0 items-center justify-center rounded-full bg-warning-muted text-warning-muted-foreground"
+              >
+                <ClockIcon className="size-7" />
+              </span>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <DialogTitle
+                  ref={titleRef}
+                  tabIndex={-1}
+                  className="text-body font-semibold text-balance outline-none"
+                >
+                  Signed. Waiting for payment
+                </DialogTitle>
+                <DialogDescription>
+                  Nothing is with the court until the court fee is paid. You,
+                  your clerk, the litigant or their PoA holder can pay it from
+                  the case&apos;s Applications tab.
+                </DialogDescription>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg bg-surface-sunken px-4 py-2.5 text-body-compact">
+              <span className="text-muted-foreground">Status</span>
+              <Badge variant="warning">Pending payment</Badge>
+            </div>
           </div>
         ) : step === "aadhaar" && aadhaar === "authenticating" ? (
           <div className="flex flex-col items-center gap-4 px-6 py-12 text-center">
@@ -364,7 +405,23 @@ export function AddSignatureDialog({
                 step === "payment" && "bg-surface-sunken",
               )}
             >
-              {step === "method" ? (
+              {step === "method" && !canSign ? (
+                <>
+                  <Banner variant="info">
+                    Only the advocate signs an application. You can prepare
+                    it and pay for it; the signature is theirs.
+                  </Banner>
+                  <SignMethodCard
+                    icon={<ClockIcon className="size-5" />}
+                    tone="neutral"
+                    title="Leave it for the advocate to sign"
+                    description="Saved unsigned. It waits in Applications as Pending signature."
+                    onClick={() => setStep("pending")}
+                  />
+                </>
+              ) : null}
+
+              {step === "method" && canSign ? (
                 <>
                   {/* Two ways to sign now, two ways not to. One list, because
                       they answer one question: what happens to the signature
@@ -402,7 +459,7 @@ export function AddSignatureDialog({
                     type="button"
                     variant="link"
                     className="mt-3 h-auto self-start p-0"
-                    onClick={() => downloadGeneratedApplication(draft, record)}
+                    onClick={() => downloadGeneratedApplication(draft, record, side)}
                   >
                     <DownloadIcon data-icon="inline-start" aria-hidden />
                     Download this application
@@ -472,6 +529,7 @@ export function AddSignatureDialog({
                   setFileError("Upload the signed application to continue.");
                   return;
                 }
+                onSigned();
                 setStep("signed");
               }}
             >
@@ -482,8 +540,14 @@ export function AddSignatureDialog({
 
         {step === "signed" ? (
           <footer className={FOOTER}>
-            <Button type="button" variant="outline" onClick={backToMethods}>
-              Back
+            {/* Signed is signed: there is no way back to the methods, only on to
+                payment now or later. */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep("unpaid")}
+            >
+              Pay later
             </Button>
             <Button type="button" onClick={() => setStep("payment")}>
               Proceed to payment
@@ -508,17 +572,14 @@ export function AddSignatureDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                setPaid(false);
-                setStep("success");
-              }}
+              onClick={() => setStep("unpaid")}
             >
-              Skip
+              Pay later
             </Button>
             <Button
               type="button"
               onClick={() => {
-                setPaid(true);
+                setTemporaryId(onPay());
                 setStep("success");
               }}
             >
@@ -532,20 +593,29 @@ export function AddSignatureDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => downloadGeneratedApplication(draft, record)}
+              onClick={() => downloadGeneratedApplication(draft, record, side)}
             >
               <DownloadIcon data-icon="inline-start" aria-hidden />
               Download submission
             </Button>
-            {paid ? (
-              <Button type="button" onClick={finish}>
-                Done
-              </Button>
-            ) : (
-              <Button type="button" onClick={() => setPaid(true)}>
-                Make payment
-              </Button>
-            )}
+            <Button type="button" onClick={finish}>
+              Done
+            </Button>
+          </footer>
+        ) : null}
+
+        {step === "unpaid" ? (
+          <footer className={FOOTER}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep("payment")}
+            >
+              Pay now
+            </Button>
+            <Button type="button" onClick={finish}>
+              Done
+            </Button>
           </footer>
         ) : null}
       </FlowDialogContent>
@@ -560,12 +630,12 @@ export function AddSignatureDialog({
  */
 function SuccessContent({
   titleRef,
-  paid,
-  submissionId,
+  temporaryId,
+  objection,
 }: {
   titleRef: React.Ref<HTMLHeadingElement>;
-  paid: boolean;
-  submissionId: string;
+  temporaryId: string | null;
+  objection: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -585,23 +655,17 @@ function SuccessContent({
             tabIndex={-1}
             className="text-body font-semibold text-balance outline-none"
           >
-            Application submitted
+            {objection ? "Objection submitted" : "Application filed"}
           </DialogTitle>
           <DialogDescription>
-            It is with the court now. Track it in the case&apos;s Applications
-            tab.
+            {objection
+              ? "It is on the record, and the court reads it with the application it answers."
+              : "It is with the court now. The court allots the application number when it takes the application on file."}
           </DialogDescription>
         </div>
       </div>
 
-      {paid ? (
-        <Banner variant="success">Court fee of {COURT_FEE} paid.</Banner>
-      ) : (
-        <Banner variant="warning">
-          Payment pending — this application moves forward once the court fee is
-          paid.
-        </Banner>
-      )}
+      <Banner variant="success">Court fee of {COURT_FEE} paid.</Banner>
 
       <DescriptionList className="rounded-lg bg-surface-sunken px-4 py-1">
         <DescriptionRow className="grid-cols-[1fr_auto] items-center">
@@ -612,16 +676,16 @@ function SuccessContent({
             {formatCaseDate(new Date().toISOString())}
           </DescriptionDetails>
         </DescriptionRow>
-        <DescriptionRow className="grid-cols-[1fr_auto] items-center">
-          <DescriptionTerm className="text-body-compact">
-            Submission ID
-          </DescriptionTerm>
-          {/* The value is its own copy control now, so the icon button beside it
-              went with the conversion — same confirmation, one thing to hit. */}
-          <DescriptionDetails className="flex items-center gap-2 text-body-compact font-medium">
-            <Identifier value={submissionId} label="submission id" />
-          </DescriptionDetails>
-        </DescriptionRow>
+        {temporaryId ? (
+          <DescriptionRow className="grid-cols-[1fr_auto] items-center">
+            <DescriptionTerm className="text-body-compact">
+              Temporary identifier
+            </DescriptionTerm>
+            <DescriptionDetails className="flex items-center gap-2 text-body-compact font-medium">
+              <Identifier value={temporaryId} label="temporary identifier" />
+            </DescriptionDetails>
+          </DescriptionRow>
+        ) : null}
       </DescriptionList>
     </div>
   );
