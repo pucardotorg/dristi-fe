@@ -402,23 +402,29 @@ function PayFlow({ ctx }: { ctx: ActContext }) {
           </div>
         </div>
 
-        {/* One footer row: what it means on the left, what to do about it on the right
-            (owner, 2026-09-20). Two stacked full-width blocks left the modal ending in a
-            lot of vertical nothing, and the sentence and the button are answering the
-            same moment. Below `sm` it stacks — the failed body runs to two lines at phone
-            width and would crush a pair of buttons beside it. */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <p className="text-body-compact text-muted-foreground sm:flex-1">{answer.body}</p>
-          <div className="flex flex-col-reverse gap-2 sm:shrink-0 sm:flex-row">
-            {answered.result === "failed" ? (
-              <Button variant="outline" disabled={!!busy} onClick={retry}>
-                Try again
-              </Button>
-            ) : null}
-            <Button disabled={!!busy} onClick={close}>
-              {answered.result === "failed" ? "Close" : "Done"}
+        {/* The sentence, then the button, for all three outcomes (owner, 2026-10-05). This
+            replaces the 2026-09-20 row with the sentence beside the button; the button keeps
+            that row's size and right edge from `sm`, and is full width below it.
+
+            The sentence comes first because it is what makes the button safe to press —
+            "no money left the account" before Try again, "Do not pay again" before Done —
+            and only the headline is announced, so order is all that gets it read first.
+            Unlike the note under Pay, it is the message, not a side condition.
+
+            A failure has one action, and it is the primary: the fee is still owed. Leaving
+            is the dialog's own close control — a footer Close beside it was the same exit
+            twice (owner, 2026-10-05). */}
+        <div className="flex flex-col gap-3">
+          <p className="text-body-compact text-muted-foreground">{answer.body}</p>
+          {answered.result === "failed" ? (
+            <Button className="sm:self-end" disabled={!!busy} onClick={retry}>
+              Try again
             </Button>
-          </div>
+          ) : (
+            <Button className="sm:self-end" disabled={!!busy} onClick={close}>
+              Done
+            </Button>
+          )}
         </div>
       </div>
     );
