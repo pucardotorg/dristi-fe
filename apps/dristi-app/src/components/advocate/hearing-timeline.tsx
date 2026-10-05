@@ -608,7 +608,7 @@ function HearingRow({
                 (then with that day), wears the tag wherever it now sits. */}
             {hearing.passedOver ? (
               <span className="inline-flex shrink-0 items-center rounded-full border border-warning px-2 py-0.5 text-caption font-medium text-warning-ink">
-                {passedOverLabel(hearing.passedOverOn, locale)}
+                {passedOverLabel(locale)}
               </span>
             ) : null}
           </div>

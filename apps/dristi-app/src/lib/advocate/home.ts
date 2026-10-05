@@ -868,13 +868,12 @@ export function railCaseLineOf(world: World, task: Task): string {
 }
 
 /**
- * The rail's week view: needs-action tasks bucketed by when their consequence
- * lands — overdue, today, tomorrow, then one bucket per day for the rest of the
- * coming week. The bucket header carries the date, so the cards inside do not
- * repeat it. Tasks due beyond the week (or with no date) are left to /tasks;
- * the rail's footer names the full count.
+ * The rail's near view: needs-action tasks bucketed by when their consequence
+ * lands. The bucket header carries the date words, so the cards inside do not
+ * repeat them. Tasks due beyond the next three days (or with no date) are left
+ * to /tasks; the rail's footer names the full count.
  */
-export type RailGroupKey = "today" | "soon" | "week";
+export type RailGroupKey = "today" | "soon";
 
 export type RailGroup = {
   key: RailGroupKey;
@@ -882,25 +881,23 @@ export type RailGroup = {
 };
 
 /**
- * Three buckets, no more: due today (overdue folded in — an overdue task is due
- * today most of all, and its card keeps the day count), the next three days,
- * and the rest of the week. The bucket header carries the date words, so the
- * cards inside do not repeat them; past the week is /tasks' business.
+ * Two buckets, no more: due today (overdue folded in — an overdue task is due
+ * today most of all, and its card keeps the day count) and the next three days.
+ * Anything later is /tasks' business: a home that lists the whole week reads as
+ * a second task list rather than what needs doing now.
  */
 export function railGroups(world: World, now: number = Date.now()): RailGroup[] {
-  const buckets: Record<RailGroupKey, Task[]> = { today: [], soon: [], week: [] };
+  const buckets: Record<RailGroupKey, Task[]> = { today: [], soon: [] };
   const todayKey = dayKeyOf(now);
   const soonEnd = dayKeyOf(now + 3 * DAY_MS);
-  const weekEnd = dayKeyOf(now + 7 * DAY_MS);
 
   for (const task of railTasks(world)) {
     const at = consequenceAt(task);
     if (!at) continue;
     const key = dayKeyOf(at);
-    if (key > weekEnd) continue;
+    if (key > soonEnd) continue;
     if (key <= todayKey) buckets.today.push(task);
-    else if (key <= soonEnd) buckets.soon.push(task);
-    else buckets.week.push(task);
+    else buckets.soon.push(task);
   }
 
   return (Object.keys(buckets) as RailGroupKey[])

@@ -270,8 +270,7 @@ function WhenBlock({
 function groupLabel(locale: Locale, group: TaskPanelGroup): string {
   if (group.key === "related") return pick({ en: "Other tasks for this hearing", ml: "ഈ ഹിയറിങ്ങിന്റെ മറ്റ് ജോലികൾ" }, locale);
   if (group.key === "today") return pick(advHome.groupToday, locale);
-  if (group.key === "soon") return pick(advHome.groupSoon, locale);
-  return pick(advHome.groupWeek, locale);
+  return pick(advHome.groupSoon, locale);
 }
 
 /**
@@ -609,7 +608,7 @@ function TasksPanel({
       <TaskTraceStyles />
       <PanelHeader
         title={pick(advHome.railTitle, locale)}
-        caption={related.length ? pick({ en: "Due in the next 7 days and tasks for this hearing", ml: "അടുത്ത 7 ദിവസത്തെ ജോലികളും ഈ ഹിയറിങ്ങിന്റെ ജോലികളും" }, locale) : pick(advHome.railScope, locale)}
+        caption={related.length ? pick({ en: "Due in the next 3 days and tasks for this hearing", ml: "അടുത്ത 3 ദിവസത്തെ ജോലികളും ഈ ഹിയറിങ്ങിന്റെ ജോലികളും" }, locale) : pick(advHome.railScope, locale)}
         locale={locale}
         onClose={onClose}
       />

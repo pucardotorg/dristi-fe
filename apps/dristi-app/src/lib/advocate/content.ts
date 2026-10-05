@@ -274,11 +274,11 @@ export const advHome = {
 
   /* Companion rail */
   railTitle: t("Pending tasks", "ബാക്കിയുള്ള ജോലികൾ"),
-  /** The panel lists the coming week; the strip's badge counts every open task.
-      The two can never agree, so the header says which one this is. */
+  /** The panel lists today and the next three days; the strip's badge counts every
+      open task. The two can never agree, so the header says which one this is. */
   railScope: t(
-    "Due in the next 7 days",
-    "അടുത്ത 7 ദിവസത്തിനുള്ളിൽ അവസാനിക്കുന്നവ",
+    "Due in the next 3 days",
+    "അടുത്ത 3 ദിവസത്തിനുള്ളിൽ അവസാനിക്കുന്നവ",
   ),
   prepTitle: t(
     "Important upcoming hearings",
@@ -306,7 +306,6 @@ export const advHome = {
   viewCase: t("View case", "കേസ് കാണുക"),
   groupToday: t("Due today", "ഇന്ന് അവസാനം"),
   groupSoon: t("Next 3 days", "അടുത്ത 3 ദിവസം"),
-  groupWeek: t("Later this week", "ഈ ആഴ്ച പിന്നീട്"),
   railResize: t("Resize the pending tasks rail", "പാനലിന്റെ വീതി ക്രമീകരിക്കുക"),
   railOpen: t("Open pending tasks, {n} need action", "ബാക്കിയുള്ള ജോലികൾ തുറക്കുക, {n} എണ്ണം"),
   railCollapse: t("Collapse pending tasks", "ജോലികളുടെ പാനൽ ചുരുക്കുക"),
@@ -391,7 +390,6 @@ export const advHome = {
      passed-over concluded matters carry this tag (completed ones need none, since
      concluded means completed); the cause list makes it a fourth status. */
   statusPassedOver: t("Passed over", "മാറ്റിവെച്ചു"),
-  statusPassedOverOn: t("Passed over on {date}", "{date}-ന് മാറ്റിവെച്ചു"),
   approxNote: t(
     "Times are approximate unless the court has fixed a slot.",
     "കോടതി സമയം നിശ്ചയിച്ചിട്ടില്ലെങ്കിൽ സമയം ഏകദേശമാണ്.",

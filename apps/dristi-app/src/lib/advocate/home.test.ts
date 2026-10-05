@@ -441,7 +441,7 @@ describe("weekOf anchor", () => {
 });
 
 describe("railGroups", () => {
-  it("buckets into exactly today (overdue folded in), next 3 days, and the week", () => {
+  it("buckets into exactly today (overdue folded in) and the next 3 days", () => {
     const w = world(
       [kase],
       [
@@ -460,7 +460,6 @@ describe("railGroups", () => {
       [
         ["today", ["t-over", "t-today"]],
         ["soon", ["t-tomorrow", "t-day3"]],
-        ["week", ["t-day5"]],
       ]
     );
   });
