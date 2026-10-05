@@ -58,12 +58,12 @@ function AdvocatePage() {
             /* The dialog's done-stage reports the outcome; Your Cases will surface a
                joined case once that screen is built on this shell. */
           }}
-          onJoinAsLitigant={() => {
+          onJoinAsLitigant={(kind) => {
             setDialogOpen(false);
-            // Discovering mid-journey that you are a party hands off to the litigant
-            // home's own join flow, as the same profile switch the rail's foot offers.
+            // Discovering mid-journey that you are a party (or their PoA holder) hands
+            // off to the litigant flow with this case already found (JOIN-20).
             switchProfile();
-            router.push("/home?join=manual");
+            router.push(`/home?join=handoff&as=${kind}`);
           }}
         />
       ) : null}

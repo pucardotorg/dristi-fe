@@ -6,7 +6,6 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckCircle2Icon,
-  FilePlus2Icon,
   HourglassIcon,
   PlusIcon,
   SearchIcon,
@@ -53,9 +52,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  DescriptionDetails,
+  DescriptionList,
+  DescriptionRow,
+  DescriptionTerm,
+} from "@/components/ui/description-list";
 import {
   CaseDetails,
   CaseTitleWithOthers,
@@ -66,10 +69,8 @@ import {
   DocumentThumbnailButton,
   useObjectUrl,
 } from "@/components/document-preview";
-import { VakalatnamaPicker } from "@/components/advocate/vakalatnama-picker";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import {
-  caseDetails,
   fill,
   joinDialog,
   type CaseParty,
@@ -80,9 +81,10 @@ import {
   BAR_DIRECTORY,
   COMPLAINANT_PARTIES,
   SIDE_ADVOCATES,
-  VAKALATNAMAS,
+  VAKALATNAMA_FEE_PAISE,
   ADVOCATE_JOIN_CASE,
 } from "@/lib/advocate/content";
+import { rupees } from "@/lib/tasks/format";
 import { Identifier } from "@/components/chrome/identifier";
 
 /**
@@ -94,32 +96,35 @@ import { Identifier } from "@/components/chrome/identifier";
  * or a litigant?" question is gone: sign-in answered it.
  *
  * Stages (manual): lookup → access code → details → account → representation → litigant
- * details (paged) → vakalatnama → outcome. The access code gates the case details: an
- * advocate must prove they hold the litigant's six-digit code before any case data is
- * shown. (Summons mode arrives pre-verified from the unique link, so it opens on details
- * and skips the code.) Departures from legacy, all agreed Aug 14:
- * · "Which litigant(s)" moved up to follow the side question, and is multi-select —
- *   one vakalatnama routinely covers co-accused.
- * · The replacement questions (approver, reason, document) appear only after a "yes".
- * · A not-yet-paid vakalatnama never blocks joining — the fee becomes a pending task.
- * · The vakalatnama can be picked from the portal's generated library (with preview)
- *   instead of uploaded; generation itself lives elsewhere in the portal.
+ * contact → vakalatnama → payment → outcome. The access code gates the case details:
+ * an advocate must prove they hold the litigant's six-digit code before any case data
+ * is shown. (Summons mode arrives pre-verified from the unique link, so it opens on
+ * details and skips the code.)
  *
- * Outcomes: accused-side, no replacement → joined immediately. Complainant-side or
- * any replacement → request raised, approver must clear it.
+ * Join a Case handover V1 (dristi-be/PRDs/join-a-case-handover.md):
+ * · No approvals and no replacement (JOIN-41) — the advocate always joins alongside
+ *   anyone already on record, on either side.
+ * · "Which litigant(s)" is multi-select, auto-picked when the side has one (JOIN-40).
+ * · The vakalatnama is always uploaded (JOIN-50/51); generated ones come later.
+ * · Payment happens inside the flow and is the only gate (JOIN-54/55). Leaving before
+ *   paying turns it into a pending task, with no access until it is paid. An advocate
+ *   joining a vakalatnama another advocate already paid for does not pay.
+ * · Choosing Litigant or PoA holder switches profile and carries on with this case in
+ *   the litigant flow (JOIN-18/20).
  */
 
-type Stage = "lookup" | "details" | "account" | "code" | "role" | "verify" | "vakalatnama" | "done";
+type Stage = "lookup" | "details" | "account" | "code" | "role" | "verify" | "vakalatnama" | "pay" | "done";
 type Side = "complainant" | "accused" | "";
 type YesNo = "yes" | "no" | "";
+
+type AccountRole = "advocate" | "litigant" | "poa";
 
 export type AdvocateJoinResult = {
   joinCase: JoinCase;
   side: "complainant" | "accused";
   parties: CaseParty[];
-  replacing: boolean;
-  approver: "judge" | "advocates" | null;
-  /** True when access is immediate; false when an approver must clear the request. */
+  /** True once access is granted: the fee is paid, or another advocate already paid
+   *  for this vakalatnama. False leaves a pending payment task and no access. */
   joined: boolean;
 };
 
@@ -247,7 +252,8 @@ export function AdvocateJoinCaseDialog({
   summonsCase?: JoinCase;
   locale: Locale;
   onJoined: (result: AdvocateJoinResult) => void;
-  onJoinAsLitigant: () => void;
+  /** The person chose Litigant or PoA holder; continue this case in the litigant flow. */
+  onJoinAsLitigant: (kind: "self" | "poa") => void;
 }) {
   const initialStage: Stage = mode === "summons" ? "details" : "lookup";
   const [stage, setStage] = React.useState<Stage>(initialStage);
@@ -259,7 +265,7 @@ export function AdvocateJoinCaseDialog({
 
   const [code, setCode] = React.useState("");
   const [codeTouched, setCodeTouched] = React.useState(false);
-  const [accountRole, setAccountRole] = React.useState<"advocate" | "litigant">("advocate");
+  const [accountRole, setAccountRole] = React.useState<AccountRole>("advocate");
   const [switchingProfile, setSwitchingProfile] = React.useState(false);
   const switchTimerRef = React.useRef<number | null>(null);
 
@@ -268,11 +274,6 @@ export function AdvocateJoinCaseDialog({
   const [side, setSide] = React.useState<Side>(mode === "summons" ? "accused" : "");
   const [partyIds, setPartyIds] = React.useState<string[]>([]);
   const partyAnchor = useComboboxAnchor();
-  const [replacing, setReplacing] = React.useState<YesNo>("");
-  const [replacedAdvocate, setReplacedAdvocate] = React.useState("");
-  const [approver, setApprover] = React.useState<"judge" | "advocates" | "">("");
-  const [reason, setReason] = React.useState("");
-  const [supportFile, setSupportFile] = React.useState<File | null>(null);
   const [roleTouched, setRoleTouched] = React.useState(false);
 
   // Contact capture (only for litigants not yet on the case), keyed by party id.
@@ -284,11 +285,13 @@ export function AdvocateJoinCaseDialog({
   const [vkAdvocates, setVkAdvocates] = React.useState<string[]>([]);
   const [vkAdvOpen, setVkAdvOpen] = React.useState(false);
   const vkAdvAnchor = useComboboxAnchor();
-  const [vkTab, setVkTab] = React.useState<"upload" | "saved">("upload");
   const [vkFile, setVkFile] = React.useState<File | null>(null);
-  const [vkSavedId, setVkSavedId] = React.useState("");
   const [vkTouched, setVkTouched] = React.useState(false);
-  const [vkGenerateNotice, setVkGenerateNotice] = React.useState(false);
+
+  const [payOutcome, setPayOutcome] = React.useState<"success" | "failed">("success");
+  const [payFailed, setPayFailed] = React.useState(false);
+  const payFailedRef = React.useRef<HTMLDivElement>(null);
+  const [outcome, setOutcome] = React.useState<"joined" | "unpaid">("joined");
 
   const [teamPhones, setTeamPhones] = React.useState<string[]>([]);
   const [teamInvited, setTeamInvited] = React.useState<string[]>([]);
@@ -304,15 +307,10 @@ export function AdvocateJoinCaseDialog({
       : side === "accused"
         ? (joinCase?.accused ?? [])
         : [];
-  const sideAdvocates = side ? SIDE_ADVOCATES[side] : [];
   const selectedParties = sideParties.filter((party) => partyIds.includes(party.id));
   // Only litigants not already on the case need a contact number entered — the system
   // already holds one for anyone who has joined.
   const contactParties = selectedParties.filter((party) => !party.hasJoined);
-  // A side with nobody on record leaves only the judge to approve the change; the
-  // choice is made for the person rather than presented as a dead radio button.
-  const judgeOnly = replacing === "yes" && sideAdvocates.length === 0;
-  const effectiveApprover = judgeOnly ? "judge" : approver;
 
   // The "another advocate already uploaded a vakalatnama" question only makes sense
   // once some advocate is already on the case; the first advocate to join skips it.
@@ -320,21 +318,31 @@ export function AdvocateJoinCaseDialog({
     SIDE_ADVOCATES.complainant.length + SIDE_ADVOCATES.accused.length > 0;
   const effectiveAnother: YesNo = otherAdvocatesOnCase ? vkAnother : "no";
   // "No" (or first advocate) means this is a fresh vakalatnama the advocate names the
-  // co-advocates on; "yes" means they are joining one already uploaded.
-  const needsCoAdvocates = vkTab === "upload" && effectiveAnother === "no";
+  // co-advocates on and pays for; "yes" means another advocate already paid for it, so
+  // this advocate uploads it but does not pay (JOIN-51).
+  const needsCoAdvocates = effectiveAnother === "no";
+  const feeDue = effectiveAnother === "no";
   const vkCountValid = /^[1-9]\d*$/.test(vkCount.trim());
   const vkCountN = vkCountValid ? Number.parseInt(vkCount.trim(), 10) : 0;
   const vkAdvAtCapacity = vkCountValid && vkAdvocates.length >= vkCountN;
   const coAdvocatesComplete = !needsCoAdvocates || (vkCountValid && vkAdvocates.length === vkCountN);
 
-  const vkAttached = vkTab === "upload" ? Boolean(vkFile) : Boolean(vkSavedId);
-  const pendingOutcome = side === "complainant" || replacing === "yes";
+  const vkAttached = Boolean(vkFile);
+  const unpaidOutcome = stage === "done" && outcome === "unpaid";
+  const fee = rupees(VAKALATNAMA_FEE_PAISE);
   const isSummonsIntro = mode === "summons" && stage === "details";
   const teamValid = teamInput.length === 10;
 
   React.useEffect(() => () => {
     if (switchTimerRef.current !== null) window.clearTimeout(switchTimerRef.current);
   }, []);
+
+  // A failed payment announces itself and takes focus; the person stays on the step.
+  React.useEffect(() => {
+    if (!payFailed) return;
+    const id = window.requestAnimationFrame(() => payFailedRef.current?.focus());
+    return () => window.cancelAnimationFrame(id);
+  }, [payFailed]);
 
   function reset() {
     setStage(initialStage);
@@ -350,11 +358,6 @@ export function AdvocateJoinCaseDialog({
     switchTimerRef.current = null;
     setSide(mode === "summons" ? "accused" : "");
     setPartyIds([]);
-    setReplacing("");
-    setReplacedAdvocate("");
-    setApprover("");
-    setReason("");
-    setSupportFile(null);
     setRoleTouched(false);
     setContacts({});
     setVerifyTouched(false);
@@ -362,11 +365,11 @@ export function AdvocateJoinCaseDialog({
     setVkCount("");
     setVkAdvocates([]);
     setVkAdvOpen(false);
-    setVkTab("upload");
     setVkFile(null);
-    setVkSavedId("");
     setVkTouched(false);
-    setVkGenerateNotice(false);
+    setPayOutcome("success");
+    setPayFailed(false);
+    setOutcome("joined");
     setTeamPhones([]);
     setTeamInvited([]);
     setTeamInput("");
@@ -376,8 +379,16 @@ export function AdvocateJoinCaseDialog({
   }
 
   function handleOpenChange(next: boolean) {
+    // Leaving at the payment step still records the join as unpaid: the fee becomes a
+    // pending task and access waits for it (JOIN-54).
+    if (!next && stage === "pay") reportJoined(false);
     if (!next) reset();
     onOpenChange(next);
+  }
+
+  function reportJoined(joined: boolean) {
+    if (!joinCase || !side) return;
+    onJoined({ joinCase, side, parties: selectedParties, joined });
   }
 
   function submitLookup(event: React.FormEvent<HTMLFormElement>) {
@@ -396,11 +407,9 @@ export function AdvocateJoinCaseDialog({
     }
     setLookupMiss(false);
     setJoinCase(ADVOCATE_JOIN_CASE);
-    // The access code still gates the case DETAILS (hearing, amounts, parties'
-    // advocates). The code stage itself now shows the public identity of the
-    // case — title, number, court — so the advocate can confirm they are
-    // joining the right case before spending the litigant's code (Aug 31
-    // correction round).
+    // The access code gates the case details. The code stage shows only the public
+    // identity — title, number, court, no amount (JOIN-11) — so the advocate can
+    // confirm the case before spending the litigant's code.
     setStage("code");
   }
 
@@ -417,18 +426,14 @@ export function AdvocateJoinCaseDialog({
       return;
     }
     setSwitchingProfile(true);
-    switchTimerRef.current = window.setTimeout(onJoinAsLitigant, 2000);
+    const kind = accountRole === "poa" ? "poa" : "self";
+    switchTimerRef.current = window.setTimeout(() => onJoinAsLitigant(kind), 2000);
   }
 
   function submitRole(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setRoleTouched(true);
-    if (!side || partyIds.length === 0 || !replacing) return;
-    if (replacing === "yes") {
-      if (sideAdvocates.length > 0 && !replacedAdvocate) return;
-      if (!effectiveApprover) return;
-      if (!reason.trim()) return;
-    }
+    if (!side || partyIds.length === 0) return;
     // Litigants already on the case need no contact entry — go straight to the
     // vakalatnama when nobody is missing a number.
     const missing = selectedParties.filter((party) => !party.hasJoined);
@@ -460,20 +465,33 @@ export function AdvocateJoinCaseDialog({
     event.preventDefault();
     setVkTouched(true);
     if (!joinCase || !side) return;
-    if (vkTab === "upload") {
-      if (otherAdvocatesOnCase && !vkAnother) return;
-      if (needsCoAdvocates && !coAdvocatesComplete) return;
-    }
+    if (otherAdvocatesOnCase && !vkAnother) return;
+    if (needsCoAdvocates && !coAdvocatesComplete) return;
     if (!vkAttached) return;
+    if (feeDue) {
+      setStage("pay");
+      return;
+    }
+    setOutcome("joined");
     setStage("done");
-    onJoined({
-      joinCase,
-      side,
-      parties: selectedParties,
-      replacing: replacing === "yes",
-      approver: replacing === "yes" ? (effectiveApprover as "judge" | "advocates") : null,
-      joined: !pendingOutcome,
-    });
+    reportJoined(true);
+  }
+
+  function pay() {
+    if (payOutcome === "failed") {
+      setPayFailed(true);
+      return;
+    }
+    setPayFailed(false);
+    setOutcome("joined");
+    setStage("done");
+    reportJoined(true);
+  }
+
+  function payLater() {
+    setOutcome("unpaid");
+    setStage("done");
+    reportJoined(false);
   }
 
   function updateContact(partyId: string, value: string) {
@@ -509,7 +527,7 @@ export function AdvocateJoinCaseDialog({
           ? { title: pick(advDialog.summonsHeading, locale), body: pick(advDialog.summonsBody, locale) }
           : { title: pick(advDialog.title, locale), body: pick(advDialog.detailsBody, locale) }
         : stage === "code"
-          ? { title: pick(advDialog.title, locale), body: pick(advDialog.codeBody, locale) }
+          ? { title: pick(advDialog.title, locale), body: pick(joinDialog.codeBody, locale) }
           : stage === "account"
             ? switchingProfile
               ? { title: pick(advDialog.accountSwitchTitle, locale), body: pick(advDialog.accountSwitchBody, locale) }
@@ -518,7 +536,9 @@ export function AdvocateJoinCaseDialog({
             ? { title: pick(advDialog.title, locale), body: pick(advDialog.roleBody, locale) }
             : stage === "verify"
               ? { title: pick(advDialog.verifyTitle, locale), body: pick(advDialog.verifyBody, locale) }
-              : { title: pick(advDialog.vkTitle, locale), body: pick(advDialog.vkBody, locale) };
+              : stage === "pay"
+                ? { title: pick(advDialog.payTitle, locale), body: pick(advDialog.payBody, locale) }
+                : { title: pick(advDialog.vkTitle, locale), body: pick(advDialog.vkBody, locale) };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -541,17 +561,17 @@ export function AdvocateJoinCaseDialog({
       >
         {stage === "done" ? (
           <DialogHeader
-            className={`shrink-0 px-6 py-5 pr-14 text-left ${pendingOutcome ? "" : "border-b border-hairline"}`}
+            className={`shrink-0 px-6 py-5 pr-14 text-left ${unpaidOutcome ? "" : "border-b border-hairline"}`}
           >
             <div className="flex items-center gap-4">
               <span
                 className={
-                  pendingOutcome
+                  unpaidOutcome
                     ? "flex size-14 shrink-0 items-center justify-center rounded-full bg-info-muted text-info-muted-foreground"
                     : "flex size-14 shrink-0 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground"
                 }
               >
-                {pendingOutcome ? (
+                {unpaidOutcome ? (
                   <HourglassIcon className="size-7" aria-hidden />
                 ) : (
                   <CheckCircle2Icon className="size-7" aria-hidden />
@@ -559,21 +579,10 @@ export function AdvocateJoinCaseDialog({
               </span>
               <div className="flex min-w-0 flex-col gap-1.5">
                 <DialogTitle className="text-title-s font-semibold text-balance">
-                  {pick(pendingOutcome ? advDialog.requestTitle : advDialog.joinedTitle, locale)}
+                  {pick(unpaidOutcome ? advDialog.unpaidTitle : advDialog.joinedTitle, locale)}
                 </DialogTitle>
                 <DialogDescription className="text-pretty">
-                  {pendingOutcome
-                    ? replacing === "yes"
-                      ? fill(advDialog.requestReplacementBody, locale, {
-                          approver: pick(
-                            effectiveApprover === "judge"
-                              ? advDialog.approverTheJudge
-                              : advDialog.approverTheAdvocates,
-                            locale,
-                          ),
-                        })
-                      : pick(advDialog.requestComplainantBody, locale)
-                    : pick(advDialog.joinedBody, locale)}
+                  {pick(unpaidOutcome ? advDialog.unpaidBody : advDialog.joinedBody, locale)}
                 </DialogDescription>
               </div>
             </div>
@@ -588,7 +597,7 @@ export function AdvocateJoinCaseDialog({
         )}
 
         <div
-          className={`min-h-0 flex-1 overflow-y-auto px-6 py-5 ${stage === "done" && pendingOutcome ? "hidden" : ""}`}
+          className={`min-h-0 flex-1 overflow-y-auto px-6 py-5 ${unpaidOutcome ? "hidden" : ""}`}
         >
           {/* ------------------------------------------------------- lookup */}
           {stage === "lookup" ? (
@@ -645,7 +654,7 @@ export function AdvocateJoinCaseDialog({
                   <FieldLabel>{pick(advDialog.accountLabel, locale)}</FieldLabel>
                   <Select
                     value={accountRole}
-                    onValueChange={(value) => setAccountRole(value as "advocate" | "litigant")}
+                    onValueChange={(value) => setAccountRole(value as AccountRole)}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -653,6 +662,7 @@ export function AdvocateJoinCaseDialog({
                     <SelectContent>
                       <SelectItem value="advocate">{pick(advDialog.accountAdvocate, locale)}</SelectItem>
                       <SelectItem value="litigant">{pick(advDialog.accountLitigant, locale)}</SelectItem>
+                      <SelectItem value="poa">{pick(advDialog.accountPoa, locale)}</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
@@ -664,27 +674,22 @@ export function AdvocateJoinCaseDialog({
           {/* --------------------------------------------------- access code */}
           {stage === "code" && joinCase ? (
             <form id="adv-code" noValidate className="flex flex-col gap-4" onSubmit={submitCode}>
-              {/* Public identity only — enough to confirm this is the right
-                  case: the cause title (with "1 other" explorable, the same
-                  way the details stage shows it), the number, and the amount
-                  claimed — the figure a party recognises faster than a court
-                  address. Everything deeper stays behind the code on the
-                  details stage. */}
+              {/* Public identity only — title (with "1 other" explorable), case
+                  number and court. The amount stays behind the code (JOIN-11). */}
               <div className="flex flex-col gap-1 rounded-xl bg-surface-sunken p-4">
                 <p className="text-caption font-medium text-muted-foreground">
-                  {pick(advDialog.codeCaseLead, locale)}
+                  {pick(joinDialog.codeCaseLead, locale)}
                 </p>
                 <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
                 <p className="text-caption text-muted-foreground">
                   <Identifier value={joinCase.caseNumber} label="case number" />
                   <span aria-hidden> · </span>
-                  {pick(caseDetails.chequeAmount, locale)}{" "}
-                  <span className="tabular-nums">{joinCase.chequeAmount}</span>
+                  {joinCase.court}
                 </p>
               </div>
-              <Banner variant="info">{pick(advDialog.codeNote, locale)}</Banner>
+              <Banner variant="info">{pick(joinDialog.codeNote, locale)}</Banner>
               <Field data-invalid={codeTouched && code.length !== CODE_LENGTH}>
-                <FieldLabel>{pick(advDialog.codeLabel, locale)}</FieldLabel>
+                <FieldLabel>{pick(joinDialog.codeLabel, locale)}</FieldLabel>
                 <InputOTP
                   maxLength={CODE_LENGTH}
                   pattern={REGEXP_ONLY_DIGITS}
@@ -707,7 +712,7 @@ export function AdvocateJoinCaseDialog({
                 </InputOTP>
                 <FieldError>
                   {codeTouched && code.length !== CODE_LENGTH
-                    ? pick(advDialog.codeError, locale)
+                    ? pick(joinDialog.codeError, locale)
                     : null}
                 </FieldError>
               </Field>
@@ -724,11 +729,12 @@ export function AdvocateJoinCaseDialog({
                 <RadioGroup
                   value={side}
                   onValueChange={(value) => {
-                    setSide(value as Side);
-                    setPartyIds([]);
-                    setReplacing("");
-                    setReplacedAdvocate("");
-                    setApprover("");
+                    const next = value as Side;
+                    setSide(next);
+                    // JOIN-40: a side with one party has it chosen for the advocate.
+                    const parties =
+                      next === "complainant" ? COMPLAINANT_PARTIES : (joinCase?.accused ?? []);
+                    setPartyIds(parties.length === 1 ? [parties[0].id] : []);
                     setRoleTouched(false);
                   }}
                   className="flex flex-col gap-1"
@@ -817,140 +823,6 @@ export function AdvocateJoinCaseDialog({
                 </Field>
               ) : null}
 
-              {side && partyIds.length > 0 ? (
-                <Field data-invalid={roleTouched && !replacing}>
-                  <FieldLabel className="block w-full text-body font-semibold leading-snug">
-                    {pick(advDialog.replaceLegend, locale)}
-                  </FieldLabel>
-                  <RadioGroup
-                    value={replacing}
-                    onValueChange={(value) => {
-                      setReplacing(value as YesNo);
-                      setRoleTouched(false);
-                    }}
-                    className="flex flex-col gap-1"
-                  >
-                    <div className="flex min-h-10 items-center gap-2">
-                      <RadioGroupItem value="yes" id="adv-replace-yes" />
-                      <Label htmlFor="adv-replace-yes">{pick(advDialog.yes, locale)}</Label>
-                    </div>
-                    <div className="flex min-h-10 items-center gap-2">
-                      <RadioGroupItem value="no" id="adv-replace-no" />
-                      <Label htmlFor="adv-replace-no">{pick(advDialog.no, locale)}</Label>
-                    </div>
-                  </RadioGroup>
-                  <FieldDescription>{pick(advDialog.replaceHint, locale)}</FieldDescription>
-                  <FieldError>
-                    {roleTouched && !replacing ? pick(advDialog.replaceError, locale) : null}
-                  </FieldError>
-                </Field>
-              ) : null}
-
-              {replacing === "yes" ? (
-                <>
-                  {sideAdvocates.length > 0 ? (
-                    <Field data-invalid={roleTouched && !replacedAdvocate}>
-                      <FieldLabel className="block w-full text-body font-semibold leading-snug">
-                        {pick(advDialog.replacedWhoLabel, locale)}
-                      </FieldLabel>
-                      <Select
-                        value={replacedAdvocate}
-                        onValueChange={(value) => {
-                          setReplacedAdvocate(value);
-                          setRoleTouched(false);
-                        }}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue
-                            placeholder={pick(advDialog.replacedWhoPlaceholder, locale)}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sideAdvocates.map((advocate) => (
-                            <SelectItem key={advocate} value={advocate}>
-                              {advocate}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldError>
-                        {roleTouched && !replacedAdvocate
-                          ? pick(advDialog.replacedWhoError, locale)
-                          : null}
-                      </FieldError>
-                    </Field>
-                  ) : null}
-
-                  <Field data-invalid={roleTouched && !effectiveApprover}>
-                    <FieldLabel className="block w-full text-body font-semibold leading-snug">
-                      {pick(advDialog.approverLegend, locale)}
-                    </FieldLabel>
-                    {judgeOnly ? (
-                      <FieldDescription>
-                        {pick(advDialog.approverNoAdvocates, locale)}
-                      </FieldDescription>
-                    ) : (
-                      <RadioGroup
-                        value={approver}
-                        onValueChange={(value) => {
-                          setApprover(value as "judge" | "advocates");
-                          setRoleTouched(false);
-                        }}
-                        className="flex flex-col gap-1"
-                      >
-                        <div className="flex min-h-10 items-center gap-2">
-                          <RadioGroupItem value="judge" id="adv-approver-judge" />
-                          <Label htmlFor="adv-approver-judge">
-                            {pick(advDialog.approverJudge, locale)}
-                          </Label>
-                        </div>
-                        <div className="flex min-h-10 items-center gap-2">
-                          <RadioGroupItem value="advocates" id="adv-approver-advocates" />
-                          <Label htmlFor="adv-approver-advocates">
-                            {pick(advDialog.approverAdvocates, locale)}
-                          </Label>
-                        </div>
-                      </RadioGroup>
-                    )}
-                    <FieldError>
-                      {roleTouched && !effectiveApprover
-                        ? pick(advDialog.approverError, locale)
-                        : null}
-                    </FieldError>
-                  </Field>
-
-                  <Field data-invalid={roleTouched && !reason.trim()}>
-                    <FieldLabel htmlFor="adv-reason">
-                      {pick(advDialog.reasonLabel, locale)}
-                    </FieldLabel>
-                    <Textarea
-                      id="adv-reason"
-                      value={reason}
-                      rows={3}
-                      onChange={(event) => {
-                        setReason(event.target.value);
-                        setRoleTouched(false);
-                      }}
-                    />
-                    <FieldError>
-                      {roleTouched && !reason.trim()
-                        ? pick(advDialog.reasonError, locale)
-                        : null}
-                    </FieldError>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>{pick(advDialog.supportLabel, locale)}</FieldLabel>
-                    <UploadedDocField
-                      label={pick(advDialog.supportLabel, locale)}
-                      file={supportFile}
-                      onFileChange={setSupportFile}
-                      locale={locale}
-                    />
-                    <FieldDescription>{pick(advDialog.supportHelp, locale)}</FieldDescription>
-                  </Field>
-                </>
-              ) : null}
             </form>
           ) : null}
 
@@ -1013,22 +885,7 @@ export function AdvocateJoinCaseDialog({
                   <p className="text-body font-semibold leading-snug">
                     {pick(advDialog.vkDocLabel, locale)}
                   </p>
-                  <Tabs
-                    value={vkTab}
-                    onValueChange={(value) => {
-                      setVkTab(value as "upload" | "saved");
-                      setVkTouched(false);
-                    }}
-                  >
-                    <TabsList className="w-full border border-hairline bg-surface-sunken">
-                      <TabsTrigger value="upload" className="flex-1">
-                        {pick(advDialog.tabUpload, locale)}
-                      </TabsTrigger>
-                      <TabsTrigger value="saved" className="flex-1">
-                        {pick(advDialog.tabSaved, locale)}
-                      </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="upload" className="flex flex-col gap-5 pt-3">
+                  <div className="flex flex-col gap-5">
                       <Field data-invalid={vkTouched && !vkAttached}>
                         <div className="flex flex-col gap-2">
                           <UploadedDocField
@@ -1173,39 +1030,75 @@ export function AdvocateJoinCaseDialog({
                           ) : null}
                         </>
                       ) : null}
-                    </TabsContent>
-                    <TabsContent value="saved" className="flex flex-col gap-2 pt-2">
-                      <Field data-invalid={vkTouched && !vkAttached}>
-                        <VakalatnamaPicker
-                          items={VAKALATNAMAS}
-                          selectedId={vkSavedId}
-                          onSelect={(id) => {
-                            setVkSavedId(id);
-                            setVkTouched(false);
-                          }}
-                          locale={locale}
-                        />
-                        <FieldError>
-                          {vkTouched && !vkAttached ? pick(advDialog.vkAttachError, locale) : null}
-                        </FieldError>
-                      </Field>
-                    </TabsContent>
-                  </Tabs>
+                  </div>
                 </div>
-              <div className="flex flex-col gap-3 border-t border-hairline pt-5 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-body-compact font-medium">{pick(advDialog.vkGeneratePrompt, locale)}</p>
-                <Button type="button" variant="outline" onClick={() => setVkGenerateNotice(true)} data-icon="inline-start">
-                  <FilePlus2Icon aria-hidden />
-                  {pick(advDialog.vkGenerateAction, locale)}
-                </Button>
-              </div>
-              {vkGenerateNotice ? <Banner variant="info">{pick(advDialog.vkGeneratePrototype, locale)}</Banner> : null}
+            </form>
+          ) : null}
+
+          {/* ------------------------------------------------------- payment */}
+          {/* JOIN-54: payment happens here, and access waits for it. A sandbox, like
+              the pending-tasks pay card: no money moves; pick the gateway's answer. */}
+          {stage === "pay" && joinCase ? (
+            <form
+              id="adv-pay"
+              noValidate
+              className="flex flex-col gap-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                pay();
+              }}
+            >
+              {payFailed ? (
+                <div
+                  ref={payFailedRef}
+                  tabIndex={-1}
+                  className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Banner variant="error">{pick(advDialog.payFailed, locale)}</Banner>
+                </div>
+              ) : null}
+              <DescriptionList className="rounded-xl bg-surface-sunken px-4 py-1">
+                <DescriptionRow className="border-hairline">
+                  <DescriptionTerm>{pick(advDialog.payFeeHead, locale)}</DescriptionTerm>
+                  <DescriptionDetails>{pick(advDialog.payFeeName, locale)}</DescriptionDetails>
+                </DescriptionRow>
+                <DescriptionRow className="border-hairline">
+                  <DescriptionTerm>{pick(advDialog.payCase, locale)}</DescriptionTerm>
+                  <DescriptionDetails>
+                    <Identifier value={joinCase.caseNumber} label="case number" />
+                  </DescriptionDetails>
+                </DescriptionRow>
+                <DescriptionRow className="border-hairline">
+                  <DescriptionTerm>{pick(advDialog.payAmount, locale)}</DescriptionTerm>
+                  <DescriptionDetails className="font-semibold tabular-nums">{fee}</DescriptionDetails>
+                </DescriptionRow>
+              </DescriptionList>
+              <Field>
+                <FieldLabel className="block w-full text-body font-semibold leading-snug">
+                  {pick(advDialog.payOutcomeLabel, locale)}
+                </FieldLabel>
+                <RadioGroup
+                  value={payOutcome}
+                  onValueChange={(value) => setPayOutcome(value as "success" | "failed")}
+                  className="flex flex-col gap-1"
+                >
+                  <div className="flex min-h-10 items-center gap-2">
+                    <RadioGroupItem value="success" id="adv-pay-success" />
+                    <Label htmlFor="adv-pay-success">{pick(advDialog.payOutcomeSuccess, locale)}</Label>
+                  </div>
+                  <div className="flex min-h-10 items-center gap-2">
+                    <RadioGroupItem value="failed" id="adv-pay-failed" />
+                    <Label htmlFor="adv-pay-failed">{pick(advDialog.payOutcomeFailed, locale)}</Label>
+                  </div>
+                </RadioGroup>
+                <FieldDescription>{pick(advDialog.paySandboxNote, locale)}</FieldDescription>
+              </Field>
             </form>
           ) : null}
 
           {/* --------------------------------------------------------- done */}
-          {stage === "done" && joinCase && !pendingOutcome ? (
-            <div className="flex flex-col gap-5">
+          {stage === "done" && joinCase && !unpaidOutcome ? (
+            <div className="flex flex-col gap-6">
               <CaseDetails joinCase={joinCase} locale={locale} compact />
 
               {/* Optional: bring the office's subordinates onto the case. Numbers are
@@ -1330,7 +1223,7 @@ export function AdvocateJoinCaseDialog({
 
         {/* ------------------------------------------------------------ footer */}
         <footer
-          className={`flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center ${stage === "done" && pendingOutcome ? "sm:justify-end" : "sm:justify-between"}`}
+          className={`flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center ${unpaidOutcome ? "sm:justify-end" : "sm:justify-between"}`}
         >
           {stage === "lookup" ? (
             <>
@@ -1411,7 +1304,7 @@ export function AdvocateJoinCaseDialog({
                 {pick(joinDialog.back, locale)}
               </Button>
               <Button type="submit" form="adv-code" data-icon="inline-end">
-                {pick(advDialog.codeVerify, locale)}
+                {pick(joinDialog.codeVerify, locale)}
                 <ArrowRightIcon aria-hidden />
               </Button>
             </>
@@ -1474,18 +1367,31 @@ export function AdvocateJoinCaseDialog({
                 {pick(joinDialog.back, locale)}
               </Button>
               <Button type="submit" form="adv-vakalatnama" data-icon="inline-end">
-                {pick(joinDialog.joinSubmit, locale)}
+                {/* With a fee due, the next step is payment, not the join itself. */}
+                {pick(feeDue ? joinDialog.continue : joinDialog.joinSubmit, locale)}
                 <ArrowRightIcon aria-hidden />
               </Button>
             </>
           ) : null}
 
+          {stage === "pay" ? (
+            <>
+              <Button type="button" variant="outline" onClick={payLater}>
+                {pick(advDialog.payLater, locale)}
+              </Button>
+              <Button type="submit" form="adv-pay">
+                {fill(advDialog.payNow, locale, { amount: fee })}
+              </Button>
+            </>
+          ) : null}
+
           {stage === "done" ? (
-            pendingOutcome ? (
+            unpaidOutcome ? (
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                 {pick(joinDialog.backHome, locale)}
               </Button>
-            ) : (
+            ) : side === "accused" ? (
+              // Bail is an accused-side step; it leads only for the accused's advocate.
               <>
                 <Button
                   type="button"
@@ -1500,6 +1406,20 @@ export function AdvocateJoinCaseDialog({
                   data-icon="inline-end"
                 >
                   {pick(joinDialog.fileBail, locale)}
+                  <ArrowRightIcon aria-hidden />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                  {pick(joinDialog.backHome, locale)}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setDoneNotice("case")}
+                  data-icon="inline-end"
+                >
+                  {pick(joinDialog.viewCase, locale)}
                   <ArrowRightIcon aria-hidden />
                 </Button>
               </>

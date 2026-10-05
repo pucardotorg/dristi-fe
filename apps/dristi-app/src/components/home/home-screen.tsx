@@ -8,14 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { JoinCaseDialog, type JoinResult } from "@/components/join/join-case-dialog";
+import {
+  JoinCaseDialog,
+  type JoinMode,
+  type JoinResult,
+} from "@/components/join/join-case-dialog";
 import { useLocale } from "@/components/shell/locale";
 import { useProfile } from "@/components/shell/profile";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import { DEMO_JOIN_CASE, fill, home, shell, type JoinCase } from "@/lib/join/content";
 import { Identifier } from "@/components/chrome/identifier";
 
-type HomeCase = { joinCase: JoinCase; status: "joined" | "approval" };
+type HomeCase = { joinCase: JoinCase; status: "joined" };
 type VisibleHomeCase = HomeCase | { joinCase: JoinCase; status: "summons" };
 
 /**
@@ -33,19 +37,25 @@ export function HomeScreen({
   summoned,
   hasCase,
   openManualJoin = false,
+  joinHandoff,
 }: {
   summoned: boolean;
   hasCase: boolean;
   idSkipped?: boolean;
   profileIncomplete?: boolean;
   openManualJoin?: boolean;
+  /** An advocate account chose Litigant or PoA holder in the advocate join dialog;
+   *  carry on with that case here (JOIN-20) rather than searching for it again. */
+  joinHandoff?: "self" | "poa";
   initialLocale?: Locale;
 }) {
   const { locale } = useLocale();
   const { accountName } = useProfile();
-  const [dialogOpen, setDialogOpen] = React.useState(openManualJoin);
-  const [dialogMode, setDialogMode] = React.useState<"summons" | "manual">("manual");
-  const [autoOpened, setAutoOpened] = React.useState(openManualJoin);
+  const [dialogOpen, setDialogOpen] = React.useState(openManualJoin || Boolean(joinHandoff));
+  const [dialogMode, setDialogMode] = React.useState<JoinMode>(
+    joinHandoff ? "handoff" : "manual",
+  );
+  const [autoOpened, setAutoOpened] = React.useState(openManualJoin || Boolean(joinHandoff));
   const [cases, setCases] = React.useState<HomeCase[]>([]);
   const [notice, setNotice] = React.useState<"file" | "case" | "nav" | null>(null);
 
@@ -66,10 +76,10 @@ export function HomeScreen({
   }, [summonsCase, autoOpened, cases.length]);
 
   function handleJoined(result: JoinResult) {
-    const status: HomeCase["status"] = result.kind === "poa" ? "approval" : "joined";
+    // V1: every join is immediate — PoA holders and parties in person included.
     setCases((current) => [
       ...current.filter((entry) => entry.joinCase.cnr !== result.joinCase.cnr),
-      { joinCase: result.joinCase, status },
+      { joinCase: result.joinCase, status: "joined" },
     ]);
   }
 
@@ -98,9 +108,7 @@ export function HomeScreen({
                         {pick(
                           entry.status === "summons"
                             ? home.statusSummons
-                            : entry.status === "approval"
-                              ? home.statusApproval
-                              : home.statusJoined,
+                            : home.statusJoined,
                           locale,
                         )}
                       </Badge>
@@ -189,7 +197,14 @@ export function HomeScreen({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         mode={dialogMode}
-        summonsCase={dialogMode === "summons" ? summonsCase : undefined}
+        summonsCase={
+          dialogMode === "summons"
+            ? summonsCase
+            : dialogMode === "handoff"
+              ? DEMO_JOIN_CASE
+              : undefined
+        }
+        initialKind={dialogMode === "handoff" ? joinHandoff : undefined}
         locale={locale}
         onJoined={handleJoined}
       />

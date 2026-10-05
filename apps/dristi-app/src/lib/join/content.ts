@@ -3,11 +3,10 @@ import type { Locale } from "@/lib/onboarding/content";
 /**
  * Post-login join-a-case — content model.
  *
- * Implements the Jul 31 decisions plus Anshumanth's join-flow requirements diagram
- * (Aug 7): complainants never join (they are linked at e-filing), accused who appear
- * through an advocate join immediately, accused appearing in person need a one-time
- * court verification, and power-of-attorney holders never get direct access — their
- * request goes to the magistrate.
+ * Implements the Join a Case handover V1 (dristi-be/PRDs/join-a-case-handover.md):
+ * complainants never join (they are linked at e-filing), and in V1 no join needs
+ * approval — an accused, a party in person (after uploading an affidavit) and a
+ * power-of-attorney holder all get access as soon as they finish the flow.
  *
  * The legacy dialog asked five questions. Role (litigant/advocate) is known from
  * sign-in and complainants have no join flow, so this one asks at most three:
@@ -99,16 +98,9 @@ export const home = {
   caseNumberLabel: t("Case number", "കേസ് നമ്പർ"),
   hearingLabel: t("Next hearing", "അടുത്ത ഹിയറിംഗ്"),
   statusJoined: t("Joined", "ചേർന്നു"),
-  statusApproval: t("Approval pending", "അനുമതി ബാക്കി"),
   statusSummons: t("Action required", "നടപടി ആവശ്യമാണ്"),
   reviewSummons: t("Review and join", "പരിശോധിച്ച് ചേരുക"),
   viewCase: t("View case", "കേസ് കാണുക"),
-  viewDetails: t("View request details", "അപേക്ഷയുടെ വിവരങ്ങൾ കാണുക"),
-  requestDetailsTitle: t("Request details", "അപേക്ഷയുടെ വിവരങ്ങൾ"),
-  requestDetailsBody: t(
-    "Magistrate approval is pending. You cannot open the case file until the request is approved.",
-    "മജിസ്‌ട്രേറ്റിന്റെ അനുമതി ബാക്കിയുണ്ട്. അപേക്ഷ അംഗീകരിക്കും വരെ കേസ് ഫയൽ തുറക്കാൻ കഴിയില്ല.",
-  ),
   prototypeTitle: t(
     "Prototype: destination not connected",
     "പ്രോട്ടോടൈപ്പ്: ലക്ഷ്യസ്ഥാനം ബന്ധിപ്പിച്ചിട്ടില്ല",
@@ -168,6 +160,20 @@ export const joinDialog = {
   ),
   search: t("Find case", "കേസ് കണ്ടെത്തുക"),
 
+  /* access code — manual entry only; everyone joining needs it (JOIN-13) */
+  codeBody: t(
+    "Enter the six-digit code for this case.",
+    "ഈ കേസിന്റെ ആറക്ക കോഡ് നൽകുക.",
+  ),
+  codeLabel: t("Access code", "ആക്‌സസ് കോഡ്"),
+  codeCaseLead: t("You are joining", "നിങ്ങൾ ചേരുന്ന കേസ്"),
+  codeNote: t(
+    "The code is printed on the summons. Parties who have already joined the case can also share it with you.",
+    "കോഡ് സമൻസിൽ അച്ചടിച്ചിട്ടുണ്ട്. കേസിൽ ഇതിനകം ചേർന്ന കക്ഷികൾക്കും ഇത് നിങ്ങളുമായി പങ്കിടാം.",
+  ),
+  codeError: t("Enter the six-digit access code.", "ആറക്ക ആക്‌സസ് കോഡ് നൽകുക."),
+  codeVerify: t("Verify access code", "ആക്‌സസ് കോഡ് പരിശോധിക്കുക"),
+
   /* details */
   detailsBody: t(
     "Check that this is your case before you continue.",
@@ -204,8 +210,8 @@ export const joinDialog = {
     "പവർ ഓഫ് അറ്റോർണി എന്നാൽ എന്ത്?",
   ),
   poaExplainBody: t(
-    "A written authorisation that lets you act in this case for the accused, for example for a parent abroad or a relative who is unwell. The magistrate must approve you before you get access, and the accused can revoke it at any time.",
-    "പ്രതിക്ക് വേണ്ടി ഈ കേസിൽ പ്രവർത്തിക്കാൻ അനുവദിക്കുന്ന രേഖാമൂലമുള്ള അധികാരപത്രം. ഉദാഹരണത്തിന് വിദേശത്തുള്ള മാതാപിതാവിനോ അസുഖമുള്ള ബന്ധുവിനോ വേണ്ടി. ആക്‌സസ് ലഭിക്കും മുൻപ് മജിസ്‌ട്രേറ്റ് അനുമതി നൽകണം; പ്രതിക്ക് എപ്പോൾ വേണമെങ്കിലും ഇത് റദ്ദാക്കാം.",
+    "A written authorisation that lets you act in this case for the accused, for example for a parent abroad or a relative who is unwell. The accused can revoke it at any time.",
+    "പ്രതിക്ക് വേണ്ടി ഈ കേസിൽ പ്രവർത്തിക്കാൻ അനുവദിക്കുന്ന രേഖാമൂലമുള്ള അധികാരപത്രം. ഉദാഹരണത്തിന് വിദേശത്തുള്ള മാതാപിതാവിനോ അസുഖമുള്ള ബന്ധുവിനോ വേണ്ടി. പ്രതിക്ക് എപ്പോൾ വേണമെങ്കിലും ഇത് റദ്ദാക്കാം.",
   ),
   whichSelfLabel: t("Who among these people are you?", "ഇവരിൽ നിങ്ങൾ ആരാണ്?"),
   whichPoaLabel: t(
@@ -249,8 +255,21 @@ export const joinDialog = {
     "ഞാൻ സ്വയം ഹാജരാകും (പാർട്ടി ഇൻ പേഴ്‌സൺ)",
   ),
   appearSelfHint: t(
-    "Called appearing as a party in person. The court verifies this once before you can act in the case.",
-    "പാർട്ടി ഇൻ പേഴ്‌സൺ എന്നാണ് ഇതിന് പേര്. കേസിൽ പ്രവർത്തിക്കും മുൻപ് കോടതി ഇത് ഒരിക്കൽ പരിശോധിക്കും.",
+    "Called appearing as a party in person. You upload an affidavit and get access straight away.",
+    "പാർട്ടി ഇൻ പേഴ്‌സൺ എന്നാണ് ഇതിന് പേര്. ഒരു സത്യവാങ്മൂലം അപ്‌ലോഡ് ചെയ്താൽ ഉടൻ ആക്‌സസ് ലഭിക്കും.",
+  ),
+  appearSelfUnavailable: t(
+    "Representing yourself is not offered here because an advocate is already on record for the accused.",
+    "പ്രതിക്കായി ഒരു അഭിഭാഷകൻ ഇതിനകം രേഖയിലുള്ളതിനാൽ സ്വയം ഹാജരാകാനുള്ള ഓപ്ഷൻ ഇവിടെ ലഭ്യമല്ല.",
+  ),
+  pipDocLabel: t("Affidavit", "സത്യവാങ്മൂലം"),
+  pipDocHelp: t(
+    "Upload your signed affidavit as a JPG, JPEG, PNG or PDF.",
+    "ഒപ്പിട്ട സത്യവാങ്മൂലം JPG, JPEG, PNG അല്ലെങ്കിൽ PDF ആയി അപ്‌ലോഡ് ചെയ്യുക.",
+  ),
+  pipDocError: t(
+    "Upload the affidavit before continuing.",
+    "തുടരുന്നതിന് മുമ്പ് സത്യവാങ്മൂലം അപ്‌ലോഡ് ചെയ്യുക.",
   ),
   appearError: t(
     "Choose how you will appear in court.",
@@ -279,14 +298,17 @@ export const joinDialog = {
     "തുടരുന്നതിന് മുമ്പ് അധികാര രേഖ അപ്‌ലോഡ് ചെയ്യുക.",
   ),
   poaAccusedPhoneLabel: t(
-    "Accused's mobile number (optional)",
-    "പ്രതിയുടെ മൊബൈൽ നമ്പർ (നിർബന്ധമല്ല)",
+    "Accused's mobile number",
+    "പ്രതിയുടെ മൊബൈൽ നമ്പർ",
   ),
   poaAccusedPhoneHelp: t(
-    "If you have it, we'll send them a link by SMS so they can also open the case.",
-    "നിങ്ങളുടെ പക്കലുണ്ടെങ്കിൽ, അവർക്കും കേസ് തുറക്കാൻ കഴിയുന്ന ഒരു ലിങ്ക് SMS വഴി അയക്കും.",
+    "Needed to link this case to the accused's account.",
+    "പ്രതിയുടെ അക്കൗണ്ടുമായി ഈ കേസ് ബന്ധിപ്പിക്കാൻ ഇത് ആവശ്യമാണ്.",
   ),
-  poaSubmit: t("Request access", "ആക്‌സസ് അഭ്യർത്ഥിക്കുക"),
+  poaAccusedPhoneError: t(
+    "Enter a 10-digit mobile number.",
+    "10 അക്ക മൊബൈൽ നമ്പർ നൽകുക.",
+  ),
   joinSubmit: t("Join this case", "ഈ കേസിൽ ചേരുക"),
 
   /* outcomes */
@@ -295,17 +317,9 @@ export const joinDialog = {
     "You can now read the complaint and act in the case as {name}.",
     "ഇനി {name} ആയി പരാതി വായിക്കാനും കേസിൽ നടപടിയെടുക്കാനും കഴിയും.",
   ),
-  pipNote: t(
-    "Because you will represent yourself, the court will verify this once. You will be told when it is done. You can read your case file meanwhile.",
-    "നിങ്ങൾ സ്വയം ഹാജരാകുന്നതിനാൽ കോടതി ഇത് ഒരിക്കൽ പരിശോധിക്കും. കഴിയുമ്പോൾ അറിയിക്കും. അതുവരെ കേസ് ഫയൽ വായിക്കാം.",
-  ),
-  poaPendingTitle: t(
-    "Your request to join has been sent",
-    "ചേരാനുള്ള നിങ്ങളുടെ അപേക്ഷ അയച്ചു",
-  ),
-  poaPendingBody: t(
-    "The magistrate must approve your power of attorney before you can manage this case for the person. We will tell you by SMS when a decision is made.",
-    "ഈ വ്യക്തിക്ക് വേണ്ടി കേസ് കൈകാര്യം ചെയ്യുന്നതിന് മുമ്പ് മജിസ്‌ട്രേറ്റ് പവർ ഓഫ് അറ്റോർണി അംഗീകരിക്കണം. തീരുമാനമാകുമ്പോൾ SMS വഴി അറിയിക്കും.",
+  poaJoinedBody: t(
+    "You can now act in this case for {name} as their power of attorney holder.",
+    "ഇനി {name}-ന്റെ പവർ ഓഫ് അറ്റോർണി ഉടമയായി ഈ കേസിൽ പ്രവർത്തിക്കാം.",
   ),
   viewCase: t("View case", "കേസ് കാണുക"),
   viewCasePrototype: t("The case file will open here.", "കേസ് ഫയൽ ഇവിടെ തുറക്കും."),
