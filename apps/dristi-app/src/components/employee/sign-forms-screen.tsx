@@ -110,8 +110,13 @@ export function SignFormsScreen() {
   const selectedForms = rows.filter((form) => picked.has(form.id));
   const selectedIds = new Set(selectedForms.map((form) => form.id));
 
-  function changeFilters(next: SignFormFilters) {
-    setFilters(next);
+  /**
+   * Change some of the filters. A patch, merged into the latest state: the Filters sheet
+   * applies every field it changed in one go, and a whole set built by each field from
+   * this render's `filters` kept only the last field's change.
+   */
+  function changeFilters(patch: Partial<SignFormFilters>) {
+    setFilters((current) => ({ ...current, ...patch }));
     setPage(1);
   }
 
@@ -359,7 +364,8 @@ function SignFormsFilters({
 }: {
   filters: SignFormFilters;
   searchRef: React.Ref<HTMLInputElement>;
-  onChange: (filters: SignFormFilters) => void;
+  /** Merge a change into the filters — a patch, not a whole set. */
+  onChange: (patch: Partial<SignFormFilters>) => void;
   onClear: () => void;
 }) {
   return (
@@ -367,7 +373,7 @@ function SignFormsFilters({
       search={{
         label: "Search cases",
         value: filters.query,
-        onChange: (query) => onChange({ ...filters, query }),
+        onChange: (query) => onChange({ query }),
         placeholder: "Case name, number or advocate",
       }}
       searchRef={searchRef}
@@ -383,7 +389,7 @@ function SignFormsFilters({
             label: process.label,
           })),
           onApply: (value) =>
-            onChange({ ...filters, process: value as SignFormFilters["process"] }),
+            onChange({ process: value as SignFormFilters["process"] }),
         },
       ]}
       date={{
@@ -394,7 +400,7 @@ function SignFormsFilters({
         draftActive: (value) => !!value,
         cleared: undefined,
         onApply: (value) =>
-          onChange({ ...filters, createdOn: value ? isoDay(value) : "" }),
+          onChange({ createdOn: value ? isoDay(value) : "" }),
       }}
       onClearAll={onClear}
     />

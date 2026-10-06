@@ -198,8 +198,13 @@ export function HearingsScreen() {
   const openHearing =
     listed.find((hearing) => hearing.id === openHearingId) ?? null;
 
-  function changeFilters(next: HearingFilters) {
-    setFilters(next);
+  /**
+   * Change some of the filters. A patch, merged into the latest state: the Filters sheet
+   * applies every field it changed in one go, and a whole set built by each field from
+   * this render's `filters` kept only the last field's change.
+   */
+  function changeFilters(patch: Partial<HearingFilters>) {
+    setFilters((current) => ({ ...current, ...patch }));
     setPage(1);
   }
 
@@ -348,7 +353,8 @@ function HearingsFilters({
   onClear,
 }: {
   filters: HearingFilters;
-  onChange: (filters: HearingFilters) => void;
+  /** Merge a change into the filters — a patch, not a whole set. */
+  onChange: (patch: Partial<HearingFilters>) => void;
   /** The day in view, already resolved to today when none is picked. */
   day: string;
   today: string;
@@ -361,7 +367,7 @@ function HearingsFilters({
       search={{
         label: "Search cases",
         value: filters.query,
-        onChange: (query) => onChange({ ...filters, query }),
+        onChange: (query) => onChange({ query }),
         placeholder: "Case name or number",
       }}
       fields={[
@@ -376,7 +382,7 @@ function HearingsFilters({
             label: status.label,
           })),
           onApply: (value) =>
-            onChange({ ...filters, status: value as HearingFilters["status"] }),
+            onChange({ status: value as HearingFilters["status"] }),
         },
         {
           id: "hearings-purpose",
@@ -389,7 +395,7 @@ function HearingsFilters({
             label: purpose.label,
           })),
           onApply: (value) =>
-            onChange({ ...filters, purpose: value as HearingFilters["purpose"] }),
+            onChange({ purpose: value as HearingFilters["purpose"] }),
         },
       ]}
       date={{
