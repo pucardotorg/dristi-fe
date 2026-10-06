@@ -28,8 +28,14 @@ import { Identifier } from "@/components/chrome/identifier";
  * and when the next hearing is, then the registry identifiers. `compact` retains the
  * case number while dropping the longer reference list. `extended` restores the full
  * registry list (CNR, filing number, court, both sides' advocates) for advocates, who
- * work by those identifiers rather than being intimidated by them.
+ * work by those identifiers rather than being intimidated by them. Court is shown to
+ * everyone (JOIN-15).
  */
+
+/** An advocate is on record for the accused side. */
+export function hasAccusedAdvocate(joinCase: JoinCase) {
+  return Boolean(joinCase.accusedAdvocate && joinCase.accusedAdvocate !== "Not available");
+}
 /**
  * The cause title with its "and 1 other" made explorable — the marker
  * becomes a dotted-underline trigger and the remaining accused list rides a
@@ -117,7 +123,7 @@ export function CaseDetails({
         ] as const)
       : []),
     { label: "filingDate", value: joinCase.filingDate },
-    ...(extended ? ([{ label: "court", value: joinCase.court }] as const) : []),
+    { label: "court", value: joinCase.court },
     { label: "chequeAmount", value: joinCase.chequeAmount },
     { label: "complainant", value: joinCase.complainant },
     { label: "complainantAdvocate", value: joinCase.complainantAdvocate },
@@ -125,7 +131,9 @@ export function CaseDetails({
       label: "accusedParties",
       value: joinCase.accused.map((party) => party.name).join(", "),
     },
-    ...(extended
+    // JOIN-15: the accused's advocate shows when one is on record; advocates always
+    // see the row, "Not available" included.
+    ...(extended || hasAccusedAdvocate(joinCase)
       ? ([{ label: "accusedAdvocate", value: joinCase.accusedAdvocate }] as const)
       : []),
   ];
