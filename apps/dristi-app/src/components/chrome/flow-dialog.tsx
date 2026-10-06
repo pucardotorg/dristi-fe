@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
+import { OVERLAY_RISE } from "@/components/chrome/motion";
 import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
 import { DialogClose } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -26,10 +27,18 @@ export function FlowDialogContent({
   style,
   children,
   ownBack = false,
+  rise = false,
   ...props
 }: React.ComponentProps<typeof ChromeDialogContent> & {
   /** The flow handles the phone's Back itself. */
   ownBack?: boolean;
+  /**
+   * Open with the product's overlay rise (`OVERLAY_RISE`) rather than the DS
+   * zoom — the staged overlays' entrance. Only from `sm` up: on a phone the
+   * window slides in from the right, and a rise on top of that is two
+   * entrances at once.
+   */
+  rise?: boolean;
 }) {
   const flow = useFlowWindow();
   // A simple dialog is a plain grid: header, body, DS footer. Stretched to a
@@ -44,6 +53,7 @@ export function FlowDialogContent({
   return (
     <ChromeDialogContent
       className={cn(
+        rise && !flow.phone && OVERLAY_RISE,
         className,
         flow.className,
         flow.phone && !selfLaidOut && "flex flex-col",

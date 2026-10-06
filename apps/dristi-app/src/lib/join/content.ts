@@ -58,7 +58,7 @@ export type JoinCase = {
  */
 export const DEMO_JOIN_CASE: JoinCase = {
   title: "South Indian Bank Ltd. vs Rajan Krishnan Nair and 1 other",
-  caseNumber: "CC 847 / 2026",
+  caseNumber: "CC 847/2026",
   cnr: "KL-0423-CC-0847-2026",
   filingNumber: "KL-002405-2026",
   caseType: "NIA S138",
@@ -165,7 +165,7 @@ export const joinDialog = {
     "സമൻസിലോ കോടതി രേഖകളിലോ ഉള്ള കേസ് നമ്പർ അല്ലെങ്കിൽ ഫയലിംഗ് നമ്പർ നൽകുക.",
   ),
   lookupLabel: t("Case number or filing number", "കേസ് നമ്പർ അല്ലെങ്കിൽ ഫയലിംഗ് നമ്പർ"),
-  lookupPlaceholder: t("For example CC 847 / 2026", "ഉദാഹരണം: CC 847 / 2026"),
+  lookupPlaceholder: t("For example CC 847/2026", "ഉദാഹരണം: CC 847/2026"),
   lookupError: t(
     "Enter the number as it appears on your papers.",
     "രേഖകളിൽ കാണുന്നതുപോലെ നമ്പർ നൽകുക.",
@@ -355,6 +355,12 @@ export const joinDialog = {
   poaJoinedBody: t(
     "You can now act in this case for {name} as their power of attorney holder.",
     "ഇനി {name}-ന്റെ പവർ ഓഫ് അറ്റോർണി ഉടമയായി ഈ കേസിൽ പ്രവർത്തിക്കാം.",
+  ),
+  /* The settled band on the joined case (Oct 6). Malayalam drafted — needs review. */
+  joinedBand: t("Joined as {name}", "{name} ആയി ചേർന്നു"),
+  poaJoinedBand: t(
+    "Joined as power of attorney holder for {name}",
+    "{name}-ന്റെ പവർ ഓഫ് അറ്റോർണി ഉടമയായി ചേർന്നു",
   ),
   smsSentNote: t(
     "We've texted {numbers}. The case is linked to each person's account once they sign in and confirm it's them.",

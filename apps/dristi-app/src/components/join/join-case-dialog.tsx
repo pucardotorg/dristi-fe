@@ -5,7 +5,6 @@ import { REGEXP_ONLY_DIGITS } from "input-otp";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  CheckCircle2Icon,
   ExternalLinkIcon,
   FileTextIcon,
   InfoIcon,
@@ -13,6 +12,8 @@ import {
 } from "lucide-react";
 
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { useFlowWindow } from "@/components/chrome/flow-window";
+import { useStageFade } from "@/components/chrome/stage-fade";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Banner } from "@/components/ui/banner";
@@ -44,10 +45,11 @@ import {
 } from "@/components/ui/select";
 import {
   CaseDetails,
-  CaseTitleWithOthers,
+  CaseIdentity,
+  JOIN_PANEL,
   hasAccusedAdvocate,
 } from "@/components/join/case-details";
-import { Identifier } from "@/components/chrome/identifier";
+import { cn } from "@/lib/utils";
 import { DownloadCaseFileButton } from "@/components/join/download-case-file-button";
 import {
   isValidMobile,
@@ -84,6 +86,10 @@ import {
  */
 
 type Stage = "lookup" | "code" | "details" | "identity" | "done";
+
+/** The flow's order: each step's drift follows it (forward from the right, back from the left). */
+const STAGE_ORDER: readonly Stage[] = ["lookup", "code", "details", "identity", "done"];
+
 export type JoinMode = "summons" | "manual" | "handoff";
 export type JoinerKind = "self" | "poa" | "";
 type Appearance = "hire" | "advocate" | "self" | "";
@@ -136,7 +142,29 @@ export function JoinCaseDialog({
 }) {
   const initialStage: Stage =
     mode === "summons" ? "details" : mode === "handoff" ? "identity" : "lookup";
-  const [stage, setStage] = React.useState<Stage>(initialStage);
+  /* Each step fades softly into the next (`useStageFade`), its content drifting a
+     hint the way the person is going; the height changes while the window is clear,
+     so nothing resizes in view (owner, Oct 6). */
+  const {
+    stage,
+    setStage,
+    resetStage,
+    changed: stageChanged,
+    panelStyle,
+    sceneClassName,
+  } = useStageFade<Stage>(initialStage, STAGE_ORDER);
+  /* Focus follows the stage: the footer button just pressed is gone, so the
+     title takes focus rather than the page. */
+  const titleRef = React.useRef<HTMLHeadingElement>(null);
+  /* On a phone the flow is the whole window, so the canvas fills it. */
+  const phoneWindow = useFlowWindow().phone;
+  React.useEffect(() => {
+    if (!stageChanged) return;
+    const active = document.activeElement;
+    if (!active || active === document.body || !active.isConnected) {
+      titleRef.current?.focus();
+    }
+  }, [stage, stageChanged]);
   const [joinCase, setJoinCase] = React.useState<JoinCase | undefined>(summonsCase);
 
   const [code, setCode] = React.useState("");
@@ -196,7 +224,7 @@ export function JoinCaseDialog({
         : "case";
 
   function reset() {
-    setStage(initialStage);
+    resetStage(initialStage);
     setJoinCase(summonsCase);
     setQuery("");
     setQueryTouched(false);
@@ -290,6 +318,8 @@ export function JoinCaseDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <FlowDialogContent
         lang={locale}
+        rise
+        style={panelStyle}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
         // The PoA party combobox portals its list outside this dialog; a click on it
         // must not read as an outside interaction, and Escape closes the list first.
@@ -301,59 +331,66 @@ export function JoinCaseDialog({
           if (document.querySelector('[data-slot="combobox-content"]')) event.preventDefault();
         }}
       >
-        {stage === "done" ? (
-          <DialogHeader className="shrink-0 border-b border-hairline px-6 py-5 pr-14 text-left">
-            <div className="flex items-center gap-4">
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground">
-                <CheckCircle2Icon className="size-7" aria-hidden />
-              </span>
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <DialogTitle className="text-title-s font-semibold text-balance">
-                  {pick(joinDialog.joinedTitle, locale)}
-                </DialogTitle>
-                <DialogDescription className="text-pretty">
-                  {fill(
-                    kind === "poa" ? joinDialog.poaJoinedBody : joinDialog.joinedBody,
-                    locale,
-                    {
-                      name:
-                        kind === "poa"
-                          ? poaSelected.map((entry) => entry.name).join(", ")
-                          : (party?.name ?? ""),
-                    },
-                  )}
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-        ) : (
-          <DialogHeader className="shrink-0 border-b border-hairline px-6 py-5 pr-14 text-left">
-            <DialogTitle className="text-title-s font-semibold text-balance">
-              {isSummonsIntro
+        {/* The same header on every stage, the outcome included (owner, Oct 6):
+            only the words change, so the outcome reads as this window settling. */}
+        <DialogHeader className="shrink-0 gap-2 border-b border-hairline p-6 pr-16 text-left">
+          <DialogTitle
+            ref={titleRef}
+            tabIndex={-1}
+            className="text-title-s font-semibold text-balance outline-none"
+          >
+            {stage === "done"
+              ? pick(joinDialog.joinedTitle, locale)
+              : isSummonsIntro
                 ? pick(summonsModal.heading, locale)
                 : pick(joinDialog.title, locale)}
-            </DialogTitle>
-            <DialogDescription className="text-pretty">
-              {isSummonsIntro
+          </DialogTitle>
+          <DialogDescription className="text-body-compact text-pretty text-muted-foreground">
+            {stage === "done"
+              ? fill(
+                  kind === "poa" ? joinDialog.poaJoinedBody : joinDialog.joinedBody,
+                  locale,
+                  {
+                    name:
+                      kind === "poa"
+                        ? poaSelected.map((entry) => entry.name).join(", ")
+                        : (party?.name ?? ""),
+                  },
+                )
+              : isSummonsIntro
                 ? pick(summonsModal.body, locale)
                 : stage === "lookup"
                   ? pick(joinDialog.lookupBody, locale)
                   : stage === "code"
                     ? pick(joinDialog.codeBody, locale)
-                  : stage === "details"
-                    ? pick(joinDialog.detailsBody, locale)
-                    : pick(joinDialog.identityBody, locale)}
-            </DialogDescription>
-          </DialogHeader>
-        )}
+                    : stage === "details"
+                      ? pick(joinDialog.detailsBody, locale)
+                      : pick(joinDialog.identityBody, locale)}
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        {/* The stage: warm canvas, white panels. It hugs each step's height, which
+            changes while the window is faded out (`useStageFade`). */}
+        <div
+          className={cn(
+            "relative flex min-h-0 flex-col overflow-hidden bg-muted dark:bg-background",
+            phoneWindow ? "flex-1" : "shrink",
+          )}
+        >
+        <div
+          key={stage}
+          className={cn(
+            "flex min-h-0 flex-1 flex-col overflow-y-auto",
+            sceneClassName,
+          )}
+        >
+        <div className="flex flex-col p-4 sm:p-6">
           {/* ------------------------------------------------------- lookup */}
           {stage === "lookup" ? (
             <form
               id="join-lookup"
               noValidate
-              className="flex flex-col gap-4"
+              className={JOIN_PANEL}
               onSubmit={submitLookup}
             >
               <Field data-invalid={queryTouched && query.trim().length < 4}>
@@ -375,7 +412,7 @@ export function JoinCaseDialog({
                 </FieldError>
               </Field>
               {lookupMiss ? (
-                <Banner variant="warning">{pick(joinDialog.lookupMiss, locale)}</Banner>
+                <Banner variant="warning" className="items-start">{pick(joinDialog.lookupMiss, locale)}</Banner>
               ) : null}
             </form>
           ) : null}
@@ -385,18 +422,13 @@ export function JoinCaseDialog({
             <form id="join-code" noValidate className="flex flex-col gap-4" onSubmit={submitCode}>
               {/* Before the code: title, case number and court only — no amount
                   (JOIN-11). Everything deeper stays behind the code. */}
-              <div className="flex flex-col gap-1 rounded-xl bg-surface-sunken p-4">
-                <p className="text-caption font-medium text-muted-foreground">
-                  {pick(joinDialog.codeCaseLead, locale)}
-                </p>
-                <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
-                <p className="text-caption text-muted-foreground">
-                  <Identifier value={joinCase.caseNumber} label="case number" />
-                  <span aria-hidden> · </span>
-                  {joinCase.court}
-                </p>
-              </div>
-              <Banner variant="info">{pick(joinDialog.codeNote, locale)}</Banner>
+              <CaseIdentity
+                joinCase={joinCase}
+                locale={locale}
+                lead={pick(joinDialog.codeCaseLead, locale)}
+              />
+              <Banner variant="info" className="items-start">{pick(joinDialog.codeNote, locale)}</Banner>
+              <div className={JOIN_PANEL}>
               <Field data-invalid={codeTouched && code.length !== CODE_LENGTH}>
                 <FieldLabel>{pick(joinDialog.codeLabel, locale)}</FieldLabel>
                 <InputOTP
@@ -425,6 +457,7 @@ export function JoinCaseDialog({
                     : null}
                 </FieldError>
               </Field>
+              </div>
             </form>
           ) : null}
 
@@ -432,9 +465,9 @@ export function JoinCaseDialog({
           {stage === "details" && joinCase ? (
             <div className="flex flex-col gap-4">
               <CaseDetails joinCase={joinCase} locale={locale} />
-              <Banner variant="info">{pick(joinDialog.acknowledgeNote, locale)}</Banner>
+              <Banner variant="info" className="items-start">{pick(joinDialog.acknowledgeNote, locale)}</Banner>
               {downloadNotice ? (
-                <Banner variant="info">
+                <Banner variant="info" className="items-start">
                   {pick(joinDialog.downloadCaseFilePrototype, locale)}
                 </Banner>
               ) : null}
@@ -446,7 +479,7 @@ export function JoinCaseDialog({
             <form
               id="join-identity"
               noValidate
-              className="flex flex-col gap-6"
+              className={cn(JOIN_PANEL, "gap-6")}
               onSubmit={submitIdentity}
             >
               <Field data-invalid={identityTouched && !kind}>
@@ -535,7 +568,7 @@ export function JoinCaseDialog({
               ) : null}
 
               {party && blocked ? (
-                <Banner variant="warning">
+                <Banner variant="warning" className="items-start">
                   {fill(joinDialog.alreadyJoined, locale, { name: party.name })}
                 </Banner>
               ) : null}
@@ -705,20 +738,34 @@ export function JoinCaseDialog({
 
           {/* --------------------------------------------------------- done */}
           {stage === "done" && joinCase ? (
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4">
               {/* JOIN-64: numbers entered for parties are texted; each links on its
                   owner's confirmation at sign-in, not here. */}
               {kind === "poa" && poaNeedPhone.length ? (
-                <Banner variant="info">
+                <Banner variant="info" className="items-start">
                   {fill(joinDialog.smsSentNote, locale, {
                     numbers: poaNeedPhone.map((entry) => poaPhones[entry.id]).join(", "),
                   })}
                 </Banner>
               ) : null}
-              <CaseDetails joinCase={joinCase} locale={locale} compact />
+              <CaseDetails
+                joinCase={joinCase}
+                locale={locale}
+                compact
+                outcome={fill(
+                  kind === "poa" ? joinDialog.poaJoinedBand : joinDialog.joinedBand,
+                  locale,
+                  {
+                    name:
+                      kind === "poa"
+                        ? poaSelected.map((entry) => entry.name).join(", ")
+                        : (party?.name ?? ""),
+                  },
+                )}
+              />
 
               {doneNotice ? (
-                <Banner variant="info">
+                <Banner variant="info" className="items-start">
                   {pick(
                     doneNotice === "bail"
                       ? joinDialog.fileBailPrototype
@@ -731,6 +778,8 @@ export function JoinCaseDialog({
               ) : null}
             </div>
           ) : null}
+        </div>
+        </div>
         </div>
 
         {/* ------------------------------------------------------------ footer */}

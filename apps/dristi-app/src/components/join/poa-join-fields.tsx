@@ -216,7 +216,7 @@ export function PoaJoinFields({
       ) : null}
 
       {blocked.map((party) => (
-        <Banner key={party.id} variant="warning">
+        <Banner key={party.id} variant="warning" className="items-start">
           {fill(joinDialog.poaAlreadyTaken, locale, { name: party.name })}
         </Banner>
       ))}
@@ -254,7 +254,7 @@ export function PoaJoinFields({
         </div>
       ) : null}
       {sampleNotice ? (
-        <Banner variant="info">{pick(joinDialog.poaDocSamplePrototype, locale)}</Banner>
+        <Banner variant="info" className="items-start">{pick(joinDialog.poaDocSamplePrototype, locale)}</Banner>
       ) : null}
 
       {/* One well per party: its own authorization document (JOIN-32) and, if the

@@ -6,13 +6,14 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckCircle2Icon,
-  HourglassIcon,
   PlusIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react";
 
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { useFlowWindow } from "@/components/chrome/flow-window";
+import { useStageFade } from "@/components/chrome/stage-fade";
 
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,8 @@ import {
 } from "@/components/ui/description-list";
 import {
   CaseDetails,
-  CaseTitleWithOthers,
+  CaseIdentity,
+  JOIN_PANEL,
 } from "@/components/join/case-details";
 import { DownloadCaseFileButton } from "@/components/join/download-case-file-button";
 import {
@@ -86,6 +88,7 @@ import {
 } from "@/lib/advocate/content";
 import { rupees } from "@/lib/tasks/format";
 import { Identifier } from "@/components/chrome/identifier";
+import { cn } from "@/lib/utils";
 
 /**
  * Advocate join-a-case dialog.
@@ -114,6 +117,14 @@ import { Identifier } from "@/components/chrome/identifier";
  */
 
 type Stage = "lookup" | "details" | "account" | "code" | "role" | "verify" | "vakalatnama" | "pay" | "done";
+
+/** The flow's order: each step's drift follows it (forward from the right, back from the left). */
+const STAGE_ORDER: readonly Stage[] = ["lookup", "code", "details", "account", "role", "verify", "vakalatnama", "pay", "done"];
+
+
+/** Every question on the vakalatnama step wears the same label. */
+const VK_QUESTION = "text-body font-semibold leading-snug";
+
 type Side = "complainant" | "accused" | "";
 type YesNo = "yes" | "no" | "";
 
@@ -256,7 +267,30 @@ export function AdvocateJoinCaseDialog({
   onJoinAsLitigant: (kind: "self" | "poa") => void;
 }) {
   const initialStage: Stage = mode === "summons" ? "details" : "lookup";
-  const [stage, setStage] = React.useState<Stage>(initialStage);
+  /* Each step fades softly into the next (`useStageFade`), its content drifting a
+     hint the way the person is going; the height changes while the window is clear,
+     so nothing resizes in view (owner, Oct 6). */
+  const {
+    stage,
+    setStage,
+    resetStage,
+    changed: stageChanged,
+    panelStyle,
+    sceneClassName,
+  } = useStageFade<Stage>(initialStage, STAGE_ORDER);
+  /* Focus follows the stage. The footer's buttons change with every step, so the
+     one just pressed is unmounted; left there, focus would drop to the page with
+     the dialog still open. The title takes it, as on every staged overlay. */
+  const titleRef = React.useRef<HTMLHeadingElement>(null);
+  /* On a phone the flow is the whole window, so the canvas fills it. */
+  const phoneWindow = useFlowWindow().phone;
+  React.useEffect(() => {
+    if (!stageChanged) return;
+    const active = document.activeElement;
+    if (!active || active === document.body || !active.isConnected) {
+      titleRef.current?.focus();
+    }
+  }, [stage, stageChanged]);
   const [joinCase, setJoinCase] = React.useState<JoinCase | undefined>(summonsCase);
 
   const [query, setQuery] = React.useState("");
@@ -345,7 +379,7 @@ export function AdvocateJoinCaseDialog({
   }, [payFailed]);
 
   function reset() {
-    setStage(initialStage);
+    resetStage(initialStage);
     setJoinCase(summonsCase);
     setQuery("");
     setQueryTouched(false);
@@ -544,6 +578,8 @@ export function AdvocateJoinCaseDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <FlowDialogContent
         lang={locale}
+        rise
+        style={panelStyle}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
         // The litigant combobox portals its list outside this dialog's DOM. Without
         // this guard the modal dialog reads a click on that list as an outside
@@ -559,49 +595,50 @@ export function AdvocateJoinCaseDialog({
           if (document.querySelector('[data-slot="combobox-content"]')) event.preventDefault();
         }}
       >
-        {stage === "done" ? (
-          <DialogHeader
-            className={`shrink-0 px-6 py-5 pr-14 text-left ${unpaidOutcome ? "" : "border-b border-hairline"}`}
+        {/* The chrome, on every stage including the outcome: the same header the
+            product's staged overlays carry, so the outcome reads as this window
+            settling rather than a different one (owner, Oct 6). Only the words
+            change; the frame holds still while the stage below it moves. */}
+        <DialogHeader className="shrink-0 gap-2 border-b border-hairline p-6 pr-16 text-left">
+          <DialogTitle
+            ref={titleRef}
+            tabIndex={-1}
+            className="text-title-s font-semibold text-balance outline-none"
           >
-            <div className="flex items-center gap-4">
-              <span
-                className={
-                  unpaidOutcome
-                    ? "flex size-14 shrink-0 items-center justify-center rounded-full bg-info-muted text-info-muted-foreground"
-                    : "flex size-14 shrink-0 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground"
-                }
-              >
-                {unpaidOutcome ? (
-                  <HourglassIcon className="size-7" aria-hidden />
-                ) : (
-                  <CheckCircle2Icon className="size-7" aria-hidden />
-                )}
-              </span>
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <DialogTitle className="text-title-s font-semibold text-balance">
-                  {pick(unpaidOutcome ? advDialog.unpaidTitle : advDialog.joinedTitle, locale)}
-                </DialogTitle>
-                <DialogDescription className="text-pretty">
-                  {pick(unpaidOutcome ? advDialog.unpaidBody : advDialog.joinedBody, locale)}
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-        ) : (
-          <DialogHeader className="shrink-0 border-b border-hairline px-6 py-5 pr-14 text-left">
-            <DialogTitle className="text-title-s font-semibold text-balance">
-              {headerCopy.title}
-            </DialogTitle>
-            <DialogDescription className="text-pretty">{headerCopy.body}</DialogDescription>
-          </DialogHeader>
-        )}
+            {stage === "done"
+              ? pick(unpaidOutcome ? advDialog.unpaidTitle : advDialog.joinedTitle, locale)
+              : headerCopy.title}
+          </DialogTitle>
+          <DialogDescription className="text-body-compact text-pretty text-muted-foreground">
+            {stage === "done"
+              ? pick(unpaidOutcome ? advDialog.unpaidBody : advDialog.joinedBody, locale)
+              : headerCopy.body}
+          </DialogDescription>
+        </DialogHeader>
 
+        {/* The stage: the warm canvas the case and the questions are laid on as
+            white panels, the product's staged-overlay surface. It hugs each
+            step's height, which changes while the window is faded out
+            (`useStageFade`). Keyed on the step so each one opens scrolled to its
+            top and plays its drift in. */}
         <div
-          className={`min-h-0 flex-1 overflow-y-auto px-6 py-5 ${unpaidOutcome ? "hidden" : ""}`}
+          className={cn(
+            "relative flex min-h-0 flex-col overflow-hidden bg-muted dark:bg-background",
+            phoneWindow ? "flex-1" : "shrink",
+            unpaidOutcome && "hidden",
+          )}
         >
+        <div
+          key={stage}
+          className={cn(
+            "flex min-h-0 flex-1 flex-col overflow-y-auto",
+            sceneClassName,
+          )}
+        >
+        <div className="flex flex-col p-4 sm:p-6">
           {/* ------------------------------------------------------- lookup */}
           {stage === "lookup" ? (
-            <form id="adv-lookup" noValidate className="flex flex-col gap-4" onSubmit={submitLookup}>
+            <form id="adv-lookup" noValidate className={JOIN_PANEL} onSubmit={submitLookup}>
               <Field data-invalid={queryTouched && query.trim().length < 4}>
                 <FieldLabel>{pick(joinDialog.lookupLabel, locale)}</FieldLabel>
                 <Input
@@ -621,7 +658,7 @@ export function AdvocateJoinCaseDialog({
                 </FieldError>
               </Field>
               {lookupMiss ? (
-                <Banner variant="warning">{pick(joinDialog.lookupMiss, locale)}</Banner>
+                <Banner variant="warning" className="items-start">{pick(joinDialog.lookupMiss, locale)}</Banner>
               ) : null}
             </form>
           ) : null}
@@ -634,7 +671,7 @@ export function AdvocateJoinCaseDialog({
             <div className="flex flex-col gap-4">
               <CaseDetails joinCase={joinCase} locale={locale} extended />
               {downloadNotice ? (
-                <Banner variant="info">
+                <Banner variant="info" className="items-start">
                   {pick(joinDialog.downloadCaseFilePrototype, locale)}
                 </Banner>
               ) : null}
@@ -649,7 +686,7 @@ export function AdvocateJoinCaseDialog({
                 <p className="text-body-compact font-medium">{pick(advDialog.accountSwitchStatus, locale)}</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-4">
+              <div className={JOIN_PANEL}>
                 <Field>
                   <FieldLabel>{pick(advDialog.accountLabel, locale)}</FieldLabel>
                   <Select
@@ -666,7 +703,7 @@ export function AdvocateJoinCaseDialog({
                     </SelectContent>
                   </Select>
                 </Field>
-                <Banner variant="info">{pick(advDialog.accountNote, locale)}</Banner>
+                <Banner variant="info" className="items-start">{pick(advDialog.accountNote, locale)}</Banner>
               </div>
             )
           ) : null}
@@ -676,18 +713,13 @@ export function AdvocateJoinCaseDialog({
             <form id="adv-code" noValidate className="flex flex-col gap-4" onSubmit={submitCode}>
               {/* Public identity only — title (with "1 other" explorable), case
                   number and court. The amount stays behind the code (JOIN-11). */}
-              <div className="flex flex-col gap-1 rounded-xl bg-surface-sunken p-4">
-                <p className="text-caption font-medium text-muted-foreground">
-                  {pick(joinDialog.codeCaseLead, locale)}
-                </p>
-                <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
-                <p className="text-caption text-muted-foreground">
-                  <Identifier value={joinCase.caseNumber} label="case number" />
-                  <span aria-hidden> · </span>
-                  {joinCase.court}
-                </p>
-              </div>
-              <Banner variant="info">{pick(joinDialog.codeNote, locale)}</Banner>
+              <CaseIdentity
+                joinCase={joinCase}
+                locale={locale}
+                lead={pick(joinDialog.codeCaseLead, locale)}
+              />
+              <Banner variant="info" className="items-start">{pick(joinDialog.codeNote, locale)}</Banner>
+              <div className={JOIN_PANEL}>
               <Field data-invalid={codeTouched && code.length !== CODE_LENGTH}>
                 <FieldLabel>{pick(joinDialog.codeLabel, locale)}</FieldLabel>
                 <InputOTP
@@ -716,12 +748,13 @@ export function AdvocateJoinCaseDialog({
                     : null}
                 </FieldError>
               </Field>
+              </div>
             </form>
           ) : null}
 
           {/* ------------------------------------------------ representation */}
           {stage === "role" && joinCase ? (
-            <form id="adv-role" noValidate className="flex flex-col gap-6" onSubmit={submitRole}>
+            <form id="adv-role" noValidate className={cn(JOIN_PANEL, "gap-6")} onSubmit={submitRole}>
               <Field data-invalid={roleTouched && !side}>
                 <FieldLabel className="block w-full text-body font-semibold leading-snug">
                   {pick(advDialog.sideLegend, locale)}
@@ -758,7 +791,7 @@ export function AdvocateJoinCaseDialog({
               </Field>
 
               {side === "accused" ? (
-                <Banner variant="info">{pick(advDialog.accusedAckNote, locale)}</Banner>
+                <Banner variant="info" className="items-start">{pick(advDialog.accusedAckNote, locale)}</Banner>
               ) : null}
 
               {side ? (
@@ -831,11 +864,11 @@ export function AdvocateJoinCaseDialog({
               them. One labelled field each on a single screen; litigants already on the
               case are named in a note instead of asked. */}
           {stage === "verify" ? (
-            <form id="adv-verify" noValidate className="flex flex-col gap-5" onSubmit={submitVerify}>
+            <form id="adv-verify" noValidate className={cn(JOIN_PANEL, "gap-5")} onSubmit={submitVerify}>
               {/* JOIN-64: no OTP here; each number's owner confirms at sign-in. */}
-              <Banner variant="info">{pick(advDialog.contactConfirmNote, locale)}</Banner>
+              <Banner variant="info" className="items-start">{pick(advDialog.contactConfirmNote, locale)}</Banner>
               {joinedParties.length ? (
-                <Banner variant="info">
+                <Banner variant="info" className="items-start">
                   {fill(advDialog.contactAlreadyNote, locale, {
                     names: joinedParties.map((party) => party.name).join(", "),
                   })}
@@ -877,163 +910,164 @@ export function AdvocateJoinCaseDialog({
             <form
               id="adv-vakalatnama"
               noValidate
-              className="flex flex-col gap-6"
+              className={cn(JOIN_PANEL, "gap-8")}
               onSubmit={submitVakalatnama}
             >
-              {/* Not one big Field: a missed upload must redden only the upload area,
-                  not every question below it. The heading is neutral; each control
-                  scopes its own invalid state. */}
+              {/* One rhythm (owner, Oct 6): every question is the same semibold
+                  label over its control, 12px apart, and questions sit 32px apart.
+                  A note belongs to the question it explains, so the fee note rides
+                  with the answer that brings it on. Not one big Field: a missed
+                  upload must redden only the upload area. */}
               <div className="flex flex-col gap-3">
-                  <p className="text-body font-semibold leading-snug">
-                    {pick(advDialog.vkDocLabel, locale)}
-                  </p>
-                  <div className="flex flex-col gap-5">
-                      <Field data-invalid={vkTouched && !vkAttached}>
-                        <div className="flex flex-col gap-2">
-                          <UploadedDocField
-                            label={pick(advDialog.vkDocLabel, locale)}
-                            required
-                            file={vkFile}
-                            onFileChange={(file) => {
-                              setVkFile(file);
-                              setVkTouched(false);
-                            }}
-                            locale={locale}
-                          />
-                          <FieldDescription>{pick(advDialog.vkDocHelp, locale)}</FieldDescription>
-                        </div>
-                        <FieldError>
-                          {vkTouched && !vkAttached ? pick(advDialog.vkAttachError, locale) : null}
-                        </FieldError>
-                      </Field>
-
-                      {/* Only asked once another advocate is already on the case. When
-                          the answer is yes, the advocate is joining a vakalatnama that
-                          already names them, so the co-advocate questions are skipped. */}
-                      {otherAdvocatesOnCase ? (
-                        <Field data-invalid={vkTouched && !vkAnother}>
-                          <FieldLabel className="block w-full text-body font-semibold leading-snug">
-                            {pick(advDialog.vkAnotherLegend, locale)}
-                          </FieldLabel>
-                          <RadioGroup
-                            value={vkAnother}
-                            onValueChange={(value) => {
-                              setVkAnother(value as YesNo);
-                              setVkTouched(false);
-                            }}
-                            className="flex flex-col gap-1"
-                          >
-                            <div className="flex min-h-10 items-center gap-2">
-                              <RadioGroupItem value="yes" id="adv-vk-yes" />
-                              <Label htmlFor="adv-vk-yes">{pick(advDialog.yes, locale)}</Label>
-                            </div>
-                            <div className="flex min-h-10 items-center gap-2">
-                              <RadioGroupItem value="no" id="adv-vk-no" />
-                              <Label htmlFor="adv-vk-no">{pick(advDialog.no, locale)}</Label>
-                            </div>
-                          </RadioGroup>
-                          <FieldError>
-                            {vkTouched && !vkAnother ? pick(advDialog.vkAnotherError, locale) : null}
-                          </FieldError>
-                        </Field>
-                      ) : null}
-
-                      {needsCoAdvocates ? (
-                        <>
-                          <Banner variant="info">{pick(advDialog.vkFeeNote, locale)}</Banner>
-
-                          <Field data-invalid={vkTouched && !vkCountValid}>
-                            <FieldLabel htmlFor="adv-vk-count">{pick(advDialog.vkCountLabel, locale)}</FieldLabel>
-                            <Input
-                              id="adv-vk-count"
-                              inputMode="numeric"
-                              value={vkCount}
-                              onChange={(event) => {
-                                setVkCount(event.target.value.replace(/\D/g, ""));
-                                // Trim any picks beyond the new count.
-                                setVkAdvocates((current) => {
-                                  const next = event.target.value.replace(/\D/g, "");
-                                  const n = /^[1-9]\d*$/.test(next) ? Number.parseInt(next, 10) : 0;
-                                  return current.slice(0, n);
-                                });
-                                setVkTouched(false);
-                              }}
-                            />
-                            <FieldError>
-                              {vkTouched && !vkCountValid
-                                ? pick(advDialog.vkCountError, locale)
-                                : null}
-                            </FieldError>
-                          </Field>
-
-                          {vkCountValid ? (
-                            <Field data-invalid={vkTouched && vkAdvocates.length !== vkCountN}>
-                              <FieldLabel className="block w-full text-body font-semibold leading-snug">
-                                {pick(advDialog.vkAddLegend, locale)}
-                              </FieldLabel>
-                              <Combobox
-                                multiple
-                                // At the stated count the list closes and the input
-                                // stops inviting more; removing a chip reopens it.
-                                open={vkAdvOpen && !vkAdvAtCapacity}
-                                onOpenChange={setVkAdvOpen}
-                                items={BAR_DIRECTORY.map((adv) => `${adv.name} · ${adv.barId}`)}
-                                value={vkAdvocates}
-                                onValueChange={(names: string[]) => {
-                                  const capped = names.slice(0, vkCountN);
-                                  setVkAdvocates(capped);
-                                  // Closed once the count is met; reopened the moment a
-                                  // chip is removed and there is room again.
-                                  setVkAdvOpen(capped.length < vkCountN);
-                                  setVkTouched(false);
-                                }}
-                              >
-                                <ComboboxChips ref={vkAdvAnchor}>
-                                  <ComboboxValue>
-                                    {(value: string[]) => (
-                                      <>
-                                        {value.map((name) => (
-                                          <ComboboxChip key={name}>{name}</ComboboxChip>
-                                        ))}
-                                        <ComboboxChipsInput
-                                          disabled={vkAdvAtCapacity}
-                                          placeholder={
-                                            value.length ? undefined : pick(advDialog.vkAddPlaceholder, locale)
-                                          }
-                                        />
-                                      </>
-                                    )}
-                                  </ComboboxValue>
-                                </ComboboxChips>
-                                <ComboboxContent anchor={vkAdvAnchor} className="pointer-events-auto">
-                                  <ComboboxEmpty>{pick(advDialog.vkAddEmpty, locale)}</ComboboxEmpty>
-                                  <ComboboxList>
-                                    {(item: string) => (
-                                      <ComboboxItem key={item} value={item}>
-                                        {item}
-                                      </ComboboxItem>
-                                    )}
-                                  </ComboboxList>
-                                </ComboboxContent>
-                              </Combobox>
-                              <FieldDescription>
-                                {fill(
-                                  vkAdvAtCapacity ? advDialog.vkAddCap : advDialog.vkAddHint,
-                                  locale,
-                                  { n: String(vkCountN) },
-                                )}
-                              </FieldDescription>
-                              <FieldError>
-                                {vkTouched && vkAdvocates.length !== vkCountN
-                                  ? fill(advDialog.vkAddError, locale, { n: String(vkCountN) })
-                                  : null}
-                              </FieldError>
-                            </Field>
-                          ) : null}
-                        </>
-                      ) : null}
+                <p className={VK_QUESTION}>{pick(advDialog.vkDocLabel, locale)}</p>
+                <Field data-invalid={vkTouched && !vkAttached}>
+                  <div className="flex flex-col gap-2">
+                    <UploadedDocField
+                      label={pick(advDialog.vkDocLabel, locale)}
+                      required
+                      file={vkFile}
+                      onFileChange={(file) => {
+                        setVkFile(file);
+                        setVkTouched(false);
+                      }}
+                      locale={locale}
+                    />
+                    <FieldDescription>{pick(advDialog.vkDocHelp, locale)}</FieldDescription>
                   </div>
+                  <FieldError>
+                    {vkTouched && !vkAttached ? pick(advDialog.vkAttachError, locale) : null}
+                  </FieldError>
+                </Field>
+              </div>
+
+              {/* Only asked once another advocate is already on the case. When
+                  the answer is yes, the advocate is joining a vakalatnama that
+                  already names them, so the co-advocate questions are skipped. */}
+              {otherAdvocatesOnCase || needsCoAdvocates ? (
+                <div className="flex flex-col gap-3">
+                  {otherAdvocatesOnCase ? (
+                    <Field data-invalid={vkTouched && !vkAnother}>
+                      <FieldLabel className={cn(VK_QUESTION, "block w-full")}>
+                        {pick(advDialog.vkAnotherLegend, locale)}
+                      </FieldLabel>
+                      <RadioGroup
+                        value={vkAnother}
+                        onValueChange={(value) => {
+                          setVkAnother(value as YesNo);
+                          setVkTouched(false);
+                        }}
+                        className="flex flex-col gap-1"
+                      >
+                        <div className="flex min-h-10 items-center gap-2">
+                          <RadioGroupItem value="yes" id="adv-vk-yes" />
+                          <Label htmlFor="adv-vk-yes">{pick(advDialog.yes, locale)}</Label>
+                        </div>
+                        <div className="flex min-h-10 items-center gap-2">
+                          <RadioGroupItem value="no" id="adv-vk-no" />
+                          <Label htmlFor="adv-vk-no">{pick(advDialog.no, locale)}</Label>
+                        </div>
+                      </RadioGroup>
+                      <FieldError>
+                        {vkTouched && !vkAnother ? pick(advDialog.vkAnotherError, locale) : null}
+                      </FieldError>
+                    </Field>
+                  ) : null}
+                  {needsCoAdvocates ? (
+                    <Banner variant="info" className="items-start">{pick(advDialog.vkFeeNote, locale)}</Banner>
+                  ) : null}
                 </div>
+              ) : null}
+
+              {needsCoAdvocates ? (
+                <Field data-invalid={vkTouched && !vkCountValid}>
+                  <FieldLabel htmlFor="adv-vk-count" className={VK_QUESTION}>{pick(advDialog.vkCountLabel, locale)}</FieldLabel>
+                  <Input
+                    id="adv-vk-count"
+                    inputMode="numeric"
+                    value={vkCount}
+                    onChange={(event) => {
+                      setVkCount(event.target.value.replace(/\D/g, ""));
+                      // Trim any picks beyond the new count.
+                      setVkAdvocates((current) => {
+                        const next = event.target.value.replace(/\D/g, "");
+                        const n = /^[1-9]\d*$/.test(next) ? Number.parseInt(next, 10) : 0;
+                        return current.slice(0, n);
+                      });
+                      setVkTouched(false);
+                    }}
+                  />
+                  <FieldError>
+                    {vkTouched && !vkCountValid
+                      ? pick(advDialog.vkCountError, locale)
+                      : null}
+                  </FieldError>
+                </Field>
+              ) : null}
+
+              {needsCoAdvocates && vkCountValid ? (
+                <Field data-invalid={vkTouched && vkAdvocates.length !== vkCountN}>
+                  <FieldLabel className={cn(VK_QUESTION, "block w-full")}>
+                    {pick(advDialog.vkAddLegend, locale)}
+                  </FieldLabel>
+                  <Combobox
+                    multiple
+                    // At the stated count the list closes and the input
+                    // stops inviting more; removing a chip reopens it.
+                    open={vkAdvOpen && !vkAdvAtCapacity}
+                    onOpenChange={setVkAdvOpen}
+                    items={BAR_DIRECTORY.map((adv) => `${adv.name} · ${adv.barId}`)}
+                    value={vkAdvocates}
+                    onValueChange={(names: string[]) => {
+                      const capped = names.slice(0, vkCountN);
+                      setVkAdvocates(capped);
+                      // Closed once the count is met; reopened the moment a
+                      // chip is removed and there is room again.
+                      setVkAdvOpen(capped.length < vkCountN);
+                      setVkTouched(false);
+                    }}
+                  >
+                    <ComboboxChips ref={vkAdvAnchor}>
+                      <ComboboxValue>
+                        {(value: string[]) => (
+                          <>
+                            {value.map((name) => (
+                              <ComboboxChip key={name}>{name}</ComboboxChip>
+                            ))}
+                            <ComboboxChipsInput
+                              disabled={vkAdvAtCapacity}
+                              placeholder={
+                                value.length ? undefined : pick(advDialog.vkAddPlaceholder, locale)
+                              }
+                            />
+                          </>
+                        )}
+                      </ComboboxValue>
+                    </ComboboxChips>
+                    <ComboboxContent anchor={vkAdvAnchor} className="pointer-events-auto">
+                      <ComboboxEmpty>{pick(advDialog.vkAddEmpty, locale)}</ComboboxEmpty>
+                      <ComboboxList>
+                        {(item: string) => (
+                          <ComboboxItem key={item} value={item}>
+                            {item}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                  <FieldDescription>
+                    {fill(
+                      vkAdvAtCapacity ? advDialog.vkAddCap : advDialog.vkAddHint,
+                      locale,
+                      { n: String(vkCountN) },
+                    )}
+                  </FieldDescription>
+                  <FieldError>
+                    {vkTouched && vkAdvocates.length !== vkCountN
+                      ? fill(advDialog.vkAddError, locale, { n: String(vkCountN) })
+                      : null}
+                  </FieldError>
+                </Field>
+              ) : null}
             </form>
           ) : null}
 
@@ -1044,7 +1078,7 @@ export function AdvocateJoinCaseDialog({
             <form
               id="adv-pay"
               noValidate
-              className="flex flex-col gap-5"
+              className={cn(JOIN_PANEL, "gap-5")}
               onSubmit={(event) => {
                 event.preventDefault();
                 pay();
@@ -1056,7 +1090,7 @@ export function AdvocateJoinCaseDialog({
                   tabIndex={-1}
                   className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <Banner variant="error">{pick(advDialog.payFailed, locale)}</Banner>
+                  <Banner variant="error" className="items-start">{pick(advDialog.payFailed, locale)}</Banner>
                 </div>
               ) : null}
               <DescriptionList className="rounded-xl bg-surface-sunken px-4 py-1">
@@ -1100,18 +1134,25 @@ export function AdvocateJoinCaseDialog({
 
           {/* --------------------------------------------------------- done */}
           {stage === "done" && joinCase && !unpaidOutcome ? (
-            <div className="flex flex-col gap-6">
-              <CaseDetails joinCase={joinCase} locale={locale} compact />
+            <div className="flex flex-col gap-4">
+              <CaseDetails
+                joinCase={joinCase}
+                locale={locale}
+                compact
+                outcome={fill(advDialog.joinedBand, locale, {
+                  names: selectedParties.map((party) => party.name).join(", "),
+                })}
+              />
 
               {/* Optional: bring the office's subordinates onto the case. Numbers are
                   typed one at a time and added to the stack above with the + button
                   (or Enter); Send invite then notifies everyone in the stack. */}
-              <div className="flex flex-col gap-3 border-t border-hairline pt-5">
+              <div className={cn(JOIN_PANEL, "gap-3")}>
                 <div className="flex flex-col gap-1">
-                  <p className="text-body-compact font-semibold">
+                  <p className="text-body font-semibold">
                     {pick(advDialog.teamTitle, locale)}
                   </p>
-                  <p className="text-caption text-pretty text-muted-foreground">
+                  <p className="text-body-compact text-pretty text-muted-foreground">
                     {pick(advDialog.teamBody, locale)}
                   </p>
                 </div>
@@ -1122,7 +1163,7 @@ export function AdvocateJoinCaseDialog({
                     {teamPhones.map((phone, index) => (
                       <span
                         key={`${phone}-${index}`}
-                        className="inline-flex items-center gap-1 rounded-sm bg-muted py-0.5 pr-0.5 pl-2 text-caption font-medium text-foreground"
+                        className="inline-flex items-center gap-1 rounded-sm bg-muted py-0.5 pr-0.5 pl-2 text-body-compact font-medium text-foreground"
                       >
                         <span className="tabular-nums">{phone}</span>
                         <button
@@ -1191,7 +1232,7 @@ export function AdvocateJoinCaseDialog({
                 </Field>
 
                 {teamPhones.length ? (
-                  <p className="text-caption text-muted-foreground">
+                  <p className="text-body-compact text-muted-foreground">
                     {pick(advDialog.teamAddedNote, locale)}
                   </p>
                 ) : null}
@@ -1210,7 +1251,7 @@ export function AdvocateJoinCaseDialog({
               </div>
 
               {doneNotice ? (
-                <Banner variant="info">
+                <Banner variant="info" className="items-start">
                   {pick(
                     doneNotice === "bail"
                       ? joinDialog.fileBailPrototype
@@ -1221,6 +1262,8 @@ export function AdvocateJoinCaseDialog({
               ) : null}
             </div>
           ) : null}
+        </div>
+        </div>
         </div>
 
         {/* ------------------------------------------------------------ footer */}

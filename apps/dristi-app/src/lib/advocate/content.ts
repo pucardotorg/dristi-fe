@@ -78,7 +78,7 @@ export const VAKALATNAMAS: Vakalatnama[] = [
     id: "vk-1",
     name: "South Indian Bank cheque matter",
     parties: "Rajan Krishnan Nair and Suresh Babu P",
-    caseRef: "CC 847 / 2026",
+    caseRef: "CC 847/2026",
     generatedOn: "12-08-2026",
     advocates: ["Adv. Anjali Nair", "Adv. Anil George"],
   },
@@ -675,6 +675,8 @@ export const advDialog = {
     "You can now act for the litigant(s) in this case.",
     "ഇനി ഈ കേസിൽ കക്ഷിക്ക് (കക്ഷികൾക്ക്) വേണ്ടി പ്രവർത്തിക്കാം.",
   ),
+  /* The settled band on the joined case (Oct 6). Malayalam drafted — needs review. */
+  joinedBand: t("Joined · representing {names}", "ചേർന്നു · {names}-നെ പ്രതിനിധീകരിക്കുന്നു"),
   viewCaseFile: t("View case file", "കേസ് ഫയൽ കാണുക"),
   prototypeCaseFile: t(
     "This action will open the case file.",
