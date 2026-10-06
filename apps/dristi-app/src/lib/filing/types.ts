@@ -428,6 +428,24 @@ export type AccusedProcessChoice = {
  */
 export type SignInstrument = "aadhaar" | "dsc" | "paper";
 
+/** What stopped e-signing, as the person turning to paper says it (`PAPER_FALLBACK_REASONS`). */
+export type PaperFallbackReason =
+  | "otp-not-received"
+  | "party-did-not-respond"
+  | "server-not-responding"
+  | "other";
+
+/**
+ * The confirmation taken before anyone is allowed onto the paper path: that they could
+ * not e-sign, and what stopped them. Paper is the discouraged route (owner, 2026-10-06),
+ * so it is reached by saying so, not by picking it from a menu of equals.
+ */
+export type PaperFallback = {
+  reason: PaperFallbackReason;
+  /** ISO timestamp of the confirmation. */
+  at: string;
+};
+
 /** One signature, as the record will have to state it later. */
 export type SignatureRecord = {
   /** ISO timestamp — IST in the live service. */
@@ -459,6 +477,12 @@ export type SignState = {
   signed: Record<string, SignatureRecord>;
   /** The signed copy, when signing by upload. */
   signedCopy: StoredFileRef | null;
+  /**
+   * Why this filing is on paper, confirmed by the filer before the upload opened. Kept
+   * while the mode is "upload" and cleared when it goes back to digital; `null` on a
+   * paper draft means the confirmation has not been taken yet, so the window asks first.
+   */
+  paperFallback: PaperFallback | null;
   /**
    * Signatory id → phone confirmation, for the upload path only. Every complainant row
    * has to be confirmed before an uploaded copy can be submitted.

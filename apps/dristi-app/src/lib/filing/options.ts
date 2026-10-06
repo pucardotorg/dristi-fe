@@ -5,6 +5,8 @@
  * lookups (IFSC, PIN) live in lookups.ts; there are no mock registries here.
  */
 
+import type { PaperFallbackReason } from "./types";
+
 export type Option = { value: string; label: string };
 
 export const CASE_TYPE = {
@@ -193,6 +195,24 @@ export const FINAL_RELIEF_TEMPLATE = [
  * how the accused was served.
  */
 export const DELIVERY_CHANNEL = "E-post";
+
+/* ───────────────────────────── Signing ───────────────────────────── */
+
+/**
+ * What stopped e-signing — the common failures the owner named (2026-10-06), in plain
+ * words rather than legal ones. Every signing window that offers paper asks this; a
+ * window with one signer has nobody else to wait on, so it passes a subset rather than
+ * keeping a second list.
+ */
+export const PAPER_FALLBACK_REASONS: readonly {
+  id: PaperFallbackReason;
+  label: string;
+}[] = [
+  { id: "otp-not-received", label: "OTP not received" },
+  { id: "party-did-not-respond", label: "A party did not respond" },
+  { id: "server-not-responding", label: "Server not responding" },
+  { id: "other", label: "Something else" },
+];
 
 /**
  * The processes collectable upfront, and the court's rule for each (handover §19.3).

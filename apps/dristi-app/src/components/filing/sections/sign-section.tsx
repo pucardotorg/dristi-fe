@@ -386,8 +386,6 @@ export function SignSection() {
   const [flowStart, setFlowStart] = React.useState<SignFlowStart>("choose");
   /** Where the person asked to go while this version is out for signature. */
   const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
-  /** The "switch to paper" question, which recalls requests other people already have. */
-  const [switchOpen, setSwitchOpen] = React.useState(false);
   /** The other way round, asked only when there is an uploaded copy to discard. */
   const [digitalSwitchOpen, setDigitalSwitchOpen] = React.useState(false);
   /** A reminder just went out — said once, then it goes quiet again. */
@@ -525,9 +523,13 @@ export function SignSection() {
 
   const closeModal = () => setModal(null);
 
-  /** Open the signing window where the complaint actually is. */
+  /**
+   * Open the signing window where the complaint actually is. Nobody reaches the upload
+   * without having said they cannot e-sign, so a paper draft with no confirmation on it
+   * (one from before the question existed) opens on the question first.
+   */
   const openFlow = (at: SignFlowStart) => {
-    setFlowStart(at);
+    setFlowStart(at === "paper" && !sign.paperFallback ? "fallback" : at);
     setFlowOpen(true);
   };
 
@@ -592,24 +594,6 @@ export function SignSection() {
   };
 
   /**
-   * Paper instead, after the requests are already out. Nobody signs in the system now, so
-   * every outstanding request is recalled and every signature collected goes with it —
-   * the uploaded copy has to carry all of them anyway. The window then opens on the
-   * upload, which is the next thing to do.
-   */
-  const switchToUpload = () => {
-    update((d) => {
-      d.sign.mode = "upload";
-      d.sign.requestedAt = null;
-      d.sign.notified = {};
-      d.sign.signed = {};
-      d.sign.confirmed = {};
-    });
-    setSwitchOpen(false);
-    openFlow("paper");
-  };
-
-  /**
    * Back to e-signing. Nothing goes out until the choice is made in the window, so this
    * only has something to undo when a copy was already uploaded or confirmed.
    */
@@ -617,6 +601,7 @@ export function SignSection() {
     const copy = sign.signedCopy;
     update((d) => {
       d.sign.mode = "digital";
+      d.sign.paperFallback = null;
       d.sign.signed = {};
       d.sign.confirmed = {};
       d.sign.signedCopy = null;
@@ -977,7 +962,9 @@ export function SignSection() {
             type="button"
             variant="ghost"
             className="w-full"
-            onClick={() => setSwitchOpen(true)}
+            /* Paper after the requests are out withdraws them. The window says so on
+               the same stage that asks why, rather than in a confirmation of its own. */
+            onClick={() => openFlow("fallback")}
           >
             <UploadIcon data-icon="inline-start" aria-hidden />
             Upload a signed copy instead
@@ -1537,34 +1524,6 @@ export function SignSection() {
         confirmLabel={anySigned ? "Go back and re-sign" : "Go back and recall"}
         cancelLabel="Stay here"
         onConfirm={confirmLeave}
-      />
-
-      {/*
-        ── Switching to paper after the requests are out ──
-        Tasks can be cancelled; a message that has already landed cannot. So this is the
-        one place in the step that asks twice, and it says what the other parties will be
-        left holding.
-      */}
-      <ConfirmDialog
-        open={switchOpen}
-        onOpenChange={setSwitchOpen}
-        title="Upload a physically signed copy instead?"
-        description={
-          otherSigners === 0
-            ? /* Nobody else was ever asked, so there is no request to withdraw — only
-                 the signature already made, if one was made. */
-              anySigned
-                ? "Your e-signature is voided. The PDF you upload has to carry your signature by hand instead."
-                : "You print the complaint, sign it by hand, and upload it as one PDF."
-            : `${others} ${have} been asked to e-sign. Switching withdraws ${
-                otherSigners === 1 ? "that request" : "those requests"
-              }${
-                anySigned ? " and voids the signatures already collected" : ""
-              } — the PDF you upload has to carry every signature by hand instead.`
-        }
-        confirmLabel="Upload a signed copy"
-        cancelLabel="Keep e-signing"
-        onConfirm={switchToUpload}
       />
 
       {/* ── And back the other way ── */}

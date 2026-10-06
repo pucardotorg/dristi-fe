@@ -444,6 +444,7 @@ export function createBlankDraft(id: string, profile?: UserProfile | null): Fili
       notified: {},
       signed: {},
       signedCopy: null,
+      paperFallback: null,
       confirmed: {},
       deliveryChannel: DELIVERY_CHANNEL,
       process: {},
@@ -547,6 +548,7 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
     notified: {},
     signed: {},
     signedCopy: null,
+    paperFallback: null,
     confirmed: {},
     deliveryChannel: DELIVERY_CHANNEL,
     process: {},
@@ -593,6 +595,9 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
   draft.affidavit ??= "";
   // Phone confirmation on the upload path is newer than these drafts.
   draft.sign.confirmed ??= {};
+  // So is the confirmation that e-signing could not be used. An older paper draft has
+  // none, and none is invented for it: the window asks before the upload reopens.
+  draft.sign.paperFallback ??= null;
   migrateSignMode(draft);
   draft.version = 7;
   return draft;

@@ -24,7 +24,10 @@
  *
  * ## The stages
  *
- * `choose` — digital or paper, each card saying what it does to the other parties.
+ * `choose` — e-signing, as the one card, saying what it does to the other parties; paper
+ *   is a link beneath it for when e-signing has not worked (owner, 2026-10-06).
+ * `fallback` — what stopped e-signing, and the filer's confirmation that they cannot.
+ *   Nothing changes until they continue, so looking at it costs nothing.
  * `sign` — the link is out; now the filer's own instrument, Aadhaar OTP or their DSC.
  * `otp` / `dsc` — that instrument, doing its one job.
  * `done` — what just happened, resolving in the same scene as the act.
@@ -69,6 +72,13 @@ import { Label } from "@/components/ui/label";
 import { SectionNotice } from "@/components/filing/notices";
 import { OathCapture } from "@/components/filing/oath-capture";
 import {
+  NO_PAPER_FALLBACK_ANSWER,
+  PaperFallbackLink,
+  PaperFallbackQuestion,
+  paperFallbackAnswered,
+  type PaperFallbackAnswer,
+} from "@/components/filing/paper-fallback";
+import {
   ChoiceCard,
   DscLookup,
   InstrumentChoice,
@@ -81,7 +91,7 @@ import {
 import { pickErrorMessage, useFilePicker } from "@/components/filing/use-file-picker";
 
 /** Where the window opens, decided by what has happened to the complaint so far. */
-export type SignFlowStart = "choose" | "sign" | "paper" | "oath";
+export type SignFlowStart = "choose" | "sign" | "fallback" | "paper" | "oath";
 
 type Stage =
   | "choose"
@@ -89,6 +99,7 @@ type Stage =
   | "otp"
   | "dsc"
   | "done"
+  | "fallback"
   | "paper"
   | "uploaded"
   | "oath"
@@ -102,10 +113,11 @@ type Stage =
  * first in its own order.
  */
 const ORDER: Record<SignFlowStart, readonly Stage[]> = {
-  choose: ["choose", "sign", "otp", "dsc", "done", "paper", "uploaded", "oath", "sworn"],
-  sign: ["sign", "otp", "dsc", "done", "paper", "uploaded", "oath", "sworn", "choose"],
-  paper: ["paper", "uploaded", "oath", "sworn", "choose", "sign", "otp", "dsc", "done"],
-  oath: ["oath", "sworn", "choose", "sign", "otp", "dsc", "done", "paper", "uploaded"],
+  choose: ["choose", "sign", "otp", "dsc", "done", "fallback", "paper", "uploaded", "oath", "sworn"],
+  sign: ["sign", "otp", "dsc", "done", "fallback", "paper", "uploaded", "oath", "sworn", "choose"],
+  fallback: ["fallback", "paper", "uploaded", "oath", "sworn", "choose", "sign", "otp", "dsc", "done"],
+  paper: ["paper", "uploaded", "oath", "sworn", "choose", "sign", "otp", "dsc", "done", "fallback"],
+  oath: ["oath", "sworn", "choose", "sign", "otp", "dsc", "done", "fallback", "paper", "uploaded"],
 };
 
 /**
@@ -119,6 +131,7 @@ const SCENES: Record<Stage, string> = {
   otp: "act",
   dsc: "act",
   done: "act",
+  fallback: "fallback",
   paper: "paper",
   uploaded: "paper",
   oath: "oath",
@@ -231,6 +244,17 @@ function SignFlowBody({
   const [signedWith, setSignedWith] = React.useState<SignInstrument | null>(null);
   const resendTimer = React.useRef<number | null>(null);
 
+  /* ── turning to paper ──────────────────────────────────────────────────── */
+  /* A filer who already confirmed and stepped back sees their answer, not a blank. */
+  const [fallback, setFallback] = React.useState<PaperFallbackAnswer>(() =>
+    sign.paperFallback
+      ? { reason: sign.paperFallback.reason, confirmed: true }
+      : NO_PAPER_FALLBACK_ANSWER
+  );
+  /** Requests already out on the digital path, which turning to paper withdraws. */
+  const requested = sign.mode === "digital" && sign.requestedAt !== null;
+  const anySigned = sign.mode === "digital" && everyone.some((s) => s.status === "signed");
+
   /* ── the uploaded copy ─────────────────────────────────────────────────── */
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [otpFor, setOtpFor] = React.useState<string | null>(null);
@@ -287,6 +311,7 @@ function SignFlowBody({
     const now = new Date().toISOString();
     update((d) => {
       d.sign.mode = "digital";
+      d.sign.paperFallback = null;
       d.sign.requestedAt = now;
       // Everyone but the people at this keyboard — "you" sign here, not by link.
       d.sign.notified = Object.fromEntries(
@@ -298,11 +323,18 @@ function SignFlowBody({
   };
 
   /**
-   * Paper instead. Nothing is sent to anyone, and anything already outstanding is
-   * recalled — the printed copy has to carry every signature by hand regardless.
+   * Paper instead, once the filer has said why. Nothing is sent to anyone, and anything
+   * already outstanding is recalled — the printed copy has to carry every signature by
+   * hand regardless. A draft already on paper (one from before this question existed)
+   * only gains the confirmation; its copy and confirmations stay where they are.
    */
-  const choosePaper = () => {
+  const continueToPaper = () => {
+    if (!paperFallbackAnswered(fallback)) return;
+    const paperFallback = { reason: fallback.reason, at: new Date().toISOString() };
+    const alreadyOnPaper = sign.mode === "upload";
     update((d) => {
+      d.sign.paperFallback = paperFallback;
+      if (alreadyOnPaper) return;
       d.sign.mode = "upload";
       d.sign.requestedAt = null;
       d.sign.notified = {};
@@ -424,6 +456,7 @@ function SignFlowBody({
     otp: "Enter the OTP",
     dsc: "Sign with your DSC",
     done: youSigned ? "Signature added" : "Out for signature",
+    fallback: "Unable to e-sign?",
     paper: "Upload the signed complaint",
     uploaded: "Signed copy accepted",
     oath: "Take your oath",
@@ -441,6 +474,8 @@ function SignFlowBody({
       : "Sent to your Aadhaar-linked mobile.",
     dsc: "Your certificate has to be plugged in, with the signing utility running on this computer.",
     done: null,
+    fallback:
+      "E-signing is quicker for everyone. On paper, every party signs by hand and each complainant confirms by OTP.",
     paper: null,
     uploaded: null,
     oath: "Record yourself reading the oath. It is filed with the complaint.",
@@ -489,6 +524,24 @@ function SignFlowBody({
           Done
         </Button>
       ),
+    fallback: (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => (start === "fallback" ? onClose() : flow.go("choose"))}
+        >
+          Keep e-signing
+        </Button>
+        <Button
+          type="button"
+          disabled={!paperFallbackAnswered(fallback)}
+          onClick={continueToPaper}
+        >
+          Continue to upload
+        </Button>
+      </>
+    ),
     paper: (
       <>
         <Button type="button" variant="outline" onClick={() => flow.go("choose")}>
@@ -572,14 +625,24 @@ function SignFlowBody({
               ) : null}
             </ChoiceCard>
 
-            <ChoiceCard
-              title="Upload a physically signed copy"
-              tone="bg-warning-muted text-warning-muted-foreground"
-              icon={<UploadIcon className="size-5" />}
-              onClick={choosePaper}
-            >
-              Upload one PDF that already carries every party&rsquo;s signature.
-            </ChoiceCard>
+            <PaperFallbackLink onClick={() => flow.go("fallback")} />
+          </StageColumn>
+        ) : flow.stage === "fallback" ? (
+          <StageColumn>
+            {/* Said before the act, in the window that does it: other people already
+                hold a request against this complaint, and paper takes it back. */}
+            {requested || anySigned ? (
+              <SectionNotice variant="warning" title="This withdraws the e-sign requests">
+                {otherSigners === 0
+                  ? "Your e-signature is voided. The PDF you upload has to carry your signature by hand instead."
+                  : `${others} ${have} been asked to e-sign. Continuing withdraws ${
+                      otherSigners === 1 ? "that request" : "those requests"
+                    }${
+                      anySigned ? " and voids the signatures already collected" : ""
+                    } — the PDF you upload has to carry every signature by hand.`}
+              </SectionNotice>
+            ) : null}
+            <PaperFallbackQuestion value={fallback} onChange={setFallback} />
           </StageColumn>
         ) : flow.stage === "sign" ? (
           <StageColumn>
