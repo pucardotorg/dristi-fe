@@ -832,6 +832,8 @@ export function AdvocateJoinCaseDialog({
               case are named in a note instead of asked. */}
           {stage === "verify" ? (
             <form id="adv-verify" noValidate className="flex flex-col gap-5" onSubmit={submitVerify}>
+              {/* JOIN-64: no OTP here; each number's owner confirms at sign-in. */}
+              <Banner variant="info">{pick(advDialog.contactConfirmNote, locale)}</Banner>
               {joinedParties.length ? (
                 <Banner variant="info">
                   {fill(advDialog.contactAlreadyNote, locale, {

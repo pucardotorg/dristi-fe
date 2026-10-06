@@ -47,6 +47,8 @@ export type JoinCase = {
   accusedAdvocate: string;
   /** The accused parties a litigant can join as. */
   accused: CaseParty[];
+  /** The complainant parties — a PoA holder or advocate can join for these. */
+  complainants: CaseParty[];
 };
 
 /**
@@ -72,6 +74,8 @@ export const DEMO_JOIN_CASE: JoinCase = {
     { id: "acc-1", name: "Rajan Krishnan Nair" },
     { id: "acc-2", name: "Suresh Babu P", hasJoined: true },
   ],
+  // Linked at e-filing (JOIN-01), so already on the case with a number on record.
+  complainants: [{ id: "comp-1", name: "South Indian Bank Ltd.", hasJoined: true }],
 };
 
 /** The demo account's registered profile name — deliberately not an exact match for
@@ -99,6 +103,18 @@ export const home = {
   hearingLabel: t("Next hearing", "അടുത്ത ഹിയറിംഗ്"),
   statusJoined: t("Joined", "ചേർന്നു"),
   statusSummons: t("Action required", "നടപടി ആവശ്യമാണ്"),
+  linkTitle: t("Is this you?", "ഇത് നിങ്ങളാണോ?"),
+  linkBody: t(
+    "Someone joining case {caseNumber} gave this mobile number for {name}. Are you {name} in this case?",
+    "{caseNumber} കേസിൽ ചേർന്ന ഒരാൾ {name}-ന്റെ നമ്പറായി ഈ മൊബൈൽ നമ്പർ നൽകി. ഈ കേസിലെ {name} നിങ്ങളാണോ?",
+  ),
+  linkYes: t("Yes, this is me", "അതെ, ഇത് ഞാനാണ്"),
+  linkNo: t("No, this isn't me", "ഇല്ല, ഇത് ഞാനല്ല"),
+  linkDeclinedTitle: t("This case was not added", "ഈ കേസ് ചേർത്തിട്ടില്ല"),
+  linkDeclinedBody: t(
+    "Thank you. The case has not been linked to your account.",
+    "നന്ദി. ഈ കേസ് നിങ്ങളുടെ അക്കൗണ്ടുമായി ബന്ധിപ്പിച്ചിട്ടില്ല.",
+  ),
   reviewSummons: t("Review and join", "പരിശോധിച്ച് ചേരുക"),
   viewCase: t("View case", "കേസ് കാണുക"),
   prototypeTitle: t(
@@ -202,22 +218,36 @@ export const joinDialog = {
     "കേസിന് മറുപടി നൽകേണ്ട വ്യക്തിയോ സ്ഥാപനമോ ആയി പരാതിയിൽ പേരുള്ള ആളാണ് പ്രതി. കോടതി കുറ്റക്കാരനായി കണ്ടെത്തി എന്നല്ല ഇതിന്റെ അർത്ഥം.",
   ),
   whoPoa: t(
-    "I am a power of attorney (PoA) holder for the accused",
-    "പ്രതിക്ക് വേണ്ടി പവർ ഓഫ് അറ്റോർണി ഉള്ള ആളാണ് ഞാൻ",
+    "I am a power of attorney (PoA) holder",
+    "ഞാൻ ഒരു പവർ ഓഫ് അറ്റോർണി ഉടമയാണ്",
   ),
   poaExplainTitle: t(
     "What is a power of attorney (PoA) holder?",
     "പവർ ഓഫ് അറ്റോർണി എന്നാൽ എന്ത്?",
   ),
   poaExplainBody: t(
-    "A written authorisation that lets you act in this case for the accused, for example for a parent abroad or a relative who is unwell. The accused can revoke it at any time.",
-    "പ്രതിക്ക് വേണ്ടി ഈ കേസിൽ പ്രവർത്തിക്കാൻ അനുവദിക്കുന്ന രേഖാമൂലമുള്ള അധികാരപത്രം. ഉദാഹരണത്തിന് വിദേശത്തുള്ള മാതാപിതാവിനോ അസുഖമുള്ള ബന്ധുവിനോ വേണ്ടി. പ്രതിക്ക് എപ്പോൾ വേണമെങ്കിലും ഇത് റദ്ദാക്കാം.",
+    "A written authorisation that lets you act in this case for a complainant or an accused, for example for a parent abroad or a relative who is unwell. The person can revoke it at any time.",
+    "പരാതിക്കാരന് വേണ്ടിയോ പ്രതിക്ക് വേണ്ടിയോ ഈ കേസിൽ പ്രവർത്തിക്കാൻ അനുവദിക്കുന്ന രേഖാമൂലമുള്ള അധികാരപത്രം. ഉദാഹരണത്തിന് വിദേശത്തുള്ള മാതാപിതാവിനോ അസുഖമുള്ള ബന്ധുവിനോ വേണ്ടി. ആ വ്യക്തിക്ക് എപ്പോൾ വേണമെങ്കിലും ഇത് റദ്ദാക്കാം.",
   ),
   whichSelfLabel: t("Who among these people are you?", "ഇവരിൽ നിങ്ങൾ ആരാണ്?"),
+  poaSideLegend: t(
+    "Are you a PoA holder for a complainant or an accused?",
+    "പരാതിക്കാരന്റെയോ പ്രതിയുടെയോ പവർ ഓഫ് അറ്റോർണി ഉടമയാണോ നിങ്ങൾ?",
+  ),
+  poaSideComplainant: t("Complainant", "പരാതിക്കാരൻ"),
+  poaSideAccused: t("Accused", "പ്രതി"),
+  poaSideError: t("Choose a side.", "ഒരു ഭാഗം തിരഞ്ഞെടുക്കുക."),
   whichPoaLabel: t(
     "Who do you hold power of attorney for?",
     "ആർക്ക് വേണ്ടിയാണ് നിങ്ങൾക്ക് പവർ ഓഫ് അറ്റോർണി ഉള്ളത്?",
   ),
+  whichPoaHint: t(
+    "Choose everyone you hold power of attorney for in this case.",
+    "ഈ കേസിൽ നിങ്ങൾക്ക് പവർ ഓഫ് അറ്റോർണി ഉള്ള എല്ലാവരെയും തിരഞ്ഞെടുക്കുക.",
+  ),
+  whichPoaPlaceholder: t("Choose name(s)", "പേരുകൾ തിരഞ്ഞെടുക്കുക"),
+  whichPoaEmpty: t("No names found.", "പേരുകൾ കണ്ടെത്തിയില്ല."),
+  whichPoaError: t("Choose at least one name.", "കുറഞ്ഞത് ഒരു പേര് തിരഞ്ഞെടുക്കുക."),
   whichPlaceholder: t("Choose a name", "ഒരു പേര് തിരഞ്ഞെടുക്കുക"),
   whichError: t("Choose a name from the list.", "പട്ടികയിൽ നിന്ന് ഒരു പേര് തിരഞ്ഞെടുക്കുക."),
   mappingNote: t(
@@ -276,6 +306,10 @@ export const joinDialog = {
     "കോടതിയിൽ എങ്ങനെ ഹാജരാകുമെന്ന് തിരഞ്ഞെടുക്കുക.",
   ),
   poaDocLabel: t("Authorization document", "അധികാര രേഖ"),
+  poaPartyHeading: t(
+    "For {name}",
+    "{name}-ന് വേണ്ടി",
+  ),
   poaDocHelp: t(
     "Upload a JPG, JPEG, PNG or PDF.",
     "JPG, JPEG, PNG അല്ലെങ്കിൽ PDF അപ്‌ലോഡ് ചെയ്യുക.",
@@ -297,13 +331,14 @@ export const joinDialog = {
     "Upload the authorization document before continuing.",
     "തുടരുന്നതിന് മുമ്പ് അധികാര രേഖ അപ്‌ലോഡ് ചെയ്യുക.",
   ),
-  poaAccusedPhoneLabel: t(
-    "Accused's mobile number",
-    "പ്രതിയുടെ മൊബൈൽ നമ്പർ",
+  poaPhoneLabel: t("Their mobile number", "അവരുടെ മൊബൈൽ നമ്പർ"),
+  poaPhoneHelp: t(
+    "We'll text this number. The case is linked to their account once they sign in and confirm it's them.",
+    "ഈ നമ്പറിലേക്ക് SMS അയക്കും. അവർ സൈൻ ഇൻ ചെയ്ത് അത് അവരാണെന്ന് സ്ഥിരീകരിച്ചാൽ കേസ് അവരുടെ അക്കൗണ്ടുമായി ബന്ധിപ്പിക്കും.",
   ),
-  poaAccusedPhoneHelp: t(
-    "Needed to link this case to the accused's account.",
-    "പ്രതിയുടെ അക്കൗണ്ടുമായി ഈ കേസ് ബന്ധിപ്പിക്കാൻ ഇത് ആവശ്യമാണ്.",
+  poaPhoneOnRecord: t(
+    "Already on the case — no number needed.",
+    "ഇതിനകം കേസിലുണ്ട് — നമ്പർ ആവശ്യമില്ല.",
   ),
   poaAccusedPhoneError: t(
     "Enter a 10-digit mobile number.",
@@ -320,6 +355,10 @@ export const joinDialog = {
   poaJoinedBody: t(
     "You can now act in this case for {name} as their power of attorney holder.",
     "ഇനി {name}-ന്റെ പവർ ഓഫ് അറ്റോർണി ഉടമയായി ഈ കേസിൽ പ്രവർത്തിക്കാം.",
+  ),
+  smsSentNote: t(
+    "We've texted {numbers}. The case is linked to each person's account once they sign in and confirm it's them.",
+    "{numbers} എന്ന നമ്പറുകളിലേക്ക് SMS അയച്ചു. ഓരോരുത്തരും സൈൻ ഇൻ ചെയ്ത് സ്ഥിരീകരിച്ചാൽ കേസ് അവരുടെ അക്കൗണ്ടുമായി ബന്ധിപ്പിക്കും.",
   ),
   viewCase: t("View case", "കേസ് കാണുക"),
   viewCasePrototype: t("The case file will open here.", "കേസ് ഫയൽ ഇവിടെ തുറക്കും."),

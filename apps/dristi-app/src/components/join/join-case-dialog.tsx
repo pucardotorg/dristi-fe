@@ -6,7 +6,6 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckCircle2Icon,
-  DownloadIcon,
   ExternalLinkIcon,
   FileTextIcon,
   InfoIcon,
@@ -50,6 +49,12 @@ import {
 } from "@/components/join/case-details";
 import { Identifier } from "@/components/chrome/identifier";
 import { DownloadCaseFileButton } from "@/components/join/download-case-file-button";
+import {
+  isValidMobile,
+  PoaJoinFields,
+  poaPartiesFor,
+  type PoaSide,
+} from "@/components/join/poa-join-fields";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import {
   DEMO_JOIN_CASE,
@@ -85,7 +90,8 @@ type Appearance = "hire" | "advocate" | "self" | "";
 
 export type JoinResult = {
   joinCase: JoinCase;
-  party: CaseParty;
+  /** One party for an accused joining in person; one or more for a PoA holder. */
+  parties: CaseParty[];
   kind: "self" | "poa";
   partyInPerson: boolean;
 };
@@ -97,9 +103,15 @@ function fileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** JOIN-23/30: the one accused, when there is only one; otherwise no pick. */
+/** JOIN-23: the one accused, when there is only one; otherwise no pick. */
 function soleAccusedId(joinCase: JoinCase | undefined) {
   return joinCase?.accused.length === 1 ? joinCase.accused[0].id : "";
+}
+
+/** JOIN-30: the one party on the PoA holder's side, when there is only one. */
+function solePartyIds(joinCase: JoinCase, side: PoaSide) {
+  const parties = poaPartiesFor(joinCase, side);
+  return parties.length === 1 ? [parties[0].id] : [];
 }
 
 export function JoinCaseDialog({
@@ -140,10 +152,15 @@ export function JoinCaseDialog({
   );
   const [appearance, setAppearance] = React.useState<Appearance>("");
   const [identityTouched, setIdentityTouched] = React.useState(false);
-  const [poaFile, setPoaFile] = React.useState<File | null>(null);
-  const [poaAccusedPhone, setPoaAccusedPhone] = React.useState("");
-  const [poaSampleNotice, setPoaSampleNotice] = React.useState(false);
-  const poaInputRef = React.useRef<HTMLInputElement>(null);
+  // PoA holder (§9b): summons are served on the accused, so that side is pre-selected
+  // on summons entry (JOIN-63).
+  const initialPoaSide: PoaSide = mode === "summons" ? "accused" : "";
+  const [poaSide, setPoaSide] = React.useState<PoaSide>(initialPoaSide);
+  const [poaPartyIds, setPoaPartyIds] = React.useState<string[]>(() =>
+    initialKind === "poa" && summonsCase ? solePartyIds(summonsCase, initialPoaSide) : [],
+  );
+  const [poaFiles, setPoaFiles] = React.useState<Record<string, File | null>>({});
+  const [poaPhones, setPoaPhones] = React.useState<Record<string, string>>({});
   const [pipFile, setPipFile] = React.useState<File | null>(null);
   const pipInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -151,19 +168,25 @@ export function JoinCaseDialog({
   const [downloadNotice, setDownloadNotice] = React.useState(false);
 
   const party = joinCase?.accused.find((entry) => entry.id === partyId);
-  // A duplicate self-join is blocked by the party's own account; a further PoA join
-  // is blocked only by another PoA holder — the accused having joined in person does
-  // not, since the party and their PoA holder both legitimately hold access.
-  const blocked =
-    kind === "poa" ? Boolean(party?.poaHolderJoined) : Boolean(party?.hasJoined);
+  // A duplicate self-join is blocked by the party's own account (JOIN-24). A PoA join
+  // is blocked per party, only by another PoA holder (JOIN-31) — see PoaJoinFields.
+  const blocked = kind === "self" && Boolean(party?.hasJoined);
+  const poaSelected = joinCase
+    ? poaPartiesFor(joinCase, poaSide).filter((entry) => poaPartyIds.includes(entry.id))
+    : [];
+  const poaBlocked = poaSelected.some((entry) => entry.poaHolderJoined);
+  // Parties not yet on the case need a number entered for them (JOIN-34).
+  const poaNeedPhone = poaSelected.filter((entry) => !entry.hasJoined);
+  const poaComplete =
+    Boolean(poaSide) &&
+    poaSelected.length > 0 &&
+    !poaBlocked &&
+    poaSelected.every((entry) => Boolean(poaFiles[entry.id])) &&
+    poaNeedPhone.every((entry) => isValidMobile(poaPhones[entry.id]));
   // The accused side already has an advocate on record — when so, "Add advocate" is
   // never the success action, and party in person is not offered (JOIN-27): the
   // advocate's joining already linked the accused's account.
   const accusedAdvocateJoined = joinCase ? hasAccusedAdvocate(joinCase) : false;
-  // JOIN-34: the PoA holder gives the accused's number only when the accused has not
-  // joined — once they have, the number is already on record.
-  const needsAccusedPhone = kind === "poa" && Boolean(party) && !party?.hasJoined;
-  const accusedPhoneValid = poaAccusedPhone.replace(/\D/g, "").length === 10;
   // Success-modal primary action, decided by how the party said they will appear.
   const doneAction: "bail" | "advocate" | "case" =
     appearance === "self"
@@ -184,9 +207,12 @@ export function JoinCaseDialog({
     setPartyId(initialKind ? soleAccusedId(summonsCase) : "");
     setAppearance("");
     setIdentityTouched(false);
-    setPoaFile(null);
-    setPoaAccusedPhone("");
-    setPoaSampleNotice(false);
+    setPoaSide(initialPoaSide);
+    setPoaPartyIds(
+      initialKind === "poa" && summonsCase ? solePartyIds(summonsCase, initialPoaSide) : [],
+    );
+    setPoaFiles({});
+    setPoaPhones({});
     setPipFile(null);
     setDoneNotice("");
     setDownloadNotice(false);
@@ -229,22 +255,30 @@ export function JoinCaseDialog({
     setKind(next);
     setIdentityTouched(false);
     setAppearance("");
-    // JOIN-23/30: a single accused is chosen for the person; the step still shows it.
+    // JOIN-23/30: a single party is chosen for the person; the step still shows it.
     setPartyId(soleAccusedId(joinCase));
+    setPoaPartyIds(joinCase ? solePartyIds(joinCase, poaSide) : []);
+  }
+
+  function choosePoaSide(next: PoaSide) {
+    setPoaSide(next);
+    setPoaPartyIds(joinCase ? solePartyIds(joinCase, next) : []);
+    setIdentityTouched(false);
   }
 
   function submitIdentity(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIdentityTouched(true);
-    if (!joinCase || !kind || !party || blocked) return;
-    if (kind === "self" && !appearance) return;
-    if (kind === "self" && appearance === "self" && !pipFile) return;
-    if (kind === "poa" && !poaFile) return;
-    if (needsAccusedPhone && !accusedPhoneValid) return;
+    if (!joinCase || !kind) return;
+    if (kind === "self") {
+      if (!party || blocked || !appearance) return;
+      if (appearance === "self" && !pipFile) return;
+    }
+    if (kind === "poa" && !poaComplete) return;
     setStage("done");
     onJoined({
       joinCase,
-      party,
+      parties: kind === "poa" ? poaSelected : party ? [party] : [],
       kind,
       partyInPerson: kind === "self" && appearance === "self",
     });
@@ -257,6 +291,15 @@ export function JoinCaseDialog({
       <FlowDialogContent
         lang={locale}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+        // The PoA party combobox portals its list outside this dialog; a click on it
+        // must not read as an outside interaction, and Escape closes the list first.
+        onInteractOutside={(event) => {
+          const target = event.target as Element | null;
+          if (target?.closest?.('[data-slot="combobox-content"]')) event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          if (document.querySelector('[data-slot="combobox-content"]')) event.preventDefault();
+        }}
       >
         {stage === "done" ? (
           <DialogHeader className="shrink-0 border-b border-hairline px-6 py-5 pr-14 text-left">
@@ -272,7 +315,12 @@ export function JoinCaseDialog({
                   {fill(
                     kind === "poa" ? joinDialog.poaJoinedBody : joinDialog.joinedBody,
                     locale,
-                    { name: party?.name ?? "" },
+                    {
+                      name:
+                        kind === "poa"
+                          ? poaSelected.map((entry) => entry.name).join(", ")
+                          : (party?.name ?? ""),
+                    },
                   )}
                 </DialogDescription>
               </div>
@@ -448,15 +496,10 @@ export function JoinCaseDialog({
                 </Accordion>
               </Field>
 
-              {kind ? (
+              {kind === "self" ? (
                 <Field data-invalid={identityTouched && !partyId}>
                   <FieldLabel className="block w-full text-body font-semibold leading-snug">
-                    {pick(
-                      kind === "self"
-                        ? joinDialog.whichSelfLabel
-                        : joinDialog.whichPoaLabel,
-                      locale,
-                    )}
+                    {pick(joinDialog.whichSelfLabel, locale)}
                   </FieldLabel>
                   <Select
                     value={partyId}
@@ -483,7 +526,7 @@ export function JoinCaseDialog({
                       ? pick(joinDialog.whichError, locale)
                       : null}
                   </FieldError>
-                  {party && !blocked && kind === "self" ? (
+                  {party && !blocked ? (
                     <FieldDescription>
                       {fill(joinDialog.mappingNote, locale, { name: party.name })}
                     </FieldDescription>
@@ -493,11 +536,7 @@ export function JoinCaseDialog({
 
               {party && blocked ? (
                 <Banner variant="warning">
-                  {fill(
-                    kind === "poa" ? joinDialog.poaAlreadyTaken : joinDialog.alreadyJoined,
-                    locale,
-                    { name: party.name },
-                  )}
+                  {fill(joinDialog.alreadyJoined, locale, { name: party.name })}
                 </Banner>
               ) : null}
 
@@ -637,118 +676,29 @@ export function JoinCaseDialog({
                 </Field>
               ) : null}
 
-              {kind === "poa" && party && !blocked ? (
-                <>
-                  <Field data-invalid={identityTouched && !poaFile}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1">
-                        <FieldLabel>{pick(joinDialog.poaDocLabel, locale)}</FieldLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={pick(joinDialog.poaDocTooltipLabel, locale)}
-                            >
-                              <InfoIcon aria-hidden />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent align="start" className="w-72">
-                            <p className="text-body-compact text-pretty text-muted-foreground">
-                              {pick(joinDialog.poaDocTooltip, locale)}
-                            </p>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="h-auto shrink-0 p-0"
-                        onClick={() => setPoaSampleNotice(true)}
-                        data-icon="inline-start"
-                      >
-                        <DownloadIcon aria-hidden />
-                        {pick(joinDialog.poaDocSample, locale)}
-                      </Button>
-                    </div>
-                    <input
-                      ref={poaInputRef}
-                      type="file"
-                      className="hidden"
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) {
-                          setPoaFile(file);
-                          setIdentityTouched(false);
-                        }
-                      }}
-                    />
-                    <DocumentSlot
-                      status={poaFile ? "filled" : "empty"}
-                      media="icon"
-                      label={pick(joinDialog.poaDocLabel, locale)}
-                      required
-                      filename={poaFile?.name}
-                      meta={poaFile ? fileSize(poaFile.size) : undefined}
-                      thumbnail={<FileTextIcon className="size-5" aria-hidden />}
-                      onChooseFile={() => poaInputRef.current?.click()}
-                      copy={{
-                        optional: locale === "ml" ? "നിർബന്ധമല്ല" : "Optional",
-                        noFile:
-                          locale === "ml"
-                            ? "ഫയൽ തിരഞ്ഞെടുത്തിട്ടില്ല"
-                            : "No file chosen yet",
-                        chooseFile: locale === "ml" ? "ഫയൽ തിരഞ്ഞെടുക്കുക" : "Choose file",
-                      }}
-                    />
-                    <FieldDescription>
-                      {pick(joinDialog.poaDocHelp, locale)}
-                    </FieldDescription>
-                    {poaSampleNotice ? (
-                      <Banner variant="info">
-                        {pick(joinDialog.poaDocSamplePrototype, locale)}
-                      </Banner>
-                    ) : null}
-                    <FieldError>
-                      {identityTouched && !poaFile
-                        ? pick(joinDialog.poaDocError, locale)
-                        : null}
-                    </FieldError>
-                  </Field>
-
-                  {needsAccusedPhone ? (
-                    <Field data-invalid={identityTouched && !accusedPhoneValid}>
-                      <FieldLabel htmlFor="join-poa-phone">
-                        {pick(joinDialog.poaAccusedPhoneLabel, locale)}
-                      </FieldLabel>
-                      <Input
-                        id="join-poa-phone"
-                        type="tel"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        aria-required="true"
-                        value={poaAccusedPhone}
-                        onChange={(event) => {
-                          setPoaAccusedPhone(event.target.value.replace(/\D/g, "").slice(0, 10));
-                          setIdentityTouched(false);
-                        }}
-                      />
-                      <FieldDescription>
-                        {pick(joinDialog.poaAccusedPhoneHelp, locale)}
-                      </FieldDescription>
-                      <FieldError>
-                        {identityTouched && !accusedPhoneValid
-                          ? pick(joinDialog.poaAccusedPhoneError, locale)
-                          : null}
-                      </FieldError>
-                    </Field>
-                  ) : null}
-                </>
+              {kind === "poa" ? (
+                <PoaJoinFields
+                  joinCase={joinCase}
+                  locale={locale}
+                  side={poaSide}
+                  onSideChange={choosePoaSide}
+                  partyIds={poaPartyIds}
+                  onPartyIdsChange={(ids) => {
+                    setPoaPartyIds(ids);
+                    setIdentityTouched(false);
+                  }}
+                  files={poaFiles}
+                  onFileChange={(id, file) => {
+                    setPoaFiles((current) => ({ ...current, [id]: file }));
+                    setIdentityTouched(false);
+                  }}
+                  phones={poaPhones}
+                  onPhoneChange={(id, value) => {
+                    setPoaPhones((current) => ({ ...current, [id]: value }));
+                    setIdentityTouched(false);
+                  }}
+                  touched={identityTouched}
+                />
               ) : null}
             </form>
           ) : null}
@@ -756,6 +706,15 @@ export function JoinCaseDialog({
           {/* --------------------------------------------------------- done */}
           {stage === "done" && joinCase ? (
             <div className="flex flex-col gap-5">
+              {/* JOIN-64: numbers entered for parties are texted; each links on its
+                  owner's confirmation at sign-in, not here. */}
+              {kind === "poa" && poaNeedPhone.length ? (
+                <Banner variant="info">
+                  {fill(joinDialog.smsSentNote, locale, {
+                    numbers: poaNeedPhone.map((entry) => poaPhones[entry.id]).join(", "),
+                  })}
+                </Banner>
+              ) : null}
               <CaseDetails joinCase={joinCase} locale={locale} compact />
 
               {doneNotice ? (
@@ -869,7 +828,7 @@ export function JoinCaseDialog({
               <Button
                 type="submit"
                 form="join-identity"
-                disabled={blocked}
+                disabled={kind === "self" ? blocked : poaBlocked}
                 data-icon="inline-end"
               >
                 {pick(joinDialog.joinSubmit, locale)}

@@ -33,9 +33,7 @@ export const ADVOCATE_JOIN_CASE: JoinCase = DEMO_JOIN_CASE;
  *  amount comes from the payment service; this is not a fee schedule. */
 export const VAKALATNAMA_FEE_PAISE = 25 * 100;
 
-export const COMPLAINANT_PARTIES: CaseParty[] = [
-  { id: "comp-1", name: "South Indian Bank Ltd." },
-];
+export const COMPLAINANT_PARTIES: CaseParty[] = DEMO_JOIN_CASE.complainants;
 
 /** Advocates already on record per side — drives "has another advocate already
  *  uploaded and paid for this vakalatnama?", which is asked only once one is on the case. */
@@ -548,6 +546,10 @@ export const advDialog = {
   contactAlreadyNote: t(
     "{names} already joined this case, so we have their number.",
     "{names} ഇതിനകം ഈ കേസിൽ ചേർന്നു, അതിനാൽ അവരുടെ നമ്പർ ഞങ്ങളുടെ പക്കലുണ്ട്.",
+  ),
+  contactConfirmNote: t(
+    "We'll text each number. The case is linked to a litigant's account once they sign in and confirm it's them.",
+    "ഓരോ നമ്പറിലേക്കും SMS അയക്കും. കക്ഷി സൈൻ ഇൻ ചെയ്ത് അത് അവരാണെന്ന് സ്ഥിരീകരിച്ചാൽ കേസ് അവരുടെ അക്കൗണ്ടുമായി ബന്ധിപ്പിക്കും.",
   ),
   contactMobileError: t(
     "Enter a valid 10-digit mobile number.",
