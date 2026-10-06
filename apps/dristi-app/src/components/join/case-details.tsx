@@ -18,7 +18,6 @@ import { pick, type Locale } from "@/lib/onboarding/content";
 import { caseDetails, type JoinCase } from "@/lib/join/content";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
-import { PANEL_CLASS } from "@/components/shell/panel";
 import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
 
 /**
@@ -33,17 +32,19 @@ import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
  * work by those identifiers rather than being intimidated by them. Court is shown to
  * everyone (JOIN-15).
  *
- * It is a white panel, lifted, so it reads as the case laid on the dialog's canvas
+ * It is a flat white panel on the dialog's warm canvas, so it reads as the case set on it
  * (owner, Oct 6: the sunken box did not look like the product's other modals). The
  * next hearing is the first row of the facts, at the facts' own size: as a 20px line
  * under its own floating calendar icon it outranked the case title above it.
  */
 
-/** The lifted white panel the join surfaces lay facts on. */
-export const JOIN_PANEL = cn(
-  PANEL_CLASS,
-  "flex flex-col gap-4 rounded-xl border bg-card p-4 sm:p-6"
-);
+/**
+ * The flat white panel the join surfaces lay facts on: a light warm hairline and no
+ * lift. A shadowed card inside the dialog read as a card on a card; the white on the
+ * warm canvas, edged by the hairline, is separation enough (owner, Oct 6).
+ */
+export const JOIN_PANEL =
+  "flex flex-col gap-4 rounded-xl border border-hairline bg-card p-4 sm:p-6";
 
 /**
  * The case's public identity — what the access-code step can show before the code
@@ -264,8 +265,7 @@ export function CaseDetails({
   return (
     <div
       className={cn(
-        PANEL_CLASS,
-        "overflow-hidden rounded-xl border bg-card",
+        "overflow-hidden rounded-xl border border-hairline bg-card",
         RESOLVE_IN_PLACE,
         className,
       )}

@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
-import { useFlowWindow } from "@/components/chrome/flow-window";
 import { useStageFade } from "@/components/chrome/stage-fade";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -156,8 +155,6 @@ export function JoinCaseDialog({
   /* Focus follows the stage: the footer button just pressed is gone, so the
      title takes focus rather than the page. */
   const titleRef = React.useRef<HTMLHeadingElement>(null);
-  /* On a phone the flow is the whole window, so the canvas fills it. */
-  const phoneWindow = useFlowWindow().phone;
   React.useEffect(() => {
     if (!stageChanged) return;
     const active = document.activeElement;
@@ -319,6 +316,7 @@ export function JoinCaseDialog({
       <FlowDialogContent
         lang={locale}
         rise
+        sheet
         style={panelStyle}
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
         // The PoA party combobox portals its list outside this dialog; a click on it
@@ -374,7 +372,7 @@ export function JoinCaseDialog({
         <div
           className={cn(
             "relative flex min-h-0 flex-col overflow-hidden bg-muted dark:bg-background",
-            phoneWindow ? "flex-1" : "shrink",
+            "shrink",
           )}
         >
         <div
@@ -784,7 +782,7 @@ export function JoinCaseDialog({
 
         {/* ------------------------------------------------------------ footer */}
         <footer
-          className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline px-6 pt-4 pb-[calc(--spacing(4)+env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between"
         >
           {stage === "lookup" ? (
             <>
