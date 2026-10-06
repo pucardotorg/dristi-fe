@@ -26,7 +26,9 @@ import {
   feeBill,
   limitationView,
   LIMITATION_DAYS,
+  isOutstanding,
   signatories,
+  signingComplete,
 } from "./selectors";
 import { stepHref } from "./steps";
 import type { FilingDraft, Signatory, UserProfile } from "./types";
@@ -291,7 +293,8 @@ function pendingSummary(everyone: Signatory[]): {
   youPending: boolean;
   sub: string;
 } {
-  const pending = everyone.filter((s) => s.status === "pending");
+  // An advocate who has signed but not yet taken the oath is still owed.
+  const pending = everyone.filter(isOutstanding);
   const youPending = pending.some((s) => s.you);
   const others = pending.filter((s) => !s.you).length;
   const sub = youPending
@@ -317,8 +320,7 @@ export function pendingSignatureRows(
     if (!enteredSigning(draft)) return [];
     const { complainants, advocates } = signatories(draft, profile);
     const everyone = [...complainants, ...advocates];
-    const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
-    if (allSigned) return [];
+    if (signingComplete(draft, profile)) return [];
     const parties = draftTitle(draft);
     const { count, youPending, sub } = pendingSummary(everyone);
     // The moment it left the drafting phase — the paper path never sets `requestedAt`,
@@ -351,10 +353,7 @@ export function pendingPaymentRows(
 ): QueueRow[] {
   return drafts.flatMap((draft) => {
     if (draft.sign.paid) return [];
-    const { complainants, advocates } = signatories(draft, profile);
-    const everyone = [...complainants, ...advocates];
-    const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
-    if (!allSigned) return [];
+    if (!signingComplete(draft, profile)) return [];
     const parties = draftTitle(draft);
     const amount = feeBill(draft).total;
     const since = (draft.sign.requestedAt ?? draft.updatedAt).slice(0, 10);

@@ -211,6 +211,8 @@ export type ProcessOption = {
   label: string;
   /** What this process is, in the words the filer needs to choose by. */
   note: string;
+  /** The same, cut to what it is for — the bill, where the choosing is already done. */
+  billNote: string;
   /** Rounds the court insists on, for each accused — the choice never falls below this. */
   minRounds: number;
   /** The most rounds collectable upfront. */
@@ -229,6 +231,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "summons",
     label: "Summons",
     note: "The court's call to the accused to appear. One round is required, delivered to every address you choose.",
+    billNote: "The court's call to the accused to appear.",
     minRounds: 1,
     maxRounds: 4,
     perAddress: true,
@@ -238,6 +241,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "warrants",
     label: "Warrants",
     note: "Issued if the accused does not appear after summons.",
+    billNote: "Issued only if the accused does not appear after summons.",
     minRounds: 0,
     maxRounds: 4,
     perAddress: false,
@@ -247,6 +251,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "notice",
     label: "Notice",
     note: "Issued on the application to condone the delay in filing.",
+    billNote: "Issued on the application to condone the delay in filing.",
     minRounds: 0,
     maxRounds: 1,
     perAddress: false,

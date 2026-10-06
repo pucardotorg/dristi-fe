@@ -7,7 +7,7 @@ import { getRepository, newCaseFileNumber, newPaymentRef } from "@/lib/filing/da
 import { money } from "@/lib/filing/format";
 import { DELIVERY_CHANNEL } from "@/lib/filing/options";
 import type { QueueRow } from "@/lib/filing/queue";
-import { feeBill, signatories } from "@/lib/filing/selectors";
+import { feeBill, signatories, signingComplete } from "@/lib/filing/selectors";
 import type { UserProfile } from "@/lib/filing/types";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { Button } from "@/components/ui/button";
@@ -87,10 +87,8 @@ export function BatchFilingDialog({
         if (!yours.length) continue;
         for (const s of yours) draft.sign.signed[s.id] = { at: now, with: "aadhaar" };
       } else {
-        const { complainants, advocates } = signatories(draft, profile);
-        const everyone = [...complainants, ...advocates];
-        const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
-        if (!allSigned || draft.sign.paid) continue;
+        // Every signature and every advocate's oath — an oath cannot be batched.
+        if (!signingComplete(draft, profile) || draft.sign.paid) continue;
         const bill = feeBill(draft);
         draft.sign.paid = true;
         draft.sign.paidAt = now;

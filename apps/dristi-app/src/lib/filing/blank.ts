@@ -97,12 +97,12 @@ export function blankComplainant(): Complainant {
     },
     entType: "",
     entName: "",
+    entCinPan: "",
     entPhone: "",
     entEmail: "",
     entAddr: blankAddress(),
     rep: blankRepresentative(),
     affidavit: AFFIDAVIT_PIP_TEMPLATE,
-    oathVideo: null,
     prefilled: {},
     edited: {},
     toReview: false,
@@ -447,6 +447,7 @@ export function createBlankDraft(id: string, profile?: UserProfile | null): Fili
       confirmed: {},
       deliveryChannel: DELIVERY_CHANNEL,
       process: {},
+      oaths: {},
       paid: false,
       paidAt: null,
       paidAmount: null,
@@ -522,6 +523,9 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
   // be predictable either — otherwise survives on the draft as an id this branch's
   // router cannot resolve, and `getStep` throws over it deep inside the queue list.
   // Reopening onto the first screen is a smaller loss than that.
+  // Oath stopped being a step of its own: it is taken during signing now. A draft left
+  // there reopens on the screen that used to come after it.
+  if ((draft.lastStep as string) === "oath") draft.lastStep = "affidavit";
   if (!WALK_ORDER.includes(draft.lastStep)) draft.lastStep = "upload";
 
   draft.intake ??= {
@@ -546,6 +550,7 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
     confirmed: {},
     deliveryChannel: DELIVERY_CHANNEL,
     process: {},
+    oaths: {},
     paid: false,
     paidAt: null,
     paidAmount: null,
@@ -575,12 +580,15 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
     c.differentlyAbled ??= "";
     c.rep.gender ??= "";
     c.rep.differentlyAbled ??= "";
-    c.oathVideo ??= null;
+    // The complainant's oath was retired with the Oath step — advocates take it now.
+    delete (c as Complainant & { oathVideo?: unknown }).oathVideo;
+    c.entCinPan ??= "";
   }
   // The upfront choice used to be one set of rounds for the whole case; it is now made
   // per accused (§19.3). Nothing is carried across: an old draft's single choice cannot
   // say which accused it was for, and the defaults it falls back to are the court's.
   draft.sign.process ??= {};
+  draft.sign.oaths ??= {};
   draft.sign.paidAmount ??= null;
   draft.affidavit ??= "";
   // Phone confirmation on the upload path is newer than these drafts.

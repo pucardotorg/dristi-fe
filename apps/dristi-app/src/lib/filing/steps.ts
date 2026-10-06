@@ -19,7 +19,6 @@ import {
   ScaleIcon,
   UserRoundIcon,
   UserRoundXIcon,
-  VideoIcon,
   WalletIcon,
 } from "lucide-react";
 
@@ -53,7 +52,6 @@ export const FILING_STEPS: FilingStep[] = [
   { id: "adr-prayer", title: "ADR, other & prayer", group: "Case details", segment: "adr-prayer", icon: ClipboardCheckIcon },
   { id: "witnesses", title: "Witnesses", group: "Evidence", segment: "witnesses", icon: MessageCircleIcon },
   { id: "documents", title: "Documents", group: "Evidence", segment: "documents", icon: FileTextIcon },
-  { id: "oath", title: "Oath", group: "Affidavit", segment: "oath", icon: VideoIcon },
   { id: "affidavit", title: "Affidavit", group: "Affidavit", segment: "affidavit", icon: FileCheckIcon },
   { id: "preview", title: "Preview", group: "Preview", segment: "preview", icon: EyeIcon },
   { id: "sign", title: "Sign", group: "Sign", segment: "sign", icon: PenToolIcon },
@@ -81,7 +79,6 @@ export const WALK_ORDER: StepId[] = [
   "adr-prayer",
   "witnesses",
   "documents",
-  "oath",
   "affidavit",
   "preview",
   "sign",
