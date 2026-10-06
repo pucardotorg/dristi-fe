@@ -60,18 +60,38 @@ export function CaseIdentity({
   locale: Locale;
   lead: string;
 }) {
+  /* Three facts, three rows (owner, Oct 6): run together with dots they read as one
+     long line. The same row grid as the full case details, so the step after the
+     code shows these facts where this one did. */
+  const facts: { label: keyof typeof caseDetails; value: React.ReactNode }[] = [
+    {
+      label: "caseNumber",
+      value: <Identifier value={joinCase.caseNumber} label="case number" />,
+    },
+    { label: "court", value: joinCase.court },
+    { label: "courtroom", value: joinCase.courtroom },
+  ];
   return (
-    <div className={cn(JOIN_PANEL, "gap-1")}>
-      <p className="text-body-compact text-muted-foreground">{lead}</p>
-      <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
-      <p className="text-body-compact text-pretty text-muted-foreground">
-        <Identifier value={joinCase.caseNumber} label="case number" />
-        <span aria-hidden> · </span>
-        {joinCase.court}
-      </p>
+    <div className={JOIN_PANEL}>
+      <div className="flex flex-col gap-1">
+        <p className="text-body-compact text-muted-foreground">{lead}</p>
+        <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
+      </div>
+      <DescriptionList className="border-t border-hairline">
+        {facts.map((fact) => (
+          <DescriptionRow key={fact.label} className={FACT_ROW}>
+            <DescriptionTerm>{pick(caseDetails[fact.label], locale)}</DescriptionTerm>
+            <DescriptionDetails>{fact.value}</DescriptionDetails>
+          </DescriptionRow>
+        ))}
+      </DescriptionList>
     </div>
   );
 }
+
+/** A label over its value on a phone: two columns there crushed the values and broke
+ *  identifiers mid-string. Shared by both fact lists in this file. */
+const FACT_ROW = "border-hairline max-sm:grid-cols-1 max-sm:gap-1";
 
 /** An advocate is on record for the accused side. */
 export function hasAccusedAdvocate(joinCase: JoinCase) {
@@ -176,6 +196,7 @@ export function CaseDetails({
       : []),
     { label: "filingDate", value: joinCase.filingDate },
     { label: "court", value: joinCase.court },
+    { label: "courtroom", value: joinCase.courtroom },
     { label: "chequeAmount", value: joinCase.chequeAmount },
     { label: "complainant", value: joinCase.complainant },
     { label: "complainantAdvocate", value: joinCase.complainantAdvocate },
@@ -205,9 +226,7 @@ export function CaseDetails({
             <DescriptionRow
               key={row.label}
               className={cn(
-                /* A label over its value on a phone: two columns there crushed
-                   the values and broke identifiers mid-string. */
-                "border-hairline max-sm:grid-cols-1 max-sm:gap-1",
+                FACT_ROW,
                 row.label === "complainantAdvocate" && "sm:items-center",
               )}
             >

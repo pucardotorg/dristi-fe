@@ -39,6 +39,8 @@ export type JoinCase = {
   caseType: string;
   filingDate: string;
   court: string;
+  /** The room inside the court the case is heard in — its own fact, not part of the court's name. */
+  courtroom: string;
   hearingDate: string;
   chequeAmount: string;
   complainant: string;
@@ -63,7 +65,8 @@ export const DEMO_JOIN_CASE: JoinCase = {
   filingNumber: "KL-002405-2026",
   caseType: "NIA S138",
   filingDate: "31-07-2026",
-  court: "Court of the Judicial First Class Magistrate I, Kollam · Court No. 3",
+  court: "Court of the Judicial First Class Magistrate I, Kollam",
+  courtroom: "Court No. 3",
   hearingDate: "Friday, 18 September 2026, 10:30 AM",
   chequeAmount: "₹1,85,000",
   complainant: "South Indian Bank Ltd.",
@@ -502,6 +505,8 @@ export const idUpload = {
 export const caseDetails = {
   caseTypeBadge: t("Cheque bounce · NIA S138", "ചെക്ക് മടക്കം · NIA S138"),
   court: t("Court", "കോടതി"),
+  /* Malayalam drafted (Oct 6) — needs review. */
+  courtroom: t("Courtroom", "കോടതി മുറി"),
   hearing: t("Next hearing", "അടുത്ത ഹിയറിംഗ്"),
   caseNumber: t("Case number", "കേസ് നമ്പർ"),
   cnr: t("CNR number", "CNR നമ്പർ"),
