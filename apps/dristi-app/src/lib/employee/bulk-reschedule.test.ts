@@ -4,7 +4,11 @@ import { describe, it } from "node:test";
 import { isSittingDay } from "./hearings";
 import {
   addDays,
+  autoPlace,
   boardAfterMoves,
+  loadOn,
+  suggestDay,
+  usualDayLoad,
   rescheduledDays,
   buildRescheduleOrder,
   earliestNewListing,
@@ -15,6 +19,7 @@ import {
 } from "./bulk-reschedule";
 
 const TODAY = "2026-09-14";
+const at = (day: string) => ({ day, slot: "morning" as const });
 const span = (from: string | null, to: string | null) => ({
   from,
   to,
@@ -96,7 +101,7 @@ describe("a board with this session's moves written over it", () => {
   const board = reschedulableHearings(TODAY);
   const first = board[0];
   const NEW_DAY = addDays(TODAY, 60);
-  const moved = boardAfterMoves(TODAY, { [first.id]: NEW_DAY });
+  const moved = boardAfterMoves(TODAY, { [first.id]: at(NEW_DAY) });
   const row = moved.find((candidate) => candidate.id === first.id)!;
 
   it("keeps the day the matter was listed on beside the day it moves to", () => {
@@ -120,7 +125,7 @@ describe("a board with this session's moves written over it", () => {
   });
 
   it("does not mark a move onto the day the matter is already on", () => {
-    const same = boardAfterMoves(TODAY, { [first.id]: first.date });
+    const same = boardAfterMoves(TODAY, { [first.id]: at(first.date) });
     assert.equal(same.find((c) => c.id === first.id)!.newDate, undefined);
   });
 
@@ -174,50 +179,68 @@ describe("a board with this session's moves written over it", () => {
 describe("the order a bulk move is passed by", () => {
   const board = reschedulableHearings(TODAY);
   const moving = board.slice(0, 3);
-  const NEW_DAY = addDays(TODAY, 4);
+  const SOON = addDays(TODAY, 4);
+  const LATER = addDays(TODAY, 9);
+  /* Two new dates, as a spread leaves them: one order carries both. */
+  const run = [
+    { row: moving[0], to: { day: LATER, slot: "afternoon" as const } },
+    { row: moving[1], to: { day: SOON, slot: "morning" as const } },
+    { row: moving[2], to: { day: SOON, slot: "afternoon" as const } },
+  ];
 
-  it("covers every matter in the run, from where it is to where it goes", () => {
-    const order = buildRescheduleOrder(moving, NEW_DAY, TODAY);
+  it("covers every matter in the run, in one order, by the day and slot each goes to", () => {
+    const order = buildRescheduleOrder(run, "planned-leave", TODAY);
 
     assert.equal(order.matters.length, moving.length);
     assert.deepEqual(
-      order.matters.map((matter) => matter.caseNumber),
-      moving.map((row) => row.caseNumber),
+      order.matters.map((matter) => [matter.caseNumber, matter.slot]),
+      [
+        [moving[1].caseNumber, "Morning"],
+        [moving[2].caseNumber, "Afternoon"],
+        [moving[0].caseNumber, "Afternoon"],
+      ],
     );
-    /* One order for the whole run, so every line lands on the same new day. */
-    assert.equal(new Set(order.matters.map((m) => m.to)).size, 1);
+    assert.equal(new Set(order.matters.map((m) => m.to)).size, 2);
   });
 
   it("says it is unsigned until it is signed, and by whom when it is", () => {
     /* The blank-rule trap: a signature block that printed nothing would read as a
        signature that failed to render rather than as one that has not been given. */
-    const unsigned = buildRescheduleOrder(moving, NEW_DAY, TODAY);
+    const unsigned = buildRescheduleOrder(run, "planned-leave", TODAY);
     assert.match(unsigned.signature, /Pending the signature/);
 
-    const signed = buildRescheduleOrder(moving, NEW_DAY, TODAY, TODAY);
+    const signed = buildRescheduleOrder(run, "planned-leave", TODAY, TODAY);
     assert.match(signed.signature, /^Signed by /);
     assert.doesNotMatch(signed.signature, /Pending/);
   });
 
-  it("recites no ground, and orders nothing at the parties", () => {
-    /* The screen never asks why the court is not sitting, and this build sends no
-       notification. An order that said either would be the app writing the bench's
-       words, or claiming an act nothing performed. */
+  it("recites the ground the bench chose, and nothing it did not", () => {
     const text = rescheduleOrderText(
-      buildRescheduleOrder(moving, NEW_DAY, TODAY, TODAY),
+      buildRescheduleOrder(run, "emergency-leave", TODAY, TODAY),
     );
-    assert.doesNotMatch(text, /leave|holiday|transfer|strike/i);
+    assert.match(text, /Owing to the emergency leave of the presiding officer/);
+    assert.doesNotMatch(text, /planned leave|non-working/i);
+
+    const noGround = rescheduleOrderText(buildRescheduleOrder(run, null, TODAY));
+    assert.doesNotMatch(noGround, /Owing to|leave|holiday|strike/i);
+  });
+
+  it("orders nothing at the parties", () => {
+    /* This build sends no notification; an order that directed one would be claiming
+       an act nothing performed. */
+    const text = rescheduleOrderText(
+      buildRescheduleOrder(run, "planned-leave", TODAY, TODAY),
+    );
     assert.doesNotMatch(text, /notif|inform|intimat|serve/i);
   });
 
-  it("writes the matters, the new date and the date it is passed", () => {
-    const text = rescheduleOrderText(
-      buildRescheduleOrder(moving, NEW_DAY, TODAY),
-    );
+  it("writes the matters, the new dates and slots, and the date it is passed", () => {
+    const text = rescheduleOrderText(buildRescheduleOrder(run, "planned-leave", TODAY));
 
     assert.match(text, /Order rescheduling listed hearings/);
     assert.match(text, new RegExp(`Matters \\(${moving.length}\\)`));
     for (const row of moving) assert.ok(text.includes(row.caseNumber));
+    assert.match(text, /morning/);
     assert.match(text, /Dated this the /);
   });
 
@@ -225,20 +248,75 @@ describe("the order a bulk move is passed by", () => {
     /* A second move is measured from the day the first one put it on, not from the
        fixture's day — otherwise the order would recite a date the board left behind. */
     const first = board[0];
-    const once = boardAfterMoves(TODAY, { [first.id]: addDays(TODAY, 2) })
+    const once = boardAfterMoves(TODAY, { [first.id]: at(addDays(TODAY, 2)) })
       .find((row) => row.id === first.id)!;
-    const order = buildRescheduleOrder([once], addDays(TODAY, 9), TODAY);
-    const asListed = buildRescheduleOrder(
-      [{ ...first, date: addDays(TODAY, 2) }],
-      addDays(TODAY, 9),
-      TODAY,
-    );
+    const to = at(addDays(TODAY, 9));
+    const order = buildRescheduleOrder([{ row: once, to }], null, TODAY);
+    const fresh = buildRescheduleOrder([{ row: first, to }], null, TODAY);
 
-    assert.equal(order.matters[0].from, asListed.matters[0].from);
-    assert.notEqual(
-      order.matters[0].from,
-      buildRescheduleOrder([first], addDays(TODAY, 9), TODAY).matters[0].from,
+    assert.notEqual(order.matters[0].from, fresh.matters[0].from);
+  });
+});
+
+describe("placing matters on new dates", () => {
+  const board = reschedulableHearings(TODAY);
+  const today = board.filter((row) => row.date === TODAY);
+  const floor = earliestNewListing(today, TODAY, TODAY);
+  const usual = usualDayLoad(board, floor);
+
+  it("splits every day's listings across the two slots", () => {
+    const slots = new Set(today.map((row) => row.slot));
+    assert.deepEqual([...slots].sort(), ["afternoon", "morning"]);
+  });
+
+  it("counts a day's load from where matters will sit, drafted or not", () => {
+    const day = floor;
+    const before = loadOn(board, {}, day);
+    const draft = { [today[0].id]: at(day), [today[1].id]: { day, slot: "afternoon" as const } };
+
+    assert.equal(loadOn(board, draft, day), before + 2);
+    assert.equal(
+      loadOn(board, draft, day, "morning") + loadOn(board, draft, day, "afternoon"),
+      before + 2,
     );
+    /* And the day they left loses them. */
+    assert.equal(loadOn(board, draft, TODAY), today.length - 2);
+  });
+
+  it("places every matter, never before the floor, never past a usual day", () => {
+    const placed = autoPlace(board, {}, today, floor);
+
+    assert.equal(Object.keys(placed).length, today.length);
+    for (const place of Object.values(placed)) {
+      assert.ok(place.day >= floor, `placed on ${place.day}, before ${floor}`);
+      assert.ok(isSittingDay(place.day), `placed on a day the court is closed`);
+    }
+    for (const day of new Set(Object.values(placed).map((p) => p.day))) {
+      assert.ok(loadOn(board, placed, day) <= usual, `${day} goes past ${usual}`);
+    }
+  });
+
+  it("suggests the earliest day that takes them all, else the lightest", () => {
+    const few = suggestDay(board, {}, today.slice(0, 3), floor);
+    assert.ok(few.fits);
+    assert.ok(few.day >= floor && isSittingDay(few.day));
+    assert.ok(loadOn(board, {}, few.day) + 3 <= usual);
+
+    /* More than any day can take: the lightest, said plainly. */
+    const many = suggestDay(board, {}, [...today, ...today, ...today], floor);
+    assert.equal(many.fits, false);
+  });
+
+  it("counts the rest of the draft as taken, and re-flows the ones it is given", () => {
+    const first = autoPlace(board, {}, today.slice(0, 4), floor);
+    const second = autoPlace(board, first, today.slice(4), floor);
+    const draft = { ...first, ...second };
+    for (const day of new Set(Object.values(draft).map((p) => p.day))) {
+      assert.ok(loadOn(board, draft, day) <= usual);
+    }
+    /* Placing the same rows again does not stack them on their own earlier places. */
+    const again = autoPlace(board, first, today.slice(0, 4), floor);
+    assert.deepEqual(again, first);
   });
 });
 
@@ -286,9 +364,9 @@ describe("the record of a session's moves", () => {
   /* Two acts in one afternoon, the way a court actually works it: a day's board to one
      date, and then a later stretch to another. */
   const moved = boardAfterMoves(TODAY, {
-    [board[0].id]: SOON,
-    [board[1].id]: SOON,
-    [board[2].id]: LATER,
+    [board[0].id]: at(SOON),
+    [board[1].id]: at(SOON),
+    [board[2].id]: at(LATER),
   });
   const scheduled = moved.filter((row) => row.newDate !== undefined);
 
@@ -324,8 +402,8 @@ describe("the record of a session's moves", () => {
 
   it("offers one day when one act moved everything to it", () => {
     const onePlace = boardAfterMoves(TODAY, {
-      [board[0].id]: SOON,
-      [board[1].id]: SOON,
+      [board[0].id]: at(SOON),
+      [board[1].id]: at(SOON),
     });
     assert.deepEqual(rescheduledDays(onePlace), [{ day: SOON, count: 2 }]);
   });

@@ -524,3 +524,24 @@ for the 40px touch floor. That is a local height on a synced primitive.
 
 **Request:** add `size?: "sm" | "default"` to `Input` (and `InputGroup`) mirroring
 `SelectTrigger`, so a compact toolbar composes from the primitives alone.
+
+---
+
+## 19. `Calendar` has no planner variant — large cells that carry a value and a mark
+
+**Observed (pin e0cadea6):** `Calendar` is a date picker. Its cells are `--cell-size`
+squares (28px by default, 48px at most before the month outgrows a dialog column), and the
+day button has room for one 12px line under the date. Bulk reschedule needs a month the
+bench *plans* on: each day's hearing count, a "Suggested" mark on the scheduler's pick,
+and the before → after on the chosen day — read across the month before choosing.
+
+**Consequence:** the owner rejected the picker for this job on the render (2026-10-06:
+"the calendar that we had in the mockup was way better, … bigger blocks … you can see what
+is a suggested date inside the calendar itself"). Dristi composes its own grid in
+`components/employee/planner-calendar.tsx` — weekdays only, 64–80px cells, a corner tag,
+roving focus with arrow keys — rather than restyling the primitive.
+
+**Request:** a `variant="planner"` (or a sibling `PlannerCalendar`) in the DS: a month
+grid with optional weekend columns, cells sized for two lines of body text and a corner
+tag, `aria-pressed` selection, and the same keyboard model as `Calendar`. Dristi swaps to
+it and deletes its local grid.

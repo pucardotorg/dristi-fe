@@ -49,7 +49,18 @@ const KIND_IN_SHEET_ONLY = "md:pointer-fine:hidden";
  * Typing echoes locally and the URL follows after a pause, so keystrokes never pile up
  * history or jump the page; `/` still focuses it.
  */
-function SearchBox({ query, onChange }: { query: string; onChange: (q: string) => void }) {
+export function SearchBox({
+  query,
+  onChange,
+  label = "Search these tasks",
+  placeholder = "Search case or task",
+}: {
+  query: string;
+  onChange: (q: string) => void;
+  /** The box's accessible name. */
+  label?: string;
+  placeholder?: string;
+}) {
   const ref = React.useRef<HTMLInputElement>(null);
   const [text, setText] = React.useState(query);
   // When the URL changes underneath (Clear, back/forward), follow it.
@@ -86,10 +97,10 @@ function SearchBox({ query, onChange }: { query: string; onChange: (q: string) =
       <InputGroupInput
         ref={ref}
         type="search"
-        aria-label="Search these tasks"
+        aria-label={label}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Search case or task"
+        placeholder={placeholder}
         autoComplete="off"
         enterKeyHint="search"
       />

@@ -170,9 +170,6 @@
     "pb-10",
     "pl-9"
   ],
-  "src/components/filing/dashboard/start-filing-card.tsx": [
-    "pl-10"
-  ],
   "src/components/filing/source-panel.tsx": [
     "py-10"
   ],

@@ -28,6 +28,7 @@ import { CURRENT_STAFF, PRESIDING_MAGISTRATE } from "./content";
 import {
   CAUSE_LIST,
   causeTitle,
+  courtHearingPurposeLabel,
   formatOrderDate,
   isSittingDay,
   isoDay,
@@ -35,6 +36,27 @@ import {
   type CourtCaseStage,
   type CourtHearingPurposeId,
 } from "./hearings";
+
+/**
+ * Which half of the sitting a hearing is listed in.
+ *
+ * The court's own rescheduling order states it beside the date — the reference
+ * product's notice has a "New (Rescheduled) Hearing Slot" column reading "Morning Slot"
+ * — so a move names both, and the board keeps the slot every listing already has.
+ */
+export type HearingSlot = "morning" | "afternoon";
+
+export const HEARING_SLOTS: readonly { id: HearingSlot; label: string }[] = [
+  { id: "morning", label: "Morning" },
+  { id: "afternoon", label: "Afternoon" },
+];
+
+export function hearingSlotLabel(slot: HearingSlot): string {
+  return slot === "morning" ? "Morning" : "Afternoon";
+}
+
+/** A place on the court's board: a sitting day and the slot within it. */
+export type Listing = { day: string; slot: HearingSlot };
 
 export type ReschedulableHearing = {
   id: string;
@@ -47,6 +69,8 @@ export type ReschedulableHearing = {
   purpose: CourtHearingPurposeId;
   /** The day the court's board has this matter on, `YYYY-MM-DD`. */
   date: string;
+  /** The slot it is listed in on that day. */
+  slot: HearingSlot;
   /**
    * Where this session's bulk move has put it — absent on a matter nobody has moved.
    *
@@ -58,6 +82,8 @@ export type ReschedulableHearing = {
    * board shows the pair (owner, 2026-09-15).
    */
   newDate?: string;
+  /** The slot it moved to, beside `newDate`. */
+  newSlot?: HearingSlot;
 };
 
 /**
@@ -80,7 +106,7 @@ export function listedOn(row: ReschedulableHearing): string {
  * every fixture on the board and keeps all of them on days the court is open, whatever
  * today happens to be.
  */
-type UpcomingListing = Omit<ReschedulableHearing, "date"> & { offset: number };
+type UpcomingListing = Omit<ReschedulableHearing, "date" | "slot"> & { offset: number };
 
 /**
  * The days ahead of today, on this bench's board.
@@ -323,9 +349,11 @@ const FILLER_STAGES: { stage: CourtCaseStage; purpose: CourtHearingPurposeId }[]
  * can never collide with a hand-written fixture.
  */
 function fillerFor(sitting: number): UpcomingListing[] {
-  const count = 2 + (sitting % 2);
+  /* A court's days are uneven — a light Monday, a heavy Thursday — and the scheduler
+     only has somewhere to put a cleared day if some days have room. 6 to 18 a day. */
+  const count = 6 + ((sitting * 7) % 13);
   return Array.from({ length: count }, (_, index) => {
-    const seed = sitting * 3 + index;
+    const seed = sitting * 20 + index;
     const parties = FILLER_PARTIES[seed % FILLER_PARTIES.length];
     const posture = FILLER_STAGES[seed % FILLER_STAGES.length];
     const summary = seed % 3 !== 0;
@@ -390,6 +418,7 @@ export function reschedulableHearings(today: string): ReschedulableHearing[] {
     stage: hearing.stage,
     purpose: hearing.purpose,
     date: today,
+    slot: "morning" as HearingSlot,
   }));
 
   /* Every sitting day in the window, so a range drawn anywhere inside it lands on
@@ -399,9 +428,12 @@ export function reschedulableHearings(today: string): ReschedulableHearing[] {
   const ahead: ReschedulableHearing[] = [];
   for (let sitting = 1; sitting <= BOARD_SITTINGS; sitting += 1) {
     const date = nthSittingDay(today, sitting);
-    const listings = spoken.has(sitting)
-      ? UPCOMING.filter((listing) => listing.offset === sitting)
-      : fillerFor(sitting);
+    const listings = [
+      ...(spoken.has(sitting)
+        ? UPCOMING.filter((listing) => listing.offset === sitting)
+        : []),
+      ...fillerFor(sitting),
+    ];
     for (const listing of listings) {
       ahead.push({
         id: listing.id,
@@ -410,11 +442,29 @@ export function reschedulableHearings(today: string): ReschedulableHearing[] {
         stage: listing.stage,
         purpose: listing.purpose,
         date,
+        slot: "morning",
       });
     }
   }
 
-  return [...listedToday, ...ahead].sort(byListing);
+  return withSlots([...listedToday, ...ahead].sort(byListing));
+}
+
+/**
+ * Each day's listings split across its two slots in board order — the first half in the
+ * morning, the rest after lunch. The fixtures carry no slot of their own, and a day read
+ * top to bottom is the order the court calls it in.
+ */
+function withSlots(rows: ReschedulableHearing[]): ReschedulableHearing[] {
+  const perDay = new Map<string, number>();
+  for (const row of rows) perDay.set(row.date, (perDay.get(row.date) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return rows.map((row) => {
+    const index = seen.get(row.date) ?? 0;
+    seen.set(row.date, index + 1);
+    const morning = Math.ceil((perDay.get(row.date) ?? 0) / 2);
+    return { ...row, slot: index < morning ? "morning" : "afternoon" };
+  });
 }
 
 /**
@@ -428,7 +478,7 @@ export function reschedulableHearings(today: string): ReschedulableHearing[] {
  */
 export function boardAfterMoves(
   today: string,
-  moved: Readonly<Record<string, string>>,
+  moved: Readonly<Record<string, Listing>>,
 ): ReschedulableHearing[] {
   return reschedulableHearings(today)
     .map((row) => {
@@ -437,7 +487,9 @@ export function boardAfterMoves(
          a new date equal to its old one would put a second date on the board saying
          nothing. The overlay's calendar cannot offer that day, so this is a floor under
          the data rather than a case the screen reaches. */
-      return to && to !== row.date ? { ...row, newDate: to } : row;
+      return to && to.day !== row.date
+        ? { ...row, newDate: to.day, newSlot: to.slot }
+        : row;
     })
     .sort(byListing);
 }
@@ -567,23 +619,183 @@ export function earliestNewListing(
 }
 
 /**
+ * The new dates the bench has drawn up and not yet signed, by matter.
+ *
+ * A plan rather than a move: nothing on the board changes until the order is signed, so
+ * the bench can auto-place a day's list, pull a few back, put one advocate's matters on
+ * the same day and leave the rest for later — in any order, and as many times as it
+ * likes (owner, 2026-10-06: "it cannot fall into a wizard or a choice"). Signing turns
+ * the plan into moves.
+ */
+export type RescheduleDraft = Readonly<Record<string, Listing>>;
+
+/** Where a matter will sit once the draft is counted: drafted, else moved, else listed. */
+export function placeOf(
+  row: ReschedulableHearing,
+  draft: RescheduleDraft,
+): Listing {
+  return (
+    draft[row.id] ??
+    (row.newDate !== undefined
+      ? { day: row.newDate, slot: row.newSlot ?? "morning" }
+      : { day: row.date, slot: row.slot })
+  );
+}
+
+/**
+ * How many hearings a day holds once the draft is counted — in one slot, or the whole
+ * day. This is what the bench reads before it adds to a day: "12 → 15 hearings".
+ */
+export function loadOn(
+  board: ReschedulableHearing[],
+  draft: RescheduleDraft,
+  day: string,
+  slot?: HearingSlot,
+): number {
+  let count = 0;
+  for (const row of board) {
+    const place = placeOf(row, draft);
+    if (place.day === day && (slot === undefined || place.slot === slot)) count += 1;
+  }
+  return count;
+}
+
+/** The sitting day after `day`. */
+export function nextSittingDay(day: string): string {
+  return nthSittingDay(day, 1);
+}
+
+/**
+ * The most hearings this court takes in a day, read off its own board: the heaviest of
+ * the next twenty sittings from `from`. Auto-place fills the lighter days up to it and no
+ * further, and a day pushed past it is the one a new-date filter marks — so "more than
+ * usual" means more than this court already carries on its busiest day, not a number
+ * written in.
+ */
+export function usualDayLoad(board: ReschedulableHearing[], from: string): number {
+  const days: string[] = [];
+  let day = isSittingDay(from) ? from : nextSittingDay(from);
+  for (let i = 0; i < 20; i += 1) {
+    days.push(day);
+    day = nextSittingDay(day);
+  }
+  const heaviest = days.reduce(
+    (most, each) =>
+      Math.max(most, board.filter((row) => row.date === each).length),
+    0,
+  );
+  return Math.max(1, heaviest);
+}
+
+/**
+ * New dates for `rows`, from the scheduler — a stand-in for the court's own algorithm.
+ *
+ * Walks the sitting days from `floor` and fills each up to the court's busiest day, in
+ * whichever slot is lighter at that moment, keeping the rows in board order so matters
+ * listed together stay together. Anything already in the draft for other matters is
+ * counted as taken; the rows being placed are not, so placing them again re-flows them
+ * rather than stacking on top of themselves.
+ */
+export function autoPlace(
+  board: ReschedulableHearing[],
+  draft: RescheduleDraft,
+  rows: ReschedulableHearing[],
+  floor: string,
+): Record<string, Listing> {
+  const moving = new Set(rows.map((row) => row.id));
+  const others = board.filter((row) => !moving.has(row.id));
+  const placed: Record<string, Listing> = {};
+  const ordered = [...rows].sort(byListing);
+  const cap = usualDayLoad(board, floor);
+  let day = isSittingDay(floor) ? floor : nextSittingDay(floor);
+  let next = 0;
+  for (let guard = 0; next < ordered.length && guard < 400; guard += 1) {
+    let morning = loadOn(others, draft, day, "morning");
+    let afternoon = loadOn(others, draft, day, "afternoon");
+    let room = cap - morning - afternoon;
+    while (room > 0 && next < ordered.length) {
+      const slot: HearingSlot = morning <= afternoon ? "morning" : "afternoon";
+      if (slot === "morning") morning += 1;
+      else afternoon += 1;
+      placed[ordered[next].id] = { day, slot };
+      next += 1;
+      room -= 1;
+    }
+    day = nextSittingDay(day);
+  }
+  return placed;
+}
+
+/**
+ * The day the scheduler suggests for `rows` when the bench sets one date by hand: the
+ * earliest sitting day from `floor` that takes all of them without going past the
+ * court's busiest day — and, when no day in the next six weeks can, the lightest one.
+ * `fits` says which it is, so the screen can say why.
+ */
+export function suggestDay(
+  board: ReschedulableHearing[],
+  draft: RescheduleDraft,
+  rows: ReschedulableHearing[],
+  floor: string,
+): { day: string; fits: boolean } {
+  const moving = new Set(rows.map((row) => row.id));
+  const others = board.filter((row) => !moving.has(row.id));
+  const cap = usualDayLoad(board, floor);
+  let day = isSittingDay(floor) ? floor : nextSittingDay(floor);
+  let lightest = { day, load: Number.POSITIVE_INFINITY };
+  for (let i = 0; i < 30; i += 1) {
+    const load = loadOn(others, draft, day);
+    if (load + rows.length <= cap) return { day, fits: true };
+    if (load < lightest.load) lightest = { day, load };
+    day = nextSittingDay(day);
+  }
+  return { day: lightest.day, fits: false };
+}
+
+/**
+ * Why the court is not sitting — the ground the order states.
+ *
+ * The three the court's current product offers when it reschedules in bulk. The bench
+ * picks one; the order recites it in the court's own register.
+ */
+export const RESCHEDULE_REASONS = [
+  {
+    id: "non-working-day",
+    label: "Court non-working day",
+    ground: "a court non-working day",
+  },
+  {
+    id: "planned-leave",
+    label: "Judge’s planned leave",
+    ground: "the planned leave of the presiding officer",
+  },
+  {
+    id: "emergency-leave",
+    label: "Judge’s emergency leave",
+    ground: "the emergency leave of the presiding officer",
+  },
+] as const;
+
+export type RescheduleReasonId = (typeof RESCHEDULE_REASONS)[number]["id"];
+
+export function rescheduleReason(id: RescheduleReasonId) {
+  return RESCHEDULE_REASONS.find((reason) => reason.id === id)!;
+}
+
+/**
  * The order a bulk move is passed by.
  *
  * A court does not move twenty matters by editing twenty rows: it passes one order, and
- * the order is what the case files carry afterwards. The screen used to commit the move
- * the moment a date was picked, which made the act a database edit wearing a calendar —
- * nothing was drawn up, so there was nothing to sign and nothing for the files to hold.
- * The bench now signs this before anything moves (Anshumanth, 2026-09-15).
+ * the order is what the case files carry afterwards. The bench signs it before anything
+ * moves (Anshumanth, 2026-09-15).
  *
- * One order for the whole run rather than one per case. That is the act as the bench
- * performs it — a single direction naming the matters it covers — and it is what makes
- * the signature a single signature rather than twenty.
+ * **One order for every new date.** However many days the matters are spread across,
+ * they go out together in one table, sorted by the day and slot they move to — one
+ * signature, not one per date (owner, 2026-10-06).
  *
- * **What it does not say.** It gives no reason. This screen never asks for one — leave,
- * transfer, a holiday declared late are all the same picked date to it — and an order
- * that recited a ground the court never entered would be the app writing the bench's
- * words for it. It also directs nothing at the parties: no notification is drawn up on
- * this branch, so the paper does not pretend to order one.
+ * It recites the ground the bench chose and nothing it did not. It directs nothing at the
+ * parties: no notification is drawn up on this branch, so the paper does not pretend to
+ * order one.
  */
 export type RescheduleOrder = {
   /** "Before the JMFC Court 1, Kollam". */
@@ -591,17 +803,24 @@ export type RescheduleOrder = {
   title: string;
   /** The operative words. */
   paragraphs: string[];
-  /** What the order covers, one line each. */
-  matters: { caseNumber: string; matter: string; from: string; to: string }[];
+  /** What the order covers, one line each, by the day and slot each goes to. */
+  matters: {
+    caseNumber: string;
+    matter: string;
+    listedFor: string;
+    from: string;
+    to: string;
+    slot: string;
+  }[];
   dated: string;
   /** Who signs, and whether they have. */
   signature: string;
 };
 
 export function buildRescheduleOrder(
-  rows: ReschedulableHearing[],
-  /** The day the matters are being listed on. */
-  day: string,
+  rows: { row: ReschedulableHearing; to: Listing }[],
+  /** The ground the bench chose; absent while it has not chosen one. */
+  reason: RescheduleReasonId | null,
   /** The day the order is passed. */
   today: string,
   /**
@@ -615,18 +834,36 @@ export function buildRescheduleOrder(
    */
   signedOn?: string,
 ): RescheduleOrder {
+  const sorted = [...rows].sort(
+    (a, b) =>
+      a.to.day.localeCompare(b.to.day) ||
+      (a.to.slot === b.to.slot ? 0 : a.to.slot === "morning" ? -1 : 1) ||
+      a.row.caseNumber.localeCompare(b.row.caseNumber, undefined, { numeric: true }),
+  );
+  const from = [...new Set(rows.map(({ row }) => listedOn(row)))].sort();
+  const notSitting =
+    from.length === 0
+      ? ""
+      : from.length === 1
+        ? ` on ${formatOrderDate(from[0])}`
+        : ` from ${formatOrderDate(from[0])} to ${formatOrderDate(from[from.length - 1])}`;
+  const ground = reason ? rescheduleReason(reason).ground : null;
   return {
     court: `Before the ${CURRENT_STAFF.court}`,
     title: "Order rescheduling listed hearings",
     paragraphs: [
-      `The matters listed below stand adjourned from the dates shown against them.`,
-      `They are listed for hearing before this court on ${formatOrderDate(day)}.`,
+      ground
+        ? `Owing to ${ground}, this court will not sit${notSitting}.`
+        : `This court will not sit${notSitting}.`,
+      `The matters listed below stand adjourned from the dates shown against them, and are listed for hearing before this court on the dates and in the slots shown.`,
     ],
-    matters: rows.map((row) => ({
+    matters: sorted.map(({ row, to }) => ({
       caseNumber: row.caseNumber,
       matter: row.title,
+      listedFor: courtHearingPurposeLabel(row.purpose),
       from: formatOrderDate(listedOn(row)),
-      to: formatOrderDate(day),
+      to: formatOrderDate(to.day),
+      slot: hearingSlotLabel(to.slot),
     })),
     dated: formatOrderDate(today),
     signature: signedOn
@@ -647,7 +884,7 @@ export function rescheduleOrderText(order: RescheduleOrder): string {
     `Matters (${order.matters.length})`,
     ...order.matters.map(
       (matter) =>
-        `${matter.caseNumber} · ${matter.matter} · ${matter.from} → ${matter.to}`,
+        `${matter.caseNumber} · ${matter.matter} · ${matter.listedFor} · ${matter.from} → ${matter.to}, ${matter.slot.toLowerCase()}`,
     ),
     "",
     `Dated this the ${order.dated}.`,
