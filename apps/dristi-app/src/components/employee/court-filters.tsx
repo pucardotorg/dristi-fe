@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+
+import { cn } from "@/lib/utils";
 import { SlidersHorizontalIcon, XIcon } from "lucide-react";
 
 import { QueueSearchField } from "@/components/employee/queue-search-field";
@@ -84,17 +86,40 @@ const SHEET_MOTION = {
 } as CSSProperties;
 
 export function CourtFilters({
+  leading,
+  trailing,
   search,
   searchRef,
   fields,
   date,
   onClearAll,
 }: {
+  /**
+   * What heads the row, ahead of the search — a screen's own view control, such as the
+   * sign process' status pills. It takes the row's free width and pushes the search and
+   * Filters to the far end, so the row runs edge to edge the way the pending-tasks row
+   * does (owner, 2026-10-06); when the width runs out, the search and Filters wrap to a
+   * line of their own rather than squeezing it.
+   */
+  leading?: React.ReactNode;
+  /**
+   * What closes the row, after Filters — a screen's own ordering control. Kept out of
+   * the sheet because an order is not a narrowing: it changes nothing about which rows
+   * show, and it is changed far more often than any filter.
+   */
+  trailing?: React.ReactNode;
   search: {
     label: string;
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
+    /**
+     * Keep the label for screen readers only. For a row whose search sits beside other
+     * controls (the sign process pills): the magnifier is the box's permanent visual cue
+     * and the name is still announced, the pending-tasks search treatment (owner,
+     * 2026-10-06). A label stacked over the box pushed the whole row down around it.
+     */
+    labelHidden?: boolean;
     /** Enter in the box — a screen's fast path (e.g. sign process' reconcile-by-number). */
     onSubmit?: () => void;
   };
@@ -116,7 +141,9 @@ export function CourtFilters({
      than swallow an Enter that would reload the page. */
   const searchNode = search.onSubmit ? (
     <form
-      className="min-w-0 sm:w-80"
+      /* Narrower beside a leading control, so a pill row, the search, Filters and an
+         order all fit one line at a laptop width. */
+      className={cn("min-w-0", leading ? "sm:w-64" : "sm:w-80")}
       onSubmit={(event) => {
         event.preventDefault();
         search.onSubmit?.();
@@ -124,6 +151,7 @@ export function CourtFilters({
     >
       <QueueSearchField
         label={search.label}
+        labelClassName={search.labelHidden ? "sr-only" : undefined}
         className="w-full"
         ref={searchRef}
         value={search.value}
@@ -134,6 +162,7 @@ export function CourtFilters({
   ) : (
     <QueueSearchField
       label={search.label}
+      labelClassName={search.labelHidden ? "sr-only" : undefined}
       className="sm:w-80"
       ref={searchRef}
       value={search.value}
@@ -155,7 +184,12 @@ export function CourtFilters({
         {searchNode}
         {only ? (
           <div className="flex min-w-0 flex-col gap-2">
-            <Label htmlFor={only.id} className="text-body-compact">
+            {/* Hidden with the search's, so the two controls share a top edge; the select's
+                own value ("All process types") still says what it filters. */}
+            <Label
+              htmlFor={only.id}
+              className={search.labelHidden ? "sr-only" : "text-body-compact"}
+            >
               {only.label}
             </Label>
             <Select value={only.value} onValueChange={only.onApply}>
@@ -176,7 +210,11 @@ export function CourtFilters({
           <div className="flex min-w-0 flex-col gap-2">
             <span
               id="court-filter-date"
-              className="w-fit text-body-compact font-medium"
+              className={
+                search.labelHidden
+                  ? "sr-only"
+                  : "w-fit text-body-compact font-medium"
+              }
             >
               {date.label}
             </span>
@@ -190,6 +228,7 @@ export function CourtFilters({
             </div>
           </div>
         ) : null}
+        {trailing}
         {applied > 0 || search.value !== "" ? (
           <Button type="button" variant="ghost" onClick={onClearAll}>
             Clear filters
@@ -201,9 +240,18 @@ export function CourtFilters({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
-        {searchNode}
-        <CourtFiltersSheet fields={fields} date={date} applied={applied} />
+      <div className="flex min-w-0 flex-wrap items-end gap-x-4 gap-y-3">
+        {leading ? (
+          /* `basis-96` is the pills' floor: below it the search and Filters wrap under
+             them rather than crushing the pills to a scroll. The half-step of bottom room
+             centres a 36px pill on the 40px input it sits beside. */
+          <div className="min-w-0 flex-1 basis-96 pb-0.5">{leading}</div>
+        ) : null}
+        <div className="flex min-w-0 items-end gap-3 max-sm:w-full max-sm:flex-col max-sm:items-stretch">
+          {searchNode}
+          <CourtFiltersSheet fields={fields} date={date} applied={applied} />
+          {trailing}
+        </div>
       </div>
 
       {/* What is applied stays out on the row as removable chips — a folded control must not

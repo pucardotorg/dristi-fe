@@ -2,421 +2,518 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  advanceProcesses,
+  actsForSelection,
+  bandByStatus,
   buildProcessDocument,
   COURT_PROCESS_TYPES,
-  processesAdvancing,
   defaultProcessFilters,
   filterProcesses,
+  goesByPost,
+  groupSelectionByCase,
+  orderForView,
+  pilePool,
+  PROCESS_CHANNELS,
   PROCESS_LINE,
   PROCESS_QUEUE_COUNT,
-  PROCESS_STAGES,
+  PROCESS_STATUSES,
+  PROCESS_TABS,
   processDocumentText,
-  processStage,
   processesAt,
   processesElsewhere,
-  groupSelectionByCase,
-  singleCaseMatch,
+  processesIn,
   processIdsForCase,
+  processStatusLine,
+  processTab,
   rebaseFilters,
+  recordProcessReturns,
+  runProcessAct,
+  singleCaseMatch,
+  spansStatuses,
+  tabCount,
+  allCounted,
+  landedLine,
+  moveLine,
+  refusedLine,
+  processAct,
+  sortProcesses,
   type CourtProcess,
-  type ProcessStageId,
+  type ProcessOutcome,
 } from "./sign-process";
 
-/** The stages a row can be standing in, in the order it travels through them. */
-const ORDER: ProcessStageId[] = PROCESS_STAGES.map((stage) => stage.id);
+const ON = "2026-10-06";
 
-/** Every day a row carries, in the order the line stamps them. */
-function stampedDays(process: CourtProcess): string[] {
-  return [
-    process.paidOn,
-    process.issuedOn,
-    process.signedOn,
-    process.sentOn,
-    process.completedOn,
-  ].filter((day): day is string => day !== undefined);
+function only<T>(rows: T[], message: string): T {
+  const [first] = rows;
+  assert.ok(first, message);
+  return first;
 }
 
 describe("PROCESS_LINE", () => {
-  it("stamps every day a row's stage says it has passed, and none it has not", () => {
-    /* One field per stage reached, and nothing from a stage still ahead: a signed date
-       on a row waiting to be signed is the line claiming work that has not happened. */
-    const stamped: [ProcessStageId, keyof CourtProcess][] = [
-      ["pending-sign", "issuedOn"],
-      ["signed", "signedOn"],
-      ["sent", "sentOn"],
-      ["completed", "completedOn"],
-    ];
-    for (const process of PROCESS_LINE) {
-      const reached = ORDER.indexOf(process.stage);
-      assert.ok(process.paidOn, `${process.id} has no fee payment`);
-      for (const [stage, field] of stamped) {
-        assert.equal(
-          process[field] !== undefined,
-          reached >= ORDER.indexOf(stage),
-          `${process.id} at ${process.stage}: ${String(field)} is ${String(process[field] ?? "missing")}`,
-        );
-      }
-    }
-  });
-
-  it("gives every row the day its own tab's fourth column prints", () => {
-    /* Two stages share a field — the reference heads both Pending sign and Signed with
-       "Issued date" — so this is a separate question from which fields are stamped: can
-       the column the bench is looking at actually render? */
-    for (const stage of PROCESS_STAGES) {
-      for (const process of processesAt(PROCESS_LINE, stage.id)) {
-        assert.ok(
-          stage.dateOf(process),
-          `${process.id} has no ${stage.dateColumn.toLowerCase()}`,
-        );
-      }
-    }
-  });
-
-  it("runs its days forward — a process cannot be signed before it was issued", () => {
-    for (const process of PROCESS_LINE) {
-      const days = stampedDays(process);
-      assert.deepEqual(days, [...days].sort(), `${process.id} runs backwards`);
-    }
-  });
-
-  it("makes every process returnable for a listing still ahead of it", () => {
-    for (const process of PROCESS_LINE) {
-      const last = stampedDays(process).at(-1) ?? process.paidOn;
-      assert.ok(
-        process.hearingDate > last,
-        `${process.id} comes back on ${process.hearingDate}, which is not after ${last}`,
-      );
-    }
-  });
-
-  it("holds only registered post at the stage that waits on a cover", () => {
-    /* The reason the first tab's channel filter is fixed rather than live: police and
-       bailiff rounds have no cover to collect and start at Pending sign. */
-    const stage = processStage("pending-rpad-collection");
-    for (const process of processesAt(PROCESS_LINE, "pending-rpad-collection")) {
-      assert.equal(process.channel, stage.onlyChannel, process.id);
-    }
-  });
-
-  it("gives every stage enough rows to be worth a tab", () => {
-    for (const stage of PROCESS_STAGES) {
-      assert.ok(
-        processesAt(PROCESS_LINE, stage.id).length > 0,
-        `${stage.id} is empty`,
-      );
-    }
-  });
-
-  it("counts only the stages that still need an act for the rail's badge", () => {
-    const working = PROCESS_STAGES.filter((stage) => stage.act !== undefined);
-    const expected = working.reduce(
-      (total, stage) => total + processesAt(PROCESS_LINE, stage.id).length,
-      0,
-    );
-    assert.equal(PROCESS_QUEUE_COUNT, expected);
-    assert.ok(PROCESS_QUEUE_COUNT < PROCESS_LINE.length);
-  });
-
   it("mints one id per row", () => {
     const ids = new Set(PROCESS_LINE.map((process) => process.id));
     assert.equal(ids.size, PROCESS_LINE.length);
+  });
+
+  it("stamps every day a row's status says it has passed, and none it has not", () => {
+    for (const process of PROCESS_LINE) {
+      const at = (field: keyof CourtProcess, present: boolean) =>
+        assert.equal(
+          process[field] !== undefined,
+          present,
+          `${process.id} at ${process.status}: ${String(field)} is ${String(process[field] ?? "missing")}`,
+        );
+      const s = process.status;
+      at("issuedOn", s !== "awaiting-cover");
+      at("signedOn", !["awaiting-cover", "to-sign"].includes(s));
+      at("sentOn", ["in-progress", "completed"].includes(s));
+      at("sendFailure", s === "send-failed");
+      at("returnedOn", s === "completed");
+      at("outcome", s === "completed");
+    }
+  });
+
+  it("holds both answers a channel gives under Completed", () => {
+    /* Not served is a kind of completion, not a status of its own (owner, 2026-10-06). */
+    const completed = processesAt(PROCESS_LINE, "completed");
+    assert.ok(completed.some((process) => process.outcome?.served === true));
+    assert.ok(completed.some((process) => process.outcome?.served === false));
+  });
+
+  it("holds only paper where only paper can be", () => {
+    /* A cover is collected, and later posted, only for registered post. */
+    for (const process of processesAt(PROCESS_LINE, "awaiting-cover")) {
+      assert.equal(process.channel, "rpad", process.id);
+    }
+    for (const process of processesAt(PROCESS_LINE, "to-post")) {
+      assert.ok(goesByPost(process), process.id);
+    }
+    /* …and a failed send is an electronic channel refusing it. */
+    for (const process of processesAt(PROCESS_LINE, "send-failed")) {
+      assert.ok(!goesByPost(process), process.id);
+    }
+  });
+
+  it("gives every status and every channel something to show", () => {
+    for (const status of PROCESS_STATUSES) {
+      assert.ok(processesAt(PROCESS_LINE, status.id).length > 0, status.id);
+    }
+    for (const channel of PROCESS_CHANNELS) {
+      assert.ok(
+        PROCESS_LINE.some((process) => process.channel === channel.id),
+        channel.id,
+      );
+    }
+  });
+
+  it("carries a send that will be refused, under To sign", () => {
+    const refusing = PROCESS_LINE.filter((process) => process.demoSendFailure);
+    assert.ok(refusing.length > 0);
+    for (const process of refusing) {
+      assert.equal(process.status, "to-sign", process.id);
+      assert.ok(!goesByPost(process), process.id);
+    }
+  });
+});
+
+describe("PROCESS_TABS", () => {
+  it("puts every status in exactly one tab, and the tab agrees", () => {
+    for (const status of PROCESS_STATUSES) {
+      const holders = PROCESS_TABS.filter((tab) =>
+        tab.statuses.includes(status.id),
+      );
+      assert.equal(holders.length, 1, status.id);
+      assert.equal(holders[0].id, status.tab, status.id);
+    }
+  });
+
+  it("opens each tab on a status it holds", () => {
+    for (const tab of PROCESS_TABS) {
+      assert.ok(
+        tab.defaultView === "all" || tab.statuses.includes(tab.defaultView),
+        tab.id,
+      );
+    }
+  });
+
+  it("cuts the line by who it waits on", () => {
+    assert.deepEqual(processTab("rpad-collection").statuses, ["awaiting-cover"]);
+    assert.deepEqual(processTab("issuance").statuses, [
+      "to-sign",
+      "to-post",
+      "send-failed",
+    ]);
+    assert.deepEqual(processTab("service").statuses, [
+      "in-progress",
+      "completed",
+    ]);
+  });
+
+  it("counts the work in each tab — on Service, only what is still out", () => {
+    assert.equal(
+      tabCount(PROCESS_LINE, processTab("service")),
+      processesAt(PROCESS_LINE, "in-progress").length,
+    );
+    assert.equal(allCounted(processTab("issuance")), true);
+    assert.equal(allCounted(processTab("service")), false);
+    assert.equal(
+      tabCount(PROCESS_LINE, processTab("issuance")),
+      processesIn(PROCESS_LINE, processTab("issuance"), "all").length,
+    );
+    assert.equal(
+      PROCESS_QUEUE_COUNT,
+      processesIn(PROCESS_LINE, processTab("rpad-collection"), "all").length +
+        processesIn(PROCESS_LINE, processTab("issuance"), "all").length,
+    );
+  });
+
+  it("counts only the pills that are work, and explains every one", () => {
+    for (const status of PROCESS_STATUSES) {
+      assert.ok(status.hint.length > 0, status.id);
+      assert.equal(status.counted, status.id !== "completed", status.id);
+    }
+    for (const tab of PROCESS_TABS) assert.ok(tab.allHint.length > 0, tab.id);
+  });
+
+  it("orders by hearing date, soonest first, and back again", () => {
+    const rows = processesIn(PROCESS_LINE, processTab("issuance"), "all");
+    const soonest = sortProcesses(rows, "hearing-soonest").map((p) => p.hearingDate);
+    const latest = sortProcesses(rows, "hearing-latest").map((p) => p.hearingDate);
+    assert.deepEqual(soonest, [...soonest].sort());
+    assert.deepEqual(latest, [...latest].sort().reverse());
+    assert.equal(rows.length, soonest.length, "sorting drops nothing");
+  });
+
+  it("opens a tab on everything it holds, bar the channel it is defined by", () => {
+    for (const tab of PROCESS_TABS) {
+      const filters = defaultProcessFilters(tab);
+      assert.equal(filters.channel, tab.onlyChannel ?? "all");
+      const all = processesIn(PROCESS_LINE, tab, "all");
+      assert.equal(filterProcesses(all, filters).length, all.length, tab.id);
+    }
+  });
+});
+
+describe("All, banded", () => {
+  const tab = processTab("issuance");
+
+  it("orders a tab's rows by its own status order, keeping the line's order inside", () => {
+    const ordered = orderForView(processesIn(PROCESS_LINE, tab, "all"), tab);
+    const seen = ordered.map((process) => process.status);
+    const firstOf = (status: string) => seen.indexOf(status as never);
+    assert.ok(firstOf("to-sign") < firstOf("to-post"));
+    assert.ok(firstOf("to-post") < firstOf("send-failed"));
+    /* Each status is one run, never split and rejoined. */
+    for (const status of tab.statuses) {
+      const at = seen.flatMap((s, i) => (s === status ? [i] : []));
+      assert.equal(at[at.length - 1] - at[0] + 1, at.length, status);
+    }
+  });
+
+  it("bands only a view that spans statuses, and labels whatever band it is given", () => {
+    const all = processesIn(PROCESS_LINE, tab, "all");
+    assert.equal(spansStatuses(all), true);
+    assert.equal(spansStatuses(processesAt(PROCESS_LINE, "to-sign")), false);
+    const firstPage = orderForView(all, tab).slice(0, 5);
+    assert.deepEqual(
+      bandByStatus(firstPage, tab).map((band) => band.status.id),
+      ["to-sign"],
+    );
+  });
+});
+
+describe("processStatusLine", () => {
+  it("writes an outcome in the instrument's own word", () => {
+    const warrant = PROCESS_LINE.find(
+      (process) => process.status === "completed" && process.type === "warrant",
+    );
+    const summons = PROCESS_LINE.find(
+      (process) => process.status === "completed" && process.type === "summons",
+    );
+    assert.ok(warrant && summons);
+    assert.equal(processStatusLine(warrant).word, "Executed");
+    assert.equal(processStatusLine(summons).word, "Delivered");
+  });
+
+  it("says why, not when, for the two that went wrong — and says it in words", () => {
+    for (const process of PROCESS_LINE) {
+      const line = processStatusLine(process);
+      const wrong =
+        process.status === "send-failed" ||
+        (process.status === "completed" && process.outcome?.served === false);
+      assert.equal(line.warn, wrong, process.id);
+      if (wrong) {
+        assert.ok(line.reason, `${process.id} fails without saying why`);
+        assert.match(line.word, /^(Send failed|Not )/, process.id);
+      } else {
+        assert.ok(line.day, `${process.id} has no day for its status`);
+      }
+    }
+  });
+});
+
+describe("runProcessAct", () => {
+  it("sends a collected cover for signature and stamps the day", () => {
+    const cover = processesAt(PROCESS_LINE, "awaiting-cover")[0];
+    const next = runProcessAct(PROCESS_LINE, "collect", new Set([cover.id]), ON);
+    const moved = next.find((process) => process.id === cover.id);
+    assert.equal(moved?.status, "to-sign");
+    assert.equal(moved?.issuedOn, ON);
+  });
+
+  it("forks a signing run on the channel", () => {
+    const toSign = processesAt(PROCESS_LINE, "to-sign");
+    const post = only(toSign.filter(goesByPost), "needs an RPAD row to sign");
+    const electronic = only(
+      toSign.filter((p) => !goesByPost(p) && !p.demoSendFailure),
+      "needs an electronic row to sign",
+    );
+    const refused = only(
+      toSign.filter((p) => p.demoSendFailure),
+      "needs a row whose send is refused",
+    );
+    const ids = new Set([post.id, electronic.id, refused.id]);
+    const next = runProcessAct(PROCESS_LINE, "sign", ids, ON);
+    const byId = new Map(next.map((process) => [process.id, process]));
+
+    /* Registered post is signed, not sent: it waits to be carried to the post office. */
+    assert.equal(byId.get(post.id)?.status, "to-post");
+    assert.equal(byId.get(post.id)?.sentOn, undefined);
+    /* An electronic channel goes out the same day. */
+    assert.equal(byId.get(electronic.id)?.status, "in-progress");
+    assert.equal(byId.get(electronic.id)?.sentOn, ON);
+    /* A refused send has not left the court, so it stays in the court's tab. */
+    assert.equal(byId.get(refused.id)?.status, "send-failed");
+    assert.equal(byId.get(refused.id)?.sendFailure, refused.demoSendFailure);
+    for (const id of ids) assert.equal(byId.get(id)?.signedOn, ON);
+
+  });
+
+  it("sends a refused process on the resend after", () => {
+    const refused = PROCESS_LINE.find((process) => process.demoSendFailure);
+    assert.ok(refused);
+    const signed = runProcessAct(PROCESS_LINE, "sign", new Set([refused.id]), ON);
+    const resent = runProcessAct(signed, "resend", new Set([refused.id]), ON);
+    const row = resent.find((process) => process.id === refused.id);
+    assert.equal(row?.status, "in-progress");
+    assert.equal(row?.sendFailure, undefined);
+    assert.equal(row?.sentOn, ON);
+  });
+
+  it("posts a signed cover out to Service", () => {
+    const cover = processesAt(PROCESS_LINE, "to-post")[0];
+    const next = runProcessAct(PROCESS_LINE, "post", new Set([cover.id]), ON);
+    const row = next.find((process) => process.id === cover.id);
+    assert.equal(row?.status, "in-progress");
+    assert.equal(row?.sentOn, ON);
+  });
+
+  it("leaves alone what the act does not take, and the line it was given", () => {
+    const before = PROCESS_LINE.map((process) => process.status);
+    const unrelated = processesAt(PROCESS_LINE, "in-progress")[0];
+    const next = runProcessAct(PROCESS_LINE, "sign", new Set([unrelated.id]), ON);
+    assert.deepEqual(
+      next.map((process) => process.status),
+      before,
+    );
+    assert.deepEqual(
+      PROCESS_LINE.map((process) => process.status),
+      before,
+    );
+  });
+
+  it("walks a registered-post row the whole length of the line", () => {
+    const cover = processesAt(PROCESS_LINE, "awaiting-cover")[0];
+    const ids = new Set([cover.id]);
+    let line = runProcessAct(PROCESS_LINE, "collect", ids, ON);
+    line = runProcessAct(line, "sign", ids, ON);
+    line = runProcessAct(line, "post", ids, ON);
+    line = recordProcessReturns(
+      line,
+      new Map<string, ProcessOutcome>([
+        [cover.id, { served: false, reason: "Door locked" }],
+      ]),
+      ON,
+    );
+    const row = line.find((process) => process.id === cover.id);
+    assert.equal(row?.status, "completed");
+    assert.deepEqual(row?.outcome, { served: false, reason: "Door locked" });
+    assert.equal(row?.returnedOn, ON);
+  });
+});
+
+describe("recordProcessReturns", () => {
+  it("records only registered post — an electronic channel reports for itself", () => {
+    const out = processesAt(PROCESS_LINE, "in-progress");
+    const paper = only(out.filter(goesByPost), "needs an RPAD row out");
+    const sms = only(
+      out.filter((p) => !goesByPost(p)),
+      "needs an electronic row out",
+    );
+    const next = recordProcessReturns(
+      PROCESS_LINE,
+      new Map<string, ProcessOutcome>([
+        [paper.id, { served: true }],
+        [sms.id, { served: true }],
+      ]),
+      ON,
+    );
+    const byId = new Map(next.map((process) => [process.id, process]));
+    assert.equal(byId.get(paper.id)?.status, "completed");
+    assert.equal(byId.get(sms.id)?.status, "in-progress");
+  });
+});
+
+describe("actsForSelection", () => {
+  it("gives a mixed Issuance selection one act per kind of work, in line order", () => {
+    const tab = processTab("issuance");
+    const picked = [
+      processesAt(PROCESS_LINE, "send-failed")[0],
+      processesAt(PROCESS_LINE, "to-post")[0],
+      processesAt(PROCESS_LINE, "to-sign")[0],
+    ];
+    assert.deepEqual(
+      actsForSelection(tab, picked).map((group) => [
+        group.act.id,
+        group.rows.length,
+      ]),
+      [
+        ["sign", 1],
+        ["post", 1],
+        ["resend", 1],
+      ],
+    );
+  });
+
+  it("offers to record only the registered-post covers in a Service selection", () => {
+    const tab = processTab("service");
+    const out = processesAt(PROCESS_LINE, "in-progress");
+    const groups = actsForSelection(tab, out);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].act.id, "record");
+    assert.deepEqual(
+      groups[0].rows.map((process) => process.id),
+      out.filter(goesByPost).map((process) => process.id),
+    );
+    /* Completed and Failed are records: nothing to do to them here. */
+    assert.deepEqual(
+      actsForSelection(tab, processesAt(PROCESS_LINE, "completed")),
+      [],
+    );
+  });
+});
+
+describe("the pile", () => {
+  it("is paper only where only paper comes back", () => {
+    const pool = pilePool(PROCESS_LINE, "in-progress");
+    assert.ok(pool.length > 0);
+    assert.ok(pool.every(goesByPost));
+    assert.ok(
+      processesAt(PROCESS_LINE, "in-progress").some((p) => !goesByPost(p)),
+      "the fixture needs an electronic row out, for this to mean anything",
+    );
+  });
+
+  it("is nothing under All or where nobody holds paper", () => {
+    assert.deepEqual(pilePool(PROCESS_LINE, "all"), []);
+    assert.deepEqual(pilePool(PROCESS_LINE, "to-sign"), []);
+    assert.deepEqual(pilePool(PROCESS_LINE, "completed"), []);
+  });
+});
+
+describe("finding a process that has moved on", () => {
+  const collection = processTab("rpad-collection");
+  /* A real row sitting under To post — the case a bench would hunt for from where it
+     last saw it. */
+  const moved = processesAt(PROCESS_LINE, "to-post")[0];
+
+  it("names the status that has it when this view does not", () => {
+    const filters = { ...defaultProcessFilters(collection), query: moved.caseNumber };
+    const here = filterProcesses(processesAt(PROCESS_LINE, "awaiting-cover"), filters);
+    assert.equal(here.length, 0);
+    assert.deepEqual(
+      processesElsewhere(PROCESS_LINE, filters, {
+        tab: "rpad-collection",
+        view: "awaiting-cover",
+      }).map((entry) => [entry.status.id, entry.count]),
+      [["to-post", 1]],
+    );
+  });
+
+  it("asks the other pills of its own tab, but not the view it is standing in", () => {
+    const tab = processTab("issuance");
+    const filters = { ...defaultProcessFilters(tab), query: moved.caseNumber };
+    assert.deepEqual(
+      processesElsewhere(PROCESS_LINE, filters, {
+        tab: "issuance",
+        view: "to-sign",
+      }).map((entry) => entry.status.id),
+      ["to-post"],
+    );
+    /* Under All the tab has already been asked. */
+    assert.deepEqual(
+      processesElsewhere(PROCESS_LINE, filters, {
+        tab: "issuance",
+        view: "all",
+      }),
+      [],
+    );
+  });
+
+  it("says nothing is anywhere only when nothing is", () => {
+    const filters = { ...defaultProcessFilters(collection), query: "ST/9999/2026" };
+    assert.deepEqual(
+      processesElsewhere(PROCESS_LINE, filters, {
+        tab: "rpad-collection",
+        view: "awaiting-cover",
+      }),
+      [],
+    );
+  });
+
+  it("does not carry a tab's own channel onto a tab that is not defined by one", () => {
+    const police = PROCESS_LINE.find(
+      (process) => process.status === "to-sign" && process.channel === "police",
+    );
+    assert.ok(police);
+    const filters = { ...defaultProcessFilters(collection), query: police.caseNumber };
+    assert.deepEqual(
+      processesElsewhere(PROCESS_LINE, filters, {
+        tab: "rpad-collection",
+        view: "awaiting-cover",
+      }).map((entry) => entry.status.id),
+      ["to-sign"],
+    );
+  });
+
+  it("keeps a channel the bench chose for itself", () => {
+    const from = processTab("issuance");
+    const to = processTab("service");
+    const chosen = { ...defaultProcessFilters(from), channel: "police" as const };
+    assert.equal(rebaseFilters(chosen, from, to).channel, "police");
+    const pinned = defaultProcessFilters(collection);
+    assert.equal(pinned.channel, "rpad");
+    assert.equal(rebaseFilters(pinned, collection, to).channel, "all");
+  });
+
+  it("does not find a row by the cause title the Case name column prints", () => {
+    const cause = `${moved.parties.complainant} v. ${moved.parties.accused}`;
+    const rows = filterProcesses(processesAt(PROCESS_LINE, "to-post"), {
+      ...defaultProcessFilters(processTab("issuance")),
+      query: cause,
+    });
+    assert.ok(!rows.some((process) => process.id === moved.id));
   });
 });
 
 describe("COURT_PROCESS_TYPES", () => {
   it("keeps an abbreviation's capitals in the name a screen reader gets", () => {
-    /* `label.toLowerCase()` is what this replaced: it turned "DCA notice" into a word
-       rather than four letters in every row opener and every checkbox on the screen. */
     const byId = new Map(COURT_PROCESS_TYPES.map((type) => [type.id, type]));
     assert.equal(byId.get("dca-notice")?.inline, "DCA notice");
     assert.equal(byId.get("section-223-notice")?.inline, "Section 223 notice");
     assert.equal(byId.get("summons")?.inline, "summons");
     for (const type of COURT_PROCESS_TYPES) {
-      assert.equal(
-        type.inline.toLowerCase(),
-        type.label.toLowerCase(),
-        `${type.id} names two different instruments`,
-      );
+      assert.equal(type.inline.toLowerCase(), type.label.toLowerCase(), type.id);
     }
-  });
-});
-
-describe("PROCESS_STAGES", () => {
-  it("chains its acts into one line, ending where nothing acts", () => {
-    for (const [index, stage] of PROCESS_STAGES.entries()) {
-      if (!stage.act) continue;
-      assert.equal(
-        stage.act.advancesTo,
-        PROCESS_STAGES[index + 1]?.id,
-        `${stage.id} does not advance to the stage after it`,
-      );
-    }
-    /* Nothing on this screen closes a round off — that is the delivery channel
-       reporting back. Sent and Completed are records. */
-    assert.equal(processStage("sent").act, undefined);
-    assert.equal(processStage("completed").act, undefined);
-  });
-
-  it("offers the hearing-date filter everywhere the reference does", () => {
-    assert.equal(processStage("pending-rpad-collection").hearingDateFilter, false);
-    for (const stage of PROCESS_STAGES.slice(1)) {
-      assert.equal(stage.hearingDateFilter, true, stage.id);
-    }
-  });
-
-  it("opens a stage on everything it holds, bar the channel it is defined by", () => {
-    for (const stage of PROCESS_STAGES) {
-      const filters = defaultProcessFilters(stage);
-      assert.equal(filters.type, "all");
-      assert.equal(filters.hearingDate, "");
-      assert.equal(filters.query, "");
-      assert.equal(filters.channel, stage.onlyChannel ?? "all");
-      assert.equal(
-        filterProcesses(processesAt(PROCESS_LINE, stage.id), filters).length,
-        processesAt(PROCESS_LINE, stage.id).length,
-        `${stage.id} hides work behind a filter nobody touched`,
-      );
-    }
-  });
-});
-
-describe("filterProcesses", () => {
-  const rows = processesAt(PROCESS_LINE, "pending-sign");
-
-  it("cuts on the instrument", () => {
-    const cut = filterProcesses(rows, {
-      type: "warrant",
-      channel: "all",
-      hearingDate: "",
-      query: "",
-    });
-    assert.ok(cut.length > 0 && cut.length < rows.length);
-    assert.ok(cut.every((process) => process.type === "warrant"));
-  });
-
-  it("cuts on the channel", () => {
-    const cut = filterProcesses(rows, {
-      type: "all",
-      channel: "police",
-      hearingDate: "",
-      query: "",
-    });
-    assert.ok(cut.length > 0 && cut.length < rows.length);
-    assert.ok(cut.every((process) => process.channel === "police"));
-  });
-
-  it("searches the case number only, ignoring case and stray space", () => {
-    const first = rows[0];
-    const byNumber = filterProcesses(rows, {
-      type: "all",
-      channel: "all",
-      hearingDate: "",
-      query: `  ${first.caseNumber.toLowerCase()} `,
-    });
-    assert.deepEqual(
-      byNumber.map((process) => process.id),
-      rows
-        .filter((process) => process.caseNumber === first.caseNumber)
-        .map((process) => process.id),
-    );
-
-    const byParty = filterProcesses(rows, {
-      type: "all",
-      channel: "all",
-      hearingDate: "",
-      query: first.parties.accused.toUpperCase(),
-    });
-    assert.ok(!byParty.some((process) => process.id === first.id));
-  });
-});
-
-describe("finding a process that has moved on", () => {
-  const collection = processStage("pending-rpad-collection");
-  /* A real row sitting under Signed — the case a bench would hunt for from the tab it
-     last saw it at. */
-  const moved = processesAt(PROCESS_LINE, "signed")[0];
-
-  function searchFrom(stage: ProcessStageId, query: string) {
-    const here = processStage(stage);
-    return {
-      here: filterProcesses(processesAt(PROCESS_LINE, stage), {
-        ...defaultProcessFilters(here),
-        query,
-      }),
-      elsewhere: processesElsewhere(
-        PROCESS_LINE,
-        { ...defaultProcessFilters(here), query },
-        stage,
-      ),
-    };
-  }
-
-  it("does not find a row by the cause title the Case name column prints", () => {
-    const cause = `${moved.parties.complainant} v. ${moved.parties.accused}`;
-    const rows = filterProcesses(processesAt(PROCESS_LINE, "signed"), {
-      ...defaultProcessFilters(processStage("signed")),
-      query: cause,
-    });
-    assert.ok(
-      !rows.some((process) => process.id === moved.id),
-      "a cause title still finds the row after search became number-only",
-    );
-  });
-
-  it("names the stage that has it when this one does not", () => {
-    const { here, elsewhere } = searchFrom(
-      "pending-rpad-collection",
-      moved.caseNumber,
-    );
-    assert.equal(here.length, 0);
-    assert.deepEqual(
-      elsewhere.map((entry) => [entry.stage.id, entry.count]),
-      [["signed", 1]],
-    );
-  });
-
-  it("says nothing is anywhere only when nothing is", () => {
-    const { here, elsewhere } = searchFrom(
-      "pending-rpad-collection",
-      "ST/9999/2026",
-    );
-    assert.equal(here.length, 0);
-    assert.deepEqual(elsewhere, []);
-  });
-
-  it("does not carry a stage's own channel onto a stage that is not defined by one", () => {
-    /* Leaving Pending RPAD collection with "RPAD" still on would hide every police and
-       bailiff round — which is most of what the bench is looking for. */
-    const police = PROCESS_LINE.find(
-      (process) => process.stage === "pending-sign" && process.channel === "police",
-    );
-    assert.ok(police);
-    const { elsewhere } = searchFrom(
-      "pending-rpad-collection",
-      police.caseNumber,
-    );
-    assert.deepEqual(
-      elsewhere.map((entry) => entry.stage.id),
-      ["pending-sign"],
-    );
-  });
-
-  it("keeps a channel the bench chose for itself", () => {
-    const from = processStage("pending-sign");
-    const to = processStage("signed");
-    const chosen = { ...defaultProcessFilters(from), channel: "police" as const };
-    assert.equal(rebaseFilters(chosen, from, to).channel, "police");
-    /* …and drops one it never had a control for. */
-    const pinned = defaultProcessFilters(collection);
-    assert.equal(pinned.channel, "rpad");
-    assert.equal(rebaseFilters(pinned, collection, to).channel, "all");
-  });
-});
-
-describe("advanceProcesses", () => {
-  const pending = processesAt(PROCESS_LINE, "pending-sign");
-  const chosen = new Set(pending.slice(0, 2).map((process) => process.id));
-  const ON = "2026-09-06";
-
-  it("moves the chosen rows one stage along and stamps that stage's day", () => {
-    const next = advanceProcesses(PROCESS_LINE, chosen, "pending-sign", ON);
-    for (const id of chosen) {
-      const moved = next.find((process) => process.id === id);
-      assert.equal(moved?.stage, "signed");
-      assert.equal(moved?.signedOn, ON);
-    }
-    assert.equal(
-      processesAt(next, "pending-sign").length,
-      pending.length - chosen.size,
-    );
-    assert.equal(
-      processesAt(next, "signed").length,
-      processesAt(PROCESS_LINE, "signed").length + chosen.size,
-    );
-  });
-
-  it("leaves the line it was given alone", () => {
-    const before = PROCESS_LINE.map((process) => process.stage);
-    advanceProcesses(PROCESS_LINE, chosen, "pending-sign", ON);
-    assert.deepEqual(
-      PROCESS_LINE.map((process) => process.stage),
-      before,
-    );
-  });
-
-  it("ignores an id that names a row standing somewhere else, or no row at all", () => {
-    const stale = new Set([
-      ...processesAt(PROCESS_LINE, "sent").map((process) => process.id),
-      "pr-does-not-exist",
-    ]);
-    const next = advanceProcesses(PROCESS_LINE, stale, "pending-sign", ON);
-    assert.deepEqual(
-      next.map((process) => process.stage),
-      PROCESS_LINE.map((process) => process.stage),
-    );
-    assert.deepEqual(processesAdvancing(PROCESS_LINE, stale, "pending-sign"), []);
-  });
-
-  it("moves nothing out of a stage with no act", () => {
-    const sent = new Set(
-      processesAt(PROCESS_LINE, "sent").map((process) => process.id),
-    );
-    const next = advanceProcesses(PROCESS_LINE, sent, "sent", ON);
-    assert.deepEqual(
-      next.map((process) => process.stage),
-      PROCESS_LINE.map((process) => process.stage),
-    );
-  });
-
-  it("names what an act would actually move, and agrees with the act", () => {
-    const moving = processesAdvancing(PROCESS_LINE, chosen, "pending-sign");
-    assert.deepEqual(new Set(moving.map((process) => process.id)), chosen);
-    /* The success step downloads exactly these rows, read back after the act — so the
-       two must pick out the same set or the bench is handed the wrong papers. */
-    const after = advanceProcesses(PROCESS_LINE, chosen, "pending-sign", ON);
-    const moved = after.filter(
-      (process) => process.stage === "signed" && process.signedOn === ON,
-    );
-    assert.deepEqual(
-      new Set(moved.map((process) => process.id)),
-      new Set(moving.map((process) => process.id)),
-    );
-  });
-
-  it("stamps the signature onto the papers the success step hands over", () => {
-    /* The regression the download exists to avoid: resolving the rows *before* the act
-       writes "Pending the signature of the magistrate" across papers just signed. */
-    const after = advanceProcesses(PROCESS_LINE, chosen, "pending-sign", ON);
-    for (const id of chosen) {
-      const before = PROCESS_LINE.find((process) => process.id === id);
-      const now = after.find((process) => process.id === id);
-      assert.ok(before && now);
-      assert.match(
-        buildProcessDocument(before).signature,
-        /^Pending the signature/,
-      );
-      assert.match(
-        buildProcessDocument(now).signature,
-        /^Signed by the magistrate/,
-      );
-    }
-  });
-
-  it("walks a row the whole length of the line", () => {
-    const start = processesAt(PROCESS_LINE, "pending-rpad-collection")[0];
-    const only = new Set([start.id]);
-    let line = PROCESS_LINE;
-    for (const stage of PROCESS_STAGES) {
-      if (!stage.act) break;
-      line = advanceProcesses(line, only, stage.id, ON);
-    }
-    const walked = line.find((process) => process.id === start.id);
-    assert.equal(walked?.stage, "sent");
-    assert.equal(walked?.issuedOn, ON);
-    assert.equal(walked?.signedOn, ON);
-    assert.equal(walked?.sentOn, ON);
   });
 });
 
@@ -442,10 +539,8 @@ describe("buildProcessDocument", () => {
   });
 
   it("says plainly whether the signature is on it", () => {
-    const unsigned = PROCESS_LINE.find(
-      (process) => process.stage === "pending-sign",
-    );
-    const signed = PROCESS_LINE.find((process) => process.stage === "signed");
+    const unsigned = PROCESS_LINE.find((process) => process.status === "to-sign");
+    const signed = PROCESS_LINE.find((process) => process.status === "to-post");
     assert.ok(unsigned && signed);
     assert.match(buildProcessDocument(unsigned).signature, /^Pending the signature/);
     assert.match(buildProcessDocument(signed).signature, /^Signed by the magistrate/);
@@ -473,9 +568,9 @@ describe("buildProcessDocument", () => {
 });
 
 describe("the selection, counted as envelopes", () => {
-  const collection = processesAt(PROCESS_LINE, "pending-rpad-collection");
+  const collection = processesAt(PROCESS_LINE, "awaiting-cover");
 
-  /** A case this stage holds more than one process for — the interesting shape. */
+  /** A case this status holds more than one process for — the interesting shape. */
   const shared = collection.find(
     (process) =>
       collection.filter((other) => other.caseNumber === process.caseNumber)
@@ -512,7 +607,7 @@ describe("the selection, counted as envelopes", () => {
     const other = collection.find(
       (process) => process.caseNumber !== shared.caseNumber,
     );
-    assert.ok(other, "the demo line needs a second case at this stage");
+    assert.ok(other, "the demo line needs a second case at this status");
 
     /* A Set walks in insertion order, which is the clerk's own morning: the envelope
        just ticked belongs at the end of the tray, not wherever the line happens to hold
@@ -545,9 +640,9 @@ describe("the selection, counted as envelopes", () => {
     assert.equal(picked[0].processes.length, 2);
   });
 
-  it("drops an id the stage no longer holds rather than counting it", () => {
-    const gone = processesAt(PROCESS_LINE, "signed")[0];
-    assert.ok(gone, "the demo line needs a row at another stage");
+  it("drops an id the status no longer holds rather than counting it", () => {
+    const gone = processesAt(PROCESS_LINE, "to-post")[0];
+    assert.ok(gone, "the demo line needs a row at another status");
     const picked = groupSelectionByCase(
       collection,
       new Set([siblings[0].id, gone.id]),
@@ -566,8 +661,8 @@ describe("the selection, counted as envelopes", () => {
 });
 
 describe("what Enter is allowed to commit", () => {
-  const stage = processStage("pending-rpad-collection");
-  const collection = processesAt(PROCESS_LINE, "pending-rpad-collection");
+  const stage = processTab("rpad-collection");
+  const collection = processesAt(PROCESS_LINE, "awaiting-cover");
   const base = defaultProcessFilters(stage);
 
   const shared = collection.find(
@@ -611,10 +706,10 @@ describe("what Enter is allowed to commit", () => {
     );
   });
 
-  it("stays inside the stage it was asked about", () => {
+  it("stays inside the status it was asked about", () => {
     /* A cover waiting for collection cannot be answered with a row that has already been
        signed, however exactly the number matches. */
-    const elsewhere = processesAt(PROCESS_LINE, "signed").find(
+    const elsewhere = processesAt(PROCESS_LINE, "to-post").find(
       (process) =>
         !collection.some((row) => row.caseNumber === process.caseNumber),
     );
@@ -623,5 +718,84 @@ describe("what Enter is allowed to commit", () => {
       singleCaseMatch(collection, { ...base, query: elsewhere.caseNumber }),
       null,
     );
+  });
+});
+
+describe("the Service filters", () => {
+  const service = processTab("service");
+  const all = processesIn(PROCESS_LINE, service, "all");
+  const base = defaultProcessFilters(service);
+
+  it("splits what came back into successful and failed", () => {
+    const ok = filterProcesses(all, { ...base, outcome: "served" });
+    const bad = filterProcesses(all, { ...base, outcome: "unserved" });
+    assert.ok(ok.length > 0 && bad.length > 0);
+    assert.ok(ok.every((process) => process.outcome?.served === true));
+    assert.ok(bad.every((process) => process.outcome?.served === false));
+    /* A row still out has no outcome, so either filter leaves it behind. */
+    assert.ok(![...ok, ...bad].some((process) => process.status === "in-progress"));
+  });
+
+  it("finds failures by why they failed", () => {
+    const locked = filterProcesses(all, { ...base, reason: "Door locked" });
+    assert.ok(locked.length > 0);
+    assert.ok(
+      locked.every(
+        (process) =>
+          process.outcome?.served === false &&
+          process.outcome.reason === "Door locked",
+      ),
+    );
+  });
+
+  it("drops the outcome filters on the way to a tab that has none", () => {
+    const narrowed = { ...base, outcome: "unserved" as const, reason: "Door locked" as const };
+    const issuance = processTab("issuance");
+    const carried = rebaseFilters(narrowed, service, issuance);
+    assert.equal(carried.outcome, "all");
+    assert.equal(carried.reason, "all");
+    assert.equal(issuance.outcomeFilters, false);
+    assert.equal(service.outcomeFilters, true);
+  });
+});
+
+describe("the confirmation's one line", () => {
+  it("says where the rows go, as the pill and the tab", () => {
+    const cover = processesAt(PROCESS_LINE, "awaiting-cover")[0];
+    assert.equal(moveLine("collect", [cover]), "It moves to To sign in Issuance.");
+    const covers = processesAt(PROCESS_LINE, "to-post").slice(0, 2);
+    assert.equal(moveLine("post", covers), "They move to In progress in Service.");
+  });
+
+  it("splits a signing run by where each row lands", () => {
+    const toSign = processesAt(PROCESS_LINE, "to-sign");
+    const post = only(toSign.filter(goesByPost), "needs an RPAD row to sign");
+    const electronic = only(
+      toSign.filter((p) => !goesByPost(p)),
+      "needs an electronic row to sign",
+    );
+    assert.equal(
+      moveLine("sign", [post, electronic]),
+      "1 moves to To post in Issuance, 1 moves to In progress in Service.",
+    );
+  });
+
+});
+
+describe("the confirmation's success", () => {
+  it("says where the rows are now, and says a refusal apart from it", () => {
+    const toSign = processesAt(PROCESS_LINE, "to-sign");
+    const post = only(toSign.filter(goesByPost), "needs an RPAD row to sign");
+    const refusing = only(
+      toSign.filter((p) => p.demoSendFailure),
+      "needs a row whose send is refused",
+    );
+    const ids = new Set([post.id, refusing.id]);
+    const after = runProcessAct(PROCESS_LINE, "sign", ids, ON).filter((p) =>
+      ids.has(p.id),
+    );
+    assert.equal(landedLine(after), "It is now in To post in Issuance.");
+    assert.equal(refusedLine(after), "1 could not be sent and is in Send failed in Issuance.");
+    assert.equal(processAct("sign").done("2 processes"), "2 processes signed");
   });
 });
