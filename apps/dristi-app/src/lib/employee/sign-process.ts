@@ -10,7 +10,7 @@
  * views of the same row moving.
  *
  * **What this screen owns is getting process out; whether it arrived is somewhere
- * else.** The case file's Notice/Process status section (`lib/cases/service.ts`) holds
+ * else.** The case file's Notice/Process status section (`lib/cases/process-status.ts`) holds
  * what came back — served, returned undelivered, returned unexecuted — party by party
  * and round by round. That is a record of the outside world, authored from the court
  * file. This is the court's own worklist, and it stops at the point the process leaves.
@@ -109,8 +109,9 @@ export function courtProcessTypeInline(id: CourtProcessTypeId): string {
 /**
  * How the process will be delivered — the reference's "Delivery channel" column.
  *
- * Three, and all three are channels the app's own case-file record already names
- * (`lib/cases/service-dummy.json`: "Police", "Police + RPAD", "Court bailiff"). RPAD is
+ * Three, taken from the case-file service pack this app used to carry ("Police",
+ * "Police + RPAD", "Court bailiff"; removed Oct 6 as unrendered). The live record,
+ * `lib/cases/process-status.ts`, names Police and Registered post among its channels. RPAD is
  * registered post with acknowledgement due — the speed-post route `journey.md` §5 says a
  * summons may take, and the only one of the three that needs anything collected before
  * the court can sign.

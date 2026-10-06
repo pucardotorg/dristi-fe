@@ -25,15 +25,24 @@ import { cn } from "@/lib/utils";
 
 const STRIP_LABEL = "Case file sections";
 
-/** The scrolling gutter the row sits in, and the rule under it. */
-const STRIP_ROW = "overflow-x-auto border-b border-hairline";
+/** The scrolling gutter the row sits in, and the rule under it. Exported so
+ *  a tab row inside a section (Notice/Process Status's people) is this row. */
+export const STRIP_ROW = "overflow-x-auto border-b border-hairline";
 
 /**
  * What this file sets on a destination, either side of the branch below: the
  * control height and no flex-grow, so labels keep their own widths. Type
  * stays the primitive's own compact size, as on every other tab strip.
  */
-const STRIP_ITEM = "h-10 flex-none px-3 text-body-compact";
+export const STRIP_ITEM = "h-10 flex-none px-3 text-body-compact";
+
+/** The line `TabsList` and its triggers, as the strip sets them. */
+export const STRIP_LIST =
+  "h-10 w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10";
+export const STRIP_TRIGGER = cn(
+  STRIP_ITEM,
+  "group-data-horizontal/tabs:after:-bottom-px"
+);
 
 /**
  * `TabsTrigger`'s own resting appearance, for the branch that cannot use
@@ -134,11 +143,8 @@ export function CaseSectionTabs({
             if (!isCaseSection(value)) return;
             router.replace(caseSectionHref(caseId, value), { scroll: false });
           }}
-          className="h-10 w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
-          triggerClassName={cn(
-            STRIP_ITEM,
-            "group-data-horizontal/tabs:after:-bottom-px"
-          )}
+          className={STRIP_LIST}
+          triggerClassName={STRIP_TRIGGER}
           items={CASE_NAV_SECTIONS.map((item) => ({
             value: item.value,
             label: item.label,
