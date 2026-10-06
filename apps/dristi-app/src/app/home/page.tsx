@@ -15,6 +15,11 @@ import type { Locale } from "@/lib/onboarding/content";
  *   `noid=1`   — registration finished without an ID upload; shows the reminder.
  *   `profile=missing` — registration finished with an incomplete address profile.
  *   `lang=ml`  — locale continuity from the sign-in screen.
+ *   `join=manual` — open the manual join dialog.
+ *   `join=handoff&as=self|poa` — continue a join an advocate account started as a
+ *                  litigant or PoA holder; the case is already found and verified.
+ *   `link=pending` — this account's number was entered for a party by someone joining
+ *                  a case; ask "Are you {party}?" before linking it (JOIN-64).
  */
 function HomePage() {
   const searchParams = useSearchParams();
@@ -28,6 +33,14 @@ function HomePage() {
       idSkipped={searchParams.get("noid") === "1"}
       profileIncomplete={searchParams.get("profile") === "missing"}
       openManualJoin={searchParams.get("join") === "manual"}
+      joinHandoff={
+        searchParams.get("join") === "handoff"
+          ? searchParams.get("as") === "poa"
+            ? "poa"
+            : "self"
+          : undefined
+      }
+      pendingLink={searchParams.get("link") === "pending"}
       initialLocale={lang === "ml" ? ("ml" as Locale) : "en"}
     />
   );

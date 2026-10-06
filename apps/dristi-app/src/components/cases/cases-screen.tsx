@@ -384,7 +384,7 @@ export function CasesScreen({
         cases={shareCases}
         locale={locale}
       />
-      {/* The join journey — lookup → details → code → role → vakalatnama → done —
+      {/* The join journey — lookup → code → details → role → vakalatnama → pay → done —
           runs here, over the list it will add to. Discovering mid-journey that you
           are a party rather than a representative hands off to the same profile
           switch the rail's foot offers. */}
@@ -397,10 +397,11 @@ export function CasesScreen({
           /* The dialog's done-stage reports the outcome (joined, or waiting on an
              approver). A joined case surfaces in this list once the backend lands. */
         }}
-        onJoinAsLitigant={() => {
+        onJoinAsLitigant={(kind) => {
           setJoinOpen(false);
           if (profileRole === "advocate") switchProfile();
-          router.push("/home?join=manual");
+          // Carry on with the case already found and verified (JOIN-20).
+          router.push(`/home?join=handoff&as=${kind}`);
         }}
       />
     </CasesSelectionProvider>

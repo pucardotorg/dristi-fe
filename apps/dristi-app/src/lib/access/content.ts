@@ -89,7 +89,7 @@ export const ACCESS_CASES: AccessCase[] = [
   {
     id: "c-847",
     title: "South Indian Bank Ltd. vs Rajan Krishnan Nair and 1 other",
-    caseNumber: "CC 847 / 2026",
+    caseNumber: "CC 847/2026",
     court: "JFCM I, Kollam · Court No. 3",
     nextHearing: "28 Aug 2026",
     /* The demo's two office-access cases (owner, Sept 3): the viewer reads
