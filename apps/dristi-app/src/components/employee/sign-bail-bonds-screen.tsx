@@ -5,7 +5,6 @@ import { FileSignatureIcon, SearchXIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignBailBondDialog } from "@/components/employee/sign-bail-bond-dialog";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignBailBondsTable } from "@/components/employee/sign-bail-bonds-table";
@@ -40,6 +39,39 @@ import {
   type SignBailBondFilters,
 } from "@/lib/employee/sign-bail-bonds";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
+import {
+  caseSorts,
+  daySorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+import {
+  applyColumnFilters,
+  columnFilterFields,
+  emptyColumnFilters,
+  type ColumnFilter,
+} from "@/lib/employee/court-column-filters";
+
+/** No column on this queue divides it — every bond is the same act — so no filters. */
+const BAIL_BOND_COLUMN_FILTERS: ColumnFilter<SignBailBond>[] = [];
+
+type BailBondSort = "oldest" | "newest" | "name";
+
+/** Oldest bond first — the one that has waited longest for the signature. */
+const BAIL_BOND_SORTS: CourtSortSpec<SignBailBond, BailBondSort>[] = [
+  ...daySorts<SignBailBond, BailBondSort>(
+    (row) => row.addedOn,
+    { id: "oldest", label: "Oldest first", latest: false },
+    { id: "newest", label: "Newest first" },
+  ),
+  caseSorts<SignBailBond>()[2] as CourtSortSpec<SignBailBond, BailBondSort>,
+];
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -105,7 +137,16 @@ export function SignBailBondsScreen() {
   const signRef = React.useRef<HTMLButtonElement>(null);
 
   const pending = filterSignBailBonds(bonds, EMPTY_SIGN_BAIL_BOND_FILTERS);
-  const rows = filterSignBailBonds(bonds, filters);
+  const [columns, setColumns] = React.useState(() =>
+    emptyColumnFilters(BAIL_BOND_COLUMN_FILTERS),
+  );
+  const [sort, setSort] = React.useState<BailBondSort>("oldest");
+
+  const rows = sortRows(
+    applyColumnFilters(filterSignBailBonds(bonds, filters), BAIL_BOND_COLUMN_FILTERS, columns),
+    BAIL_BOND_SORTS,
+    sort,
+  );
   const openBond = bonds.find((bond) => bond.id === openId) ?? null;
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -128,8 +169,9 @@ export function SignBailBondsScreen() {
     setPage(1);
   }
 
-  function clearSearch() {
+  function clearFilters() {
     changeFilters(EMPTY_SIGN_BAIL_BOND_FILTERS);
+    setColumns(emptyColumnFilters(BAIL_BOND_COLUMN_FILTERS));
   }
 
   function toggle(bond: SignBailBond) {
@@ -217,6 +259,22 @@ export function SignBailBondsScreen() {
             filters={filters}
             searchRef={searchRef}
             onChange={changeFilters}
+            onClear={clearFilters}
+            fields={columnFilterFields(BAIL_BOND_COLUMN_FILTERS, columns, (id, value) => {
+              setColumns((current) => ({ ...current, [id]: value }));
+              setPage(1);
+            })}
+            trailing={
+              <CourtSortSelect
+                id="bail-bonds-sort"
+                value={sort}
+                options={sortOptions(BAIL_BOND_SORTS)}
+                onChange={(next) => {
+                  setSort(next);
+                  setPage(1);
+                }}
+              />
+            }
           />
 
           {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -227,7 +285,7 @@ export function SignBailBondsScreen() {
           />
 
           {pageRows.length === 0 ? (
-            <SignBailBondsEmpty isSearched={isSearched} onClear={clearSearch} />
+            <SignBailBondsEmpty isSearched={isSearched} onClear={clearFilters} />
           ) : (
             <div className="flex min-w-0 flex-col gap-4">
               {/* min-w-0 lets this flex item shrink below the table's content width, so a
@@ -357,52 +415,38 @@ export function SignBailBondsScreen() {
 }
 
 /**
- * One box, filtering as it is typed — the reference's whole filter row.
- *
- * The label is the reference's own words, and here they are a real label rather than a
- * placeholder standing in for one, so ACCESSIBILITY §12 needs no deviation: the field is
- * named "Case name or number" above the control. The placeholder adds the third column the
- * search also reaches.
- *
- * The Search button is gone: the list answers the box as it is typed, so a button that
- * only re-asked what the control already said was a step between the clerk and the
- * answer. The way back to the whole queue is the `×` inside the box
- * (`QueueSearchField`) — which is why there is no "Clear search" beside it either: on
- * this screen the search *is* the filters, and two controls for one undo is one too many.
- * The empty state keeps its own Clear, where it is the invitation out of a dead end.
- *
- * That also spends the page's teal down to one. Search carried `bg-primary` (whatever the
- * paragraph above used to claim), and it sat two regions away from the act this screen
- * exists for. With it gone the only strong fill left is Sign selected bail bonds in the
- * footer, which is what the Ration Teal Law wanted all along.
- *
- * The form element stays so Enter in the box is swallowed rather than reloading the page:
- * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
- * left to catch it.
+ * The search box and the order on the end of the row — the court-side filter row
+ * (`CourtFilters`). The label is "Search cases", like every other court list.
  */
 function SignBailBondSearch({
   filters,
   searchRef,
   onChange,
+  onClear,
+  fields,
+  trailing,
 }: {
   filters: SignBailBondFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
   onChange: (filters: SignBailBondFilters) => void;
+  onClear: () => void;
+  fields: CourtFilterField[];
+  /** The list's sort control (`CourtSortSelect`). */
+  trailing: React.ReactNode;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <QueueSearchField
-        label="Case name or number"
-        className="sm:w-80"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number or litigant"
-      />
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or litigant",
+      }}
+      searchRef={searchRef}
+      fields={fields}
+      trailing={trailing}
+      onClearAll={onClear}
+    />
   );
 }
 

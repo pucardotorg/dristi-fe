@@ -93,8 +93,8 @@ function PaymentBody({
           <Banner variant="success">
             Court fee of {total} paid.{" "}
             {count === 1
-              ? "The application is submitted."
-              : `All ${count} applications are submitted.`}
+              ? "The application is filed with the court."
+              : `All ${count} applications are filed with the court.`}
           </Banner>
         ) : (
           <Banner variant="info">

@@ -1048,22 +1048,35 @@ export function cognizanceTabCount(tab: CognizanceTab): number {
 
 /* ───────────────────────────────── the filters ──────────────────────────────── */
 
+export type CognizanceNoticeFilter = "all" | "delivered" | "returned";
+
 export type CognizanceFilters = {
   /** Free text over the cause title, both numbers and counsel. */
   query: string;
+  /** Whether the statutory demand notice reached the accused or came back. */
+  notice?: CognizanceNoticeFilter;
 };
 
 export const EMPTY_COGNIZANCE_FILTERS: CognizanceFilters = {
   query: "",
+  notice: "all",
 };
+
+export const COGNIZANCE_NOTICE_OPTIONS: { value: Exclude<CognizanceNoticeFilter, "all">; label: string }[] = [
+  { value: "delivered", label: "Notice delivered" },
+  { value: "returned", label: "Notice returned" },
+];
 
 export function filterCognizanceCases(
   rows: CognizanceCase[],
   filters: CognizanceFilters,
 ): CognizanceCase[] {
   const query = filters.query.trim().toLowerCase();
-  if (!query) return rows;
+  const notice = filters.notice ?? "all";
   return rows.filter((entry) => {
+    if (notice === "delivered" && !entry.noticeDelivered) return false;
+    if (notice === "returned" && entry.noticeDelivered) return false;
+    if (!query) return true;
     const haystack = [
       entry.parties.complainant,
       entry.parties.accused,

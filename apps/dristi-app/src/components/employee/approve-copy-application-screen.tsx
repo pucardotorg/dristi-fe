@@ -9,7 +9,6 @@ import { ApproveCopyApplicationDialog } from "@/components/employee/approve-copy
 import { ApproveCopyApplicationTable } from "@/components/employee/approve-copy-application-table";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
   rowOpener,
@@ -37,6 +36,7 @@ import {
 } from "@/components/ui/empty";
 import {
   COPY_APPLICATION_QUEUE,
+  COPY_RECORD_KINDS,
   EMPTY_COPY_APPLICATION_FILTERS,
   filterCopyApplications,
   formatCopyApplicationDate,
@@ -45,6 +45,68 @@ import {
 } from "@/lib/employee/approve-copy-application";
 import { PAGE_SIZE, type HearingsPageSize } from "@/lib/employee/hearings";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
+import {
+  compareCaseNumbers,
+  daySorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+import {
+  applyColumnFilters,
+  columnFilterFields,
+  emptyColumnFilters,
+  hasColumnFilters,
+  type ColumnFilter,
+} from "@/lib/employee/court-column-filters";
+
+const COPY_FILTERS: ColumnFilter<CopyApplication>[] = [
+  {
+    id: "copy-sought",
+    label: "Copy sought",
+    allLabel: "Any record",
+    options: COPY_RECORD_KINDS.map((kind) => ({ value: kind.id, label: kind.label })),
+    test: (row, value) => row.record.kind === value,
+  },
+  {
+    id: "copy-urgency",
+    label: "Urgency",
+    allLabel: "Any urgency",
+    options: [
+      { value: "urgent", label: "Urgent" },
+      { value: "ordinary", label: "Ordinary" },
+    ],
+    test: (row, value) => row.urgency === value,
+  },
+  {
+    id: "copy-side",
+    label: "Petitioner's side",
+    allLabel: "Either side",
+    options: [{ value: "complainant", label: "Complainant" }, { value: "accused", label: "Accused" }],
+    test: (row, value) => row.applicant.side === value,
+  },
+];
+
+type CopySort = "oldest" | "newest" | "case";
+
+/** Oldest application first, by the Date raised column — a copy queue is worked in order. */
+const COPY_SORTS: CourtSortSpec<CopyApplication, CopySort>[] = [
+  ...daySorts<CopyApplication, CopySort>(
+    (row) => row.raisedOn,
+    { id: "oldest", label: "Oldest first", latest: false },
+    { id: "newest", label: "Newest first" },
+  ),
+  {
+    id: "case",
+    label: "Case number",
+    compare: (a, b) => compareCaseNumbers(a.caseNumber, b.caseNumber),
+  },
+];
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -101,13 +163,22 @@ export function ApproveCopyApplicationScreen() {
   const remaining = COPY_APPLICATION_QUEUE.filter(
     (application) => !decidedIds.has(application.id),
   );
-  const rows = filterCopyApplications(remaining, filters);
+  const [columns, setColumns] = React.useState(() =>
+    emptyColumnFilters(COPY_FILTERS),
+  );
+  const [sort, setSort] = React.useState<CopySort>("oldest");
+
+  const rows = sortRows(
+    applyColumnFilters(filterCopyApplications(remaining, filters), COPY_FILTERS, columns),
+    COPY_SORTS,
+    sort,
+  );
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = filters.query !== "";
+  const isFiltered = filters.query !== "" || hasColumnFilters(columns);
 
   /**
    * What is selected *and* still in the list.
@@ -128,6 +199,7 @@ export function ApproveCopyApplicationScreen() {
 
   function clearFilters() {
     changeFilters(EMPTY_COPY_APPLICATION_FILTERS);
+    setColumns(emptyColumnFilters(COPY_FILTERS));
   }
 
   function toggle(application: CopyApplication) {
@@ -221,6 +293,22 @@ export function ApproveCopyApplicationScreen() {
             filters={filters}
             searchRef={searchRef}
             onChange={changeFilters}
+            onClear={clearFilters}
+            fields={columnFilterFields(COPY_FILTERS, columns, (id, value) => {
+              setColumns((current) => ({ ...current, [id]: value }));
+              setPage(1);
+            })}
+            trailing={
+              <CourtSortSelect
+                id="copy-applications-sort"
+                value={sort}
+                options={sortOptions(COPY_SORTS)}
+                onChange={(next) => {
+                  setSort(next);
+                  setPage(1);
+                }}
+              />
+            }
           />
 
           {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -370,55 +458,39 @@ export function ApproveCopyApplicationScreen() {
 }
 
 /**
- * One text box, filtering as it is typed — the reference's whole filter row.
- *
- * The reference labels this box "Case number", and a bench at a copying counter is handed
- * an application number at least as often, and a party's name more often than either. So
- * the box reaches the application number, the case number, the petitioner, the rest of the
- * cause and counsel on record, the placeholder names the three a bench would actually
- * type, and the visible label becomes "Search applications" — a label that promised only
- * the case number would be a label the control does not keep (deviation from the
- * reference, logged in the build report).
- *
- * The Search button is gone: the list answers the box as it is typed, so a button that
- * only re-asked what the control already said was a step between the bench and the
- * answer. The way back to the whole queue is the `×` inside the box
- * (`QueueSearchField`) — which is why there is no "Clear search" beside it either: on
- * this screen the search *is* the filters, and two controls for one undo is one too many.
- * The empty state keeps its own Clear, where it is the invitation out of a dead end.
- *
- * That also spends the page's teal down to one. Search carried `bg-primary` (whatever
- * the paragraph above used to claim), and it sat two regions away from the act this
- * screen exists for. With it gone the only strong fill left is the one in the action bar,
- * which is what the Ration Teal Law wanted all along.
- *
- * The form element stays so Enter in the box is swallowed rather than reloading the page:
- * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
- * left to catch it.
+ * The search box, then the filters a copy request is triaged by — what is sought, how
+ * urgently, and for which side — and the order on the end of the row: the court-side
+ * filter row (`CourtFilters`).
  */
 function CopyApplicationFilters({
   filters,
   searchRef,
   onChange,
+  onClear,
+  fields,
+  trailing,
 }: {
   filters: CopyApplicationFilters;
   searchRef: React.Ref<HTMLInputElement>;
   onChange: (filters: CopyApplicationFilters) => void;
+  onClear: () => void;
+  fields: CourtFilterField[];
+  /** The list's sort control (`CourtSortSelect`). */
+  trailing: React.ReactNode;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <QueueSearchField
-        label="Search applications"
-        className="sm:w-96"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Application number, case number or petitioner"
-      />
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search applications",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Application number, case number or petitioner",
+      }}
+      searchRef={searchRef}
+      fields={fields}
+      trailing={trailing}
+      onClearAll={onClear}
+    />
   );
 }
 

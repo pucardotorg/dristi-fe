@@ -24,7 +24,7 @@ import type { CaseSummary, Locale } from "@/lib/onboarding/content";
  *  and annexures stay behind sign-in, because a summons link travels on WhatsApp. */
 const DEMO_CASE: CaseSummary = {
   accusedName: "Rajan Krishnan Nair",
-  caseNumber: "CC 847 / 2026",
+  caseNumber: "CC 847/2026",
   cnr: "KL-0423-CC-0847-2026",
   court: "Court of the Judicial First Class Magistrate I, Kollam · Court No. 3",
   courtAddress: "Civil Station, Vidya Nagar, Kollam 691 013, Kerala",

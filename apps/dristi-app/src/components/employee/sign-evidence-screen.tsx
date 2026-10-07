@@ -5,7 +5,6 @@ import { SearchXIcon, StampIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignEvidenceDialog } from "@/components/employee/sign-evidence-dialog";
 import { SignEvidenceTable } from "@/components/employee/sign-evidence-table";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
@@ -31,6 +30,8 @@ import {
 } from "@/lib/employee/hearings";
 import {
   EMPTY_SIGN_EVIDENCE_FILTERS,
+  EVIDENCE_DOCUMENTS,
+  markedThroughWitness,
   SIGN_EVIDENCE_QUEUE,
   applyBusinessOfTheDay,
   applyEvidenceMarking,
@@ -42,6 +43,58 @@ import {
   type SignEvidenceFilters,
 } from "@/lib/employee/sign-evidence";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
+import {
+  caseSorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+import {
+  applyColumnFilters,
+  columnFilterFields,
+  emptyColumnFilters,
+  hasColumnFilters,
+  type ColumnFilter,
+} from "@/lib/employee/court-column-filters";
+
+const EVIDENCE_COLUMN_FILTERS: ColumnFilter<SignEvidence>[] = [
+  {
+    id: "evidence-document",
+    label: "Document",
+    allLabel: "Any document",
+    options: EVIDENCE_DOCUMENTS.map((document) => ({
+      value: document.id,
+      label: document.label,
+    })),
+    test: (row, value) => row.document === value,
+  },
+  {
+    /* PW, DW, CW — whose witness the exhibit was marked through, which decides its
+       exhibit series. */
+    id: "evidence-witness",
+    label: "Marked through",
+    allLabel: "Any witness",
+    options: [
+      { value: "PW", label: "Complainant's witness (PW)" },
+      { value: "DW", label: "Defence witness (DW)" },
+      { value: "CW", label: "Court witness (CW)" },
+    ],
+    test: (row, value) => markedThroughWitness(row).series === value,
+  },
+];
+
+type EvidenceSort = "oldest" | "newest" | "name";
+
+/** Oldest case first — the register order, read off the Case number column. */
+const EVIDENCE_SORTS: CourtSortSpec<SignEvidence, EvidenceSort>[] = (() => {
+  const [newest, oldest, name] = caseSorts<SignEvidence>();
+  return [oldest, newest, name];
+})();
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -95,14 +148,23 @@ export function SignEvidenceScreen() {
   const [announcement, setAnnouncement] = React.useState("");
   const searchRef = React.useRef<HTMLInputElement>(null);
 
-  const visible = filterSignEvidence(rows, filters);
+  const [columns, setColumns] = React.useState(() =>
+    emptyColumnFilters(EVIDENCE_COLUMN_FILTERS),
+  );
+  const [sort, setSort] = React.useState<EvidenceSort>("oldest");
+
+  const visible = sortRows(
+    applyColumnFilters(filterSignEvidence(rows, filters), EVIDENCE_COLUMN_FILTERS, columns),
+    EVIDENCE_SORTS,
+    sort,
+  );
   const openRow = rows.find((row) => row.id === openId) ?? null;
 
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = visible.slice(start, start + pageSize);
-  const isFiltered = filters.query !== "";
+  const isFiltered = filters.query !== "" || hasColumnFilters(columns);
 
   /**
    * What is selected *and* still in the list.
@@ -123,6 +185,7 @@ export function SignEvidenceScreen() {
 
   function clearFilters() {
     changeFilters(EMPTY_SIGN_EVIDENCE_FILTERS);
+    setColumns(emptyColumnFilters(EVIDENCE_COLUMN_FILTERS));
   }
 
   function toggle(row: SignEvidence) {
@@ -203,6 +266,22 @@ export function SignEvidenceScreen() {
             filters={filters}
             searchRef={searchRef}
             onChange={changeFilters}
+            onClear={clearFilters}
+            fields={columnFilterFields(EVIDENCE_COLUMN_FILTERS, columns, (id, value) => {
+              setColumns((current) => ({ ...current, [id]: value }));
+              setPage(1);
+            })}
+            trailing={
+              <CourtSortSelect
+                id="sign-evidence-sort"
+                value={sort}
+                options={sortOptions(EVIDENCE_SORTS)}
+                onChange={(next) => {
+                  setSort(next);
+                  setPage(1);
+                }}
+              />
+            }
           />
 
           {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -346,53 +425,39 @@ export function SignEvidenceScreen() {
 }
 
 /**
- * One box, filtering as it is typed — the reference's whole filter row.
- *
- * The control carries a visible label. The reference labels the box with the things it
- * searches ("Case Name or Number"), which is a hint rather than a name; ACCESSIBILITY §12
- * wants a permanent label, so "Search cases" is the deviation, and the smallest one
- * available. The placeholder keeps the reference's reach and adds the two columns the
- * search also covers.
- *
- * The Search button is gone: the list answers the box as it is typed, so a button that
- * only re-asked what the control already said was a step between the bench and the
- * answer. The way back to the whole queue is the `×` inside the box
- * (`QueueSearchField`) — which is why there is no "Clear search" beside it either: on
- * this screen the search *is* the filters, and two controls for one undo is one too many.
- * The empty state keeps its own Clear, where it is the invitation out of a dead end.
- *
- * That also spends the page's teal down to one. Search carried `bg-primary` (whatever
- * the paragraph above used to claim), and it sat two regions away from the act this
- * screen exists for. With it gone the only strong fill left is the one in the action bar,
- * which is what the Ration Teal Law wanted all along.
- *
- * The form element stays so Enter in the box is swallowed rather than reloading the page:
- * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
- * left to catch it.
+ * The search box, the filters an exhibit is found by — the document, and whose witness it
+ * was marked through — and the order on the end of the row: the court-side filter row
+ * (`CourtFilters`).
  */
 function SignEvidenceFilters({
   filters,
   searchRef,
   onChange,
+  onClear,
+  fields,
+  trailing,
 }: {
   filters: SignEvidenceFilters;
   searchRef: React.Ref<HTMLInputElement>;
   onChange: (filters: SignEvidenceFilters) => void;
+  onClear: () => void;
+  fields: CourtFilterField[];
+  /** The list's sort control (`CourtSortSelect`). */
+  trailing: React.ReactNode;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-80"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number, document or exhibit"
-      />
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number, document or exhibit",
+      }}
+      searchRef={searchRef}
+      fields={fields}
+      trailing={trailing}
+      onClearAll={onClear}
+    />
   );
 }
 

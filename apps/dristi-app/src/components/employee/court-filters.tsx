@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { SlidersHorizontalIcon, XIcon } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { ArrowDownUpIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { AppliedChip } from "@/components/shell/applied-chip";
@@ -75,6 +77,58 @@ export type CourtFilterDate = {
   onApply: (value: Date | undefined) => void;
 };
 
+export type CourtSortOption<T extends string> = { id: T; label: string };
+
+/**
+ * How a court list is ordered — the `trailing` control of `CourtFilters`.
+ *
+ * On the row rather than in the Filters sheet, because an order narrows nothing and is
+ * changed far more often than any filter. Its label is for screen readers only, like the
+ * search beside it: the value it shows ("Longest waiting first") says what it is, and
+ * the arrows mark it as an order rather than a filter.
+ *
+ * The value takes the trigger's free width (`flex-1 text-left`, set from the trigger
+ * because Radix's `Select.Value` drops its own className) so it sits beside the arrows
+ * and the chevron keeps to the far edge. Left to the primitive's
+ * `justify-between`, three children spread out and the value floated in the middle of
+ * the box, a gap away from its own icon (owner, 2026-10-07: "the spacing is weird").
+ */
+export function CourtSortSelect<T extends string>({
+  id,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  value: T;
+  options: CourtSortOption<T>[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col max-sm:w-full">
+      <Label htmlFor={id} className="sr-only">
+        Sort by
+      </Label>
+      <Select value={value} onValueChange={(next) => onChange(next as T)}>
+        <SelectTrigger
+          id={id}
+          className="w-full gap-2 sm:w-auto sm:min-w-52 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:text-left"
+        >
+          <ArrowDownUpIcon aria-hidden className="text-muted-foreground" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 /** The case peek's motion: a full slide from the right, no dissolve (matches the advocate). */
 const SHEET_MOTION = {
   "--tw-enter-opacity": "1",
@@ -84,17 +138,42 @@ const SHEET_MOTION = {
 } as CSSProperties;
 
 export function CourtFilters({
+  leading,
+  trailing,
   search,
   searchRef,
   fields,
   date,
   onClearAll,
 }: {
+  /**
+   * What heads the row, ahead of the search — a screen's own view control, such as the
+   * sign process' status pills. It takes the row's free width and pushes the search and
+   * Filters to the far end, so the row runs edge to edge the way the pending-tasks row
+   * does (owner, 2026-10-06); when the width runs out, the search and Filters wrap to a
+   * line of their own rather than squeezing it.
+   */
+  leading?: React.ReactNode;
+  /**
+   * What closes the row, after Filters — a screen's own ordering control. Kept out of
+   * the sheet because an order is not a narrowing: it changes nothing about which rows
+   * show, and it is changed far more often than any filter.
+   */
+  trailing?: React.ReactNode;
   search: {
     label: string;
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
+    /**
+     * Keep the label for screen readers only — **the default on every court list** (owner,
+     * 2026-10-07: standardise on the label-less row). Pass `false` only where a visible
+     * label is genuinely needed. For a row whose search sits beside other
+     * controls (the sign process pills): the magnifier is the box's permanent visual cue
+     * and the name is still announced, the pending-tasks search treatment (owner,
+     * 2026-10-06). A label stacked over the box pushed the whole row down around it.
+     */
+    labelHidden?: boolean;
     /** Enter in the box — a screen's fast path (e.g. sign process' reconcile-by-number). */
     onSubmit?: () => void;
   };
@@ -107,6 +186,7 @@ export function CourtFilters({
   /** Reset every filter (fields, date and the search) back to the screen's default. */
   onClearAll: () => void;
 }) {
+  const labelHidden = search.labelHidden ?? true;
   const appliedFields = fields.filter((field) => field.value !== field.all);
   const applied = appliedFields.length + (date?.active ? 1 : 0);
   const controls = fields.length + (date ? 1 : 0);
@@ -116,7 +196,9 @@ export function CourtFilters({
      than swallow an Enter that would reload the page. */
   const searchNode = search.onSubmit ? (
     <form
-      className="min-w-0 sm:w-80"
+      /* Narrower beside a leading control, so a pill row, the search, Filters and an
+         order all fit one line at a laptop width. */
+      className={cn("min-w-0", leading ? "sm:w-64" : "sm:w-80")}
       onSubmit={(event) => {
         event.preventDefault();
         search.onSubmit?.();
@@ -124,6 +206,7 @@ export function CourtFilters({
     >
       <QueueSearchField
         label={search.label}
+        labelClassName={labelHidden ? "sr-only" : undefined}
         className="w-full"
         ref={searchRef}
         value={search.value}
@@ -134,6 +217,7 @@ export function CourtFilters({
   ) : (
     <QueueSearchField
       label={search.label}
+      labelClassName={labelHidden ? "sr-only" : undefined}
       className="sm:w-80"
       ref={searchRef}
       value={search.value}
@@ -155,7 +239,12 @@ export function CourtFilters({
         {searchNode}
         {only ? (
           <div className="flex min-w-0 flex-col gap-2">
-            <Label htmlFor={only.id} className="text-body-compact">
+            {/* Hidden with the search's, so the two controls share a top edge; the select's
+                own value ("All process types") still says what it filters. */}
+            <Label
+              htmlFor={only.id}
+              className={labelHidden ? "sr-only" : "text-body-compact"}
+            >
               {only.label}
             </Label>
             <Select value={only.value} onValueChange={only.onApply}>
@@ -176,7 +265,11 @@ export function CourtFilters({
           <div className="flex min-w-0 flex-col gap-2">
             <span
               id="court-filter-date"
-              className="w-fit text-body-compact font-medium"
+              className={
+                labelHidden
+                  ? "sr-only"
+                  : "w-fit text-body-compact font-medium"
+              }
             >
               {date.label}
             </span>
@@ -190,6 +283,7 @@ export function CourtFilters({
             </div>
           </div>
         ) : null}
+        {trailing}
         {applied > 0 || search.value !== "" ? (
           <Button type="button" variant="ghost" onClick={onClearAll}>
             Clear filters
@@ -201,9 +295,18 @@ export function CourtFilters({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
-        {searchNode}
-        <CourtFiltersSheet fields={fields} date={date} applied={applied} />
+      <div className="flex min-w-0 flex-wrap items-end gap-x-4 gap-y-3">
+        {leading ? (
+          /* `basis-96` is the pills' floor: below it the search and Filters wrap under
+             them rather than crushing the pills to a scroll. The half-step of bottom room
+             centres a 36px pill on the 40px input it sits beside. */
+          <div className="min-w-0 flex-1 basis-96 pb-0.5">{leading}</div>
+        ) : null}
+        <div className="flex min-w-0 items-end gap-3 max-sm:w-full max-sm:flex-col max-sm:items-stretch">
+          {searchNode}
+          <CourtFiltersSheet fields={fields} date={date} applied={applied} />
+          {trailing}
+        </div>
       </div>
 
       {/* What is applied stays out on the row as removable chips — a folded control must not

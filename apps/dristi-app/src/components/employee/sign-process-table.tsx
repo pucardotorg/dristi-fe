@@ -7,7 +7,6 @@ import {
   tableBodyClass,
   tableRowClass,
 } from "@/components/chrome/table-plate";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -24,72 +23,131 @@ import {
   rowOpenerClass,
 } from "@/lib/employee/row-activation";
 import {
+  bandByStatus,
   courtProcessTypeInline,
   courtProcessTypeLabel,
   formatProcessDate,
-  outcomeLabel,
-  outcomeVariant,
   processChannelLabel,
+  processStatusLine,
   type CourtProcess,
-  type ProcessStage,
+  type ProcessStatus,
+  type ProcessTab,
 } from "@/lib/employee/sign-process";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
 
-/** Seven columns on every stage — the checkbox and the reference's six. */
+/** Seven columns on every tab — the checkbox and the reference's six. */
 const COLUMNS = 7;
 
 /**
- * One stage of the process line as a table: which rows are picked, the cause, its
- * number, which instrument it is, the day this stage is about, how it will be
- * delivered, and the listing it is returnable for.
+ * A row's status, in the words its cell says it: what happened and when, or — for the
+ * two that went wrong — what happened and why.
  *
- * **The stage is not a column.** The tab above the table already says it, and a status
- * cell repeating "Pending sign" down eleven rows would be the loudest thing in the row
- * saying the one thing the bench already knows. What varies instead is the *date* column:
- * the reference names its fourth column for the moment the stage is about — "Payment
- * made" while a registered-post cover is still being collected, "Issued date" once the
- * process has been drawn up — and the three stages the reference does not draw follow
- * the same rule (`ProcessStage.dateColumn`).
+ * The word carries the foreground and the day or reason stays muted, so a column of them
+ * reads as statuses rather than as sentences. The two failures take the warning *ink* on
+ * the word only; the word already says "failed", so colour is never the only signal
+ * (DS Principles §6), and the ink pair is the one measured for text on a white panel.
+ */
+export function ProcessStatusText({
+  process,
+  inline = false,
+}: {
+  process: CourtProcess;
+  /** Run into a sentence — the overlay's supporting line — rather than stacked in a cell. */
+  inline?: boolean;
+}) {
+  const line = processStatusLine(process);
+  const detail = line.day ? formatProcessDate(line.day) : line.reason;
+  if (inline) {
+    return (
+      <span>
+        <span className={line.warn ? "text-warning-ink" : undefined}>
+          {line.word}
+        </span>
+        {detail ? ` ${line.day ? "" : "· "}${detail}` : null}
+      </span>
+    );
+  }
+  return (
+    /* Two lines, always: the word, and under it the day or the reason. Inline, a narrow
+       column broke a failure across three lines with its separator stranded at a line
+       end; stacked, every status reads the same way at every width and needs no
+       separator at all. */
+    <span className="flex flex-col">
+      <span
+        className={cn(
+          "font-medium",
+          line.warn ? "text-warning-ink" : "text-foreground",
+        )}
+      >
+        {line.word}
+      </span>
+      {detail ? (
+        <span
+          className={cn(
+            "text-muted-foreground",
+            line.day && "tabular-nums whitespace-nowrap",
+          )}
+        >
+          {detail}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * One tab of the process line as a table: which rows are picked, the cause, its number,
+ * which instrument it is, where it stands, how it goes out, and the listing it is
+ * returnable for.
  *
- * **Selection is the first column on every stage, including the two with no act.**
- * Download reaches every tab, so a record tab is still a tab you select rows on. On the
- * three working stages the same checkboxes also feed the act in the bar.
+ * **The fifth column is the tab's.** On RPAD collection every row is in the same status,
+ * so the column is the day that status is about — "Payment made", as the reference
+ * draws it. Where a tab holds several statuses the column is "Status", and the cell says
+ * which one with its own day or reason (`ProcessStatusText`).
  *
- * **The case name opens the row**, matching the four signing queues beside it. The
- * instrument stays in its own column as plain text, because a case can carry three
- * separate processes and it is the fact that tells them apart — so the accessible name
- * of the opener carries it too, and three rows of one case are not read out as the same
- * link three times (ACCESSIBILITY §2, §9).
+ * **Under All, the rows band by status** in the tab's own order, each band a `tbody` with
+ * its label heading the rows below it — the treatment the pending-tasks list gives its
+ * due bands. Under one pill there is one status and nothing to band.
  *
- * **A pointer on the rest of the row opens it too.** The checkbox still selects, and
- * keyboard still lands on the case name — a row that was itself a button would steal the
- * checkbox's target and add a second tab stop.
- *
- * The panel shell (border, fill, shadow) lives on the screen around this, so the table is
- * one panel rather than a box inside a box.
+ * Selection is the first column on every tab; the case name opens the row, and a pointer
+ * anywhere else on it opens it too. The panel shell lives on the screen around this.
  */
 export function SignProcessTable({
-  stage,
+  tab,
   rows,
+  banded,
   selectedIds,
   onToggle,
   onToggleAll,
   onOpen,
 }: {
-  stage: ProcessStage;
+  tab: ProcessTab;
   rows: CourtProcess[];
+  /** Whether the view is All across several statuses, and so bands by status. */
+  banded: boolean;
   selectedIds: ReadonlySet<string>;
   onToggle: (process: CourtProcess) => void;
   /** Select or clear every row currently in view — the header checkbox. */
   onToggleAll: (select: boolean) => void;
   onOpen: (process: CourtProcess) => void;
 }) {
-  /* What came back is the fact a Completed row exists to show (`DSP-08`). */
-  const showsOutcome = stage.id === "completed";
   const selectedOnPage = rows.filter((row) => selectedIds.has(row.id)).length;
   const allSelected = rows.length > 0 && selectedOnPage === rows.length;
   const someSelected = selectedOnPage > 0 && !allSelected;
+  const bands = banded ? bandByStatus(rows, tab) : null;
+  const statusColumn = tab.statuses.length > 1;
+
+  const row = (process: CourtProcess) => (
+    <ProcessRow
+      key={process.id}
+      process={process}
+      statusColumn={statusColumn}
+      selected={selectedIds.has(process.id)}
+      onToggle={onToggle}
+      onOpen={onOpen}
+    />
+  );
 
   return (
     <Table className="w-full border-separate border-spacing-0 text-body-compact">
@@ -102,27 +160,30 @@ export function SignProcessTable({
               }
               disabled={rows.length === 0}
               onCheckedChange={(next) => onToggleAll(next === true)}
-              /* Names what the control does to what is on screen, not to the whole
-                 stage — it reaches this page of rows only, and a label promising "all"
-                 would be a promise the control does not keep once the list is paged. */
+              /* Every row in view — the list is not paged. */
               aria-label={
                 allSelected
-                  ? "Clear the processes on this page"
-                  : "Select the processes on this page"
+                  ? "Clear every process shown"
+                  : "Select every process shown"
               }
             />
           </TableHead>
-          <TableHead className={cn(TABLE_HEAD, "min-w-56 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-48 whitespace-normal")}>
             Case name
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Case number
           </TableHead>
-          <TableHead className={cn(TABLE_HEAD, "min-w-40 whitespace-normal")}>
+          <TableHead className={cn(TABLE_HEAD, "min-w-36 whitespace-normal")}>
             Process type
           </TableHead>
-          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
-            {stage.dateColumn}
+          <TableHead
+            className={cn(
+              TABLE_HEAD,
+              statusColumn ? "min-w-32 whitespace-normal" : "whitespace-nowrap",
+            )}
+          >
+            {tab.dateColumn}
           </TableHead>
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Delivery channel
@@ -130,96 +191,125 @@ export function SignProcessTable({
           <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
             Hearing date
           </TableHead>
-          {showsOutcome ? (
-            <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>Outcome</TableHead>
-          ) : null}
         </TableRow>
       </TableHeader>
-      <TableBody className={tableBodyClass({ selectable: true })}>
-        {/* The header is a well, not a band welded to the rows — it needs the panel's
-            fill under it or its rounded bottom corners read as cut off (ui-craft §4).
-            `border-separate` has no per-edge row gap, so the gap is one inert row held
-            out of the accessibility tree. */}
-        <tr aria-hidden="true">
-          <td colSpan={COLUMNS + (showsOutcome ? 1 : 0)} className="h-2 p-0" />
-        </tr>
-        {rows.map((process) => {
-          const selected = selectedIds.has(process.id);
-          const type = courtProcessTypeLabel(process.type);
-          const inline = courtProcessTypeInline(process.type);
-          const day = stage.dateOf(process);
-          return (
-            <TableRow
-              key={process.id}
-              data-state={selected ? "selected" : undefined}
-              {...rowActivation(tableRowClass({ selectable: true }))}
-            >
-              <TableCell className={cn(TABLE_CELL, "w-12")}>
-                <Checkbox
-                  checked={selected}
-                  onCheckedChange={() => onToggle(process)}
-                  aria-label={`Select the ${inline} in ${process.caseNumber}`}
-                />
-              </TableCell>
-              {/* The row's opener. Quiet `text-foreground` rather than a teal underline:
-                  the teal is rationed for the one strong action on the screen, and a
-                  column of underlined teal names is the colour ui-craft §4 spends it on
-                  instead. The underline now arrives on the *row's* hover, wherever the
-                  pointer sits, and on this control's own focus — see `rowOpenerClass`. */}
-              <TableCell
-                className={cn(TABLE_CELL, "min-w-56 font-medium whitespace-normal")}
-              >
-                <button
-                  type="button"
-                  onClick={() => onOpen(process)}
-                  {...rowOpener}
-                className={rowOpenerClass}
-                >
-                  <span className="sr-only">Read the {inline} in </span>
-                  {causeTitle(process)}
-                </button>
-              </TableCell>
-              <TableCell
-                className={cn(TABLE_CELL, "whitespace-nowrap")}
-              >
-                <Identifier value={process.caseNumber} label="case number" />
-              </TableCell>
-              {/* Which instrument this is — the fact that tells three rows of one case
-                  apart. Plain text: the opener already carries the row's weight. */}
-              <TableCell className={cn(TABLE_CELL, "min-w-40 whitespace-normal")}>
-                {type}
-              </TableCell>
-              <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
-              >
-                {/* A stage always stamps its own day, so this is never empty in practice.
-                    An em dash rather than a blank cell is what a row that somehow reached
-                    a stage without its date should say. */}
-                {day ? formatProcessDate(day) : "—"}
-              </TableCell>
-              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
-                {processChannelLabel(process.channel)}
-              </TableCell>
-              <TableCell
-                className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}
-              >
-                {formatProcessDate(process.hearingDate)}
-              </TableCell>
-              {showsOutcome ? (
-                <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
-                  {process.outcome ? (
-                    <Badge variant={outcomeVariant(process.outcome.status)}>
-                      {outcomeLabel(process.type, process.outcome.status)}
-                    </Badge>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-              ) : null}
-            </TableRow>
-          );
-        })}
-      </TableBody>
+      {bands ? (
+        /* Each band is a `tbody` so the plate's neighbour rules — the last row's rule, a
+           run of picked rows rounding as one — stay inside the band they belong to. */
+        bands.map((band) => (
+          <TableBody
+            key={band.status.id}
+            className={tableBodyClass({ selectable: true })}
+          >
+            <tr>
+              <th scope="rowgroup" colSpan={COLUMNS} className="p-0 text-left">
+                <BandLabel status={band.status} count={band.rows.length} />
+              </th>
+            </tr>
+            {band.rows.map(row)}
+          </TableBody>
+        ))
+      ) : (
+        <TableBody className={tableBodyClass({ selectable: true })}>
+          {/* The header is a well, not a band welded to the rows — it needs the panel's
+              fill under it or its rounded bottom corners read as cut off (ui-craft §4).
+              `border-separate` has no per-edge row gap, so the gap is one inert row held
+              out of the accessibility tree. */}
+          <tr aria-hidden="true">
+            <td colSpan={COLUMNS} className="h-2 p-0" />
+          </tr>
+          {rows.map(row)}
+        </TableBody>
+      )}
     </Table>
+  );
+}
+
+/**
+ * A band's label: the status and how many it holds in this view. The rule sits
+ * above the label, between this band and the one before, so nothing runs between a label
+ * and its own rows; more air above than below does the rest.
+ */
+function BandLabel({ status, count }: { status: ProcessStatus; count: number }) {
+  return (
+    <div className="flex w-full items-baseline gap-2 border-b border-hairline px-4 pt-4 pb-2">
+      {/* 14px, the table's own size: a band names the rows under it and must not read
+          smaller than the data it heads. */}
+      <span className="text-body-compact font-semibold text-foreground">
+        {status.label}
+      </span>
+      <span className="text-body-compact tabular-nums text-muted-foreground">
+        {count}
+      </span>
+    </div>
+  );
+}
+
+function ProcessRow({
+  process,
+  statusColumn,
+  selected,
+  onToggle,
+  onOpen,
+}: {
+  process: CourtProcess;
+  statusColumn: boolean;
+  selected: boolean;
+  onToggle: (process: CourtProcess) => void;
+  onOpen: (process: CourtProcess) => void;
+}) {
+  const type = courtProcessTypeLabel(process.type);
+  const inline = courtProcessTypeInline(process.type);
+  return (
+    <TableRow
+      data-state={selected ? "selected" : undefined}
+      {...rowActivation(tableRowClass({ selectable: true }))}
+    >
+      <TableCell className={cn(TABLE_CELL, "w-12")}>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onToggle(process)}
+          aria-label={`Select the ${inline} in ${process.caseNumber}`}
+        />
+      </TableCell>
+      {/* The row's opener. Quiet `text-foreground` rather than a teal underline: the teal
+          is rationed for the one strong action on the screen. */}
+      <TableCell
+        className={cn(TABLE_CELL, "min-w-48 font-medium whitespace-normal")}
+      >
+        <button
+          type="button"
+          onClick={() => onOpen(process)}
+          {...rowOpener}
+          className={rowOpenerClass}
+        >
+          <span className="sr-only">Read the {inline} in </span>
+          {causeTitle(process)}
+        </button>
+      </TableCell>
+      <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+        <Identifier value={process.caseNumber} label="case number" />
+      </TableCell>
+      {/* Which instrument this is — the fact that tells three rows of one case apart. */}
+      <TableCell className={cn(TABLE_CELL, "min-w-36 whitespace-normal")}>
+        {type}
+      </TableCell>
+      {statusColumn ? (
+        <TableCell className={cn(TABLE_CELL, "min-w-32 whitespace-normal")}>
+          <ProcessStatusText process={process} />
+        </TableCell>
+      ) : (
+        <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
+          {/* The one-status tab is RPAD collection, and its day is the fee's. */}
+          {formatProcessDate(process.paidOn)}
+        </TableCell>
+      )}
+      <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+        {processChannelLabel(process.channel)}
+      </TableCell>
+      <TableCell className={cn(TABLE_CELL, "tabular-nums whitespace-nowrap")}>
+        {formatProcessDate(process.hearingDate)}
+      </TableCell>
+    </TableRow>
   );
 }
