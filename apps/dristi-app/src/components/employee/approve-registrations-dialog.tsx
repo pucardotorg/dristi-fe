@@ -34,7 +34,6 @@ import { DescriptionList } from "@/components/ui/description-list";
 import {
   Dialog,
   DialogClose,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -123,14 +122,11 @@ export function RegistrationDialog({
   /** Commit the demo act. Must **not** close the overlay: the end state renders after it. */
   onApprove: (request: RegistrationRequest) => void;
   /**
-   * **The reason is not handed back, on purpose.** It is what unlocks the button — the
-   * gate `REG-22` asks for — and there is nothing on the court side that could carry it:
-   * no notification channel is decided (`approve-registrations.md` §12.1) and this build
-   * sends nothing. A callback that passed the sentence up would imply somewhere for it to
-   * go. **ENGINEERING SEAM:** when the registration service exists, the reason travels
-   * from here, and this signature is the line that changes.
+   * The reason comes back so the Rejected tab can show it (owner, 2026-10-07). It still
+   * goes nowhere else: no notification channel is decided (`approve-registrations.md`
+   * §12.1). **ENGINEERING SEAM:** when the registration service exists, it travels from here.
    */
-  onReject: (request: RegistrationRequest) => void;
+  onReject: (request: RegistrationRequest, reason: string) => void;
   /** Open `next` in this same overlay. */
   onNext: (request: RegistrationRequest) => void;
   onReturnFocus: () => void;
@@ -264,7 +260,7 @@ function RequestBody({
   request: RegistrationRequest;
   next: RegistrationRequest | null;
   onApprove: (request: RegistrationRequest) => void;
-  onReject: (request: RegistrationRequest) => void;
+  onReject: (request: RegistrationRequest, reason: string) => void;
   onNext: (request: RegistrationRequest) => void;
   onReturnFocus: () => void;
 }) {
@@ -322,20 +318,8 @@ function RequestBody({
       title={STAGE_TITLE[stage](noun)}
       titleRef={flow.titleRef}
       titleAside={<Badge variant={badge.variant}>{badge.label}</Badge>}
-      /* Back to the one string the applicant can quote (D16): the role is in the title
-         now, and saying it here as well would be one fact twice in one header. The node
-         form, because the frame's plain-string description cannot carry an identifier —
-         and this one is the product's identifier treatment with its copy control off,
-         since nothing interactive belongs inside a dialog's accessible description. */
-      description={
-        <DialogDescription className="text-body-compact text-muted-foreground">
-          <Identifier
-            value={request.applicationNumber}
-            label="application number"
-            copyable={false}
-          />
-        </DialogDescription>
-      }
+      /* No description (owner, 2026-10-07): the application number was the only thing
+         here, and it is a backend reference the court never needs to read or quote. */
       /* Keyed on the request so the title, the state and the number fade in with the
          record they name — a header that swapped instantly over a body that animated was
          half the abruptness. This overlay is the one that walks from one record to the
@@ -398,7 +382,7 @@ function RequestBody({
               variant="destructive"
               disabled={empty}
               onClick={() => {
-                onReject(request);
+                onReject(request, reason.trim());
                 go("rejected");
               }}
             >
@@ -554,7 +538,7 @@ function EvidenceColumn({ request }: { request: RegistrationRequest }) {
         content: (
           <IdCardPhoto
             src={request.photo.src}
-            alt={`Photograph of the ${idCardName(request.registrantKind)} uploaded with ${request.applicationNumber}`}
+            alt={`Photograph of the ${idCardName(request.registrantKind)} uploaded by ${request.fullName}`}
             noun={noun}
           />
         ),
@@ -744,7 +728,7 @@ function CardPhoto({ request }: { request: RegistrationRequest }) {
           not a site asset: it has no build-time dimensions and must not be re-encoded. */}
       <img
         src={request.photo.src}
-        alt={`${idPhotoLabel(request.registrantKind)} uploaded with ${request.applicationNumber}`}
+        alt={`${idPhotoLabel(request.registrantKind)} uploaded by ${request.fullName}`}
         onError={() => setFailed(true)}
         className="mx-auto block h-40 w-auto max-w-full rounded-md object-contain"
       />

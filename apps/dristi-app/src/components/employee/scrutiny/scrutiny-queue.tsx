@@ -3,7 +3,11 @@
 import * as React from "react";
 import { FileSearchIcon, InboxIcon } from "lucide-react";
 
-import { CourtFilters } from "@/components/employee/court-filters";
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import {
@@ -16,7 +20,7 @@ import {
   filterQueue,
   SCRUTINY_QUEUE_COUNT,
 } from "@/lib/employee/scrutiny/queue";
-import type { Ball, QueueOwner } from "@/lib/employee/scrutiny/types";
+import type { Ball, Filing, QueueOwner } from "@/lib/employee/scrutiny/types";
 import { PAGE_SIZE, type HearingsPageSize } from "@/lib/employee/hearings";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +32,41 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  compareCaseNumbers,
+  compareText,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+
+type ScrutinySort = "longest" | "shortest" | "filing";
+
+/** Longest waiting first — the queue's own order, and the Waiting column's. */
+const SCRUTINY_SORTS: CourtSortSpec<Filing, ScrutinySort>[] = [
+  {
+    id: "longest",
+    label: "Longest waiting first",
+    compare: (a, b) => b.days - a.days || compareCaseNumbers(a.no, b.no),
+  },
+  {
+    id: "shortest",
+    label: "Shortest waiting first",
+    compare: (a, b) => a.days - b.days || compareCaseNumbers(a.no, b.no),
+  },
+  {
+    id: "filing",
+    label: "Filing number",
+    compare: (a, b) => compareCaseNumbers(a.no, b.no) || compareText(a.parties, b.parties),
+  },
+];
+
+/** The distinct values of one column on this tab, as filter options. */
+function columnOptions(rows: Filing[], key: "stage" | "type") {
+  return [...new Set(rows.map((row) => row[key]))]
+    .sort(compareText)
+    .map((value) => ({ value, label: value }));
+}
 
 /**
  * The scrutiny queue — complaints waiting to be checked against the documents filed
@@ -50,25 +89,46 @@ export function ScrutinyQueue() {
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
 
+  const [stage, setStage] = React.useState("all");
+  const [caseType, setCaseType] = React.useState("all");
+  const [sort, setSort] = React.useState<ScrutinySort>("longest");
+
+  const onTab = React.useMemo(() => filterQueue(QUEUE, tab, "anyone", ""), [tab]);
   const rows = React.useMemo(
-    () => filterQueue(QUEUE, tab, owner, text),
-    [tab, owner, text],
+    () =>
+      sortRows(
+        filterQueue(QUEUE, tab, owner, text).filter(
+          (row) =>
+            (stage === "all" || row.stage === stage) &&
+            (caseType === "all" || row.type === caseType),
+        ),
+        SCRUTINY_SORTS,
+        sort,
+      ),
+    [tab, owner, text, stage, caseType, sort],
   );
-  const filtered = !!text.trim() || owner !== "anyone";
+  const filtered =
+    !!text.trim() || owner !== "anyone" || stage !== "all" || caseType !== "all";
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
 
+  /* A tab is a different list with its own stages and types, so those reset; the search
+     and the claim survive — they are the officer's question, not the tab's. */
   function changeTab(next: Ball) {
     setTab(next);
+    setStage("all");
+    setCaseType("all");
     setPage(1);
   }
 
   function clearFilters() {
     setText("");
     setOwner("anyone");
+    setStage("all");
+    setCaseType("all");
     setPage(1);
   }
 
@@ -150,6 +210,43 @@ export function ScrutinyQueue() {
                     setPage(1);
                   }}
                   onClear={clearFilters}
+                  extraFields={[
+                    {
+                      id: "scrutiny-stage",
+                      label: "Stage",
+                      value: stage,
+                      all: "all",
+                      allLabel: "All stages",
+                      options: columnOptions(onTab, "stage"),
+                      onApply: (value) => {
+                        setStage(value);
+                        setPage(1);
+                      },
+                    },
+                    {
+                      id: "scrutiny-case-type",
+                      label: "Case type",
+                      value: caseType,
+                      all: "all",
+                      allLabel: "All case types",
+                      options: columnOptions(onTab, "type"),
+                      onApply: (value) => {
+                        setCaseType(value);
+                        setPage(1);
+                      },
+                    },
+                  ]}
+                  trailing={
+                    <CourtSortSelect
+                      id="scrutiny-sort"
+                      value={sort}
+                      options={sortOptions(SCRUTINY_SORTS)}
+                      onChange={(next) => {
+                        setSort(next);
+                        setPage(1);
+                      }}
+                    />
+                  }
                 />
 
                 {/* Mounted whatever the queue is doing, including empty — this screen
@@ -222,12 +319,18 @@ function QueueFilters({
   onTextChange,
   onOwnerChange,
   onClear,
+  extraFields,
+  trailing,
 }: {
   text: string;
   owner: QueueOwner;
   onTextChange: (value: string) => void;
   onOwnerChange: (value: QueueOwner) => void;
   onClear: () => void;
+  /** The tab's own column filters, after Claimed by. */
+  extraFields: CourtFilterField[];
+  /** The sort control (`CourtSortSelect`). */
+  trailing: React.ReactNode;
 }) {
   return (
     <CourtFilters
@@ -250,7 +353,9 @@ function QueueFilters({
           ],
           onApply: (value) => onOwnerChange(value as QueueOwner),
         },
+        ...extraFields,
       ]}
+      trailing={trailing}
       onClearAll={onClear}
     />
   );

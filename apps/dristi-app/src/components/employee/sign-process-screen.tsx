@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  ArrowDownUpIcon,
   ArrowRightIcon,
   FileCheck2Icon,
   SearchXIcon,
@@ -17,6 +16,7 @@ import {
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import {
   CourtFilters,
+  CourtSortSelect,
   type CourtFilterField,
 } from "@/components/employee/court-filters";
 import { RecordReturnsDialog } from "@/components/employee/record-returns-dialog";
@@ -38,14 +38,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -837,53 +829,20 @@ function ProcessFiltersForm({
         placeholder: pile
           ? "Case number, then Enter"
           : "Search by case number",
-        labelHidden: true,
         onSubmit,
       }}
       searchRef={searchRef}
       fields={fields}
-      trailing={<ProcessSortSelect sort={sort} onChange={onSortChange} />}
+      trailing={
+        <CourtSortSelect
+          id="sign-process-sort"
+          value={sort}
+          options={PROCESS_SORTS}
+          onChange={onSortChange}
+        />
+      }
       onClearAll={onClear}
     />
-  );
-}
-
-/**
- * How the list is ordered — hearing date, soonest first, unless the bench asks
- * otherwise (owner, 2026-10-06: the hearing date was never a day to pick, it is an order
- * to read in).
- *
- * On the row rather than in the Filters sheet, because an order narrows nothing and is
- * changed far more often than any filter. Its label is for screen readers only, like the
- * search beside it: the value it shows ("Soonest hearing first") already says what it
- * is, and the arrows mark it as an order rather than a filter.
- */
-function ProcessSortSelect({
-  sort,
-  onChange,
-}: {
-  sort: ProcessSort;
-  onChange: (sort: ProcessSort) => void;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col max-sm:w-full">
-      <Label htmlFor="sign-process-sort" className="sr-only">
-        Sort by
-      </Label>
-      <Select value={sort} onValueChange={(value) => onChange(value as ProcessSort)}>
-        <SelectTrigger id="sign-process-sort" className="w-full sm:w-56">
-          <ArrowDownUpIcon aria-hidden className="text-muted-foreground" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {PROCESS_SORTS.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
   );
 }
 

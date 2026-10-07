@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import { SlidersHorizontalIcon, XIcon } from "lucide-react";
+import { ArrowDownUpIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 
 import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { AppliedChip } from "@/components/shell/applied-chip";
@@ -77,6 +77,58 @@ export type CourtFilterDate = {
   onApply: (value: Date | undefined) => void;
 };
 
+export type CourtSortOption<T extends string> = { id: T; label: string };
+
+/**
+ * How a court list is ordered — the `trailing` control of `CourtFilters`.
+ *
+ * On the row rather than in the Filters sheet, because an order narrows nothing and is
+ * changed far more often than any filter. Its label is for screen readers only, like the
+ * search beside it: the value it shows ("Longest waiting first") says what it is, and
+ * the arrows mark it as an order rather than a filter.
+ *
+ * The value takes the trigger's free width (`flex-1 text-left`, set from the trigger
+ * because Radix's `Select.Value` drops its own className) so it sits beside the arrows
+ * and the chevron keeps to the far edge. Left to the primitive's
+ * `justify-between`, three children spread out and the value floated in the middle of
+ * the box, a gap away from its own icon (owner, 2026-10-07: "the spacing is weird").
+ */
+export function CourtSortSelect<T extends string>({
+  id,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  value: T;
+  options: CourtSortOption<T>[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col max-sm:w-full">
+      <Label htmlFor={id} className="sr-only">
+        Sort by
+      </Label>
+      <Select value={value} onValueChange={(next) => onChange(next as T)}>
+        <SelectTrigger
+          id={id}
+          className="w-full gap-2 sm:w-auto sm:min-w-52 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:text-left"
+        >
+          <ArrowDownUpIcon aria-hidden className="text-muted-foreground" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 /** The case peek's motion: a full slide from the right, no dissolve (matches the advocate). */
 const SHEET_MOTION = {
   "--tw-enter-opacity": "1",
@@ -114,7 +166,9 @@ export function CourtFilters({
     onChange: (value: string) => void;
     placeholder?: string;
     /**
-     * Keep the label for screen readers only. For a row whose search sits beside other
+     * Keep the label for screen readers only — **the default on every court list** (owner,
+     * 2026-10-07: standardise on the label-less row). Pass `false` only where a visible
+     * label is genuinely needed. For a row whose search sits beside other
      * controls (the sign process pills): the magnifier is the box's permanent visual cue
      * and the name is still announced, the pending-tasks search treatment (owner,
      * 2026-10-06). A label stacked over the box pushed the whole row down around it.
@@ -132,6 +186,7 @@ export function CourtFilters({
   /** Reset every filter (fields, date and the search) back to the screen's default. */
   onClearAll: () => void;
 }) {
+  const labelHidden = search.labelHidden ?? true;
   const appliedFields = fields.filter((field) => field.value !== field.all);
   const applied = appliedFields.length + (date?.active ? 1 : 0);
   const controls = fields.length + (date ? 1 : 0);
@@ -151,7 +206,7 @@ export function CourtFilters({
     >
       <QueueSearchField
         label={search.label}
-        labelClassName={search.labelHidden ? "sr-only" : undefined}
+        labelClassName={labelHidden ? "sr-only" : undefined}
         className="w-full"
         ref={searchRef}
         value={search.value}
@@ -162,7 +217,7 @@ export function CourtFilters({
   ) : (
     <QueueSearchField
       label={search.label}
-      labelClassName={search.labelHidden ? "sr-only" : undefined}
+      labelClassName={labelHidden ? "sr-only" : undefined}
       className="sm:w-80"
       ref={searchRef}
       value={search.value}
@@ -188,7 +243,7 @@ export function CourtFilters({
                 own value ("All process types") still says what it filters. */}
             <Label
               htmlFor={only.id}
-              className={search.labelHidden ? "sr-only" : "text-body-compact"}
+              className={labelHidden ? "sr-only" : "text-body-compact"}
             >
               {only.label}
             </Label>
@@ -211,7 +266,7 @@ export function CourtFilters({
             <span
               id="court-filter-date"
               className={
-                search.labelHidden
+                labelHidden
                   ? "sr-only"
                   : "w-fit text-body-compact font-medium"
               }

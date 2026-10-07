@@ -6,7 +6,7 @@ import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { CourtFilters } from "@/components/employee/court-filters";
+import { CourtFilters, CourtSortSelect } from "@/components/employee/court-filters";
 import { OtherApplicationDialog } from "@/components/employee/other-application-dialog";
 import { OtherApplicationsTable } from "@/components/employee/other-applications-table";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
@@ -42,6 +42,25 @@ import {
   type OtherApplicationFilters,
 } from "@/lib/employee/other-applications";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  caseSorts,
+  daySorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+
+type OtherApplicationSort = "oldest-applied" | "newest-applied" | "name";
+
+/** Oldest application first — a queue is worked from the one that has waited longest. */
+const OTHER_APPLICATION_SORTS: CourtSortSpec<OtherApplication, OtherApplicationSort>[] = [
+  ...daySorts<OtherApplication, OtherApplicationSort>(
+    (row) => row.appliedOn,
+    { id: "oldest-applied", label: "Oldest application first", latest: false },
+    { id: "newest-applied", label: "Newest application first" },
+  ),
+  caseSorts<OtherApplication>()[2] as CourtSortSpec<OtherApplication, OtherApplicationSort>,
+];
 
 /**
  * Others — every application in front of this court, whatever it asks for.
@@ -86,7 +105,9 @@ export function OtherApplicationsScreen() {
   const remaining = OTHER_APPLICATIONS_QUEUE.filter(
     (application) => !decidedIds.has(application.id),
   );
-  const rows = filterOtherApplications(remaining, filters);
+  const [sort, setSort] = React.useState<OtherApplicationSort>("oldest-applied");
+
+  const rows = sortRows(filterOtherApplications(remaining, filters), OTHER_APPLICATION_SORTS, sort);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -145,6 +166,17 @@ export function OtherApplicationsScreen() {
           searchRef={searchRef}
           onChange={changeFilters}
           onClear={clearFilters}
+          trailing={
+            <CourtSortSelect
+              id="other-applications-sort"
+              value={sort}
+              options={sortOptions(OTHER_APPLICATION_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
         />
 
         {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -221,12 +253,15 @@ function OtherApplicationFiltersForm({
   searchRef,
   onChange,
   onClear,
+  trailing,
 }: {
   filters: OtherApplicationFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
   /** Merge a change into the filters — a patch, not a whole set. */
   onChange: (patch: Partial<OtherApplicationFilters>) => void;
   onClear: () => void;
+  /** The list's sort control (`CourtSortSelect`), at the end of the row. */
+  trailing?: React.ReactNode;
 }) {
   return (
     <CourtFilters
@@ -269,6 +304,7 @@ function OtherApplicationFiltersForm({
             }),
         },
       ]}
+      trailing={trailing}
       onClearAll={onClear}
     />
   );
