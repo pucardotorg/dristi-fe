@@ -161,7 +161,7 @@ console.log(
     "Bumped. Now, in this order:",
     "  1. npm run check:ui-sync     confirm the app matches the new DS",
     "  2. look at the screens       the checks cannot judge a layout",
-    "  3. commit ds.lock.json with the synced files, on design",
+    "  3. commit ds.lock.json with the synced files on an upgrade branch from origin/main, and open a PR into main",
     "",
     "Then tell the others. They pick it up on their next pull — the pin means",
     "nobody is dragged onto it mid-feature.",

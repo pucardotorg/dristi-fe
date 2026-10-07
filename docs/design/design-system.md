@@ -25,10 +25,9 @@ checkout. Follow [server ownership](../../.agents/policies/dev-server.md). A ser
 running from another checkout cannot verify changes in your worktree.
 
 The DS pin is upgraded with `npm run ds:bump` only in a dedicated upgrade branch from
-`origin/design`, followed by a PR into `design` and design-owner approval. Never bump
-inside unrelated feature work or commit straight to a long-lived branch. Read the DS
-changelog and inspect the rendered consequences before merging an upgrade. Some legacy
-script messages still say “on design”; the branch policy above governs their use.
+`origin/main`, followed by a PR into `main` and design-owner approval. Never bump
+inside unrelated feature work or commit straight to `main`. Read the DS changelog and
+inspect the rendered consequences before merging an upgrade.
 
 ## The product team
 
