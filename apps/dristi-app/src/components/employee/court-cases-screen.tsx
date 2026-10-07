@@ -102,8 +102,13 @@ export function CourtCasesScreen() {
     : undefined;
   const isFiltered = hasCourtCaseFilters(filters);
 
-  function change(next: CourtCaseFilters) {
-    setFilters(next);
+  /**
+   * Change some of the filters. A patch, merged into the latest state: the Filters sheet
+   * applies every field it changed in one go, and a whole set built by each field from
+   * this render's `filters` kept only the last field's change.
+   */
+  function change(patch: Partial<CourtCaseFilters>) {
+    setFilters((current) => ({ ...current, ...patch }));
     setPage(1);
   }
 
@@ -135,7 +140,7 @@ export function CourtCasesScreen() {
           search={{
             label: "Search cases",
             value: filters.query,
-            onChange: (query) => change({ ...filters, query }),
+            onChange: (query) => change({ query }),
             placeholder: "Case number, complainant or accused",
           }}
           searchRef={searchRef}
@@ -152,7 +157,6 @@ export function CourtCasesScreen() {
               })),
               onApply: (value) =>
                 change({
-                  ...filters,
                   priority: value === "any" ? null : (value as CourtPriorityId),
                 }),
             },
@@ -168,7 +172,6 @@ export function CourtCasesScreen() {
               })),
               onApply: (value) =>
                 change({
-                  ...filters,
                   stage: value === "all" ? null : (value as CourtCaseStage),
                 }),
             },

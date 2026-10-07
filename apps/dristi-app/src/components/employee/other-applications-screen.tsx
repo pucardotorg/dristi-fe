@@ -95,8 +95,13 @@ export function OtherApplicationsScreen() {
   const isFiltered =
     filters.stage !== "all" || filters.query !== "" || filters.type !== "all";
 
-  function changeFilters(next: OtherApplicationFilters) {
-    setFilters(next);
+  /**
+   * Change some of the filters. A patch, merged into the latest state: the Filters sheet
+   * applies every field it changed in one go, and a whole set built by each field from
+   * this render's `filters` kept only the last field's change.
+   */
+  function changeFilters(patch: Partial<OtherApplicationFilters>) {
+    setFilters((current) => ({ ...current, ...patch }));
     setPage(1);
   }
 
@@ -219,7 +224,8 @@ function OtherApplicationFiltersForm({
 }: {
   filters: OtherApplicationFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onChange: (filters: OtherApplicationFilters) => void;
+  /** Merge a change into the filters — a patch, not a whole set. */
+  onChange: (patch: Partial<OtherApplicationFilters>) => void;
   onClear: () => void;
 }) {
   return (
@@ -227,7 +233,7 @@ function OtherApplicationFiltersForm({
       search={{
         label: "Search cases",
         value: filters.query,
-        onChange: (query) => onChange({ ...filters, query }),
+        onChange: (query) => onChange({ query }),
         placeholder: "Case name, number or advocate",
       }}
       searchRef={searchRef}
@@ -244,7 +250,6 @@ function OtherApplicationFiltersForm({
           })),
           onApply: (value) =>
             onChange({
-              ...filters,
               stage: value as OtherApplicationFilters["stage"],
             }),
         },
@@ -260,7 +265,6 @@ function OtherApplicationFiltersForm({
           })),
           onApply: (value) =>
             onChange({
-              ...filters,
               type: value as OtherApplicationFilters["type"],
             }),
         },
