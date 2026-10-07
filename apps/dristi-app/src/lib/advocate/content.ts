@@ -420,6 +420,9 @@ export const advHome = {
   /* Slot tabs — the sitting's live tab throbs; this names the state for readers
      who cannot see the dot. */
   slotLive: t("in session", "സെഷനിൽ"),
+  /** The sittings tab row: its accessible name, and the overflow menu's label. */
+  sittingsLabel: t("Sittings", "സിറ്റിങ്ങുകൾ"),
+  moreSittings: t("More", "കൂടുതൽ"),
   /** Tooltip on a slot tab's pulsing dot. */
   slotLiveTip: t("This sitting is in session now", "ഈ സിറ്റിങ് ഇപ്പോൾ നടക്കുന്നു"),
   /* Zones */

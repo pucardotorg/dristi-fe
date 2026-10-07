@@ -466,7 +466,7 @@ function HomeBody({
       {/* A desktop sets the board on a grey page (surface-sunken, the nearest
           token to the wireframe's #f1f1f1) so the white panel and its front tab
           stand out from it, the other slot tabs behind them. */}
-      <main className="@container flex min-w-0 flex-1 flex-col lg:bg-surface-sunken dark:lg:bg-background">
+      <main className="@container flex min-w-0 flex-1 flex-col md:bg-surface-sunken dark:md:bg-background">
         {/* Header and board share one frame (HOME_FRAME), so the big date sits
             over the timeline rail and the title, strip and hearings share one
             left edge, as in the owner's wireframe. */}

@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import { HearingFiltersSheet } from "@/components/advocate/hearing-filters";
+import { OverflowTabsList } from "@/components/chrome/overflow-tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Empty,
@@ -202,90 +203,7 @@ function SlotCount({ slot, locale, className, padded = false }: { slot: TimeSlot
 
 /* ─────────────────────────── summary strip (phone) ─────────────────────────── */
 
-/**
- * The day at a glance, on a phone and an upright tablet. A desktop states these
- * counts on the timeline's rail instead, so the strip is not drawn there.
- */
-function SummaryStrip({
-  total,
-  courts,
-  slots,
-  blocking,
-  showConflicts,
-  conflictSlots,
-  locale,
-}: {
-  total: number;
-  courts: number;
-  /** The count of the day's sittings — the exact range lives in the slot tab. */
-  slots: number;
-  /** Matters that owe blocking work before their hearing today. */
-  blocking: number;
-  /** The full view states conflicts here; the launch view states the slot count. */
-  showConflicts: boolean;
-  conflictSlots: number;
-  locale: Locale;
-}) {
-  // The two middle columns run narrower, which draws the short-labelled middle
-  // pair (courts, slot) together while every other centre-to-centre distance
-  // stays what it was.
-  return (
-    <div data-oneline={locale === "en"} className="group/stats grid w-full min-w-0 grid-cols-[1.1fr_0.9fr_0.9fr_1.1fr] gap-1 pr-6 pl-2 lg:hidden">
-      <Stat
-        value={total}
-        label={pick(total === 1 ? advHome.statHearingOne : advHome.statHearingMany, locale)}
-      />
-      <Stat
-        value={courts}
-        label={pick(courts === 1 ? advHome.statCourtOne : advHome.statCourtMany, locale)}
-      />
-      {showConflicts ? (
-        <Stat
-          value={conflictSlots}
-          label={pick(
-            conflictSlots === 1 ? advHome.statConflictOne : advHome.statConflictMany,
-            locale
-          )}
-          warning={conflictSlots > 0}
-        />
-      ) : (
-        <Stat value={slots} label={pick(slots === 1 ? advHome.slotOne : advHome.slotMany, locale)} />
-      )}
-      <Stat
-        value={blocking}
-        label={pick(blocking === 1 ? advHome.statBlockingOne : advHome.statBlockingMany, locale)}
-      />
-    </div>
-  );
-}
 
-function Stat({
-  value,
-  label,
-  warning = false,
-}: {
-  value: number;
-  label: string;
-  warning?: boolean;
-}) {
-  return (
-    <span className="flex min-w-0 flex-col items-center gap-1 text-center">
-      <span
-        className={cn(
-          // An upright tablet has the room for a step larger than the phone.
-          "text-body font-semibold tabular-nums md:text-title-s",
-          warning && "text-warning-ink"
-        )}
-      >
-        {String(value).padStart(2, "0")}
-      </span>
-      {/* English labels hold one line: a wrapped label changes the block's width,
-          which would throw off the optical centring the asymmetric padding sets
-          up. Malayalam labels run longer and must wrap to stay in their column. */}
-      <span className="text-caption wrap-anywhere text-muted-foreground group-data-[oneline=true]/stats:whitespace-nowrap md:text-body-compact">{label}</span>
-    </span>
-  );
-}
 
 /* ─────────────────────────── day actions ─────────────────────────── */
 
@@ -896,8 +814,10 @@ function PendingChip({
     );
   }
 
+  // On touch the chip keeps its drawn height; an invisible ::after stretches its
+  // tap area to 40px instead of the chip itself growing tall.
   return (
-    <Badge asChild variant="warning" className="relative z-10 gap-1 rounded-md border-transparent hover:bg-warning-muted-hover pointer-coarse:min-h-10">
+    <Badge asChild variant="warning" className="relative z-10 gap-1 rounded-md border-transparent hover:bg-warning-muted-hover pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2">
       <button
         type="button"
         aria-label={`${label}: ${pick(advHome.pendingOpen, locale)}`}
@@ -1144,7 +1064,13 @@ function NowSlot({
         <span aria-hidden="true" className="now-dot size-2.5 shrink-0 rounded-full bg-primary" />
         <span className="sr-only">{pick(advHome.ongoingTag, locale)}: </span>
         {showTimes ? <span className="text-body-compact font-semibold tabular-nums">{timeOf(slot.at)}</span> : null}
-        <SlotCount padded slot={slot} locale={locale} className="flex-1 text-body-compact font-semibold text-brand-muted-foreground" />
+        {/* The desktop band's wording: "Live now across 3 courts". */}
+        <span className="flex-1 text-body-compact font-semibold text-brand-muted-foreground">
+          {fillCopy(advHome.liveAcross, locale, {
+            c: String(slot.courts.length),
+            cw: pick(slot.courts.length === 1 ? advHome.statCourtOne : advHome.statCourtMany, locale),
+          })}
+        </span>
         <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition-transform duration-200 group-data-[state=closed]/ongoing:-rotate-90 motion-reduce:transition-none" />
       </CollapsibleTrigger>
       <CollapsibleContent className="hearing-reveal overflow-hidden">
@@ -1693,7 +1619,6 @@ function TabHover({ lean }: { lean: "left" | "right" | null }) {
 export function HearingTimeline({
   daySlots,
   showTimes,
-  showConflicts,
   dayPhase,
   filters,
   onFilterChange,
@@ -1739,23 +1664,6 @@ export function HearingTimeline({
   filterVariant?: FilterVariant;
   locale: Locale;
 }) {
-  // The day at a glance (phone strip), aggregated across every sitting.
-  const total = daySlots.reduce((n, s) => n + s.board.summary.total, 0);
-  const courtCount = new Set(
-    daySlots.flatMap((s) => s.board.slots.flatMap((slot) => slot.courts))
-  ).size;
-  const conflictSlots = daySlots.reduce((n, s) => n + s.board.summary.conflictSlots, 0);
-  // Matters that owe blocking work before their hearing, across the board.
-  const blocking = daySlots.reduce(
-    (n, s) =>
-      n +
-      s.board.slots.reduce(
-        (m, slot) => m + slot.hearings.reduce((k, h) => k + h.blockers.length, 0),
-        0
-      ),
-    0
-  );
-
   return (
     <OpenTasksContext.Provider value={onOpenTasks}>
       <ShowTimesContext.Provider value={showTimes}>
@@ -1763,19 +1671,13 @@ export function HearingTimeline({
       <AccessContext.Provider value={accessOf}>
         <div className="flex flex-col gap-4 pb-16 lg:gap-4 lg:pb-8">
           <RailStyles />
-          {/* The day's own actions, above the tabs. On a phone the stats lead and
-              the actions run full width under them. The extra bottom margin
-              holds the refresh button's hover/refreshed caption clear of the tabs. */}
-          <div className="mb-2 flex flex-col gap-4 lg:hidden">
-            <SummaryStrip
-              total={total}
-              courts={courtCount}
-              slots={daySlots.length}
-              blocking={blocking}
-              showConflicts={showConflicts}
-              conflictSlots={conflictSlots}
-              locale={locale}
-            />
+          {/* The day's own actions, above the tabs on a phone or tablet, full
+              width. (The day's stats strip is retired: the tabs and the rail
+              already say how the day is made up.) The extra bottom margin holds
+              the refresh button's refreshed caption clear of the tabs. */}
+          {/* The top margin keeps Refresh clear of the week strip's calendar
+              button, so the two never meet under a thumb. */}
+          <div className="mt-4 mb-2 flex flex-col gap-4 lg:hidden">
             <DayActions
               onViewCauseList={onViewCauseList}
               onJoinCourt={onJoinCourt}
@@ -1854,18 +1756,34 @@ function SlotTabs({
   const activeIndex = daySlots.indexOf(selectedSlot);
 
   return (
-    <Tabs value={selectedSlot.key} onValueChange={setActive} className="gap-6 lg:gap-0">
-      <TabsList variant="line" className="flex-wrap gap-y-2 group-data-horizontal/tabs:h-auto lg:hidden">
-        {daySlots.map((slot) => (
-          <TabsTrigger key={slot.key} value={slot.key} className="flex-none gap-2 px-3">
-            <span className="tabular-nums">{slot.label}</span>
-            {slot.live ? <LiveMark locale={locale} /> : null}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+    <Tabs value={selectedSlot.key} onValueChange={setActive} className="gap-6 md:gap-0">
+      {/* Phone: the Case view's tab row. The sittings that fit stay on one
+          line; the rest fold into More, so the row never wraps to two lines. */}
+      <div className="md:hidden">
+        <OverflowTabsList
+          aria-label={pick(advHome.sittingsLabel, locale)}
+          value={selectedSlot.key}
+          onSelect={(value) => {
+            if (daySlots.some((s) => s.key === value)) setActive(value);
+          }}
+          moreLabel={pick(advHome.moreSittings, locale)}
+          className="h-10 w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
+          triggerClassName="flex-none gap-1.5 px-2.5"
+          items={daySlots.map((slot) => ({
+            value: slot.key,
+            measure: `${shortSitting(slot.window)}${slot.live ? "*" : ""}`,
+            label: (
+              <>
+                <span className="tabular-nums">{shortSitting(slot.window)}</span>
+                {slot.live ? <LiveMark locale={locale} /> : null}
+              </>
+            ),
+          }))}
+        />
+      </div>
 
-      {/* Desktop: one stable hit area per tab; the active fill joins the panel. */}
-      <div className="hidden items-end justify-between gap-4 lg:flex">
+      {/* Tablet and desktop: one stable hit area per tab; the active fill joins the panel. */}
+      <div className="hidden items-end justify-between gap-4 md:flex">
       <TabsList className="flex h-auto min-w-0 flex-1 items-end justify-start gap-0 rounded-none border-0 bg-transparent p-0 group-data-horizontal/tabs:h-auto">
         {daySlots.map((slot, i) => {
           const isActive = i === activeIndex;
@@ -1878,9 +1796,11 @@ function SlotTabs({
               style={{ zIndex: isActive ? 30 : 20 }}
               // Every tab reserves its joins in both states. Selection changes
               // paint, never height, margins or label position.
-              title={slot.label}
               className={cn(
-                "group/slot -mb-px h-10 min-w-20 flex-initial rounded-none border-0 bg-transparent p-0 text-body-compact font-medium transition-none data-active:bg-transparent dark:data-active:border-0 dark:data-active:bg-transparent group-data-[variant=default]/tabs-list:data-active:shadow-none",
+                "group/slot -mb-px h-10 rounded-none border-0 bg-transparent p-0 text-body-compact font-medium transition-none data-active:bg-transparent dark:data-active:border-0 dark:data-active:bg-transparent group-data-[variant=default]/tabs-list:data-active:shadow-none",
+                // As in Chrome: the open tab keeps its full width; closed tabs
+                // give way, truncating, when the row runs short.
+                isActive ? "flex-none" : "min-w-16 flex-initial",
                 divider &&
                   "before:absolute before:top-2 before:bottom-2 before:-left-px before:w-px before:bg-border"
               )}
@@ -1888,6 +1808,7 @@ function SlotTabs({
               {/* Each tab reserves 16px a side for the open tab's 20px side (a
                   12px top corner, a near-upright lean, a 9px foot), so a
                   neighbour's hover fill stops about 4px short of it. */}
+              <SlotTabTip label={slot.label} enabled={!isActive}>
               <span className={cn(
                 "relative mr-4 flex h-full min-w-0 flex-1 items-center justify-center gap-2 border-t border-transparent px-3",
                 i > 0 && "ml-4",
@@ -1898,7 +1819,9 @@ function SlotTabs({
                 <TabHover lean={i === activeIndex + 1 ? "left" : i === activeIndex - 1 ? "right" : null} />
               ) : null}
               {slot.live ? <LiveMark locale={locale} /> : null}
-              <span className="min-w-0 truncate tabular-nums">{slot.label}</span>
+              {/* Short on a tablet, where three full ranges cannot share the row. */}
+              <span className="min-w-0 truncate tabular-nums lg:hidden">{shortSitting(slot.window)}</span>
+              <span className="hidden min-w-0 truncate tabular-nums lg:inline">{slot.label}</span>
               {isActive ? (
                 <>
                   {/* The first tab's left edge runs into the panel's edge. */}
@@ -1907,6 +1830,7 @@ function SlotTabs({
                 </>
               ) : null}
               </span>
+              </SlotTabTip>
             </TabsTrigger>
           );
         })}
@@ -1999,7 +1923,8 @@ function SlotTabs({
             value={slot.key}
             className="relative z-10"
           >
-            <Card className={cn(PANEL_CLASS, "max-lg:contents lg:gap-0 lg:overflow-visible", HOME_PANEL_PAD, i === 0 && "lg:rounded-tl-none")}>
+            {/* From a tablet up the sitting sits in the white panel its tab joins. */}
+            <Card className={cn(PANEL_CLASS, "max-md:contents md:gap-0 md:overflow-visible md:px-4 md:pt-4 md:pb-4", HOME_PANEL_PAD, i === 0 && "md:rounded-tl-none")}>
               {empty && isFiltered(filter) ? (
                 <div className="flex flex-col gap-4 pb-4">
                   {filterRow}
@@ -2027,6 +1952,37 @@ function SlotTabs({
  * The courts a sitting's filter offers: those with a matter in it. Labels are
  * the short court names the rows already carry.
  */
+/**
+ * A sitting's range as short as it reads, for the phone and tablet tab row:
+ * minutes only when they are not :00, am/pm on both ends ("9 am–10 am",
+ * "10 am–3 pm", "3 pm–5:30 pm"), so a three-sitting day fits on one line.
+ */
+function shortSitting(window: { start: string; end: string }): string {
+  const part = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    const hour = h % 12 || 12;
+    return { text: m ? `${hour}:${String(m).padStart(2, "0")}` : String(hour), ap: h < 12 ? "am" : "pm" };
+  };
+  const a = part(window.start);
+  const b = part(window.end);
+  return `${a.text} ${a.ap}–${b.text} ${b.ap}`;
+}
+
+/**
+ * A closed tab's hover tip: the sitting's full time range, which a closed tab
+ * may have truncated to make room for the open one. It hangs on the tab's inner
+ * face, not the trigger, so it never overwrites the trigger's own data-state.
+ */
+function SlotTabTip({ label, enabled, children }: { label: string; enabled: boolean; children: React.ReactElement }) {
+  if (!enabled) return children;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function courtOptionsOf(hearings: TimelineHearing[]): CourtOption[] {
   const byCourt = new Map<string, CourtOption>();
   for (const h of hearings) {

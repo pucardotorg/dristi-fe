@@ -210,12 +210,17 @@ export function HomeGreeting({
 
       <div className="flex min-w-0 flex-1 flex-col gap-6">
         <div className="flex max-w-full min-w-0 flex-col gap-1 lg:hidden">
-          <h1 className="text-title font-semibold tracking-tight text-balance">
+          {/* The desktop's order: a quiet greeting, the title leading, then the
+              date small beneath it. */}
+          <p className="text-body text-muted-foreground">
             {fillCopy(greetingCopy(nowDate.getHours()), locale, { name: firstName })}
+          </p>
+          <h1 className="text-title font-semibold tracking-tight text-balance">
+            {pick(advHome.hearingsForDay, locale)}
           </h1>
-          {/* Just the date. The week strip's per-day dot carries its own text
-              equivalent through the tooltip and the sr-only line below. */}
-          <p className="text-body text-muted-foreground">{dateLine}</p>
+          {/* The week strip's per-day dot carries its own text equivalent
+              through the tooltip and the sr-only line below. */}
+          <p className="text-body-compact text-muted-foreground">{dateLine}</p>
         </div>
         {/* Below container 3xl, the title cannot share its line even
             with icon-only actions. Give it the row instead of squeezing it. */}
