@@ -5,7 +5,7 @@ import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { CourtFilters } from "@/components/employee/court-filters";
+import { CourtFilters, CourtSortSelect } from "@/components/employee/court-filters";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignFormDialog } from "@/components/employee/sign-form-dialog";
 import { SignFormsTable } from "@/components/employee/sign-forms-table";
@@ -43,6 +43,25 @@ import {
   type SignFormFilters,
 } from "@/lib/employee/sign-forms";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  caseSorts,
+  daySorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+
+type SignFormSort = "oldest-created" | "newest-created" | "name";
+
+/** Oldest form first, by the Date created column — what has waited longest for a signature. */
+const SIGN_FORM_SORTS: CourtSortSpec<SignForm, SignFormSort>[] = [
+  ...daySorts<SignForm, SignFormSort>(
+    (row) => row.createdOn,
+    { id: "oldest-created", label: "Oldest first", latest: false },
+    { id: "newest-created", label: "Newest first" },
+  ),
+  caseSorts<SignForm>()[2] as CourtSortSpec<SignForm, SignFormSort>,
+];
 
 /**
  * Sign forms — the forms this court has drawn up and not yet signed.
@@ -89,7 +108,9 @@ export function SignFormsScreen() {
   const signRef = React.useRef<HTMLButtonElement>(null);
 
   const remaining = SIGN_FORM_QUEUE.filter((form) => !signedIds.has(form.id));
-  const rows = filterSignForms(remaining, filters);
+  const [sort, setSort] = React.useState<SignFormSort>("oldest-created");
+
+  const rows = sortRows(filterSignForms(remaining, filters), SIGN_FORM_SORTS, sort);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -205,6 +226,17 @@ export function SignFormsScreen() {
             searchRef={searchRef}
             onChange={changeFilters}
             onClear={clearFilters}
+            trailing={
+              <CourtSortSelect
+                id="sign-forms-sort"
+                value={sort}
+                options={sortOptions(SIGN_FORM_SORTS)}
+                onChange={(next) => {
+                  setSort(next);
+                  setPage(1);
+                }}
+              />
+            }
           />
 
           {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -361,12 +393,15 @@ function SignFormsFilters({
   searchRef,
   onChange,
   onClear,
+  trailing,
 }: {
   filters: SignFormFilters;
   searchRef: React.Ref<HTMLInputElement>;
   /** Merge a change into the filters — a patch, not a whole set. */
   onChange: (patch: Partial<SignFormFilters>) => void;
   onClear: () => void;
+  /** The list's sort control (`CourtSortSelect`), at the end of the row. */
+  trailing?: React.ReactNode;
 }) {
   return (
     <CourtFilters
@@ -402,6 +437,7 @@ function SignFormsFilters({
         onApply: (value) =>
           onChange({ createdOn: value ? isoDay(value) : "" }),
       }}
+      trailing={trailing}
       onClearAll={onClear}
     />
   );

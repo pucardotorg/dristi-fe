@@ -8,7 +8,7 @@ import {
   CourtCaseItemList,
   CourtCasesTable,
 } from "@/components/employee/court-cases-table";
-import { CourtFilters } from "@/components/employee/court-filters";
+import { CourtFilters, CourtSortSelect } from "@/components/employee/court-filters";
 import { ListFooter } from "@/components/employee/list-footer";
 import { NotBuiltDialog } from "@/components/employee/not-built-dialog";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
@@ -40,6 +40,31 @@ import {
   type CourtCaseStage,
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
+import {
+  caseSorts,
+  compareCaseNumbers,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+
+type CourtCasesSort = "hearing" | "newest" | "oldest" | "name";
+
+/**
+ * Next hearing soonest by default — the column the register is worked by. A case with no
+ * hearing listed goes to the foot rather than the top.
+ */
+const COURT_CASES_SORTS: CourtSortSpec<CourtCase, CourtCasesSort>[] = [
+  {
+    id: "hearing",
+    label: "Next hearing soonest",
+    compare: (a, b) =>
+      Number(a.nextHearingInDays === null) - Number(b.nextHearingInDays === null) ||
+      (a.nextHearingInDays ?? 0) - (b.nextHearingInDays ?? 0) ||
+      compareCaseNumbers(a.caseNumber, b.caseNumber),
+  },
+  ...(caseSorts<CourtCase>() as CourtSortSpec<CourtCase, CourtCasesSort>[]),
+];
 
 /**
  * `/employee/cases` — this court's register, searchable.
@@ -88,7 +113,9 @@ export function CourtCasesScreen() {
   const [open, setOpen] = React.useState<CourtCase | null>(null);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
-  const rows = filterCourtCases(filters);
+  const [sort, setSort] = React.useState<CourtCasesSort>("hearing");
+
+  const rows = sortRows(filterCourtCases(filters), COURT_CASES_SORTS, sort);
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   /* Clamped rather than reset in an effect: a filter that shortens the list must not
      leave the reader on page three of nothing, and deriving it means there is no render
@@ -176,6 +203,17 @@ export function CourtCasesScreen() {
                 }),
             },
           ]}
+          trailing={
+            <CourtSortSelect
+              id="court-cases-sort"
+              value={sort}
+              options={sortOptions(COURT_CASES_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
           onClearAll={clearFilters}
         />
 
