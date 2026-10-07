@@ -58,7 +58,8 @@ export type CourtProcessTypeId =
   | "section-223-notice"
   | "dca-notice"
   | "warrant"
-  | "proclamation";
+  | "proclamation"
+  | "attachment";
 
 export const COURT_PROCESS_TYPES: {
   id: CourtProcessTypeId;
@@ -94,6 +95,9 @@ export const COURT_PROCESS_TYPES: {
     inline: "proclamation",
     executed: true,
   },
+  /* From #43 (2026-10-01): the handover's sixth process type with a police channel,
+     executed like the other two (§6.3, §10.1 of `handovers/process-handover.md`). */
+  { id: "attachment", label: "Attachment", inline: "attachment", executed: true },
 ];
 
 function processType(id: CourtProcessTypeId) {
@@ -1120,6 +1124,20 @@ export const PROCESS_LINE: CourtProcess[] = [
     sentOn: "2026-08-25",
     hearingDate: "2026-09-10",
   },
+  /* From #43: an attachment out with the police, so the line carries one. */
+  {
+    id: "pr-1392",
+    caseNumber: "ST/1392/2026",
+    parties: { complainant: "Paravur Fisheries Co-operative", accused: "Biju Thomas" },
+    type: "attachment",
+    channel: "police",
+    status: "in-progress",
+    paidOn: "2026-08-02",
+    issuedOn: "2026-08-07",
+    signedOn: "2026-08-13",
+    sentOn: "2026-08-23",
+    hearingDate: "2026-09-27",
+  },
   {
     id: "pr-1352",
     caseNumber: "ST/1352/2026",
@@ -1754,12 +1772,13 @@ export type ProcessDocument = {
 /**
  * Who each instrument is addressed to.
  *
- * A warrant commands an officer to arrest; everything else commands the accused to
+ * A warrant, proclamation or attachment is addressed to the police, who execute it
+ * (§6.3 of `handovers/process-handover.md`); everything else commands the accused to
  * appear. `docs/product/domain/actors.md` puts process execution with the police for a
- * §138 case, which is who a warrant is written to.
+ * §138 case.
  */
 function addresseeFor(process: CourtProcess): string {
-  if (process.type === "warrant") {
+  if (processType(process.type).executed) {
     return "To the officer in charge of the police station";
   }
   return `To ${process.parties.accused}, the accused`;
@@ -1802,6 +1821,11 @@ function paragraphsFor(process: CourtProcess): string[] {
       return [
         `Whereas a warrant issued by this court for the arrest of ${accused} has been returned unexecuted, and this court has reason to believe that the said ${accused} is absconding or concealing themselves so that the warrant cannot be executed,`,
         `a proclamation is published requiring the said ${accused} to appear before this court on ${returnable}. It shall be read publicly, affixed at the accused's last known place of residence and at this courthouse, and the officer publishing it shall report compliance to this court.`,
+      ];
+    case "attachment":
+      return [
+        `Whereas a proclamation has been issued requiring ${accused}, the accused in this case, to appear before this court, and the said ${accused} has not appeared, on the complaint of ${complainant},`,
+        `you are directed to attach the movable property belonging to the said ${accused} within the local limits of your jurisdiction, to hold it subject to the further orders of this court, and to report the manner of execution to this court on ${returnable}.`,
       ];
   }
 }

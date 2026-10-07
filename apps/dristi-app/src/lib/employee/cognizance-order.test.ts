@@ -26,7 +26,7 @@ import {
 } from "./cognizance-order";
 import { COURT_HEARING_PURPOSES } from "./hearings";
 import { orderTemplate } from "./order-templates";
-import { defaultProcessVariables } from "./process-variables";
+import { defaultProcessVariables, isProcessTemplate } from "./process-variables";
 import {
   subjectAppearances,
   subjectApplications,
@@ -59,8 +59,16 @@ function withConfirmedDelivery(
   items: CognizanceOrderItem[],
 ): CognizanceOrderItem[] {
   return items.map((item) =>
-    item.template === "issue-of-summons" || item.template === "issue-of-notice"
-      ? { ...item, variables: defaultProcessVariables("Anand Traders") }
+    isProcessTemplate(item.template)
+      ? {
+          ...item,
+          variables: defaultProcessVariables(item.template, {
+            caseNumber: "CMP/1/2026",
+            parties: { complainant: "Sunil Varghese", accused: "Anand Traders" },
+            counsel: [],
+            stage: "cognizance",
+          }),
+        }
       : item,
   );
 }

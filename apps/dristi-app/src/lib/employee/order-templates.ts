@@ -220,7 +220,8 @@ export const ORDER_TEMPLATES: OrderTemplate[] = [
     number: 13,
     label: "Issue of warrants",
     group: "process",
-    dropdown: "on-file",
+    /* Available at any stage, not only once the case is on file (owner, 2026-10-01). */
+    dropdown: "always",
     botd: "Issue warrant to the [Party Type] [Party Name]. The [Party Type] is directed to take steps to issue warrant.",
     locked: [
       { name: "Party Type" },
@@ -702,16 +703,18 @@ export function openSlots(text: string): string[] {
  * Which template ids the delivery-channel confirmation gates.
  *
  * `process-variables.ts` asks the drafter to confirm the addressee and the delivery
- * channels before either of these writes its sentence into the order (`PRC-03` of
- * `process-handover.md`; `ITM-11` of `order-generation.md`). The rest of the process
- * types the source names — warrants, proclamation, attachment, miscellaneous process —
- * carry the same `[Party Type]`/`[Party Name]` shape and would want the same
- * confirmation; only these two are wired to it today, on the owner's own instruction
- * (2026-09-26) to start with summons and do the same for notices.
+ * channels before any of these writes its sentence into the order (`PRC-03` of
+ * `process-handover.md`; `ITM-11` of `order-generation.md`). Every type in the Process
+ * group: the owner started it on summons and notice (2026-09-26) and extended it to
+ * every process (2026-10-01).
  */
 export const PROCESS_VARIABLE_TEMPLATES: OrderTemplateId[] = [
   "issue-of-summons",
   "issue-of-notice",
+  "issue-of-warrants",
+  "issue-of-proclamation",
+  "issue-of-attachment",
+  "issue-of-miscellaneous-process",
 ];
 
 export function needsProcessVariables(id: OrderItemTypeIdLike): boolean {
@@ -726,12 +729,11 @@ type OrderItemTypeIdLike = OrderTemplateId | "others";
  * The party tokens for a process order — who is served, and who takes the steps.
  *
  * `[Party Type]` is locked and repeats with a different role each time it appears in a
- * process template — the person served, then the party who pays and takes steps — and
- * for a §138 complaint neither is a choice the drafter makes: the accused (the drawer)
- * is served and the complainant takes steps, always. `[Party Name]` follows the served
- * party, and takes whatever name (or joined names) the confirmation step resolved it to
- * — not necessarily the case's own `accused` field verbatim, where more than one
- * addressee exists to choose among.
+ * process template — the person served, then the party who pays and takes steps. All
+ * three come from the recipients confirmed in the issue-process pop-up
+ * (`processParties` in `process-variables.ts`): the served party's kind and joined
+ * names, and the party taking steps worked out from them (`AUT-02`), or left in
+ * brackets where the recipients selected do not resolve to one party (`AUT-03`).
  *
  * One function for both doors onto this substitution: the hearing composer's catalogue
  * (`order-items.ts`, run only after the delivery-channel confirmation) and the
@@ -742,13 +744,25 @@ type OrderItemTypeIdLike = OrderTemplateId | "others";
  */
 export function fillPartyVariables(
   text: string,
-  parties: { complainant: string; accused: string },
   template: OrderTemplateId,
+  parties: { type?: string; names: string; takingSteps?: string },
 ): string {
-  if (template !== "issue-of-summons" && template !== "issue-of-notice") {
-    return text;
-  }
-  const roles = ["accused", parties.accused, "complainant"];
+  if (!(PROCESS_VARIABLE_TEMPLATES as string[]).includes(template)) return text;
+  /* The template's locked list names each token's role in order of appearance — the
+     person served, then the party taking steps — so it is the list, not the token's
+     name, that says what goes where. A role left undefined keeps its brackets. */
+  const roles = orderTemplate(template)
+    .locked.filter((entry) => entry.name === "Party Type" || entry.name === "Party Name")
+    .map((entry) =>
+      entry.name === "Party Name"
+        ? parties.names
+        : entry.role === "party taking steps"
+          ? parties.takingSteps
+          : parties.type,
+    );
   let at = 0;
-  return text.replace(/\[Party Type\]|\[Party Name\]/g, () => roles[at++] ?? "");
+  return text.replace(/\[Party Type\]|\[Party Name\]/g, (token) => {
+    const value = roles[at++];
+    return value === undefined || value === "" ? token : value;
+  });
 }

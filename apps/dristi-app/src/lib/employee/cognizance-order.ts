@@ -47,7 +47,7 @@ import {
   type OrderTemplateFacts,
   type OrderTemplateId,
 } from "./order-templates";
-import type { ProcessVariables } from "./process-variables";
+import { processParties, type ProcessVariables } from "./process-variables";
 
 /* ──────────────────────────── the delay application ─────────────────────────── */
 
@@ -195,14 +195,17 @@ function fillPartyVariables(
   text: string,
   matter: CognizanceCase,
   template: OrderTemplateId,
+  variables?: ProcessVariables,
 ): string {
-  if (template !== "issue-of-summons" && template !== "issue-of-notice") {
-    return text;
-  }
+  if (!needsProcessVariables(template)) return text;
+  /* Before the pop-up is confirmed, what it opens on: at cognizance the accused has not
+     joined, so the accused (`AUT-05`), with the complainant taking steps (`AUT-02`). */
   return fillPartyRoleVariables(
     text.replace(/\[Notice Type\]/g, "DCA"),
-    matter.parties,
     template,
+    variables
+      ? processParties(variables)
+      : { type: "accused", names: matter.parties.accused, takingSteps: "complainant" },
   );
 }
 
@@ -235,11 +238,13 @@ export function composedText(
   template: OrderTemplateId,
   matter: CognizanceCase,
   facts: OrderTemplateFacts,
+  variables?: ProcessVariables,
 ): string {
   return fillPartyVariables(
     fillGeneralVariables(orderTemplate(template).botd, facts),
     matter,
     template,
+    variables,
   );
 }
 

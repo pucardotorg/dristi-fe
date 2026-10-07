@@ -104,6 +104,7 @@ import {
 import {
   appendRichText,
   orderItemsInBody,
+  replaceOrderItemText,
   richTextFromPlain,
   richTextWithoutItem,
   upsertRichTextSentence,
@@ -126,6 +127,7 @@ import {
 import {
   channelSummary,
   defaultProcessVariables,
+  type ProcessTemplateId,
   type ProcessVariables,
 } from "@/lib/employee/process-variables";
 import { cn } from "@/lib/utils";
@@ -324,8 +326,23 @@ function OrderBody({
   const blockers = cognizanceOrderBlockers(carried, nextDate, today);
   const schedules = carried.some((item) => item.schedules);
 
+  /**
+   * A process order picked from the catalogue opens the issue-process pop-up first, and
+   * is written in only once it is confirmed — the hearing composer's own rule
+   * (`order-screen.tsx`), so the two doors agree. Everything else lands at once.
+   */
+  const [adding, setAdding] = React.useState<OrderTemplateId | null>(null);
+
   function addItem(id: OrderTemplateId) {
     if (items.some((item) => item.id === id)) return;
+    if (needsProcessVariables(id)) {
+      setAdding(id);
+      return;
+    }
+    insertItem(id);
+  }
+
+  function insertItem(id: OrderTemplateId, variables?: ProcessVariables) {
     const text = composedText(
       id,
       matter,
@@ -333,6 +350,7 @@ function OrderBody({
         date: nextDate ?? undefined,
         purpose: nextPurpose ? courtHearingPurposeLabel(nextPurpose) : undefined,
       }),
+      variables,
     );
     setItems((current) => [
       ...current,
@@ -343,6 +361,7 @@ function OrderBody({
         text,
         fixed: false,
         schedules: id === "scheduling-of-hearing" || undefined,
+        ...(variables ? { variables } : {}),
       },
     ]);
     write(appendRichText(body, richTextFromPlain(text, id)));
@@ -356,18 +375,30 @@ function OrderBody({
   /**
    * The delivery-channel confirmation, mid-flight — the item being confirmed, or
    * `null` while the dialog is closed. `[Party Type]`/`[Party Name]` are already
-   * resolved on every summons or notice item the moment the act composes it
-   * (`fillPartyVariables` inside `cognizanceComposite`, unconditionally — see
-   * `CognizanceOrderItem`'s own note on why that is not a choice here), so confirming
-   * this only records the addressee and the channels; it never has to rewrite the
-   * passage the way the hearing composer's popup does.
+   * resolved on every process item the moment the act composes it, to what the pop-up
+   * opens on (`fillPartyVariables` inside `cognizanceComposite`). Confirming records the
+   * recipients and channels and rewrites the passage from them, in place.
    */
   const [confirming, setConfirming] = React.useState<CognizanceOrderItem | null>(null);
 
   function updateItemVariables(id: string, variables: ProcessVariables) {
-    setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, variables } : item)),
+    const item = items.find((entry) => entry.id === id);
+    if (!item) return;
+    /* Who it is to may have changed in the pop-up, so the passage is rewritten in place
+       from the confirmed recipients — the hearing composer's own behaviour. */
+    const text = composedText(
+      item.template,
+      matter,
+      cognizanceTemplateFacts(matter, today, {
+        date: nextDate ?? undefined,
+        purpose: nextPurpose ? courtHearingPurposeLabel(nextPurpose) : undefined,
+      }),
+      variables,
     );
+    setItems((current) =>
+      current.map((entry) => (entry.id === id ? { ...entry, text, variables } : entry)),
+    );
+    write(replaceOrderItemText(body, id, richTextFromPlain(text, id)));
   }
 
   return (
@@ -536,18 +567,35 @@ function OrderBody({
       </footer>
 
       <OrderVariableDialog
-        open={confirming !== null}
+        open={confirming !== null || adding !== null}
         onOpenChange={(open) => {
-          if (!open) setConfirming(null);
+          if (!open) {
+            setConfirming(null);
+            setAdding(null);
+          }
         }}
-        dialogKey={confirming?.id ?? null}
-        label={confirming?.label ?? ""}
+        dialogKey={adding ? `add:${adding}` : (confirming?.id ?? null)}
+        label={adding ? orderTemplate(adding).label : (confirming?.label ?? "")}
         variables={
-          confirming
-            ? confirming.variables ?? defaultProcessVariables(matter.parties.accused)
-            : null
+          adding
+            ? defaultProcessVariables(adding as ProcessTemplateId, {
+                ...matter,
+                stage: "cognizance",
+              })
+            : confirming
+              ? confirming.variables ??
+                defaultProcessVariables(confirming.template as ProcessTemplateId, {
+                  ...matter,
+                  stage: "cognizance",
+                })
+              : null
         }
         onConfirm={(variables) => {
+          if (adding) {
+            insertItem(adding, variables);
+            setAdding(null);
+            return;
+          }
           if (!confirming) return;
           updateItemVariables(confirming.id, variables);
           setConfirming(null);
