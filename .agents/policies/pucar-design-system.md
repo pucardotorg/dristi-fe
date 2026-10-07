@@ -62,10 +62,9 @@ already read in this task; do not reload all foundations on each small iteration
 ## Upgrade separately
 
 `ds.lock.json` is changed only by `npm run ds:bump` in a dedicated upgrade branch from
-`origin/design`, reviewed by PR into `design`; never commit straight to `design` and
-never bump during unrelated feature work. Read the DS changelog for the adopted range,
-sync affected files, and verify the rendered impact. Existing script messages saying
-to commit on `design` do not override this branch policy.
+`origin/main`, reviewed by PR into `main`; never commit straight to `main` and never
+bump during unrelated feature work. Read the DS changelog for the adopted range, sync
+affected files, and verify the rendered impact.
 
 For completion use `.agents/policies/verification.md`; for a human-readable overview
 see `docs/design/design-system.md`.
