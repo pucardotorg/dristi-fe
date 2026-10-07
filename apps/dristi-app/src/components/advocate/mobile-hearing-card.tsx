@@ -7,7 +7,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ItemChip } from "@/components/advocate/home-bits";
 import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 import { advHome, fillCopy } from "@/lib/advocate/content";
-import type { TimelineHearing } from "@/lib/advocate/home";
+import type { HearingAccess, TimelineHearing } from "@/lib/advocate/home";
+import { AccessButton } from "@/components/advocate/access-button";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import { passedOverLabel } from "@/lib/advocate/passed-over";
 import { Identifier } from "@/components/chrome/identifier";
@@ -16,8 +17,10 @@ import "./mobile-hearing.css";
 import { LocateHearingIcon } from "./locate-hearing-icon";
 
 /** A phone matter exposes its actions by tap, keeping the docket scannable. */
-export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpenTasks, onViewInCauseList, time }: {
+export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpenTasks, onViewInCauseList, access, time }: {
   time?: React.ReactNode;
+  /** How the viewer reaches the matter; its button joins the tray. Null hides it. */
+  access?: HearingAccess | null;
   hearing: TimelineHearing;
   locale: Locale;
   selected: boolean;
@@ -73,6 +76,14 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
             <Button variant="ghost" size="icon" className={cn("shrink-0 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background", ongoing ? "text-brand-muted-foreground hover:bg-brand-accent/20 hover:text-brand-muted-foreground" : "text-foreground hover:bg-accent")} aria-label={pick(advHome.viewOnCauseList, locale)} onClick={() => onViewInCauseList(hearing.kase.id)}>
               <LocateHearingIcon aria-hidden="true" className="size-5" />
             </Button>
+          ) : null}
+          {access ? (
+            <AccessButton
+              access={access}
+              locale={locale}
+              className={cn("size-10 shrink-0 border-transparent bg-transparent focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background", ongoing ? "text-brand-muted-foreground hover:bg-brand-accent/20 hover:text-brand-muted-foreground data-[state=open]:bg-brand-accent/20 data-[state=open]:text-brand-muted-foreground" : "text-foreground hover:bg-accent data-[state=open]:bg-accent")}
+              iconClassName="size-5"
+            />
           ) : null}
           <Button variant="outline" className={cn(actionClass, "flex-1")} onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); onOpenCase(hearing.kase.id); }}>{pick(advHome.viewCase, locale)}</Button>
           {count > 0 && onOpenTasks ? (

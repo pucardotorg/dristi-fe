@@ -650,11 +650,145 @@ export type DaySlot = {
   window: Sitting;
   /** The window formatted for the tab and the summary's slot stat ("9:00 am – 5:00 pm"). */
   label: string;
+  /** The window's two ends, formatted for the timeline's start and end marks. */
+  startLabel: string;
+  endLabel: string;
   /** A matter is being called in this sitting right now — the tab throbs. */
+  /** The day has moved past this sitting: a past day, or today after its end. */
+  ended: boolean;
   live: boolean;
-  /** The sitting's board — time-grouped or flat per config. */
+  /**
+   * Every matter in the sitting before its filter — what the sitting's own
+   * court and people filters offer their options from.
+   */
+  hearings: TimelineHearing[];
+  /** The sitting's board — time-grouped or flat per config, after its filter. */
   board: DayTimeline;
 };
+
+/**
+ * Whose hearings a sitting shows. Every matter on the board is already the
+ * viewer's in one of two ways: on its Vakalatnama, or reachable through office
+ * access. "mine" keeps the first; "all" keeps both.
+ */
+export type PeopleScope = "mine" | "office" | "all";
+
+/**
+ * One sitting's filter. Each slot tab carries its own, so narrowing the morning
+ * leaves the afternoon as it was.
+ *
+ * - `courts`: empty means every court.
+ * - `scope`: the Vakalatnama-only view, or everything the viewer can open.
+ * - `people`: empty means everyone; otherwise only matters where at least one
+ *   of the chosen advocates is on the Vakalatnama. Office access never counts
+ *   here, because it is given out widely and would make every name match nearly
+ *   every hearing. The viewer stays the common link: the people narrow the
+ *   viewer's own board, never reach past it.
+ */
+export type SlotFilter = {
+  courts: readonly string[];
+  scope: PeopleScope;
+  people: readonly PersonId[];
+  /**
+   * Colleagues unticked in the people menu. The viewer is always in; a hearing
+   * stays while the viewer or any colleague still ticked is on its Vakalatnama.
+   * Empty means everyone, so a newly listed colleague arrives ticked.
+   */
+  hidden: readonly PersonId[];
+};
+
+export const NO_SLOT_FILTER: SlotFilter = { courts: [], scope: "all", people: [], hidden: [] };
+
+/** Whether a filter narrows anything. */
+export function isFiltered(filter: SlotFilter): boolean {
+  return filter.courts.length > 0 || filter.scope !== "all" || filter.people.length > 0 || filter.hidden.length > 0;
+}
+
+function meOf(world: World): PersonId {
+  return typeof world.user === "string" ? world.user : world.user.id;
+}
+
+/** The matters a scope keeps, before the people and courts narrow it. */
+function inScope(world: World, hearings: TimelineHearing[], scope: PeopleScope): TimelineHearing[] {
+  if (scope === "all") return hearings;
+  const me = meOf(world);
+  // "office" is the complement of "mine": matters the viewer reaches only
+  // through office access, never through their own Vakalatnama.
+  return hearings.filter((h) => h.kase.signatories.includes(me) === (scope === "mine"));
+}
+
+/** Apply one sitting's filter to its matters. */
+export function filterSlotHearings(
+  world: World,
+  hearings: TimelineHearing[],
+  filter: SlotFilter
+): TimelineHearing[] {
+  const courts = filter.courts.length ? new Set(filter.courts) : null;
+  const people = filter.people.length ? new Set(filter.people) : null;
+  const hidden = filter.hidden.length ? new Set(filter.hidden) : null;
+  const me = meOf(world);
+  return inScope(world, hearings, filter.scope).filter(
+    (h) =>
+      (!courts || courts.has(h.court)) &&
+      (!people || h.kase.signatories.some((id) => people.has(id))) &&
+      (!hidden || h.kase.signatories.some((id) => id === me || !hidden.has(id)))
+  );
+}
+
+/** A colleague the people filter offers, with how many of the sitting's matters name them. */
+export type PeopleOption = { person: Person; count: number; me?: boolean };
+
+/**
+ * Everyone else on the Vakalatnama of a sitting's matters, inside the chosen
+ * scope: the names the people filter can tick. The viewer is left out (choosing
+ * yourself is what "My hearings" already does), and the list runs
+ * alphabetically so it does not reorder from day to day.
+ */
+export function peopleOptionsOf(
+  world: World,
+  hearings: TimelineHearing[],
+  scope: PeopleScope,
+  /** Lead with the viewer as a "Me" option (the single people menu offers it). */
+  includeMe = false
+): PeopleOption[] {
+  const me = meOf(world);
+  const tally = new Map<PersonId, PeopleOption>();
+  let mine = 0;
+  for (const h of inScope(world, hearings, scope)) {
+    for (const id of h.kase.signatories) {
+      if (id === me) {
+        mine += 1;
+        continue;
+      }
+      const person = world.people.find((p) => p.id === id);
+      if (!person) continue;
+      const entry = tally.get(id) ?? { person, count: 0 };
+      entry.count += 1;
+      tally.set(id, entry);
+    }
+  }
+  const others = [...tally.values()].sort((a, b) => a.person.name.localeCompare(b.person.name));
+  const self = world.people.find((p) => p.id === me);
+  return includeMe && self && mine ? [{ person: self, count: mine, me: true }, ...others] : others;
+}
+
+/**
+ * How the viewer reaches a matter, and who holds its Vakalatnama — what a
+ * hearing's access button and its popover say. `office` is true when the viewer
+ * is on the case only through office access.
+ */
+export type HearingAccess = { office: boolean; vakalatnama: Person[]; youId: PersonId };
+
+export function accessOf(world: World, kase: Case): HearingAccess {
+  const me = meOf(world);
+  return {
+    youId: me,
+    office: !kase.signatories.includes(me),
+    vakalatnama: kase.signatories
+      .map((id) => world.people.find((p) => p.id === id))
+      .filter(Boolean) as Person[],
+  };
+}
 
 /** Local minutes-past-midnight of a "HH:MM" sitting bound. */
 function minutesOf(hhmm: string): number {
@@ -707,9 +841,9 @@ export function daySlotsOn(
   dayKey: string,
   now: number,
   config: AdvocateHomeConfig,
-  courts?: readonly string[]
+  filters?: Readonly<Record<string, SlotFilter>>
 ): DaySlot[] {
-  const hearings = timelineHearingsFor(world, dayKey, now, courts);
+  const hearings = timelineHearingsFor(world, dayKey, now);
   const sittings = config.sittings.length
     ? config.sittings
     : [{ start: "00:00", end: "23:59" }];
@@ -728,15 +862,37 @@ export function daySlotsOn(
   // day is over and a future one has not begun, so neither throbs a tab.
   const isToday = dayKeyOf(now) === dayKey;
   const nowMinutes = new Date(now).getHours() * 60 + new Date(now).getMinutes();
+  const ended = (i: number) =>
+    dayKey < dayKeyOf(now) || (isToday && nowMinutes > minutesOf(sittings[i].end));
+
+  // A matter an ended sitting never reached (passed over, or not yet called) is
+  // carried into the next sitting, where it is still to come and keeps its
+  // passed-over tag. It cascades until it reaches a sitting still under way; the
+  // day's last sitting keeps what is left.
+  if (isToday) {
+    for (let i = 0; i < sittings.length - 1; i++) {
+      if (!ended(i)) break;
+      const carried = buckets[i].filter((h) => h.status !== "concluded");
+      if (!carried.length) continue;
+      buckets[i] = buckets[i].filter((h) => h.status === "concluded");
+      buckets[i + 1] = [...carried, ...buckets[i + 1]];
+    }
+  }
 
   return sittings.map((window, i) => {
+    const key = `sitting-${i}`;
+    const shown = filterSlotHearings(world, buckets[i], filters?.[key] ?? NO_SLOT_FILTER);
     const board = config.groupByTime
-      ? groupByTimeSlots(buckets[i], now)
-      : buildFlatBoard(buckets[i]);
+      ? groupByTimeSlots(shown, now)
+      : buildFlatBoard(shown);
     return {
-      key: `sitting-${i}`,
+      key,
       window,
       label: labelOfSitting(window),
+      startLabel: formatClock(window.start),
+      endLabel: formatClock(window.end),
+      hearings: buckets[i],
+      ended: ended(i),
       live:
         isToday &&
         nowMinutes >= minutesOf(window.start) &&

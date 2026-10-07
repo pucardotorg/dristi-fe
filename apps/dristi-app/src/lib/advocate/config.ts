@@ -74,5 +74,31 @@ export const V1_TWO_SITTINGS: AdvocateHomeConfig = {
   ],
 };
 
+/**
+ * A v1 day in three sittings, the live one in the middle — for previewing how
+ * the slot tabs stack on both sides of the active one.
+ */
+export const V1_THREE_SITTINGS: AdvocateHomeConfig = {
+  ...V1_LAUNCH,
+  sittings: [
+    // The middle sitting starts at 10:00 so it holds some concluded matters
+    // alongside the live ones and the ones still to come.
+    { start: "09:00", end: "10:00" },
+    { start: "10:00", end: "15:00" },
+    { start: "15:00", end: "17:30" },
+  ],
+};
+
 /** The active configuration. Launch ships v1. */
 export const ADVOCATE_HOME_CONFIG: AdvocateHomeConfig = V1_LAUNCH;
+
+/**
+ * Demo only: which sittings the preview shows. Launch ships ADVOCATE_HOME_CONFIG.
+ */
+export function homeConfigFor(slots: string | null): AdvocateHomeConfig {
+  if (slots === "1") return ADVOCATE_HOME_CONFIG;
+  if (slots === "2") return V1_TWO_SITTINGS;
+  // Owner review (Oct 7): the demo opens on a three-sitting day so the stacked
+  // slot tabs are always in view. `?slots=1` shows the launch single sitting.
+  return V1_THREE_SITTINGS;
+}

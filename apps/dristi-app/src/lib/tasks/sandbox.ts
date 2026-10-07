@@ -16,7 +16,7 @@ import type { Case, Defect, Person, Task } from "./types";
 /** Bump when the seed's shape changes; a browser holding an older seed is re-seeded.
  *  (The seed stamp also folds in the people/case counts, so adding or removing
  *  fixture matters reseeds on its own even without a bump — see store.tsx.) */
-export const SEED_VERSION = 25;
+export const SEED_VERSION = 26;
 
 /**
  * A defect on a filing that was made outside this app, so there is no draft to open and
@@ -382,10 +382,10 @@ export const CASES: Case[] = [
   { id: "c-hd4", stNumber: "ST 391/2026", cnr: "KLKL01-000391-2026", parties: "Mariyam Bee v. Anwar Sadath", court: ON, stage: "Appearance", nextHearingAt: listedToday("c-hd4"), signatories: ["p-dv"], advocates: ["p-dv", "p-an"] },
   { id: "c-hd5", stNumber: "ST 129/2026", cnr: "KLKL01-000129-2026", parties: "Ravi Chandran v. Sea Pearl Exports", court: ON, stage: "Evidence of the complainant", nextHearingAt: listedToday("c-hd5"), signatories: ["p-an", "p-dv"], advocates: ["p-an", "p-dv", "p-sp"] },
   { id: "c-hd6", stNumber: "ST 84/2026", cnr: "KLKL02-000084-2026", parties: "Salini Mohan v. Grand Textiles", court: JMFC1, stage: "Plea", nextHearingAt: listedToday("c-hd6"), signatories: ["p-an"], advocates: ["p-an", "p-ri"] },
-  { id: "c-hd7", stNumber: "ST 610/2025", cnr: "KLKL02-000610-2025", parties: "Peter Varghese v. Nila Finance", court: JMFC1, stage: "Arguments", nextHearingAt: listedToday("c-hd7"), passedOver: true, signatories: ["p-rm"], advocates: ["p-rm", "p-an"] },
+  { id: "c-hd7", stNumber: "ST 610/2025", cnr: "KLKL02-000610-2025", parties: "Peter Varghese v. Nila Finance", court: JMFC1, stage: "Arguments", nextHearingAt: listedToday("c-hd7"), signatories: ["p-rm"], advocates: ["p-rm", "p-an"] },
   { id: "c-hd8", stNumber: "ST 233/2025", cnr: "KLKL02-000233-2025", parties: "Asha Kumari v. Vel Murugan Stores", court: JMFC1, stage: "Evidence of the complainant", nextHearingAt: listedToday("c-hd8"), signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
   { id: "c-hd9", stNumber: "ST 47/2025", cnr: "KLKL04-000047-2025", parties: "Krishnan Kutty v. Sree Devi Traders", court: CJM, stage: "Arguments", nextHearingAt: listedToday("c-hd9"), signatories: ["p-an"], advocates: ["p-an"] },
-  { id: "c-hd10", stNumber: "ST 902/2025", cnr: "KLKL04-000902-2025", parties: "Noor Jahan v. Kadavil Motors", court: CJM, stage: "Appearance", nextHearingAt: listedToday("c-hd10"), passedOver: true, signatories: ["p-dv", "p-an"], advocates: ["p-dv", "p-an"] },
+  { id: "c-hd10", stNumber: "ST 902/2025", cnr: "KLKL04-000902-2025", parties: "Noor Jahan v. Kadavil Motors", court: CJM, stage: "Appearance", nextHearingAt: listedToday("c-hd10"), signatories: ["p-dv", "p-an"], advocates: ["p-dv", "p-an"] },
   // Seven more in the ON court, so the flagship board runs twelve deep — enough
   // to see how the day scales, and how a matter reads when three or four
   // advocates share it: some sign together, some only have case access.
@@ -1178,6 +1178,22 @@ export function buildTasks(): Task[] {
       dueKind: "court-set",
       deadlineNote: "Registry: before today's posting",
       hearingAt: listedToday("c-hd3"),
+      status: "open",
+    }),
+    // The one passed-over matter also owes work before it is called again, so
+    // the board shows a row carrying both flags.
+    task({
+      id: "t-memo-hd2",
+      caseId: "c-hd2",
+      kind: "file",
+      title: "File the plea memo before the matter is called again",
+      why: created(-2, order(-2)),
+      whatToDo: "Upload the signed plea memo; the matter was passed over and will be called again today.",
+      documentsNeeded: ["Plea memo"],
+      dueAt: at(0, 15, 0),
+      dueKind: "before-hearing",
+      deadlineNote: "Before the matter is called again",
+      hearingAt: listedToday("c-hd2"),
       status: "open",
     }),
     task({

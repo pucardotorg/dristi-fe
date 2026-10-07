@@ -22,6 +22,7 @@ import {
   writeLocalStorageValue,
 } from "@/hooks/use-local-storage-value";
 import { Button } from "@/components/ui/button";
+import { CONTROL_REVEAL } from "@/components/chrome/motion";
 import {
   Collapsible,
   CollapsibleContent,
@@ -48,6 +49,7 @@ import { summaryOf, type World } from "@/lib/tasks/selectors";
 import type { Task, TaskKind } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import "./mobile-hearing.css";
+import "./companion-rail.css";
 import { RowAction } from "@/components/advocate/home-bits";
 
 /**
@@ -719,6 +721,104 @@ function StripButton({
   );
 }
 
+/**
+ * Pending tasks as a side tab hung off the screen's right edge: white, its top
+ * and bottom leaning in and curving into the edge the way the sitting tabs meet
+ * their panel. Replaces the rail's strip where a screen opts in.
+ */
+function PendingTasksTab({
+  count,
+  label,
+  open,
+  accent = false,
+  onToggle,
+  buttonRef,
+}: {
+  count: number;
+  label: string;
+  open: boolean;
+  /** The panel's resize edge is lit: the outline takes its colour. */
+  accent?: boolean;
+  onToggle: () => void;
+  buttonRef?: React.Ref<HTMLButtonElement>;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          ref={buttonRef}
+          type="button"
+          aria-label={label}
+          aria-pressed={open}
+          onClick={onToggle}
+          className={cn(
+            "group/tasktab relative flex size-12 items-center justify-center transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+            open ? "text-brand-muted-foreground" : "text-muted-foreground"
+          )}
+        >
+          <TaskTabShape accent={accent} />
+          {/* The icon and its count read as the strip's button did. */}
+          {/* Nudged left so the count keeps 8px off the edge. */}
+          <span className="relative mr-2">
+            <ListChecks aria-hidden="true" className="size-5" />
+            {count ? (
+              <span aria-hidden="true" className="absolute -top-2 -right-2.5 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-caption text-destructive-foreground tabular-nums">
+                {count}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="left">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** A soft shadow cast left, following the tab's outline, to lift it a plane. */
+const TASK_TAB_SHADOW =
+  "drop-shadow(-1px 1px 1px color-mix(in oklab, var(--color-foreground) 8%, transparent))";
+
+/**
+ * The side tab's outline, drawn as one piece: a 48px body with a rounded far
+ * side, and a foot above and below that leans in and curves onto the attaching
+ * edge (x = 48). One fill and one hairline stroke, so nothing meets at a seam.
+ * The stroke leaves the attaching edge open; the fill runs to it, covering the
+ * rail's own 1px seam where the tab sits on it.
+ */
+const TASK_TAB_EDGE =
+  "M47.5 0 C47.5 5.5 43.5 8.2 35 8.6 L12 9.4 C3.6 9.8 0.5 13 0.5 20 V68 C0.5 75 3.6 78.2 12 78.6 L35 79.4 C43.5 79.8 47.5 82.5 47.5 88";
+
+/** The side tab's body height and the reach of each foot along the edge. */
+const TASK_TAB_BODY = 48;
+const TASK_TAB_FOOT = 20;
+
+function TaskTabShape({ accent }: { accent: boolean }) {
+  return (
+    // Inline size: an unsized svg in a button can be shrunk by its styles.
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 48 88"
+      style={{ width: 48, height: 88, top: -20 }}
+      className="pointer-events-none absolute left-0 overflow-visible"
+    >
+      <path d={`${TASK_TAB_EDGE} H48 V0 Z`} fill="var(--color-card)" />
+      <path
+        d={TASK_TAB_EDGE}
+        fill="none"
+        stroke={accent ? "var(--color-brand-accent)" : "var(--color-hairline)"}
+        strokeWidth={accent ? 2 : 1}
+        className="transition-[stroke] duration-150"
+      />
+    </svg>
+  );
+}
+
+/** Whether the tasks panel opens as a bottom sheet (phone, tablet, touch). */
+export function useTasksAsSheet(): boolean {
+  const isMobile = useIsMobile();
+  return useMediaQuery(SHEET_QUERY) || isMobile;
+}
+
 /** Narrower than xl, or touch-first: the tasks panel is a bottom sheet there. */
 const SHEET_QUERY = "(max-width: 1279px), (pointer: coarse)";
 
@@ -745,6 +845,8 @@ export function CompanionRail({
   onAct,
   onArchive,
   onViewAllTasks,
+  stripless = false,
+  tabTop = 0,
 }: {
   world: World;
   locale: Locale;
@@ -760,6 +862,10 @@ export function CompanionRail({
   onAct: (task: Task) => void;
   onArchive: (task: Task) => void;
   onViewAllTasks: () => void;
+  /** No strip: the screen hangs its own opener (a side tab) on its board. */
+  stripless?: boolean;
+  /** Stripless: how far below the rail's top the side tab hangs. */
+  tabTop?: number;
 }) {
   const tasksCount = summaryOf(world).action;
   const isMobile = useIsMobile();
@@ -833,6 +939,25 @@ export function CompanionRail({
     }
   }
 
+  // The panel slides in and out as one solid piece: the rail's width grows from
+  // nothing with the panel pinned to its left edge, pushing the board aside. No
+  // fade; reduced motion snaps.
+  const asideRef = React.useRef<HTMLDivElement>(null);
+  const taskTabRef = React.useRef<HTMLButtonElement>(null);
+  // The resize edge is lit while hovered, focused or dragged; stripless, the
+  // light runs around the side tab's outline instead of through it.
+  const [edgeHot, setEdgeHot] = React.useState(false);
+  const openedFrom = React.useRef(section);
+  const slide = { duration: 380, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
+  const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  React.useLayoutEffect(() => {
+    const was = openedFrom.current;
+    openedFrom.current = section;
+    const el = asideRef.current;
+    if (!stripless || was || !section || asSheet || !el || reduced()) return;
+    el.animate([{ width: "0px" }, { width: `${el.offsetWidth}px` }], slide);
+  });
+
   const toggle = (next: RailSection) => {
     // On a tablet the strip stays, but its button raises the sheet.
     if (asSheet) {
@@ -841,25 +966,108 @@ export function CompanionRail({
     }
     onSectionChange(section === next ? null : next);
   };
-  const close = () => onSectionChange(null);
+  const finishClose = () => {
+    // The collapsed panel is inert; return a focused close/resize control to
+    // the persistent tab before hiding its subtree.
+    if (panelRef.current?.contains(document.activeElement)) taskTabRef.current?.focus({ preventScroll: true });
+    onSectionChange(null);
+  };
+  const close = () => {
+    const el = asideRef.current;
+    if (!stripless || asSheet || !el || reduced()) return finishClose();
+    el.animate([{ width: `${el.offsetWidth}px` }, { width: "0px" }], { ...slide, duration: 300, fill: "forwards" })
+      .onfinish = (event) => {
+        finishClose();
+        (event.target as Animation).cancel();
+      };
+  };
 
   return (
     <>
     <aside
       aria-label={pick(advHome.railTitle, locale)}
-      style={{ top: topOffset, height: `calc(100svh - ${topOffset})` }}
+      data-closed={stripless && !section}
+      style={{ top: topOffset, height: `calc(100svh - ${topOffset})`, "--rail-peek-duration": `${CONTROL_REVEAL.duration}ms`, "--rail-peek-easing": CONTROL_REVEAL.easing } as React.CSSProperties}
       // The strip, and the panel pushing the board aside, belong to wide mouse-driven
       // screens only; a phone or tablet gets the floating button and the sheet.
-      className={cn("sticky hidden shrink-0 self-start border-l border-hairline bg-surface-sunken dark:bg-background", !asSheet && "md:flex")}
+      className={cn(
+        "pending-tasks-rail sticky hidden shrink-0 self-start bg-surface-sunken dark:bg-background",
+        !asSheet && (!stripless || section) && "md:flex",
+        // Stripless, the rail is always there, zero wide while closed, so the
+        // side tab on its left edge rests on the screen edge and rides out with
+        // the panel when it opens.
+        stripless ? !asSheet && "z-20 md:flex" : "border-l border-hairline",
+        stripless && section && "border-l border-hairline"
+      )}
     >
-      {section && !asSheet ? (
+      {stripless && !asSheet && section ? (
+        // The lit edge as two runs over the rail's seam, above and below the
+        // side tab; the tab's outline lights in the gap, so the light goes
+        // around the tab rather than through it.
+        <>
+          <span
+            aria-hidden="true"
+            style={{ left: -1, height: tabTop - TASK_TAB_FOOT }}
+            className={cn("pointer-events-none absolute top-0 z-30 w-0.5 transition-colors", edgeHot || dragging !== null ? "bg-brand-accent" : "bg-transparent")}
+          />
+          <span
+            aria-hidden="true"
+            style={{ left: -1, top: tabTop + TASK_TAB_BODY + TASK_TAB_FOOT }}
+            className={cn("pointer-events-none absolute bottom-0 z-30 w-0.5 transition-colors", edgeHot || dragging !== null ? "bg-brand-accent" : "bg-transparent")}
+          />
+        </>
+      ) : null}
+      {stripless && !asSheet ? (
+        // An absolute child is placed from the rail's padding box, which starts
+        // just inside its 1px seam: `right-full` lays the tab's body over the seam
+        // and lands the feet's strokes on the seam's centre line.
+        <div
+          className="pending-rail-trigger absolute right-full cursor-pointer"
+          style={{ top: tabTop, filter: TASK_TAB_SHADOW }}
+          onClick={(event) => {
+            // Keep the original outer-edge hit area clickable after the tab
+            // moves inward. Native button clicks already call onToggle.
+            if (event.target !== event.currentTarget) return;
+            if (section) close();
+            else onSectionChange("tasks");
+          }}
+        >
+          <div className="pending-rail-tab">
+            <PendingTasksTab
+              buttonRef={taskTabRef}
+              count={tasksCount}
+              label={fillCopy(advHome.railOpen, locale, { n: String(tasksCount) })}
+              open={section === "tasks"}
+              accent={(edgeHot || dragging !== null) && section === "tasks"}
+              onToggle={() => (section ? close() : onSectionChange("tasks"))}
+            />
+          </div>
+        </div>
+      ) : null}
+      {stripless && !asSheet && !section ? (
+        // A clipped glimpse of the panel edge. It never reserves layout space,
+        // exposes task actions, or changes the saved open/closed preference.
+        <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-4 overflow-hidden">
+          <div className="pending-rail-peek h-full w-full border-l border-hairline bg-surface-sunken dark:bg-background" />
+        </div>
+      ) : null}
+      <div
+        ref={asideRef}
+        inert={stripless && !section ? true : undefined}
+        aria-hidden={stripless && !section ? true : undefined}
+        className={cn("flex h-full", stripless && "overflow-hidden")}
+        style={stripless && !section ? { width: 0 } : undefined}
+      >
+      {/* Stripless, the panel stays built while the rail is hidden, so a click
+          starts the slide at once instead of waiting on the list to render. */}
+      {(section || stripless) && !asSheet ? (
         <div
           // Keyed by section so opening the strip — or switching panels — plays a
           // short slide-and-fade rather than snapping in, the same easing the case
           // peek uses. Motion is suppressed for reduced-motion readers.
-          key={section}
+          key={stripless ? "tasks" : section}
           ref={panelRef}
-          className="relative flex h-full duration-200 ease-out animate-in fade-in-0 slide-in-from-right-4 motion-reduce:animate-none"
+          className={cn("relative flex h-full shrink-0", !stripless && "duration-200 ease-out animate-in fade-in-0 slide-in-from-right-4 motion-reduce:animate-none")}
           style={{ width: `calc(var(--spacing) * ${width})` }}
         >
           {/* The resize handle: an invisible grab strip on the panel's edge with
@@ -878,12 +1086,18 @@ export function CompanionRail({
             onPointerCancel={cancelResize}
             onLostPointerCapture={cancelResize}
             onKeyDown={onHandleKeyDown}
+            onPointerEnter={() => setEdgeHot(true)}
+            onPointerLeave={() => setEdgeHot(dragging !== null)}
+            onFocus={() => setEdgeHot(true)}
+            onBlur={() => setEdgeHot(false)}
             className="group/handle absolute inset-y-0 left-0 z-10 w-2 touch-none cursor-col-resize outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
-            <span
-              aria-hidden="true"
-              className="absolute inset-y-0 left-0 w-0.5 bg-transparent transition-colors group-hover/handle:bg-brand-accent group-focus-visible/handle:bg-brand-accent"
-            />
+            {stripless ? null : (
+              <span
+                aria-hidden="true"
+                className="absolute inset-y-0 left-0 w-0.5 bg-transparent transition-colors group-hover/handle:bg-brand-accent group-focus-visible/handle:bg-brand-accent"
+              />
+            )}
           </div>
 
           <TasksPanel
@@ -898,10 +1112,11 @@ export function CompanionRail({
           />
         </div>
       ) : null}
+      </div>
 
       {/* The strip — always present, the one section's icon. The seam only
           appears once the panel stands beside it. */}
-      <div
+      {stripless ? null : <div
         className={cn(
           "flex w-14 flex-col items-center gap-2 pt-4",
           section && "border-l border-hairline"
@@ -915,7 +1130,7 @@ export function CompanionRail({
           active={section === "tasks"}
           onClick={() => toggle("tasks")}
         />
-      </div>
+      </div>}
     </aside>
 
       {/* On a phone the rail has no room to stand beside the board, so it becomes a
