@@ -527,7 +527,7 @@ describe("buildProcessDocument", () => {
       assert.ok(document.addressee.startsWith("To "), process.id);
       assert.ok(document.title.length > 0, process.id);
     }
-    assert.equal(seen.size, 5);
+    assert.equal(seen.size, COURT_PROCESS_TYPES.length);
   });
 
   it("addresses a warrant to the officer who must execute it, not to the accused", () => {
@@ -797,5 +797,25 @@ describe("the confirmation's success", () => {
     assert.equal(landedLine(after), "It is now in To post in Issuance.");
     assert.equal(refusedLine(after), "1 could not be sent and is in Send failed in Issuance.");
     assert.equal(processAct("sign").done("2 processes"), "2 processes signed");
+  });
+});
+
+describe("attachment (carried over from #43)", () => {
+  const attachment = PROCESS_LINE.find((process) => process.type === "attachment");
+
+  it("is on the line, executed by the police", () => {
+    assert.ok(attachment);
+    assert.equal(attachment.channel, "police");
+    assert.equal(
+      COURT_PROCESS_TYPES.find((type) => type.id === "attachment")?.executed,
+      true,
+    );
+  });
+
+  it("is addressed to the police and directs the attachment of property", () => {
+    const document = buildProcessDocument(attachment!);
+    const text = JSON.stringify(document);
+    assert.match(text, /officer in charge of the police station/);
+    assert.match(text, /attach the movable property/);
   });
 });

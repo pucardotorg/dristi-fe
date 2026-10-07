@@ -131,9 +131,12 @@ import {
   type OrderItemDraft,
   type OrderItemTypeId,
 } from "@/lib/employee/order-items";
+import type { CaseMatter } from "@/lib/employee/case-people";
 import {
   channelSummary,
   defaultProcessVariables,
+  processParties,
+  type ProcessTemplateId,
   type ProcessVariables,
 } from "@/lib/employee/process-variables";
 import {
@@ -500,6 +503,8 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     "draft" | "added" | "signed"
   >("draft");
   const [announcement, setAnnouncement] = React.useState("");
+  /** A process order named through the editor's `/` search, awaiting its pop-up. */
+  const [typedProcess, setTypedProcess] = React.useState<OrderItemTypeId | null>(null);
   /**
    * Reading the case file while writing the order.
    *
@@ -734,7 +739,8 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
          gates the row that collects it (`OrderItems`, below) — so `type` is never
          `"others"` on this branch. */
       variables
-        ? (text) => fillPartyVariables(text, hearing.parties, type as OrderTemplateId)
+        ? (text) =>
+            fillPartyVariables(text, type as OrderTemplateId, processParties(variables))
         : undefined,
     );
     const withVariables = variables ? { ...item, variables } : item;
@@ -775,8 +781,8 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     const type = item.type as OrderTemplateId;
     const resolved = fillPartyVariables(
       fillGeneralVariables(orderTemplate(type).botd, orderTemplateFacts(hearing, draft, today)),
-      hearing.parties,
       type,
+      processParties(variables),
     );
     const text = richTextFromPlain(resolved, item.id);
     setDraft((current) => ({
@@ -989,6 +995,13 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
         return { kind: "inline" as const, text: picked.text };
       }
       const type = key.slice("template:".length) as OrderItemTypeId;
+      /* A process named by typing opens the same pop-up its catalogue row does, and is
+         written in once confirmed (`PRC-03`) — never straight into the order. The typed
+         search is cleared; the confirmed passage is appended like any catalogue add. */
+      if (needsProcessVariables(type)) {
+        setTypedProcess(type);
+        return { kind: "inline" as const, text: "" };
+      }
       const item = createOrderItem(
         type,
         nextOrderItemId(),
@@ -1509,7 +1522,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
                         purpose={hearing.purpose}
                         suggestions={suggestions}
                         catalogue={catalogue}
-                        accusedName={hearing.parties.accused}
+                        processMatter={hearing}
                         onOpen={setOpenApplication}
                         onDecide={decide}
                         onAdd={addItem}
@@ -1607,6 +1620,24 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
+
+      <OrderVariableDialog
+        open={typedProcess !== null}
+        onOpenChange={(open) => {
+          if (!open) setTypedProcess(null);
+        }}
+        dialogKey={typedProcess ? `typed:${typedProcess}` : null}
+        label={typedProcess ? orderItemLabel(typedProcess) : ""}
+        variables={
+          typedProcess
+            ? defaultProcessVariables(typedProcess as ProcessTemplateId, hearing)
+            : null
+        }
+        onConfirm={(variables) => {
+          if (typedProcess) addItem(typedProcess, undefined, variables);
+          setTypedProcess(null);
+        }}
+      />
 
       <ListingApplicationDialog
         hearing={hearing}
@@ -1716,7 +1747,7 @@ function SectionBody({
   purpose,
   suggestions,
   catalogue,
-  accusedName,
+  processMatter,
   onOpen,
   onDecide,
   onAdd,
@@ -1734,8 +1765,8 @@ function SectionBody({
     decision: ListingApplicationDecision;
   }[];
   items: readonly OrderItemDraft[];
-  /** Who a process order's confirmation opens on — the case's own accused. */
-  accusedName: string;
+  /** The case a process order's confirmation pre-selects from (`AUT-05`–`AUT-08`). */
+  processMatter: CaseMatter;
   onOpen: (application: ListingApplication) => void;
   onDecide: (
     application: ListingApplication,
@@ -1815,7 +1846,7 @@ function SectionBody({
       purpose={purpose}
       suggestions={suggestions}
       catalogue={catalogue}
-      accusedName={accusedName}
+      processMatter={processMatter}
     />
   );
 }
@@ -2137,7 +2168,7 @@ function OrderItems({
   purpose,
   suggestions,
   catalogue,
-  accusedName,
+  processMatter,
 }: {
   items: readonly OrderItemDraft[];
   /** What the box actually says now — the only honest source for what is left to fill. */
@@ -2154,8 +2185,8 @@ function OrderItems({
   /** Ranked, most likely first, and already gated. Built by the screen. */
   suggestions: readonly OrderSuggestion[];
   catalogue: OrderCatalogueContext;
-  /** Who a process order's delivery-channel confirmation opens on. */
-  accusedName: string;
+  /** The case a process order's confirmation pre-selects from (`AUT-05`–`AUT-08`). */
+  processMatter: CaseMatter;
 }) {
   const [query, setQuery] = React.useState("");
   const [openGroup, setOpenGroup] = React.useState<OrderGroupId | null>(null);
@@ -2232,8 +2263,9 @@ function OrderItems({
     : "";
   const dialogVariables = pendingVariables
     ? pendingVariables.mode === "add"
-      ? defaultProcessVariables(accusedName)
-      : (pendingVariables.item.variables ?? defaultProcessVariables(accusedName))
+      ? defaultProcessVariables(pendingVariables.type as ProcessTemplateId, processMatter)
+      : (pendingVariables.item.variables ??
+        defaultProcessVariables(pendingVariables.item.type as ProcessTemplateId, processMatter))
     : null;
 
   return (
