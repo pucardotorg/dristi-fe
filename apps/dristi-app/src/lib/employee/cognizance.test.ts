@@ -105,7 +105,7 @@ describe("COGNIZANCE_QUEUE", () => {
 
 describe("COURT_PLACE", () => {
   it("is read off the court the staff constant already names", () => {
-    assert.equal(COURT_PLACE, "Kollam");
+    assert.equal(COURT_PLACE, "Sample District");
   });
 });
 
@@ -237,7 +237,7 @@ describe("findingsFor", () => {
     assert.equal(jurisdiction.weight, "critical");
     assert.equal(jurisdiction.term, branchTerm(matter));
     assert.equal(jurisdiction.term, "Bank branch (accused)");
-    assert.match(jurisdiction.consequence, /Mumbai, not Kollam/);
+    assert.match(jurisdiction.consequence, /Mumbai, not Sample District/);
   });
 
   it("puts what can end a complaint before what is ordinary work", () => {

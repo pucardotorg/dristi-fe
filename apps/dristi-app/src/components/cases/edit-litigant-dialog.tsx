@@ -123,13 +123,13 @@ function demoMobile(name: string): string {
 function demoAddress(name: string): EditableAddress {
   let hash = 5;
   for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997;
-  const surname = name.trim().split(/\s+/).at(-1) ?? "Kollam";
+  const surname = name.trim().split(/\s+/).at(-1) ?? "Sample";
   return {
     door: String((hash % 48) + 1),
     building: `${surname} House`,
     locality: "Chinnakada",
-    city: "Kollam",
-    district: "Kollam",
+    city: "Sample District",
+    district: "Sample District",
     state: "Kerala",
     pin: "691001",
   };

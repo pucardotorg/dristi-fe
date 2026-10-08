@@ -275,9 +275,9 @@ describe("columns carry information", () => {
 
 describe("filters and paging", () => {
   const rows: QueueRow[] = [
-    row("a", "JMFC-I, Kollam", "2026-08-01", "meera nair v. anwar s."),
-    row("b", "JMFC-II, Kollam", "2026-08-20", "suresh menon v. k. menon"),
-    row("c", "JMFC-I, Kollam", "2026-08-10", "latha r. v. riya jacob"),
+    row("a", "JMFC-I", "2026-08-01", "meera nair v. anwar s."),
+    row("b", "JMFC-II", "2026-08-20", "suresh menon v. k. menon"),
+    row("c", "JMFC-I", "2026-08-10", "latha r. v. riya jacob"),
   ];
 
   function row(id: string, court: string, at: string, haystack: string): QueueRow {
@@ -309,7 +309,7 @@ describe("filters and paging", () => {
   });
 
   it("search and court filter compose", () => {
-    const out = applyQueueFilters(rows, { q: "menon", court: "JMFC-II, Kollam", sort: asc });
+    const out = applyQueueFilters(rows, { q: "menon", court: "JMFC-II", sort: asc });
     assert.deepEqual(
       out.map((r) => r.id),
       ["b"]

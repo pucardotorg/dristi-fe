@@ -21,9 +21,8 @@ export const CASE_TYPE = {
 } as const;
 
 export const COURT = {
-  name: "24×7 ON Court, Kollam",
+  name: "24×7 ON Court",
   brand: "24x7 ON Courts",
-  place: "Kollam, Kerala",
 } as const;
 
 /* ───────────────────────────── Geography ───────────────────────────── */
@@ -368,9 +367,9 @@ export const DELIVERY_MIN_ROUNDS = 1;
  * typed from memory, and it stays open — an address outside it is still accepted.
  */
 export const POLICE_STATIONS: string[] = [
-  "Kollam East Police Station",
-  "Kollam West Police Station",
-  "Kollam Beach Police Station",
+  "Town East Police Station",
+  "Town West Police Station",
+  "Town Beach Police Station",
   "Kilikolloor Police Station",
   "Sakthikulangara Police Station",
   "Chinnakada Police Station",

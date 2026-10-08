@@ -274,7 +274,7 @@ function HomeBody({
   // The courts the filter offers: those with a matter listed on the day. A court
   // with nothing today is not worth offering — selecting it would only empty the
   // view. Labels share the establishment run so the option reads "CJM Court", not
-  // "CJM Court, Kollam".
+  // "CJM Court, <place>" when every court name carries the same place.
   const courtOptions = React.useMemo<CourtOption[]>(() => {
     const rooms = courtRooms(world, selectedDay, now).filter((r) => r.count > 0);
     const labels = courtLabelsOf(rooms.map((r) => r.court));

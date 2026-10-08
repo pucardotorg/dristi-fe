@@ -68,14 +68,23 @@ function Heading({ title, body }: { title: string; body: string }) {
   );
 }
 
-function Actions({ locale, onBack, submitLabel }: { locale: Locale; onBack: () => void; submitLabel?: string }) {
+function Actions({ locale, onBack, submitLabel, skip }: {
+  locale: Locale;
+  onBack: () => void;
+  submitLabel?: string;
+  /** An optional step's way past it — sits beside the primary, quieter than it. */
+  skip?: { label: string; onSkip: () => void };
+}) {
   return (
     <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
       <Button type="button" variant="outline" onClick={onBack}>
         <ArrowLeftIcon data-icon="inline-start" aria-hidden />
         {pick(registrationUi.back, locale)}
       </Button>
-      <Button type="submit" className="sm:min-w-40">{submitLabel ?? pick(registrationUi.continue, locale)}</Button>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+        {skip ? <Button type="button" variant="ghost" onClick={skip.onSkip}>{skip.label}</Button> : null}
+        <Button type="submit" className="sm:min-w-40">{submitLabel ?? pick(registrationUi.continue, locale)}</Button>
+      </div>
     </div>
   );
 }
@@ -308,7 +317,7 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
             <Heading title={pick(passwordStep.title, locale)} body={pick(passwordStep.body, locale)} />
 
             <Field data-invalid={touched && Boolean(problem)}>
-              <FieldLabel>{pick(passwordStep.password, locale)} <span className="text-destructive">*</span></FieldLabel>
+              <FieldLabel>{pick(passwordStep.password, locale)}</FieldLabel>
               <Input
                 type={passwordRevealed ? "text" : "password"}
                 autoComplete="new-password"
@@ -355,7 +364,7 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
             </Field>
 
             <Field data-invalid={touched && password !== confirmPassword}>
-              <FieldLabel>{pick(passwordStep.confirm, locale)} <span className="text-destructive">*</span></FieldLabel>
+              <FieldLabel>{pick(passwordStep.confirm, locale)}</FieldLabel>
               {/* The tick inside the box is the match signal; its absence is the
                   mismatch signal. Continue stays live either way — pressing it with a
                   mismatch says so in words below, rather than a button that will not
@@ -378,7 +387,16 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
               <FieldError>{touched && password !== confirmPassword ? pick(passwordStep.confirmError, locale) : null}</FieldError>
             </Field>
 
-            <Actions locale={locale} onBack={() => { setTouched(false); setStep("contact"); }} />
+            {/* Skip drops anything half-typed — an account is created with a password
+                or without one, never with a password nobody confirmed. */}
+            <Actions
+              locale={locale}
+              onBack={() => { setTouched(false); setStep("contact"); }}
+              skip={{
+                label: pick(passwordStep.skip, locale),
+                onSkip: () => { setPassword(""); setConfirmPassword(""); setTouched(false); setStep(needsVerification ? "verification" : "terms"); },
+              }}
+            />
           </form>
         ) : null}
 

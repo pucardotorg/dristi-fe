@@ -161,7 +161,7 @@ export function CourtSignInBlock() {
           </h2>
           <p className="max-w-md text-body text-(--rail-muted)">
             Secure access for the magistrates, bench clerks, scrutiny officers and
-            typists of the Kerala district courts.
+            typists of the district courts.
           </p>
         </div>
 

@@ -243,7 +243,7 @@ describe("applyFilters", () => {
   });
 
   it("court, advocate and search", () => {
-    assert.deepEqual(ids({ courts: ["JMFC Court 1, Kollam"] }), []);
+    assert.deepEqual(ids({ courts: ["JMFC Court 1"] }), []);
     assert.equal(ids({ courts: [kase.court] }).length, 7);
     assert.equal(ids({ advocates: [junior.id] }).length, 7);
     assert.deepEqual(ids({ advocates: [outsider.id] }), []);

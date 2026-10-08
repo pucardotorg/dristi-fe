@@ -100,8 +100,8 @@ export const SCRUTINY_DEFECTS: Defect[] = [
       sectionLabel: "Case details",
       instanceLabel: "Cheque 2",
     },
-    note: "Branch for the second cheque is stated as “Kollam”. The cheque leaf names the branch — state it as printed.",
-    valueAtReturn: "Kollam",
+    note: "Branch for the second cheque is stated as “Main”. The cheque leaf names the branch — state it as printed.",
+    valueAtReturn: "Main",
     annotation: {
       file: SCRUTINY_FILES.cheque2,
       /* The branch is printed in the cheque's title line. */

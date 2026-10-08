@@ -187,18 +187,18 @@ describe("boardOf", () => {
 describe("courtRooms", () => {
   it("puts the ON court first and counts the selected day per court", () => {
     const w = world([
-      listed("j1", 0, 15, "JMFC Court 1, Kollam"),
+      listed("j1", 0, 15, "JMFC Court 1"),
       listed("on1", 0, 15),
       listed("on2", 0, 16),
-      listed("cjm-tomorrow", 1, 15, "CJM Court, Kollam"),
+      listed("cjm-tomorrow", 1, 15, "CJM Court"),
     ]);
     const rooms = courtRooms(w, dayKeyOf(at(0, 12)), NOW_MS);
     assert.deepEqual(
       rooms.map((r) => [r.court, r.count]),
       [
-        ["24×7 ON Court, Kollam", 2],
-        ["CJM Court, Kollam", 0],
-        ["JMFC Court 1, Kollam", 1],
+        ["24×7 ON Court", 2],
+        ["CJM Court", 0],
+        ["JMFC Court 1", 1],
       ]
     );
     assert.equal(matterCountOn(w, dayKeyOf(at(0, 12)), NOW_MS), 3);
@@ -206,54 +206,54 @@ describe("courtRooms", () => {
 });
 
 describe("courtLabelsOf", () => {
-  const KOLLAM = [
-    "24×7 ON Court, Kollam",
-    "JMFC Court 1, Kollam",
-    "JMFC Court 2, Kollam",
-    "CJM Court, Kollam",
+  const SAMPLE_COURTS = [
+    "24×7 ON Court, Sample District",
+    "JMFC Court 1, Sample District",
+    "JMFC Court 2, Sample District",
+    "CJM Court, Sample District",
   ];
 
   it("names the shared trailing run once and strips it from every court", () => {
-    const { establishment, shortOf } = courtLabelsOf(KOLLAM);
-    assert.equal(establishment, "Kollam");
-    assert.equal(shortOf("JMFC Court 1, Kollam"), "JMFC Court 1");
-    assert.equal(shortOf("24×7 ON Court, Kollam"), "24×7 ON Court");
+    const { establishment, shortOf } = courtLabelsOf(SAMPLE_COURTS);
+    assert.equal(establishment, "Sample District");
+    assert.equal(shortOf("JMFC Court 1, Sample District"), "JMFC Court 1");
+    assert.equal(shortOf("24×7 ON Court, Sample District"), "24×7 ON Court");
   });
 
   it("takes the longest common run, not just the last segment", () => {
     const { establishment, shortOf } = courtLabelsOf([
-      "JMFC Court 1, Kollam, Kerala",
-      "CJM Court, Kollam, Kerala",
+      "JMFC Court 1, Sample District, Kerala",
+      "CJM Court, Sample District, Kerala",
     ]);
-    assert.equal(establishment, "Kollam, Kerala");
-    assert.equal(shortOf("CJM Court, Kollam, Kerala"), "CJM Court");
+    assert.equal(establishment, "Sample District, Kerala");
+    assert.equal(shortOf("CJM Court, Sample District, Kerala"), "CJM Court");
   });
 
   it("falls through to full names when nothing is shared", () => {
-    const unrelated = ["Sessions Court, Kollam", "JMFC Court 1, Kochi"];
+    const unrelated = ["Sessions Court, Sample District", "JMFC Court 1, Kochi"];
     const { establishment, shortOf } = courtLabelsOf(unrelated);
     assert.equal(establishment, null);
     for (const court of unrelated) assert.equal(shortOf(court), court);
   });
 
   it("falls through for a single court — there is nothing to say once", () => {
-    const { establishment, shortOf } = courtLabelsOf(["CJM Court, Kollam"]);
+    const { establishment, shortOf } = courtLabelsOf(["CJM Court, Sample District"]);
     assert.equal(establishment, null);
-    assert.equal(shortOf("CJM Court, Kollam"), "CJM Court, Kollam");
+    assert.equal(shortOf("CJM Court, Sample District"), "CJM Court, Sample District");
   });
 
   it("never strips a court down to nothing", () => {
-    // "Kollam" is the whole name of one court, so the run has to stop before it
+    // "Sample District" is the whole name of one court, so the run has to stop before it
     // — otherwise that heading would render empty.
-    const { establishment, shortOf } = courtLabelsOf(["Kollam", "CJM Court, Kollam"]);
+    const { establishment, shortOf } = courtLabelsOf(["Sample District", "CJM Court, Sample District"]);
     assert.equal(establishment, null);
-    assert.equal(shortOf("Kollam"), "Kollam");
+    assert.equal(shortOf("Sample District"), "Sample District");
   });
 
   it("is unaffected by a repeated court name", () => {
     const { establishment } = courtLabelsOf([
-      "CJM Court, Kollam",
-      "CJM Court, Kollam",
+      "CJM Court, Sample District",
+      "CJM Court, Sample District",
     ]);
     assert.equal(establishment, null);
   });
@@ -347,7 +347,7 @@ describe("advocateRosterOn", () => {
   it("counts a matter once, however many courts the day spans", () => {
     const w = world([
       listed("on", 0, 15),
-      listed("jmfc", 0, 15, "JMFC Court 1, Kollam"),
+      listed("jmfc", 0, 15, "JMFC Court 1"),
     ]);
     const roster = advocateRosterOn(w, today(), NOW_MS);
     assert.equal(roster[0].count, 2);
@@ -419,7 +419,7 @@ describe("nextHearingDayAfter", () => {
   it("finds the nearest later day with anything listed, across courts", () => {
     const w = world([
       listed("today", 0, 15),
-      listed("in3", 3, 15, "JMFC Court 1, Kollam"),
+      listed("in3", 3, 15, "JMFC Court 1"),
       listed("in3b", 3, 16),
       listed("in9", 9, 15),
     ]);

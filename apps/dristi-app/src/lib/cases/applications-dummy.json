@@ -6,7 +6,7 @@
     "complaintCaseNumber": "CMP/1842/2025",
     "caseNumber": "ST/412/2025",
     "filingNumber": "KL-DUMMY-001386-2025",
-    "court": "Judicial First Class Magistrate Court-I, Kollam"
+    "court": "Judicial First Class Magistrate Court-I"
   },
   "people": [
     {
@@ -151,7 +151,7 @@
       "addedOn": "2025-09-15",
       "submittedById": "ADV-A-001",
       "submissionId": null,
-      "request": "Advance the hearing listed for 13 October 2025 to an earlier date; the accused is away from Kollam from the first week of October.",
+      "request": "Advance the hearing listed for 13 October 2025 to an earlier date; the accused is away from the district from the first week of October.",
       "courtResult": null,
       "linkedOrder": null,
       "defects": [],
@@ -171,7 +171,7 @@
       "addedOn": "2025-09-22",
       "submittedById": "ADV-C-001",
       "submissionId": null,
-      "request": "Direct Kerala Mercantile Bank, Kollam Market Branch to produce the April and May 2025 account records for the cheque, so PW-2 can be examined on them.",
+      "request": "Direct Kerala Mercantile Bank, Market Branch to produce the April and May 2025 account records for the cheque, so PW-2 can be examined on them.",
       "courtResult": null,
       "linkedOrder": null,
       "defects": [],
@@ -271,7 +271,7 @@
       "addedOn": "2025-08-08",
       "submittedById": "ADV-C-001",
       "submissionId": null,
-      "request": "Direct Kerala Mercantile Bank, Kollam Market Branch to produce the original cheque return memo dated 17 April 2025 and the related dishonour records.",
+      "request": "Direct Kerala Mercantile Bank, Market Branch to produce the original cheque return memo dated 17 April 2025 and the related dishonour records.",
       "courtResult": null,
       "linkedOrder": null,
       "defects": [
@@ -361,7 +361,7 @@
         "addedOn": "2026-07-06",
         "submittedById": "c-1002-counsel-c-0",
         "submissionId": "KL-000342-2026-AP1",
-        "request": "Advance the matter listed for 14 September 2026; the complainant's bank witness is transferring out of Kollam at the end of August.",
+        "request": "Advance the matter listed for 14 September 2026; the complainant's bank witness is transferring out of the district at the end of August.",
         "courtResult": "Allowed — framing of charge advanced to 2 September 2026.",
         "linkedOrder": null,
         "defects": [],
@@ -669,7 +669,7 @@
         "addedOn": "2026-05-19",
         "submittedById": "tw-c-217-counsel-c-0",
         "submissionId": "KL-000217-2025-AP1",
-        "request": "Reschedule the plea posting; counsel for the complainant is before the Sessions Court at Kollam that day.",
+        "request": "Reschedule the plea posting; counsel for the complainant is before the Sessions Court that day.",
         "courtResult": "Allowed — plea moved to 2 September 2026.",
         "linkedOrder": null,
         "defects": [],

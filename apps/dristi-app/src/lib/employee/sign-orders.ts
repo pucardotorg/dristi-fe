@@ -370,7 +370,7 @@ export const SIGN_ORDER_QUEUE: SignOrder[] = [
   {
     id: "so-1035",
     caseNumber: "CMP/1035/2026",
-    parties: { complainant: "Ajay Menon", accused: "Kollam Steel and Hardware" },
+    parties: { complainant: "Ajay Menon", accused: "Lakeside Steel and Hardware" },
     type: "others",
     status: "signed",
     addedOn: "2026-03-23",

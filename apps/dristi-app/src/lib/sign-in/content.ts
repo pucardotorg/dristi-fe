@@ -44,18 +44,9 @@ export const METHOD_ORDER: Method[] = ["password", "otp"];
  */
 export const brand = {
   wordmark: t("ON Courts", "ON Courts"),
-  wordmarkSub: t("Kerala district courts", "കേരള ജില്ലാ കോടതികൾ"),
   headline: t(
     "File and follow your case, from anywhere, anytime.",
     "എവിടെ നിന്നും, എപ്പോൾ വേണമെങ്കിലും കേസ് ഫയൽ ചെയ്യാം, പിന്തുടരാം.",
-  ),
-  /* Names what is on the right, in the order the three audiences will scan for
-     themselves. The headline gives the promise; this gives the address.
-     PM-approved copy (Sept 3). The court name is per-deployment — each court
-     gets its own build of this line; Kollam is this demo's court. */
-  subline: t(
-    "Secure access for litigants, advocates and clerks to the end-to-end case management system of the Kollam District Court.",
-    "കൊല്ലം ജില്ലാ കോടതിയുടെ സമ്പൂർണ്ണ കേസ് മാനേജ്മെന്റ് സംവിധാനത്തിലേക്ക് കക്ഷികൾക്കും അഭിഭാഷകർക്കും ക്ലർക്കുമാർക്കും സുരക്ഷിത പ്രവേശനം.",
   ),
   attribution: t(
     "A Government of India digital courts initiative.",

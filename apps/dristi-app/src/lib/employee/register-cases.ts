@@ -53,7 +53,7 @@ export type RegisterCase = {
  *
  * Ordered longest wait first — that is the scan the days column exists for, and the
  * order the reference showed. Names follow the fixtures the rest of the repo uses:
- * Kollam parties and the same bar as the day's cause list — one court, one set of
+ * local parties and the same bar as the day's cause list — one court, one set of
  * advocates practising in it — but not the same matters as `SCHEDULING_QUEUE`.
  */
 export const REGISTER_QUEUE: RegisterCase[] = [
@@ -149,7 +149,7 @@ export const REGISTER_QUEUE: RegisterCase[] = [
   {
     id: "r-188",
     filingNumber: "KL-000188-2026",
-    parties: { complainant: "Haridasan", accused: "Kollam Coir Exports" },
+    parties: { complainant: "Haridasan", accused: "Lakeside Coir Exports" },
     counsel: [{ name: "Adv. Feroz Hameed", side: "complainant" }],
     daysSinceSubmitted: 51,
   },
