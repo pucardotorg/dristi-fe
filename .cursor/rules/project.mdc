@@ -16,10 +16,12 @@ source; when the task gives exact paths, start there instead of reading the whol
 
 ## Working safely
 
-- Design work starts on `feature/<kebab-case>` from `origin/design` and returns by PR
-  into `design`, with the design owner's approval. Never commit directly to `main`,
-  `design`, or `develop`. DS upgrades also use a dedicated PR branch from `origin/design`;
-  never fold a pin upgrade into an unrelated feature.
+- Design work lives in `pucardotorg/dristi-fe-design`. It starts on `feature/<kebab-case>`
+  from `origin/main` and returns by PR into `main`, with the design owner's approval.
+  Never commit directly to `main`. The old `design` branch is retired: do not branch from
+  it or merge into it. The product repos (`dristi-fe`, `dristi-fe-develop`) pull from this
+  repo's `main`; never push to them from here. DS upgrades also use a dedicated PR branch
+  from `origin/main`; never fold a pin upgrade into an unrelated feature.
 - Inspect branch, worktrees, and uncommitted changes before editing. If another tool
   is building in this checkout, use an isolated worktree. Do not switch its branch,
   overwrite its files, share build output, or stop its server.

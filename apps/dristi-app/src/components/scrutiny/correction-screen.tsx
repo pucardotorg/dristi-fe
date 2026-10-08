@@ -21,7 +21,7 @@
  * Derivation is live; the *record* is not. What the advocate sees — the frame's state, the
  * queue's count, the submit gate — recomputes on every keystroke from the draft. What the
  * task's history receives is written only when a human act finishes: focus leaves the
- * field, typing pauses, a suggestion is accepted, or the corrections are submitted. A
+ * field, typing pauses, a value is kept as filed, or the corrections are submitted. A
  * history that gained a line per keystroke would be a log of the keyboard, not of the work.
  */
 
@@ -34,10 +34,8 @@ import {
   LockIcon,
   PanelLeftIcon,
   SendIcon,
-  TriangleAlertIcon,
 } from "lucide-react";
 
-import { ChromeAlertDialogContent } from "@/components/chrome/app-chrome";
 
 import { dueCueOf, longDate } from "@/lib/tasks/format";
 import {
@@ -55,17 +53,8 @@ import { useFiling } from "@/lib/filing/store";
 import { intakeSlot, readTarget, writeTarget } from "@/lib/filing/targets";
 import type { StepId } from "@/lib/filing/types";
 import type { Ctx } from "@/lib/tasks/transitions";
-import { refile, resolveDefect } from "@/lib/tasks/transitions";
+import { resolveDefect } from "@/lib/tasks/transitions";
 import type { Case, Defect, Resolution, Task } from "@/lib/tasks/types";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -95,7 +84,6 @@ import {
   type FilingChromeValue,
 } from "@/components/filing/chrome";
 import { Breadcrumbs } from "@/components/shell/chrome";
-import { useOrigin } from "@/components/shell/origin";
 import { CorrectionProvider, type CorrectionValue } from "@/components/filing/posture";
 import { DefectCard, type DefectActions } from "@/components/scrutiny/defect-card";
 import {
@@ -108,6 +96,7 @@ import { SectionRail } from "@/components/scrutiny/section-rail";
 import { SectionBody } from "@/components/scrutiny/section-body";
 import { useTaskActions } from "@/components/tasks/use-task-actions";
 import { Identifier } from "@/components/chrome/identifier";
+import { useOrigin } from "@/components/shell/origin";
 
 /** Where the correction round starts when nothing is flagged on a step yet. */
 const FALLBACK_STEP: StepId = "cheque";
@@ -201,27 +190,27 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
   );
 
   /**
-   * Reasons still being typed, by defect number. They live here rather than in the task
-   * so a half-written sentence never reaches the history; the record catches up on commit.
+   * "Keep as filed", by defect number — set by the advocate's click, cleared the moment
+   * they edit the value instead. It overrides the recorded resolution until the record
+   * catches up on commit.
    */
-  const [reasons, setReasons] = React.useState<Record<number, string>>({});
+  const [keeps, setKeeps] = React.useState<Record<number, boolean>>({});
 
   /**
-   * The defects as the screen sees them: the task's record, with any reason still being
-   * typed folded in. Every derivation below — the frames, the queue, the count, the gate —
-   * reads this, so a disagreement counts the moment it is written rather than the moment
-   * it is committed. `intendedResolution` is the same function the commit uses, so what is
-   * shown and what will be recorded can never disagree.
+   * The defects as the screen sees them: the task's record, with any keep not yet
+   * committed folded in. Every derivation below — the frames, the queue, the count, the
+   * gate — reads this. `intendedResolution` is the same function the commit uses, so what
+   * is shown and what will be recorded can never disagree.
    */
   const defects = React.useMemo(
     () =>
       recorded.map((d) => {
-        const typed = reasons[d.n];
-        if (typed === undefined) return d;
-        const next = intendedResolution(d, readTarget(draft, d.target), typed, d.resolution?.at ?? "");
+        const keep = keeps[d.n];
+        if (keep === undefined) return d;
+        const next = intendedResolution(d, readTarget(draft, d.target), keep, d.resolution?.at ?? "");
         return sameResolution(d.resolution, next) ? d : { ...d, resolution: next };
       }),
-    [recorded, reasons, draft]
+    [recorded, keeps, draft]
   );
 
   /* ── Where we are ────────────────────────────────────────────────── */
@@ -245,7 +234,6 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
   const railColumn = useRoomInRem(RAIL_REM);
   const queueColumn = useRoomInRem(QUEUE_REM);
   const [queueOpen, setQueueOpen] = React.useState(false);
-  const [confirm, setConfirm] = React.useState(false);
   /**
    * Whether the record shows the whole filing or only what scrutiny flagged. Off by
    * default — eight flagged fields scattered through thirteen sections is a
@@ -255,9 +243,9 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
   const [showAll, setShowAll] = React.useState(false);
   const nonce = React.useRef(0);
 
-  /** The reason for a defect: what is being typed, or what the record already holds. */
-  const justificationOf = (defect: Defect) =>
-    reasons[defect.n] ?? defect.resolution?.justification ?? "";
+  /** Has the advocate chosen to keep the filed value — now, or on the record? */
+  const keepOf = (defect: Defect) =>
+    keeps[defect.n] ?? defect.resolution?.how === "kept";
 
   /* ── Recording what was done ─────────────────────────────────────── */
 
@@ -281,13 +269,13 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
         const value = valueOf(defect);
         /* A target this draft cannot resolve is not evidence that nothing was done. */
         if (value === undefined) continue;
-        next = intendedResolution(defect, value, justificationOf(defect), at);
+        next = intendedResolution(defect, value, keepOf(defect), at);
       }
       if (!sameResolution(defect.resolution, next)) changes.push({ n: defect.n, resolution: next });
     }
     return changes;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recorded, draft, reasons, valueOf, task.status]);
+  }, [recorded, draft, keeps, valueOf, task.status]);
 
   /**
    * Write the gap to the task — one dispatch, and one history line per defect actually
@@ -309,7 +297,7 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
   }, [commit]);
 
   /**
-   * Set by an explicit action — accept, undo — which is a finished act the moment it is
+   * Set by an explicit action — keep, undo — which is a finished act the moment it is
    * clicked. It still waits for the next render, because the draft has to settle before
    * there is anything true to write.
    */
@@ -439,45 +427,37 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
     }
   }, []);
 
-  /** Forget a reason that is being typed — after an undo, or once a suggestion is taken. */
-  const clearReason = (n: number) =>
-    setReasons((prev) => {
-      if (!(n in prev)) return prev;
-      const next = { ...prev };
-      delete next[n];
-      return next;
-    });
+  const setKeep = (n: number, keep: boolean) =>
+    setKeeps((prev) => (prev[n] === keep ? prev : { ...prev, [n]: keep }));
 
   /**
    * Every write in a correction round goes through here — there is no other route. The
-   * form's control is read-only, so the card's *Use <value>* and its own value control are
-   * the only two things that can change a filed value, and both are named acts.
+   * form's control is read-only, so the card's own value control is the only thing that
+   * can change a filed value, and *Keep as filed* the only way to leave it standing.
    */
   const defectActions = (defect: Defect): DefectActions => ({
-    accept: defect.suggestion
-      ? () => {
-          const to = defect.suggestion!.to;
-          update((d) => writeTarget(d, defect.target, to));
-          clearReason(defect.n);
-          setActiveDefect(defect.n);
-          commitSoon.current = true;
-        }
-      : undefined,
     setValue: (value) => {
       update((d) => writeTarget(d, defect.target, value));
+      setKeep(defect.n, false);
       setActiveDefect(defect.n);
     },
+    keep:
+      defect.target.kind === "field"
+        ? () => {
+            setKeep(defect.n, true);
+            setActiveDefect(defect.n);
+            commitSoon.current = true;
+          }
+        : undefined,
     undo: defect.resolution
       ? () => {
           if (defect.target.kind === "field") {
             update((d) => writeTarget(d, defect.target, defect.valueAtReturn ?? ""));
           }
-          clearReason(defect.n);
+          setKeep(defect.n, false);
           commitSoon.current = true;
         }
       : undefined,
-    reason: justificationOf(defect),
-    onReasonChange: (text) => setReasons((prev) => ({ ...prev, [defect.n]: text })),
     replace:
       defect.target.kind === "doc" ? replaceFor(defect.target.slotKey) : undefined,
   });
@@ -514,17 +494,31 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
    */
   const origin = useOrigin();
   const back = origin?.href ?? `/tasks?task=${encodeURIComponent(task.id)}`;
+
   /**
-   * Anything still uncommitted goes in *with* the re-filing, in one transition: `refile`
-   * reads the resolutions off the task, so a reason typed a second before the click has to
-   * be on the task before `refile` looks at it — two dispatches would race.
+   * The corrections do not go back from here. Every edit invalidates every signature
+   * (`LIFE-13`), so the corrected complaint goes through the same Sign step as at
+   * e-filing (`SIG-07`) and is sent to scrutiny from there. This records what was
+   * fixed on the task, takes the old signatures off, and opens Sign.
    */
   const submit = async () => {
-    setConfirm(false);
-    const done = await act(task.id, (t, c: Ctx) =>
-      refile(pending.reduce((acc, ch) => resolveDefect(acc, c, ch.n, ch.resolution), t), c)
-    );
-    if (done) router.push(back);
+    if (pending.length > 0) {
+      const done = await act(task.id, (t, c: Ctx) =>
+        pending.reduce((acc, ch) => resolveDefect(acc, c, ch.n, ch.resolution), t)
+      );
+      if (!done) return;
+    }
+    update((d) => {
+      d.sign.requestedAt = null;
+      d.sign.notified = {};
+      d.sign.signed = {};
+      d.sign.signedCopy = null;
+      d.sign.confirmed = {};
+      d.sign.oaths = {};
+      d.scrutinyReturn = { resubmittedAt: null };
+      d.lastStep = "sign";
+    });
+    router.push(`/filings/${encodeURIComponent(draft.id)}/sign`);
   };
 
   const reason = submitReason(resolved, total, online);
@@ -593,9 +587,8 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
   const submitBlock = (
     <div className="flex flex-col gap-3">
       {complete ? (
-        <p className="flex gap-2 text-caption text-muted-foreground">
-          <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          Once sent, this cannot be recalled.
+        <p className="text-caption text-muted-foreground">
+          Next, everyone signs the corrected complaint again, as when it was filed.
         </p>
       ) : null}
       <Button
@@ -606,7 +599,7 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
            `ACCESSIBILITY.md` §10 forbids. Height follows the words. */
         className={SUBMIT_CLASS}
         disabled={!complete || !online || !!busy}
-        onClick={() => setConfirm(true)}
+        onClick={() => void submit()}
       >
         <SendIcon data-icon="inline-start" aria-hidden />
         Send corrections back
@@ -884,7 +877,7 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
             size="lg"
             className={SUBMIT_CLASS}
             disabled={!complete || !online || !!busy}
-            onClick={() => setConfirm(true)}
+            onClick={() => void submit()}
           >
             <SendIcon data-icon="inline-start" aria-hidden />
             Send corrections back
@@ -936,25 +929,6 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
         </DrawerContent>
       </Drawer>
 
-      <AlertDialog open={confirm} onOpenChange={setConfirm}>
-        <ChromeAlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Send these corrections back?</AlertDialogTitle>
-            {/* The limitation point lives here rather than under the button: it is the one
-                thing worth a sentence, and a sentence under a button is a sentence nobody
-                reads. */}
-            <AlertDialogDescription>
-              {`All ${total} go back to the Registry. `}
-              A re-submission cannot be recalled, and limitation runs from the
-              Registry&apos;s receipt.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void submit()}>Send them back</AlertDialogAction>
-          </AlertDialogFooter>
-        </ChromeAlertDialogContent>
-      </AlertDialog>
     </CorrectionProvider>
     </FilingChromeContext.Provider>
   );

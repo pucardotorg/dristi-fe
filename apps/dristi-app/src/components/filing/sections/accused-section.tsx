@@ -22,6 +22,7 @@ import {
   accusedHasContact,
   accusedLabel,
 } from "@/lib/filing/selectors";
+import { nameList } from "@/lib/filing/format";
 import { neighbours } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
 import type { Accused, AccusedType } from "@/lib/filing/types";
@@ -50,12 +51,6 @@ import {
 } from "@/components/filing/repeat-lists";
 import { SectionTabs } from "@/components/filing/section-tabs";
 import { YesNoSegmented } from "@/components/filing/segmented";
-
-/** "Accused 1 and Rajesh Kumar" — names read as a sentence, not as a list. */
-function nameList(labels: string[]): string {
-  if (labels.length < 2) return labels[0] ?? "";
-  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
-}
 
 export function AccusedSection() {
   const { draft, update, hrefFor } = useFiling();
@@ -284,7 +279,7 @@ export function AccusedSection() {
 
       {/* Continue while some accused — named here — has no phone or email. */}
       <Dialog open={noContactOpen} onOpenChange={setNoContactOpen}>
-        <ChromeDialogContent className="sm:max-w-lg">
+        <ChromeDialogContent mobileSheet className="sm:max-w-lg">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <span
@@ -313,9 +308,9 @@ export function AccusedSection() {
 
       {/* The confirmation itself — the court is told this was a considered choice. */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <ChromeDialogContent aria-describedby={confirmStatementId} className="sm:max-w-lg">
+        <ChromeDialogContent mobileSheet aria-describedby={confirmStatementId} className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Confirm — proceed without details</DialogTitle>
+            <DialogTitle>Confirm: proceed without details</DialogTitle>
           </DialogHeader>
           <Label
             htmlFor={confirmCheckboxId}

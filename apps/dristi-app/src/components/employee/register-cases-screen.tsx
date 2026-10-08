@@ -6,7 +6,6 @@ import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { ARRIVAL } from "@/components/chrome/motion";
 import { useArrival } from "@/components/employee/use-arrival";
 import { rowActivation } from "@/lib/employee/row-activation";
@@ -37,6 +36,69 @@ import {
   type RegisterFilters,
 } from "@/lib/employee/register-cases";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
+import {
+  compareCaseNumbers,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+import {
+  applyColumnFilters,
+  columnFilterFields,
+  emptyColumnFilters,
+  hasColumnFilters,
+  type ColumnFilter,
+} from "@/lib/employee/court-column-filters";
+
+/** The wait in the scrutiny registry's own bands (7 and 14 days), so the queues agree. */
+const REGISTER_COLUMN_FILTERS: ColumnFilter<RegisterCase>[] = [
+  {
+    id: "register-wait",
+    label: "Waiting",
+    allLabel: "Any wait",
+    options: [
+      { value: "long", label: "14 days or more" },
+      { value: "mid", label: "7 to 13 days" },
+      { value: "short", label: "Under 7 days" },
+    ],
+    test: (row, value) =>
+      value === "long"
+        ? row.daysSinceSubmitted >= 14
+        : value === "mid"
+          ? row.daysSinceSubmitted >= 7 && row.daysSinceSubmitted < 14
+          : row.daysSinceSubmitted < 7,
+  },
+];
+
+type RegisterSort = "longest" | "shortest" | "filing";
+
+/** Longest waiting first, by the Days since submitted column. */
+const REGISTER_SORTS: CourtSortSpec<RegisterCase, RegisterSort>[] = [
+  {
+    id: "longest",
+    label: "Longest waiting first",
+    compare: (a, b) =>
+      b.daysSinceSubmitted - a.daysSinceSubmitted ||
+      compareCaseNumbers(a.filingNumber, b.filingNumber),
+  },
+  {
+    id: "shortest",
+    label: "Shortest waiting first",
+    compare: (a, b) =>
+      a.daysSinceSubmitted - b.daysSinceSubmitted ||
+      compareCaseNumbers(a.filingNumber, b.filingNumber),
+  },
+  {
+    id: "filing",
+    label: "Filing number",
+    compare: (a, b) => compareCaseNumbers(a.filingNumber, b.filingNumber),
+  },
+];
 
 /**
  * Register cases — complaints this court has not yet taken on the register.
@@ -68,13 +130,22 @@ export function RegisterCasesScreen() {
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
 
-  const rows = filterRegisterCases(REGISTER_QUEUE, filters);
+  const [columns, setColumns] = React.useState(() =>
+    emptyColumnFilters(REGISTER_COLUMN_FILTERS),
+  );
+  const [sort, setSort] = React.useState<RegisterSort>("longest");
+
+  const rows = sortRows(
+    applyColumnFilters(filterRegisterCases(REGISTER_QUEUE, filters), REGISTER_COLUMN_FILTERS, columns),
+    REGISTER_SORTS,
+    sort,
+  );
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = filters.query !== "";
+  const isFiltered = filters.query !== "" || hasColumnFilters(columns);
 
   function changeFilters(next: RegisterFilters) {
     setFilters(next);
@@ -83,6 +154,7 @@ export function RegisterCasesScreen() {
 
   function clearFilters() {
     changeFilters(EMPTY_REGISTER_FILTERS);
+    setColumns(emptyColumnFilters(REGISTER_COLUMN_FILTERS));
   }
 
   return (
@@ -110,7 +182,26 @@ export function RegisterCasesScreen() {
           lifted sheet — the same recipe the cause list and the scheduling queue use.
           Nothing inside draws a second frame. */}
       <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
-        <RegisterCasesFilters filters={filters} onChange={changeFilters} />
+        <RegisterCasesFilters
+          filters={filters}
+          onChange={changeFilters}
+          onClear={clearFilters}
+          fields={columnFilterFields(REGISTER_COLUMN_FILTERS, columns, (id, value) => {
+            setColumns((current) => ({ ...current, [id]: value }));
+            setPage(1);
+          })}
+          trailing={
+            <CourtSortSelect
+              id="register-cases-sort"
+              value={sort}
+              options={sortOptions(REGISTER_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
+        />
 
         {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
         <QueueAnnouncer
@@ -159,45 +250,35 @@ export function RegisterCasesScreen() {
 }
 
 /**
- * Free text, filtering as it is typed — the reference's one control.
- *
- * The reference put a Search button beside it and this screen used to as well. It is
- * gone: with one text box there is nothing to compose before asking, so the button only
- * ever stood between the clerk and the answer. The way back to the whole queue is the
- * `×` inside the box (`QueueSearchField`), which is why there is no "Clear" beside it
- * either — on this screen the search *is* the filters, and two controls for one undo is
- * one too many.
- *
- * **The page now has no teal at all, and that is right.** Search was its only
- * `bg-primary`, and the Ration Teal Law rations a strong action to the page's own act —
- * which this page does not have. Registering a case happens inside a row's overlay, not
- * on the list. The same argument the advocate register's brief makes at D9. Nothing was
- * promoted to fill the gap; the openers stay quiet `text-foreground`.
- *
- * The form element stays so Enter in the box is swallowed rather than reloading the page:
- * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
- * left to catch it.
+ * The search box, the wait filter, and the order on the end of the row — the court-side
+ * filter row (`CourtFilters`).
  */
 function RegisterCasesFilters({
   filters,
   onChange,
+  onClear,
+  fields,
+  trailing,
 }: {
   filters: RegisterFilters;
   onChange: (filters: RegisterFilters) => void;
+  onClear: () => void;
+  fields: CourtFilterField[];
+  /** The list's sort control (`CourtSortSelect`). */
+  trailing: React.ReactNode;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-80"
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number or advocate"
-      />
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or advocate",
+      }}
+      fields={fields}
+      trailing={trailing}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -273,7 +354,7 @@ function RegisterCasesItemList({ rows }: { rows: RegisterCase[] }) {
             className="flex min-h-10 min-w-0 items-center"
           />
           <p className="text-caption text-muted-foreground">
-            <Identifier value={matter.caseNumber} label="case number" />
+            <Identifier value={matter.filingNumber} label="filing number" />
             {" · "}
             <span className="tabular-nums text-warning-ink">
               {matter.daysSinceSubmitted}

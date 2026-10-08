@@ -87,6 +87,8 @@ export function complainantSummary(c: Complainant | undefined) {
   return {
     name: orNot(institution ? c?.entName : c?.name),
     type: institution ? "Institution" : "Individual",
+    /** Institutions only; empty for an individual, who is never asked. */
+    cinPan: institution ? orNot(c?.entCinPan) : "",
     mobile: orNot(institution ? c?.entPhone : c?.mobile),
     email: orNot(institution ? c?.entEmail : c?.email),
     presentAddress: orNot(addressToString(present)),
@@ -190,7 +192,7 @@ export type ChequeSummary = {
 export function chequeSummaries(draft: FilingDraft): ChequeSummary[] {
   return draft.cheques.map((c, i) => {
     const reason = optionLabel(RETURN_REASONS, c.returnReason);
-    const returned = [toDisplayDate(c.returnDate), reason].filter(Boolean).join(" — ");
+    const returned = [toDisplayDate(c.returnDate), reason].filter(Boolean).join(" · ");
     return {
       key: c.id,
       label: `Cheque ${i + 1}`,
@@ -269,13 +271,13 @@ export function noticeSummary(n: DemandNotice | undefined) {
     ),
     dispatchDate: displayDate(n?.dispatchDate ?? ""),
     mode: orNot(optionLabel(MODE_OF_SERVICE, n?.modeService ?? "")),
-    delivered: delivered ? (deliveryDate ? `Yes — ${deliveryDate}` : "Yes") : "No",
+    delivered: delivered ? (deliveryDate ? `Yes, on ${deliveryDate}` : "Yes") : "No",
     deliveredYesNo: delivered ? "Yes" : "No",
     deliveryDate: orNot(deliveryDate),
     replied: n?.replied === "yes" ? "Yes" : "No",
     payment:
       payment && n?.paymentStatus === "part" && partAmount
-        ? `${payment} — ${partAmount}`
+        ? `${payment}: ${partAmount}`
         : orNot(payment),
     paidYesNo: n?.paymentStatus === "part" ? "Yes, in part" : "No",
   };
@@ -322,7 +324,7 @@ export function jurisdictionSummary(draft: FilingDraft) {
     presentedBy:
       j.deposited === "yes"
         ? bank
-          ? `Complainant — ${bank}`
+          ? `Complainant: ${bank}`
           : "Complainant"
         : "Drawer (accused) bank branch",
     police: orNot(j.deposited === "yes" ? j.payeePolice : j.drawerPolice),
@@ -341,7 +343,7 @@ export function jurisdictionSummary(draft: FilingDraft) {
       delay === null
         ? NOT_PROVIDED
         : delay <= 30
-          ? "None — within limitation"
+          ? "None. Within limitation"
           : `${plural(beyond, "day")} beyond the one-month limit`,
     condonationReason: j.condonationReason.trim(),
   };

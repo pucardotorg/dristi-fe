@@ -30,7 +30,7 @@ Orientation for this repo. Docs describe the product and how we design; they are
 | `.codex/agents/` | Generated Codex roles; model selection inherits the session |
 | `.cursor/rules/`, `.claude/rules/`, `.claude/agents/` | Generated tool-native policy and role adapters |
 | `.cursor/skills/`, `.claude/skills/` | Generated complete mirrors of canonical skills |
-| `ds.lock.json` | Pinned DS commit; upgrades use a dedicated branch and PR into `design` |
+| `ds.lock.json` | Pinned DS commit; upgrades use a dedicated branch and PR into `main` |
 | `scripts/` | Rails generation, consistency checks, regression tests, and verification profiles |
 | `.github/workflows/agent-rails.yml` | Dependency-free agent configuration checks on PRs and long-lived branch pushes |
 

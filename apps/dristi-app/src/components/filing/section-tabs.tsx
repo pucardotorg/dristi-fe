@@ -79,10 +79,14 @@ export function SectionTabs({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 border-b border-hairline",
+        // Phone: the strip and Add keep the rule; the trailing control goes under it
+        // edge to edge, the first thing in the form it is about. Alone in a corner it
+        // read as a stray chip (owner, Sept 22). From `sm` up it is one row.
+        "flex flex-wrap items-center gap-x-2 sm:flex-nowrap sm:border-b sm:border-hairline",
         className
       )}
     >
+      <div className="flex w-full min-w-0 items-center gap-2 border-b border-hairline sm:contents">
       <Tabs value={activeId} onValueChange={onSelect} className="min-w-0 flex-1">
         <TabsList
           ref={listRef}
@@ -143,7 +147,12 @@ export function SectionTabs({
           {addLabel}
         </Button>
       ) : null}
-      {trailing ? <div className="ml-auto flex items-center">{trailing}</div> : null}
+      </div>
+      {trailing ? (
+        <div className="flex w-full items-center pt-4 sm:ml-auto sm:w-auto sm:pt-0 [&>*]:w-full sm:[&>*]:w-auto">
+          {trailing}
+        </div>
+      ) : null}
     </div>
   );
 }

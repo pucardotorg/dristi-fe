@@ -64,7 +64,7 @@ export function PapersStep({ locale, caseSummary }: StepProps) {
         </div>
         <div className="flex flex-col items-start lg:items-end">
           <Button asChild variant="outline">
-            <a href="/Summons_Kollam_v14.pdf" target="_blank" rel="noreferrer">
+            <a href="/Summons_v14.pdf" target="_blank" rel="noreferrer">
               {pick(papers.originalSummons, locale)}
               <ExternalLinkIcon data-icon="inline-end" aria-hidden />
             </a>

@@ -41,7 +41,7 @@
  * it rather than rewritten.
  */
 
-import { CURRENT_STAFF } from "./content";
+import { COURT_DISTRICT } from "./content";
 import {
   formatListingDate,
   isoDay,
@@ -104,7 +104,7 @@ export type CognizanceCase = {
  * The place this court sits, read off the one constant that already names it rather
  * than written down a second time — a second copy is a second thing to get wrong.
  */
-export const COURT_PLACE = CURRENT_STAFF.court.split(",").pop()!.trim();
+export const COURT_PLACE = COURT_DISTRICT;
 
 /** The month §142(b) allows for filing, in days. */
 export const LIMITATION_DAYS = 30;
@@ -136,7 +136,7 @@ const PRESENTED_TO_RETURN_DAYS = 2;
 /**
  * The complaints on this court's register that have not been taken cognizance of.
  *
- * Ordered longest wait first. Names are Kollam parties and the same bar as the rest of
+ * Ordered longest wait first. Names are local parties and the same bar as the rest of
  * the court side — one court, one set of advocates practising in it — and none of these
  * matters appears in another queue.
  *
@@ -170,7 +170,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    /* The payee's branch is in Ernakulam, not this court's Kollam — §142(2)(a) puts the
+    /* The payee's branch is in Ernakulam, not this court's district — §142(2)(a) puts the
        complaint where that branch lies, so the jurisdiction check fires. */
     branch: { bank: "South Indian Bank", branch: "Ernakulam South", place: "Ernakulam" },
     presentedAfterDays: 21,
@@ -189,7 +189,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Sample District" },
     presentedAfterDays: 14,
   },
   {
@@ -214,7 +214,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Exceeds arrangement",
     depositedByComplainant: true,
-    branch: { bank: "State Bank of India", branch: "Asramam", place: "Kollam" },
+    branch: { bank: "State Bank of India", branch: "Asramam", place: "Sample District" },
     presentedAfterDays: 33,
   },
   {
@@ -231,7 +231,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Sample District" },
     presentedAfterDays: 8,
   },
   {
@@ -268,7 +268,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: "Addressee moved from the address on record",
     returnReason: "Account closed",
     depositedByComplainant: true,
-    branch: { bank: "Union Bank of India", branch: "Punalur", place: "Kollam" },
+    branch: { bank: "Union Bank of India", branch: "Punalur", place: "Sample District" },
     presentedAfterDays: 27,
   },
   {
@@ -285,7 +285,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Kollam" },
+    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Sample District" },
     presentedAfterDays: 12,
   },
   {
@@ -303,7 +303,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Chinnakada", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Chinnakada", place: "Sample District" },
     presentedAfterDays: 16,
   },
   {
@@ -320,7 +320,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Exceeds arrangement",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Sample District" },
     presentedAfterDays: 41,
   },
   {
@@ -340,7 +340,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "State Bank of India", branch: "Asramam", place: "Kollam" },
+    branch: { bank: "State Bank of India", branch: "Asramam", place: "Sample District" },
     presentedAfterDays: 23,
   },
   {
@@ -375,7 +375,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Mundakkal", place: "Kollam" },
+    branch: { bank: "South Indian Bank", branch: "Mundakkal", place: "Sample District" },
     presentedAfterDays: 9,
   },
   {
@@ -393,7 +393,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: "Refused to accept",
     returnReason: "Payment stopped by drawer",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Punalur", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Punalur", place: "Sample District" },
     presentedAfterDays: 30,
   },
   {
@@ -410,7 +410,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Chinnakada", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Chinnakada", place: "Sample District" },
     presentedAfterDays: 11,
   },
   {
@@ -429,7 +429,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Exceeds arrangement",
     depositedByComplainant: true,
-    branch: { bank: "Union Bank of India", branch: "Kottiyam", place: "Kollam" },
+    branch: { bank: "Union Bank of India", branch: "Kottiyam", place: "Sample District" },
     presentedAfterDays: 25,
   },
   {
@@ -446,7 +446,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Kollam" },
+    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Sample District" },
     presentedAfterDays: 6,
   },
   {
@@ -464,7 +464,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Asramam", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Asramam", place: "Sample District" },
     presentedAfterDays: 13,
   },
   {
@@ -481,7 +481,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "State Bank of India", branch: "Chathannoor", place: "Kollam" },
+    branch: { bank: "State Bank of India", branch: "Chathannoor", place: "Sample District" },
     presentedAfterDays: 20,
   },
   {
@@ -498,7 +498,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: "Door locked on three attempts",
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Mundakkal", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Mundakkal", place: "Sample District" },
     presentedAfterDays: 15,
   },
   {
@@ -516,7 +516,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Exceeds arrangement",
     depositedByComplainant: true,
-    branch: { bank: "Union Bank of India", branch: "Chinnakada", place: "Kollam" },
+    branch: { bank: "Union Bank of India", branch: "Chinnakada", place: "Sample District" },
     presentedAfterDays: 18,
   },
   {
@@ -533,7 +533,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Kottiyam", place: "Kollam" },
+    branch: { bank: "South Indian Bank", branch: "Kottiyam", place: "Sample District" },
     presentedAfterDays: 7,
   },
   {
@@ -571,7 +571,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Sample District" },
     presentedAfterDays: 24,
   },
   {
@@ -588,7 +588,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Asramam", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Asramam", place: "Sample District" },
     presentedAfterDays: 5,
   },
 ];
@@ -604,11 +604,18 @@ export function cognizanceCaseById(id: string): CognizanceCase | undefined {
   return COGNIZANCE_QUEUE.find((entry) => entry.id === id);
 }
 
-/** The row after this one, for the file's own "Next case". Nothing at the end. */
+/**
+ * The row after this one, for the file's own "Next complaint". Nothing at the end.
+ *
+ * **On the same tab.** Since the queue split in two, the complaint after a late one is
+ * the next late one — walking into the other tab would hand the bench a different act
+ * on a complaint they had not chosen to look at.
+ */
 export function nextCognizanceCase(id: string): CognizanceCase | undefined {
-  const at = COGNIZANCE_QUEUE.findIndex((entry) => entry.id === id);
-  if (at < 0) return undefined;
-  return COGNIZANCE_QUEUE[at + 1];
+  const matter = cognizanceCaseById(id);
+  if (!matter) return undefined;
+  const siblings = casesOnTab(COGNIZANCE_QUEUE, tabFor(matter));
+  return siblings[siblings.findIndex((entry) => entry.id === id) + 1];
 }
 
 /* ───────────────────────────────── the delay ────────────────────────────────── */
@@ -979,46 +986,96 @@ export const COGNIZANCE_DOCUMENTS: {
   { key: "demand-notice", no: 3, title: "Demand notice", kind: "letter" },
 ];
 
-/* ───────────────────────────────── the filters ──────────────────────────────── */
+/* ─────────────────────────────────── the tabs ───────────────────────────────── */
 
 /**
- * Delay is a filter here and not a destination.
+ * Delay splits the queue in two, and the split is what carries the act.
  *
- * The reference split it into two rail rows with their own counts, opening two screens
- * that differed by three rows. It makes no difference to *how* cognizance is taken — the
- * condonation application was filed either way — so it is the kind of thing you narrow a
- * list by, not the kind of thing you navigate to (owner, 2026-09-14).
+ * This was one list with a delay filter until the PRD (v6, §2) made the two tabs load
+ * bearing: the positive action is configured **per tab**, and a state may swap Take
+ * cognizance for Issue notice on either one. A filter narrows a list without changing
+ * what you can do at the end of it; a tab here decides that, so it is a tab.
+ *
+ * Both tabs stay inside the one *Take cognizance* row in the rail — the reference's two
+ * counted rail rows opening two near-identical screens is still the wrong shape, and the
+ * PRD does not ask for it either.
  */
-export type CognizanceDelayFilter = "any" | "with" | "without";
+export type CognizanceTab = "without-delay" | "with-delay";
 
-export const COGNIZANCE_DELAY_FILTERS: {
-  id: CognizanceDelayFilter;
+/**
+ * The two tabs, and the one act that moves a complaint forward on each.
+ *
+ * **The positive action is per-state configuration, not a property of the complaint**
+ * (PRD §6). The values here are the defaults — Kerala's — and a state may replace either
+ * one with the other; `dismiss` is the negative action on both tabs and is never
+ * configurable, so it is not in this table.
+ *
+ * Reading the act off the tab rather than off `hasDelay` is the whole point: when a state
+ * swaps one, everything downstream — the file's own bar, the order it would draw up —
+ * follows from this one line.
+ */
+export const COGNIZANCE_TABS: {
+  id: CognizanceTab;
   label: string;
+  positiveAct: Exclude<CognizanceAct, "dismiss">;
 }[] = [
-  { id: "any", label: "All complaints" },
-  { id: "with", label: "With delay" },
-  { id: "without", label: "Without delay" },
+  { id: "without-delay", label: "Without delay", positiveAct: "cognizance" },
+  { id: "with-delay", label: "With delay", positiveAct: "notice" },
 ];
+
+/** Which tab a complaint stands on. The one fact the split is made of. */
+export function tabFor(matter: CognizanceCase): CognizanceTab {
+  return hasDelay(matter) ? "with-delay" : "without-delay";
+}
+
+/** The complaints on one tab, in queue order. */
+export function casesOnTab(
+  rows: CognizanceCase[],
+  tab: CognizanceTab,
+): CognizanceCase[] {
+  return rows.filter((entry) => tabFor(entry) === tab);
+}
+
+/**
+ * How many complaints stand on one tab.
+ *
+ * Counted over the whole queue and never over what the search box has left, so the
+ * number beside a tab's name does not move as the bench types.
+ */
+export function cognizanceTabCount(tab: CognizanceTab): number {
+  return casesOnTab(COGNIZANCE_QUEUE, tab).length;
+}
+
+/* ───────────────────────────────── the filters ──────────────────────────────── */
+
+export type CognizanceNoticeFilter = "all" | "delivered" | "returned";
 
 export type CognizanceFilters = {
   /** Free text over the cause title, both numbers and counsel. */
   query: string;
-  delay: CognizanceDelayFilter;
+  /** Whether the statutory demand notice reached the accused or came back. */
+  notice?: CognizanceNoticeFilter;
 };
 
 export const EMPTY_COGNIZANCE_FILTERS: CognizanceFilters = {
   query: "",
-  delay: "any",
+  notice: "all",
 };
+
+export const COGNIZANCE_NOTICE_OPTIONS: { value: Exclude<CognizanceNoticeFilter, "all">; label: string }[] = [
+  { value: "delivered", label: "Notice delivered" },
+  { value: "returned", label: "Notice returned" },
+];
 
 export function filterCognizanceCases(
   rows: CognizanceCase[],
   filters: CognizanceFilters,
 ): CognizanceCase[] {
   const query = filters.query.trim().toLowerCase();
+  const notice = filters.notice ?? "all";
   return rows.filter((entry) => {
-    if (filters.delay === "with" && !hasDelay(entry)) return false;
-    if (filters.delay === "without" && hasDelay(entry)) return false;
+    if (notice === "delivered" && !entry.noticeDelivered) return false;
+    if (notice === "returned" && entry.noticeDelivered) return false;
     if (!query) return true;
     const haystack = [
       entry.parties.complainant,
@@ -1033,19 +1090,17 @@ export function filterCognizanceCases(
   });
 }
 
-/** How many of the queue are late. The filter's own count, derived like the rest. */
-export const COGNIZANCE_DELAY_COUNT = COGNIZANCE_QUEUE.filter(hasDelay).length;
-
 /* ─────────────────────────────────── the act ────────────────────────────────── */
 
 /**
- * What the footer offers on one complaint.
+ * What the file's own bar offers on one complaint.
  *
- * Two acts, never three. `dismiss` is always there; the other is the PRD's: normally
- * *Take cognizance*, and on a late complaint in Kerala *Issue notice* instead — the
- * accused is heard on the delay before the court decides it (BNSS §223 proviso, and the
- * notice this court already writes in `sign-process.ts`). The PRD says the primary
- * action *changes*, so it replaces rather than joins.
+ * Exactly two, never three (PRD §6): one positive action that moves the complaint on,
+ * and `dismiss`, which ends it. Which positive action is the **tab's**, not the
+ * complaint's — `COGNIZANCE_TABS` holds it, and a state may swap it on either tab. The
+ * defaults are Kerala's: Take cognizance on a complaint filed in time, and on a late one
+ * Issue notice, so the accused is heard on the delay before the court decides it (BNSS
+ * §223 proviso, and the notice this court already writes in `sign-process.ts`).
  *
  * This build performs none of them. Each opens a confirmation that names the order it
  * would draft and settles in place — the same bargain every other act on the court side
@@ -1055,8 +1110,19 @@ export const COGNIZANCE_DELAY_COUNT = COGNIZANCE_QUEUE.filter(hasDelay).length;
  */
 export type CognizanceAct = "cognizance" | "notice" | "dismiss";
 
+/** Whether a string off a URL names one of the three acts. */
+export function isCognizanceAct(value: string | undefined): value is CognizanceAct {
+  return value === "cognizance" || value === "notice" || value === "dismiss";
+}
+
+/** The positive action configured for one tab. */
+export function positiveActForTab(tab: CognizanceTab): CognizanceAct {
+  return COGNIZANCE_TABS.find((entry) => entry.id === tab)!.positiveAct;
+}
+
+/** The positive action a complaint meets, by way of the tab it stands on. */
 export function primaryActFor(matter: CognizanceCase): CognizanceAct {
-  return hasDelay(matter) ? "notice" : "cognizance";
+  return positiveActForTab(tabFor(matter));
 }
 
 /** What the complaint's state is called before any of the three acts is taken. */

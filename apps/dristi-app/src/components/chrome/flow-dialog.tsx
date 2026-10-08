@@ -3,7 +3,12 @@
 import * as React from "react";
 
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
-import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
+import { OVERLAY_RISE } from "@/components/chrome/motion";
+import {
+  useBackCloses,
+  useBottomSheet,
+  useFlowWindow,
+} from "@/components/chrome/flow-window";
 import { DialogClose } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
@@ -26,12 +31,31 @@ export function FlowDialogContent({
   style,
   children,
   ownBack = false,
+  rise = false,
+  sheet = false,
   ...props
 }: React.ComponentProps<typeof ChromeDialogContent> & {
   /** The flow handles the phone's Back itself. */
   ownBack?: boolean;
+  /**
+   * Open with the product's overlay rise (`OVERLAY_RISE`) rather than the DS
+   * zoom — the staged overlays' entrance. Only from `sm` up: on a phone the
+   * window slides in from the right, and a rise on top of that is two
+   * entrances at once.
+   */
+  rise?: boolean;
+  /**
+   * On a phone, rise as a bottom sheet (`useBottomSheet`) rather than taking the
+   * whole window from the right. For a short flow the person enters from a list
+   * and returns to it — Join a Case (owner, Oct 6: "a bottom sheet and not a side
+   * peek"). The sheet stops short of the top so it reads as a sheet over the
+   * page, scrolls inside the dialog's own layout rather than as one long panel,
+   * and the phone's Back still closes it.
+   */
+  sheet?: boolean;
 }) {
   const flow = useFlowWindow();
+  const bottomSheet = useBottomSheet();
   // A simple dialog is a plain grid: header, body, DS footer. Stretched to a
   // phone's height that left the footer floating under the last field with its
   // rounded card corners, mid-screen. In the window such a dialog stacks as a
@@ -41,16 +65,23 @@ export function FlowDialogContent({
   const selfLaidOut = /(^|\s)(flex|grid-rows-\S+)(\s|$)/.test(className ?? "");
   const closeRef = React.useRef<HTMLButtonElement>(null);
   useBackCloses(flow.phone && !ownBack, () => closeRef.current?.click());
-  return (
-    <ChromeDialogContent
-      className={cn(
-        className,
+  const surface = sheet
+    ? cn(
+        bottomSheet.className,
+        /* The sheet's own scroll would carry the header away; the dialog lays
+           itself out and scrolls its stage. */
+        flow.phone && "max-h-[92dvh] overflow-hidden"
+      )
+    : cn(
         flow.className,
         flow.phone && !selfLaidOut && "flex flex-col",
         flow.phone &&
           "[&>[data-slot=dialog-footer]]:mt-auto [&>[data-slot=dialog-footer]]:rounded-none [&>[data-slot=dialog-footer]]:pb-[calc(--spacing(6)+env(safe-area-inset-bottom))]"
-      )}
-      style={{ ...style, ...flow.style }}
+      );
+  return (
+    <ChromeDialogContent
+      className={cn(rise && !flow.phone && OVERLAY_RISE, className, surface)}
+      style={{ ...style, ...(sheet ? bottomSheet.style : flow.style) }}
       {...props}
     >
       {children}

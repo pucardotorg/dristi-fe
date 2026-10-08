@@ -8,20 +8,26 @@ import {
   XIcon,
 } from "lucide-react";
 
-import { ListFooter } from "@/components/employee/list-footer";
+import {
+  PILL_COUNT,
+  PILL_ITEM,
+  PILL_ROW,
+} from "@/components/chrome/pill-plate";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
 import {
   CourtFilters,
+  CourtSortSelect,
   type CourtFilterField,
 } from "@/components/employee/court-filters";
-import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
+import { RecordReturnsDialog } from "@/components/employee/record-returns-dialog";
+import { ProcessMoveDialog } from "@/components/employee/process-move-dialog";
 import { SignProcessDialog } from "@/components/employee/sign-process-dialog";
-import { SignProcessTable } from "@/components/employee/sign-process-table";
-import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
-  rowOpener,
-  rowOpenerClass,
-} from "@/lib/employee/row-activation";
+  ProcessStatusText,
+  SignProcessTable,
+} from "@/components/employee/sign-process-table";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
+import { rowOpener, rowOpenerClass } from "@/lib/employee/row-activation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -33,43 +39,70 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { isPendingFilterChange } from "@/lib/employee/filter-state";
 import {
   causeTitle,
-  formatListingDate,
-  isoDay,
-  parseIsoDay,
-  PAGE_SIZE,
-  type HearingsPageSize,
 } from "@/lib/employee/hearings";
 import {
-  advanceProcesses,
+  actsForSelection,
+  bandByStatus,
   courtProcessTypeInline,
   courtProcessTypeLabel,
   COURT_PROCESS_TYPES,
   defaultProcessFilters,
   downloadProcessBundle,
-  DEFAULT_PROCESS_STAGE,
+  DEFAULT_PROCESS_TAB,
   filterProcesses,
   formatProcessDate,
   groupSelectionByCase,
+  hasPills,
+  NON_SERVICE_REASONS,
+  OUTCOME_FILTERS,
+  orderForView,
+  pileFor,
+  pilePool,
   PROCESS_CHANNELS,
   PROCESS_LINE,
-  PROCESS_STAGES,
+  PROCESS_TABS,
+  allCounted,
+  DEFAULT_PROCESS_SORT,
+  moveLine,
+  PROCESS_SORTS,
+  processAct,
   processChannelLabel,
-  processesAdvancing,
   processesAt,
   processesElsewhere,
+  processesIn,
   processIdsForCase,
-  processStage,
-  singleCaseMatch,
+  processStatus,
+  processTab,
   rebaseFilters,
+  sortProcesses,
+  spansStatuses,
+  recordProcessReturns,
+  runProcessAct,
+  singleCaseMatch,
+  tabCount,
   todayIsoDay,
   type CourtProcess,
+  type ProcessAct,
+  type ProcessActId,
   type ProcessFilters,
+  type ProcessOutcome,
+  type ProcessPile,
+  type ProcessSort,
+  type ProcessStatus,
+  type ProcessTab,
+  type ProcessTabId,
+  type ProcessView,
   type SelectedCase,
-  type ProcessStage,
-  type ProcessStageId,
 } from "@/lib/employee/sign-process";
 import { Identifier } from "@/components/chrome/identifier";
 
@@ -78,181 +111,167 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
- * Sign process — every summons, notice, warrant and proclamation this court has issued
- * and has still to get out of the building.
+ * Sign process — every summons, notice, warrant and proclamation this court has issued,
+ * from the cover it waits on to the word its channel sends back.
  *
- * The other four rows in the rail's Sign group are queues: one act, one list, gone. This
- * one is a **line**, and the reference screens draw it as five tabs because a process
- * moves — its registered-post cover is collected, it is sent for signature, it is
- * signed, it is dispatched, and the channel reports back. Left to right is the direction
- * of travel, and the screen opens on the end nothing has been done to.
+ * **Three tabs, by who the process is waiting on** (owner, 2026-10-06; see
+ * `lib/employee/sign-process.ts`): RPAD collection waits on the advocate, Issuance on
+ * the court, Service on the channel. Inside a tab the statuses are **pills** — the
+ * pending-tasks row, one at a time, with All to see the tab whole and banded by status.
+ * The tab is the job and the pill narrows it, so the bench never changes tab to finish
+ * one.
  *
- * Everything below the tab strip is the court-side furniture the rest of the rail
- * already uses, unchanged: the page title on the page, then **one** lifted panel holding
- * the filters, the table and the pagination footer together. Same panel recipe, same
- * `gap-6` / `p-6`, same table treatment, same empty states, literally the same footer
- * component. A bench moving between the rail's rows is looking at one court's work
- * through several windows and should not have to re-learn the furniture in between.
+ * **Acts come from the selection, not from the pill.** A Issuance selection can hold
+ * rows to sign, covers to post and failed sends at once; each gets its own button over its
+ * own count, the first of them the one strong action (Ration teal). Under one pill that
+ * is simply that pill's act.
  *
- * **What changes between tabs is only what the stage makes change** — the fourth
- * column's heading and the day under it, whether the hearing-date filter is offered,
- * and which act sits in the bar. All three are read off `PROCESS_STAGES`, so a stage is
- * a row of data rather than a branch in this file.
+ * **Paper in hand is matched one number at a time.** Three statuses are the clerk holding
+ * a stack — covers arriving, covers going to the post office, acknowledgements coming
+ * back — and on each the search box takes a case number and Enter puts that envelope on
+ * the pile, shown in a tray above the list. Same gesture, same tray, three moments.
  *
- * **Selection does not survive a tab change.** Eight rows checked for signature mean
- * nothing under Sent, and an act carried across tabs would be the wrong verb applied to
- * the wrong rows. Changing tab clears the selection, the filters and the page.
+ * Everything below the tab strip is the court-side furniture the rest of the rail uses:
+ * one lifted panel holding the controls, the list and the footer. **Selection does not
+ * survive a change of tab or pill** — rows ticked to sign mean nothing under Service.
  *
- * **Nothing is signed, sent or served.** Every act moves a row's stage in the demo line
- * and stamps a day — see `lib/employee/sign-process.ts`.
+ * **Nothing is signed, sent, posted or recorded.** Every act moves a row in the demo line.
  */
 export function SignProcessScreen() {
-  /* The line is state because every act changes it. One list, so the five tabs, the rail
-     count on the next render and the bar can never disagree about where a row is. */
+  /* One list, so the tabs, the pills, the rail count and the bar can never disagree
+     about where a row is. */
   const [line, setLine] = React.useState<CourtProcess[]>(PROCESS_LINE);
-  const [stageId, setStageId] = React.useState<ProcessStageId>(
-    DEFAULT_PROCESS_STAGE,
-  );
-  const stage = processStage(stageId);
+  const [tabId, setTabId] = React.useState<ProcessTabId>(DEFAULT_PROCESS_TAB);
+  const tab = processTab(tabId);
+  const [view, setView] = React.useState<ProcessView>(tab.defaultView);
 
-  /* One state, not a draft and an applied one: the line answers the controls as they are
-     used — type, channel, returnable day and free text alike, so the row has one rule
-     rather than four controls on two. Every change resets to page one; the old Search
-     button did that, and a keystroke that narrows the tab to four rows must not leave the
-     clerk on page three of nothing. */
   const [filters, setFilters] = React.useState<ProcessFilters>(() =>
-    defaultProcessFilters(stage),
+    defaultProcessFilters(tab),
   );
-  const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
-  const [page, setPage] = React.useState(1);
   const [selectedIds, setSelectedIds] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const [open, setOpen] = React.useState<CourtProcess | null>(null);
-  const [bulkOpen, setBulkOpen] = React.useState(false);
+  /* The row open in the overlay, by id: the overlay reads the live row off the line, so
+     an act taken in it shows its new status without closing. */
+  const [openId, setOpenId] = React.useState<string | null>(null);
+  const open = openId ? (line.find((process) => process.id === openId) ?? null) : null;
+  const openRow = (process: CourtProcess) => setOpenId(process.id);
+  /* Which act's confirmation is open. One at a time; each has its own rows. */
+  const [confirming, setConfirming] = React.useState<ProcessActId | null>(null);
+  /* The act the shared confirmation last opened on. Held past closing so the dialog keeps
+     its verb while it closes and hands focus back. */
+  const [shown, setShown] =
+    React.useState<Exclude<ProcessActId, "record">>("sign");
   const [notice, setNotice] = React.useState("");
-  /* What the last Enter did with the cover in the clerk's hand. Spoken, not shown — the
+  /* What the last Enter did with the paper in the clerk's hand. Spoken, not shown — the
      chip arriving in the tray is what says it on screen. */
   const [picked, setPicked] = React.useState("");
-  /* What the act just moved, so the confirmation's success step can still offer the
-     papers. Ids rather than rows: by the time that button can be pressed the rows have
-     been stamped, and a copy taken before the act would hand the bench ten processes
-     that still say they are waiting to be signed. */
+  /* How the list is ordered — kept across tabs and pills: it is how the bench likes to
+     read, not a question about one view. */
+  const [sort, setSort] = React.useState<ProcessSort>(DEFAULT_PROCESS_SORT);
+  /* What the last act took, by id, so the confirmation's success can say where the rows
+     are now — read back off the line once they have moved. */
   const [actedIds, setActedIds] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   );
   const searchRef = React.useRef<HTMLInputElement>(null);
-  /* The bulk confirmation hands focus back here on the way out — see its `triggerRef`. */
-  const actRef = React.useRef<HTMLButtonElement>(null);
+  /* The bar button a confirmation was opened from, for focus to return to. Set on the
+     press, because the bar can carry up to three act buttons. */
+  const actRef = React.useRef<HTMLButtonElement | null>(null);
 
-  const stageRows = processesAt(line, stageId);
-  const rows = filterProcesses(stageRows, filters);
+  const viewRows = processesIn(line, tab, view);
+  /* Sorted first, then grouped: under All the bands keep the sort inside each. */
+  const sorted = sortProcesses(viewRows, sort);
+  const ordered = view === "all" ? orderForView(sorted, tab) : sorted;
+  const rows = filterProcesses(ordered, filters);
+  /* Banded when the view holds more than one status. */
+  const banded = view === "all" && spansStatuses(rows);
 
-  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const start = (currentPage - 1) * pageSize;
-  const pageRows = rows.slice(start, start + pageSize);
+  /* No pages (owner, 2026-10-06). This is a bulk screen — a pile is picked across the
+     whole view and acted on at once — and paging hid half of it: under All the first ten
+     rows were all To sign, so the other statuses sat on a page nobody opened. The view is
+     already cut by tab, pill and filter; what is left is one list. */
 
-  const defaults = defaultProcessFilters(stage);
-  /* Still the shared check, and still the question it was written for: whether what the
-     table is showing is narrower than the tab's own default view. Only the *other* caller
-     — a Search button asking whether it had work to do — is gone. */
+  const defaults = defaultProcessFilters(tab);
   const isFiltered = isPendingFilterChange(filters, defaults);
 
-  /* What the bar will act on: the selection, minus anything that has since moved on. A
-     stale id is dropped rather than counted. */
-  const selected = stageRows.filter((process) => selectedIds.has(process.id));
+  /* What the bar acts on: the selection, minus anything that has since moved on. */
+  const selected = viewRows.filter((process) => selectedIds.has(process.id));
+  const groups = actsForSelection(tab, selected);
 
-  /* The same selection counted the way the clerk counts it — by envelope. One cover per
-     case, so a case is an envelope however much process is inside it.
+  /* The paper this view is matched against, and the selection read back as envelopes. */
+  const pile = pileFor(view);
+  const pool = pilePool(line, view);
+  const selectedCases = pile ? groupSelectionByCase(pool, selectedIds) : [];
 
-     Derived plainly, the way `rows` and `selected` above it are. A `useMemo` here is
-     refused whatever its body does — `stageRows` comes back from an imported call and is
-     handed to more of them, so the compiler can never establish that nothing mutates it,
-     and a dependency it cannot call immutable makes the memo unpreservable. It then
-     declines to optimise the whole component rather than this one line, which is what
-     `react-hooks/preserve-manual-memoization` reports. Grouping is one Map over a single
-     stage's rows: the order of work those two lines already do on every render. */
-  const selectedCases = groupSelectionByCase(stageRows, selectedIds);
-
-  /* Only asked when this stage has come up empty under a filter — the one moment the
-     answer changes what the screen should say. */
   const elsewhere =
     rows.length === 0 && isFiltered
-      ? processesElsewhere(line, filters, stageId)
+      ? processesElsewhere(line, filters, { tab: tabId, view })
       : [];
 
-  /**
-   * Move to another stage.
-   *
-   * `carry` is the filters to arrive with, and only the empty state passes it: following
-   * "1 in Signed" out of a search that found nothing here has to land on that search
-   * still applied, or the bench arrives at eight rows and has to type it again. Anything
-   * carried is rebased first, because a stage-defining channel is not a question the
-   * bench asked (`rebaseFilters`). The tab strip itself passes nothing and resets, which
-   * is what picking a stage off the strip means.
-   */
-  function changeStage(next: ProcessStageId, carry?: ProcessFilters) {
-    const nextStage = processStage(next);
-    setStageId(next);
-    setFilters(
-      carry
-        ? rebaseFilters(carry, stage, nextStage)
-        : defaultProcessFilters(nextStage),
-    );
+  /** Put the selection and the last word down — what any change of view does. */
+  function resetWork() {
     setSelectedIds(new Set());
-    setPage(1);
     setNotice("");
     setPicked("");
   }
 
   /**
-   * The filter controls changed — all four of them, as they are used.
+   * Move to another tab, and optionally a status in it.
    *
-   * **The box is a lookup and so are the selects.** A clerk typing a case number off an
-   * envelope already knows the answer they want, and every keystroke is a better guess at
-   * it; a clerk picking a process type is asking a one-part question that is complete the
-   * moment it is picked. Neither has an in-between state worth holding, so neither waits
-   * for a button, and there is no moment where what the controls hold and what the table
-   * is showing disagree.
-   *
-   * The last Enter's word about a cover goes with the query it was typed against: once
-   * the number has changed, "KL-…-2026 added to the pile" is about a case the box no
-   * longer names.
+   * `carry` is the filters to arrive with, and only the empty state passes it: following
+   * "1 in To post" out of a search that found nothing here has to land on that search
+   * still applied. The tab strip passes nothing and resets, which is what picking a tab
+   * off the strip means.
    */
-  function changeFilters(next: ProcessFilters) {
-    if (next.query !== filters.query) setPicked("");
-    setFilters(next);
-    setPage(1);
+  function changeTab(
+    next: ProcessTabId,
+    nextView?: ProcessView,
+    carry?: ProcessFilters,
+  ) {
+    const nextTab = processTab(next);
+    setTabId(next);
+    setView(nextView ?? nextTab.defaultView);
+    setFilters(
+      carry
+        ? rebaseFilters(carry, tab, nextTab)
+        : defaultProcessFilters(nextTab),
+    );
+    resetWork();
+  }
+
+  /** A pill. The filters stay: a question asked of one status is often next asked of
+   *  the one beside it. */
+  function changeView(next: ProcessView) {
+    setView(next);
+    resetWork();
+  }
+
+  /**
+   * Change some of the filters. A patch, merged into the latest state rather than a whole
+   * new set: the Filters sheet applies every field it changed in one go, and a whole set
+   * built from this render's `filters` by each field in turn kept only the last field's
+   * change — Process type and Channel applied together came back as Channel alone.
+   */
+  function changeFilters(patch: Partial<ProcessFilters>) {
+    if (patch.query !== undefined && patch.query !== filters.query) setPicked("");
+    setFilters((current) => ({ ...current, ...patch }));
   }
 
   /**
    * Enter, in the search box: put this envelope on the pile.
    *
-   * The clerk's hands are on the keyboard with a cover in front of them, so the gesture
-   * that ends a lookup should be the gesture that records it. Type the number, press
-   * Enter, the case joins the pile and the box empties ready for the next cover. The
-   * checkboxes still work and still feed the same pile — this is the fast path, not the
-   * only one.
-   *
-   * **It commits only when the number names one case.** A cover is one per case, so one
-   * case is one envelope and adding it is unambiguous; two cases still matching means the
-   * clerk has not finished typing, and guessing between them would put the wrong court's
-   * process into a signing batch. So an ambiguous Enter does nothing — the list is already
-   * showing what has been typed — and the clerk keeps typing.
-   *
-   * A case already on the pile is said out loud rather than silently ignored: a second
-   * cover for a case whose process is already picked is a thing that happens, and the
-   * clerk needs to know which of the two it was.
+   * Only where the view is paper in hand. **It commits only when the number names one
+   * case** — two cases still matching means the clerk has not finished typing — and every
+   * process of that case in the pile goes on together, because they travel in one cover.
+   * The box empties on the way out, ready for the next cover. A case already on the pile
+   * is said aloud rather than silently ignored.
    */
   function submitSearch() {
     const query = filters.query.trim();
-    /* Both refusals used to press Search on the way out. There is no Search: the table is
-       already showing what the box says, so an Enter that names no single case has nothing
-       left to do and the clerk keeps typing. */
-    if (!stage.reconcilesCovers || !query) return;
+    if (!pile || !query) return;
 
-    const matches = singleCaseMatch(stageRows, { ...filters, query });
+    const matches = singleCaseMatch(pool, { ...filters, query });
     if (!matches) return;
 
     const caseNumber = matches[0].caseNumber;
@@ -265,11 +284,7 @@ export function SignProcessScreen() {
       });
     }
 
-    /* The box empties on the way out, because the next thing the clerk does is read the
-       next cover. Clearing it also puts the table back, which is one deliberate change
-       following one deliberate act rather than a list moving while nobody asked. */
     setFilters((current) => ({ ...current, query: "" }));
-    setPage(1);
     setNotice("");
     setPicked(
       already
@@ -297,7 +312,7 @@ export function SignProcessScreen() {
     setNotice("");
     setSelectedIds((current) => {
       const next = new Set(current);
-      for (const process of pageRows) {
+      for (const process of rows) {
         if (select) next.add(process.id);
         else next.delete(process.id);
       }
@@ -305,17 +320,11 @@ export function SignProcessScreen() {
     });
   }
 
-  /**
-   * Take an envelope back out of the pile.
-   *
-   * A cover is one per case, so removing an entry removes the whole case — every process
-   * of it that is at this stage, whether or not the table is currently showing them.
-   * Untick two of three and the entry stays, reading `2`; untick the entry and all three
-   * go, because the entry *is* the envelope.
-   */
+  /** Take an envelope back out of the pile — every process of the case, since the
+   *  entry *is* the envelope. */
   function removeCase(caseNumber: string) {
     setNotice("");
-    const ids = processIdsForCase(stageRows, caseNumber);
+    const ids = processIdsForCase(pool, caseNumber);
     setSelectedIds((current) => {
       const next = new Set(current);
       for (const id of ids) next.delete(id);
@@ -323,104 +332,124 @@ export function SignProcessScreen() {
     });
   }
 
-  /* Put the whole pile down. Distinct from the filters' Clear, which puts the *question*
-     down — hence "Clear selection" on the tray rather than a second bare "Clear". */
   function clearSelection() {
     setNotice("");
     setSelectedIds(new Set());
   }
 
-  /**
-   * The act, from either path. It moves the rows one stage along in this demo line,
-   * clears the selection it consumed and says what it did — nothing leaves the browser.
-   */
-  function advance(ids: ReadonlySet<string>) {
-    const act = stage.act;
-    if (!act) return;
-    const moving = processesAdvancing(line, ids, stageId);
-    const count = moving.length;
-    if (count === 0) return;
-    setActedIds(new Set(moving.map((process) => process.id)));
-    setLine((current) =>
-      advanceProcesses(current, ids, stageId, todayIsoDay()),
-    );
+  function forget(ids: Iterable<string>) {
     setSelectedIds((current) => {
       const next = new Set(current);
       for (const id of ids) next.delete(id);
       return next;
     });
-    setNotice(act.notice(count));
+  }
+
+  /**
+   * An act from the bar or the single-row overlay. It runs over the given rows in the
+   * demo line, clears what it consumed and says what it did — nothing leaves the browser.
+   */
+  function act(
+    actId: Exclude<ProcessActId, "record">,
+    ids: ReadonlySet<string>,
+  ) {
+    const next = runProcessAct(line, actId, ids, todayIsoDay());
+    const moved = line.filter(
+      (process, index) => ids.has(process.id) && next[index] !== process,
+    );
+    if (moved.length === 0) return;
+    setActedIds(new Set(moved.map((process) => process.id)));
+    setLine(next);
+    forget(ids);
+    setNotice(processAct(actId).notice(moved.length));
+  }
+
+  function record(outcomes: Map<string, ProcessOutcome>, on: string) {
+    setLine((current) => recordProcessReturns(current, outcomes, on));
+    forget(outcomes.keys());
+    setNotice(processAct("record").notice(outcomes.size));
   }
 
   function returnFocus() {
     searchRef.current?.focus();
   }
 
+  const confirmingGroup = confirming
+    ? groups.find((group) => group.act.id === confirming)
+    : undefined;
+  const confirmingRows = confirmingGroup?.rows ?? [];
+  const shownAct = processAct(shown);
+  /* Where the last act's rows are now — what the confirmation's success says. */
+  const actedRows = line.filter((process) => actedIds.has(process.id));
+
+
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title text-balance font-semibold">
-          Sign process
-        </h1>
-        {/* The supporting line belongs to the tab, not to the page: what is worth saying
-            under the title is how much work is standing at the stage the bench is
-            looking at, and that sentence is different at every one of the five. */}
-        <p className="text-body text-muted-foreground">
-          {stage.summary(stageRows.length)}
-        </p>
+        {/* No supporting line (owner, 2026-10-06): the tab counts and the pills already
+            say how much is standing where, and a sentence restating them was noise. */}
+        <h1 className="text-title text-balance font-semibold">Sign process</h1>
       </header>
 
       <Tabs
-        value={stageId}
-        onValueChange={(value) => changeStage(value as ProcessStageId)}
+        value={tabId}
+        onValueChange={(value) => changeTab(value as ProcessTabId)}
         className="flex min-w-0 flex-col gap-6"
       >
-        {/* Line TabsList, not the pill track: these are stages of one thing rather than
-            alternative views of it, and the underline is what a line looks like. Five
-            long labels will not fit a phone, so the row scrolls rather than crushing
-            them (RESPONSIVE).
-
-            The primitive hangs its mark at `after:bottom-[-5px]` for a padded track, and
-            `overflow-x-auto` clips that hang (x-scroll forces y-clip). Sit the mark at
-            `after:-bottom-px` so it lands on the gutter's own rule instead of floating
-            above it as a second horizontal line (ui-craft §2). */}
-        <div className="overflow-x-auto border-b border-hairline">
+        {/* Line TabsList: the mark sits on the gutter's own rule (`after:-bottom-px`),
+            because `overflow-x-auto` clips the primitive's padded-track hang. */}
+        {/* No scrollbar for the same reason as the pill row (`chrome/pill-plate.ts`). */}
+        <div className="overflow-x-auto border-b border-hairline [scrollbar-width:none]">
           <TabsList
             variant="line"
-            aria-label="Process stages"
+            aria-label="Process line"
             className="h-10 w-max min-w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
           >
-            {PROCESS_STAGES.map((entry) => (
-              <TabsTrigger
-                key={entry.id}
-                value={entry.id}
-                className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
-              >
-                {entry.label}
-                {/* How much is standing here. One presentation across all five, and it
-                    inherits the trigger's colour so the count and its label read as one
-                    thing rather than as a badge stuck to a tab (ui-craft §2). */}
-                <span className="font-normal tabular-nums">
-                  {processesAt(line, entry.id).length}
-                </span>
-              </TabsTrigger>
-            ))}
+            {PROCESS_TABS.map((entry) => {
+              const count = tabCount(line, entry);
+              return (
+                <TabsTrigger
+                  key={entry.id}
+                  value={entry.id}
+                  className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
+                >
+                  {entry.label}
+                  {/* Counts mean work: Service carries none — see `ProcessTab.counted`. */}
+                  {count === null ? null : (
+                    <span className="font-normal tabular-nums">{count}</span>
+                  )}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
         </div>
 
-        {PROCESS_STAGES.map((entry) => (
+        {PROCESS_TABS.map((entry) => (
           <TabsContent
             key={entry.id}
             value={entry.id}
             className="min-w-0 outline-none"
           >
-            {entry.id !== stageId ? null : (
-              /* One panel: filters, list and footer are one unit of work, so they share
-                 one lifted sheet — the same recipe every other court-side queue uses.
-                 Nothing inside draws a second frame. */
-              <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
+            {entry.id !== tabId ? null : (
+              /* One panel: pills, filters, list and footer are one unit of work. */
+              <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card p-6 shadow-raised">
+                {/* One row, edge to edge: the pills lead, the search and Filters sit at
+                    the far end — the pending-tasks row (owner, 2026-10-06). */}
                 <ProcessFiltersForm
-                  stage={stage}
+                  sort={sort}
+                  onSortChange={setSort}
+                  leading={
+                    hasPills(tab) ? (
+                      <ProcessPills
+                        tab={tab}
+                        line={line}
+                        view={view}
+                        onChange={changeView}
+                      />
+                    ) : undefined
+                  }
+                  tab={tab}
+                  pile={pile}
                   filters={filters}
                   searchRef={searchRef}
                   onChange={changeFilters}
@@ -428,95 +457,68 @@ export function SignProcessScreen() {
                   onSubmit={submitSearch}
                 />
 
-                {/* Mounted whatever the tab is doing, including empty — see
-                    `QueueAnnouncer`. */}
                 <QueueAnnouncer
-                  from={start + 1}
-                  to={start + pageRows.length}
+                  from={1}
+                  to={rows.length}
                   total={rows.length}
                 />
 
                 {/* The pile, above the list it was picked from — and outside the branch
-                    below, so searching a case with nothing at this stage empties the
-                    table without emptying the clerk's hands.
-
-                    Shown only when it holds something. An empty box announcing that it is
-                    empty is chrome asking to be read; the pile explains itself the moment
-                    there is a pile. It briefly carried a placeholder to stop the box
-                    *appearing* on the first tick and shoving the table out from under the
-                    cursor — but with Enter as the way covers go on, the clerk's hands stay
-                    in the search box and the table is not what they are aiming at. The
-                    tray and the restored table arrive together, as one change following
-                    one act. */}
-                {stage.reconcilesCovers && selectedCases.length > 0 ? (
+                    below, so searching a case with nothing here empties the table without
+                    emptying the clerk's hands. Shown only when it holds something. */}
+                {pile && selectedCases.length > 0 ? (
                   <ProcessSelectionTray
+                    pile={pile}
                     cases={selectedCases}
-                    processCount={selected.length}
                     onRemoveCase={removeCase}
                     onClearSelection={clearSelection}
                   />
                 ) : null}
 
                 {/* One height for both branches, so narrowing a search does not walk the
-                    footer and the page up the screen under the clerk. Ten rows is taller
-                    than this, so a full tab is unaffected; the floor catches the last few
-                    keystrokes — the ones that take a result from five rows to one — which
-                    are exactly the keystrokes the clerk is watching. */}
+                    footer up the screen under the clerk. */}
                 <div className="flex min-h-96 min-w-0 flex-col">
-                {pageRows.length === 0 ? (
-                  <ProcessEmpty
-                    stage={stage}
-                    isFiltered={isFiltered}
-                    elsewhere={elsewhere}
-                    onClear={clearFilters}
-                    onGoToStage={(next) => changeStage(next, filters)}
-                  />
-                ) : (
-                  <div className="flex min-w-0 flex-col gap-4">
-                    {/* min-w-0 lets this flex item shrink below the table's content
-                        width, so a wide table scrolls inside the panel instead of
-                        pushing the page sideways. */}
-                    <div className="min-w-0 overflow-x-auto">
-                      {/* Seven columns do not survive a phone. Below `md` the same rows
-                          stack as items — the answer the rest of the court side already
-                          gives. */}
-                      <div className="hidden md:block">
-                        <SignProcessTable
-                          stage={stage}
-                          rows={pageRows}
-                          selectedIds={selectedIds}
-                          onToggle={toggle}
-                          onToggleAll={toggleAllInView}
-                          onOpen={setOpen}
-                        />
-                      </div>
-                      <div className="md:hidden">
-                        <ProcessItemList
-                          stage={stage}
-                          rows={pageRows}
-                          selectedIds={selectedIds}
-                          onToggle={toggle}
-                          onOpen={setOpen}
-                        />
+                  {rows.length === 0 ? (
+                    <ProcessEmpty
+                      empty={
+                        view === "all" ? tab.empty : processStatus(view).empty
+                      }
+                      isFiltered={isFiltered}
+                      elsewhere={elsewhere}
+                      onClear={clearFilters}
+                      onGoTo={(status) =>
+                        changeTab(status.tab, status.id, filters)
+                      }
+                    />
+                  ) : (
+                    <div className="flex min-w-0 flex-col gap-4">
+                      <div className="min-w-0 overflow-x-auto">
+                        {/* Seven columns do not survive a phone. Below `md` the same rows
+                            stack as items. */}
+                        <div className="hidden md:block">
+                          <SignProcessTable
+                            tab={tab}
+                            rows={rows}
+                            banded={banded}
+                            selectedIds={selectedIds}
+                            onToggle={toggle}
+                            onToggleAll={toggleAllInView}
+                            onOpen={openRow}
+                          />
+                        </div>
+                        <div className="md:hidden">
+                          <ProcessItemList
+                            tab={tab}
+                            rows={rows}
+                            banded={banded}
+                            selectedIds={selectedIds}
+                            onToggle={toggle}
+                            onOpen={openRow}
+                          />
+                        </div>
                       </div>
                     </div>
-
-                    <ListFooter
-                      id="sign-process-page-size"
-                      from={start + 1}
-                      to={start + pageRows.length}
-                      total={rows.length}
-                      page={currentPage}
-                      pageCount={pageCount}
-                      onPageChange={setPage}
-                      pageSize={pageSize}
-                      onPageSizeChange={(size) => {
-                        setPageSize(size);
-                        setPage(1);
-                      }}
-                    />
-                  </div>
-                )}
+                  )}
                 </div>
               </section>
             )}
@@ -524,71 +526,72 @@ export function SignProcessScreen() {
         ))}
       </Tabs>
 
-      {stageRows.length > 0 ? (
+      {viewRows.length > 0 ? (
         <ProcessBar
-          stage={stage}
+          tab={tab}
+          view={view}
           count={selected.length}
+          groups={groups}
           notice={notice}
           onDownload={() => downloadProcessBundle(selected)}
-          onRequestAct={() => setBulkOpen(true)}
-          actRef={actRef}
-        />
-      ) : null}
-
-      {/* Confirm the count, then say what became of it — the shared bulk confirmation
-          every signing queue runs, carrying this stage's verb rather than a signature's.
-          It hangs off the screen rather than off the bar, because acting on the last row
-          in view takes the bar away with it. */}
-      {stage.act ? (
-        <SignBulkConfirmDialog
-          noun="process"
-          act={stage.act}
-          count={selected.length}
-          selection={{
-            cases: selected.map((process) => process.caseNumber),
-            kinds: selected.map((process) =>
-              courtProcessTypeLabel(process.type),
-            ),
+          onRequestAct={(actId, button) => {
+            actRef.current = button;
+            if (actId !== "record") setShown(actId);
+            setConfirming(actId);
           }}
-          open={bulkOpen}
-          onOpenChange={setBulkOpen}
-          triggerRef={actRef}
-          onConfirm={() => advance(selectedIds)}
-          /* Only off Pending sign. Signing is the act that produces something worth
-             having in hand — a paper that now carries the magistrate's name and the day
-             it was signed — and the rows have left the tab that could have downloaded
-             them. The other two acts move rows that are unchanged as documents, and both
-             land on a tab whose own bar still offers Download. Owner ask, 2026-09-07. */
-          onDownload={
-            stageId === "pending-sign"
-              ? () =>
-                  downloadProcessBundle(
-                    line.filter((process) => actedIds.has(process.id)),
-                  )
-              : undefined
-          }
-          onReturnFocus={returnFocus}
         />
       ) : null}
 
-      <SignProcessDialog
-        process={open}
-        onOpenChange={setOpen}
-        onSign={(process) => {
-          advance(new Set([process.id]));
-          setOpen(null);
+      {/* The product's plain confirmation: the question and where the rows go. It hangs
+          off the screen rather than off the bar, because an act on the last row in view
+          takes the bar away with it. Recording a return asks more than a yes, so it has
+          its own. */}
+      <ProcessMoveDialog
+        act={shownAct}
+        count={confirmingRows.length}
+        line={moveLine(shown, confirmingRows)}
+        landed={actedRows}
+        open={confirming !== null && confirming === shown}
+        onOpenChange={(next) => {
+          if (!next) setConfirming(null);
         }}
+        triggerRef={actRef}
+        onConfirm={() =>
+          act(shown, new Set(confirmingRows.map((process) => process.id)))
+        }
+        /* Only off signing: a signed paper is worth having in hand the moment it is
+           done (owner, 2026-09-07), and the rows have left the view. */
+        onDownload={
+          shown === "sign" ? () => downloadProcessBundle(actedRows) : undefined
+        }
         onReturnFocus={returnFocus}
       />
 
-      {/* What the last Enter did with the cover in the clerk's hand — the one thing on
-          this screen the eye cannot catch, since the tray arrives silently and a second
-          cover for a case already picked changes nothing on screen at all. Polite, and
-          outside every panel so it survives the tab it was spoken on.
+      <RecordReturnsDialog
+        rows={confirming === "record" ? (confirmingGroup?.rows ?? []) : []}
+        open={confirming === "record"}
+        onOpenChange={(next) => {
+          if (!next) setConfirming(null);
+        }}
+        onRecord={record}
+        triggerRef={actRef}
+        onReturnFocus={returnFocus}
+      />
 
-          It says nothing about the list: what the search narrowed to is `QueueAnnouncer`'s
-          sentence, once per pause rather than once per keystroke, and two regions
-          reporting the same filtering would be read out twice (ACCESSIBILITY §5). */}
+      <SignProcessDialog
+        process={open}
+        onOpenChange={(next) => setOpenId(next ? next.id : null)}
+        onSign={(process) => act("sign", new Set([process.id]))}
+        onAct={(actId, process) => act(actId, new Set([process.id]))}
+        onRecord={(process, outcome, on) =>
+          record(new Map([[process.id, outcome]]), on)
+        }
+        onReturnFocus={returnFocus}
+      />
+
+      {/* What the last Enter did with the paper in the clerk's hand — the one thing the
+          eye cannot catch, since a second cover for a case already picked changes nothing
+          on screen. Outside every panel so it survives the view it was spoken on. */}
       <p aria-live="polite" className="sr-only">
         {picked}
       </p>
@@ -597,51 +600,151 @@ export function SignProcessScreen() {
 }
 
 /**
- * Type, channel, hearing date and free text, then search — the reference's controls, in
- * the reference's order, laid out the way the sibling queues lay out theirs.
+ * The tab's statuses as a single-select pill row, All first — the pending-tasks row
+ * (`chrome/pill-plate.ts`), one at a time (owner, 2026-10-06: *"the whole point of having
+ * an All is so that I can see it collapse"*).
  *
- * **The box does not wait for the button.** A case number is a lookup and it applies as
- * it is typed; the three selects compose a question and still apply on Search. The
- * button is therefore live exactly when a *select* is pending, which is what makes the
- * split legible rather than arbitrary — see `changeDraft`.
+ * `ToggleGroup type="single"` is the DS's own single choice: one tab stop, arrow keys
+ * between pills. Pressing the pill already chosen would clear the group; the row always
+ * has an answer, so that press is ignored. The counts are what each pill holds — the
+ * number pressing it yields before any filter.
+ */
+function ProcessPills({
+  tab,
+  line,
+  view,
+  onChange,
+}: {
+  tab: ProcessTab;
+  line: CourtProcess[];
+  view: ProcessView;
+  onChange: (view: ProcessView) => void;
+}) {
+  return (
+    /* One provider for the row, so moving along the pills hands the tooltip straight
+       from one to the next instead of waiting out the delay on each. */
+    <TooltipProvider delayDuration={300}>
+      <ToggleGroup
+        type="single"
+        size="lg"
+        variant="default"
+        value={view}
+        onValueChange={(next) => {
+          if (next) onChange(next as ProcessView);
+        }}
+        aria-label="Status"
+        className={PILL_ROW}
+      >
+        <Pill
+          value="all"
+          label="All"
+          hint={tab.allHint}
+          /* All counts only where every status in it is work (Issuance); on Service it
+             would be a total of mostly finished things. */
+          count={allCounted(tab) ? processesIn(line, tab, "all").length : null}
+        />
+        {tab.statuses.map((id) => {
+          const status = processStatus(id);
+          const count = processesAt(line, id).length;
+          return (
+            <Pill
+              key={id}
+              value={id}
+              label={status.label}
+              hint={status.hint}
+              count={status.counted ? count : null}
+              /* An empty status cannot narrow anything — the pending-tasks rule — but
+                 the pill you are standing on stays pressable. */
+              disabled={count === 0 && view !== id}
+            />
+          );
+        })}
+      </ToggleGroup>
+    </TooltipProvider>
+  );
+}
+
+/**
+ * One pill, and what it means on hover or focus (owner, 2026-10-06). The tooltip is a
+ * gloss, not the only route to the meaning — the label says the status and the list says
+ * the rest — so a touch screen without hover loses nothing it needs (ACCESSIBILITY §7).
+ */
+function Pill({
+  value,
+  label,
+  hint,
+  count,
+  disabled,
+}: {
+  value: string;
+  label: string;
+  hint: string;
+  /** `null` where the pill carries no count. */
+  count: number | null;
+  disabled?: boolean;
+}) {
+  return (
+    <Tooltip>
+      {/* The trigger is a wrapper, not the pill: Radix writes the tooltip's own
+          `data-state` onto its trigger, which would overwrite the pill's `on` and drop
+          the chosen tint. Focus on the pill still bubbles up and opens the tooltip. */}
+      <TooltipTrigger asChild>
+        <span className="inline-flex">
+          <ToggleGroupItem
+            value={value}
+            disabled={disabled}
+            aria-label={count === null ? label : `${label}, ${count}`}
+            className={PILL_ITEM}
+          >
+            <span>{label}</span>
+            {count === null ? null : (
+              <span aria-hidden className={PILL_COUNT}>
+                {count}
+              </span>
+            )}
+          </ToggleGroupItem>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{hint}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * Type, channel, hearing date and the search box — the court side's one filter surface,
+ * applied as they are used.
  *
- * Two of them answer to the stage. The hearing-date picker is absent on the first tab,
- * as the reference draws it. The channel select is absent there too, which the reference
- * is not: it draws the control pre-set to RPAD. Only registered post has a cover to
- * collect, so every row on that tab is RPAD and the control has exactly one possible
- * answer — it can return the whole list or nothing, and a disabled `SelectTrigger` is
- * rendered at half opacity, so the one fact it would carry is the one thing on the row
- * nobody can read. The fact survives in two places that are not controls: the line under
- * the page title says these are registered-post covers, and every row's Delivery channel
- * column says RPAD. Deviation logged in the build report.
- *
- * Every control carries a visible label. The reference labels the search box with the
- * things it searches, which is a hint rather than a name; ACCESSIBILITY §12 wants a
- * permanent label, so "Search cases" is the deviation, and the smallest one available.
- * The placeholder names the one field the box actually matches — case number — and on
- * the tab where Enter puts a cover on the pile it names that too: a keyboard gesture
- * nobody is told about is a keyboard gesture nobody uses.
- *
- * All four controls apply as they are used, and the Search button is gone. Nothing in the
- * row has a meaningless in-between state — two selects, a calendar and a text box — and
- * nothing here re-queries: the filter narrows rows the browser already holds, inside a tab
- * that has already narrowed them. Removing it also leaves the tab one strong fill instead
- * of two, and it is the one in the bar that actually moves a process.
+ * The channel select is absent on RPAD collection, where every row is RPAD and the
+ * control would have one possible answer; the hearing-date picker is absent there too, as
+ * the reference draws it. Every control carries a visible label (ACCESSIBILITY §12). The
+ * placeholder names the one field the box matches — case number — and, where the view is
+ * paper in hand, the Enter that puts a cover on the pile: a gesture nobody is told about
+ * is a gesture nobody uses.
  */
 function ProcessFiltersForm({
-  stage,
+  leading,
+  sort,
+  onSortChange,
+  tab,
+  pile,
   filters,
   searchRef,
   onChange,
   onClear,
   onSubmit,
 }: {
-  stage: ProcessStage;
+  /** The tab's status pills, heading the row. */
+  leading?: React.ReactNode;
+  sort: ProcessSort;
+  onSortChange: (sort: ProcessSort) => void;
+  tab: ProcessTab;
+  pile: ProcessPile | undefined;
   filters: ProcessFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onChange: (filters: ProcessFilters) => void;
+  /** Merge a change into the filters — see `changeFilters`. */
+  onChange: (patch: Partial<ProcessFilters>) => void;
   onClear: () => void;
-  /** Enter in the box. On the stage that reconciles covers it is the pile's fast path. */
+  /** Enter in the box. Where the view is paper in hand it is the pile's fast path. */
   onSubmit: () => void;
 }) {
   const fields: CourtFilterField[] = [
@@ -656,10 +759,10 @@ function ProcessFiltersForm({
         label: type.label,
       })),
       onApply: (value) =>
-        onChange({ ...filters, type: value as ProcessFilters["type"] }),
+        onChange({ type: value as ProcessFilters["type"] }),
     },
   ];
-  if (stage.onlyChannel === undefined) {
+  if (tab.onlyChannel === undefined) {
     fields.push({
       id: "sign-process-channel",
       label: "Delivery channel",
@@ -671,43 +774,72 @@ function ProcessFiltersForm({
         label: channel.label,
       })),
       onApply: (value) =>
-        onChange({ ...filters, channel: value as ProcessFilters["channel"] }),
+        onChange({ channel: value as ProcessFilters["channel"] }),
     });
+  }
+
+  if (tab.outcomeFilters) {
+    fields.push(
+      {
+        id: "sign-process-outcome",
+        label: "Outcome",
+        value: filters.outcome,
+        all: "all",
+        allLabel: "All outcomes",
+        options: OUTCOME_FILTERS.map((outcome) => ({
+          value: outcome.id,
+          label: outcome.label,
+        })),
+        onApply: (value) =>
+          onChange({
+            outcome: value as ProcessFilters["outcome"],
+            /* A reason is a kind of failure; asking for successes drops it. */
+            ...(value === "served" ? { reason: "all" as const } : {}),
+          }),
+      },
+      {
+        id: "sign-process-reason",
+        label: "Reason not served",
+        value: filters.reason,
+        all: "all",
+        allLabel: "All reasons",
+        options: NON_SERVICE_REASONS.map((reason) => ({
+          value: reason,
+          label: reason,
+        })),
+        onApply: (value) =>
+          onChange({
+            reason: value as ProcessFilters["reason"],
+            /* …and a reason only exists on a failure, so it says Failed for you. */
+            ...(value === "all" ? {} : { outcome: "unserved" as const }),
+          }),
+      },
+    );
   }
 
   return (
     <CourtFilters
+      leading={leading}
       search={{
         label: "Search cases",
         value: filters.query,
-        onChange: (query) => onChange({ ...filters, query }),
-        placeholder: stage.reconcilesCovers
-          ? "case number, then Enter"
-          : "case number",
+        onChange: (query) => onChange({ query }),
+        /* Says the gesture where there is one: on a pile view, Enter is what puts the
+           cover in hand onto the pile. */
+        placeholder: pile
+          ? "Case number, then Enter"
+          : "Search by case number",
         onSubmit,
       }}
       searchRef={searchRef}
       fields={fields}
-      date={
-        stage.hearingDateFilter
-          ? {
-              label: "Hearing date",
-              value: filters.hearingDate
-                ? parseIsoDay(filters.hearingDate)
-                : undefined,
-              active: filters.hearingDate !== "",
-              chipLabel: filters.hearingDate
-                ? formatListingDate(filters.hearingDate)
-                : "",
-              draftActive: (value) => !!value,
-              cleared: undefined,
-              onApply: (value) =>
-                onChange({
-                  ...filters,
-                  hearingDate: value ? isoDay(value) : "",
-                }),
-            }
-          : undefined
+      trailing={
+        <CourtSortSelect
+          id="sign-process-sort"
+          value={sort}
+          options={PROCESS_SORTS}
+          onChange={onSortChange}
+        />
       }
       onClearAll={onClear}
     />
@@ -715,86 +847,47 @@ function ProcessFiltersForm({
 }
 
 /**
- * The pile of envelopes, on screen.
+ * The pile of envelopes, on screen — covers in hand, covers to post, or returns in hand.
  *
- * The clerk works this stage one cover at a time: pick one up, type its case number,
- * press Enter, put it down, pick up the next — or tick it in the table, which feeds the
- * same pile. The screen used to lose that work between searches: the picked rows scroll
- * away the moment the next number is typed, and the only surviving evidence was a count
- * on the bar. Seven envelopes in, there was no way to tell whether the third had been
- * picked, picked twice, or missed.
+ * The clerk works a stack one cover at a time: type its case number, press Enter, put it
+ * down, pick up the next — or tick it in the table, which feeds the same pile. The pile
+ * survives search and every filter change, so seven envelopes in there is still a way to
+ * tell whether the third went on. Each chip is a case — an envelope — with how many of
+ * its processes are inside; the bar counts the processes the act will move.
  *
- * So the accumulation the clerk was holding in their head lives here instead, and it
- * survives search, paging and every filter change. It is not a second selection: these
- * are the same rows the checkboxes hold, read back in the unit the clerk holds them in.
- *
- * **Counted by envelope, acted on by process.** A cover is one per case, so the tray
- * counts cases — that is the number the clerk can check against the stack still on the
- * desk, and the only check available at this stage, because nothing but the covers knows
- * how many covers arrived. The bar goes on counting process, because that is what gets
- * sent for signature. Both numbers are true and the tray says both rather than picking
- * the one that makes a tidier sentence.
- *
- * **A well, not a bordered box.** It sits inside the panel that already lifts off the
- * page, so the third layer is a sunken fill and the entries are flat white on it — no
- * stroke anywhere, and nothing nested inside a shadow (ui-craft §4).
+ * **A well, not a bordered box** — a sunken fill inside the panel, the entries flat white
+ * on it (ui-craft §4).
  */
 function ProcessSelectionTray({
+  pile,
   cases,
-  processCount,
   onRemoveCase,
   onClearSelection,
 }: {
+  pile: ProcessPile;
   cases: SelectedCase[];
-  processCount: number;
   onRemoveCase: (caseNumber: string) => void;
   onClearSelection: () => void;
 }) {
   return (
+    /* The chips and the one control that puts them all down, on one line: no count
+       sentence above them (owner, 2026-10-06) — the chips are the count, and the bar
+       already says how many processes are selected. */
     <section
-      aria-label="Cases picked to send for signature"
-      className="flex flex-col gap-3 rounded-lg bg-surface-sunken p-4"
+      aria-label={`The pile: ${pile.noun}`}
+      className="flex items-start gap-3 rounded-lg bg-surface-sunken p-3"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* One line, two counts, one weight: the numbers carry the foreground and the
-            words stay muted, so the pair reads as a count rather than as a sentence
-            with numbers in it. */}
-        <p className="text-body-compact text-muted-foreground">
-          <span className="font-medium tabular-nums text-foreground">
-            {cases.length}
-          </span>{" "}
-          {plural(cases.length, "case", "cases")} picked{" · "}
-          <span className="font-medium tabular-nums text-foreground">
-            {processCount}
-          </span>{" "}
-          {plural(processCount, "process", "processes")}
-        </p>
-        {/* "Clear selection", not "Clear": the filters already own a Clear, and the two
-            put down different things — the question, and the pile. */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          className="max-md:h-10"
-          onClick={onClearSelection}
-        >
-          Clear selection
-        </Button>
-      </div>
-      <ul className="flex flex-wrap items-center gap-1.5">
+      <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         {cases.map((entry) => (
           <li key={entry.caseNumber}>
-            {/* The DS's own chip shape — its combobox chip, inverted: that one is a
-                sunken fill on a white field, this one is a white fill on a sunken well,
-                which is the same step in the other direction. Below `md` it grows to the
-                40px the DS asks of a touch target (ACCESSIBILITY §8). */}
+            {/* The DS chip shape, inverted onto the well. 40px below `md`
+                (ACCESSIBILITY §8). */}
             <span className="flex h-10 items-center gap-1.5 rounded-md bg-card pl-2.5 pr-1 text-caption md:h-8">
-              {/* A selection chip is a control cluster, not a record field: the face,
-                  without a third target inside a chip already holding a remove button. */}
-              <Identifier value={entry.caseNumber} label="case number" copyable={false} />
-              {/* How much process is inside this envelope. Same treatment on every
-                  entry, including the ones holding a single process — a count that
-                  appears only sometimes is a count the eye has to interpret. */}
+              <Identifier
+                value={entry.caseNumber}
+                label="case number"
+                copyable={false}
+              />
               <span className="tabular-nums text-muted-foreground">
                 {entry.processes.length}
               </span>
@@ -812,54 +905,86 @@ function ProcessSelectionTray({
           </li>
         ))}
       </ul>
+      {/* The chips' own 32px from `md`, so the button sits level with the first line of
+          chips rather than floating taller than them; 40px below `md`, like the chips.
+          The default size keeps its text at the DS 14px — `xs` and `sm` drop to 12px. */}
+      <Button
+        type="button"
+        variant="ghost"
+        className="shrink-0 md:h-8"
+        onClick={onClearSelection}
+      >
+        Clear selection
+      </Button>
     </section>
   );
 }
 
 /**
- * What is selected, and what the stage does with it.
+ * What is selected, and what can be done to it.
  *
- * Sticky, because the list it commits is longer than a screen and a button that scrolls
- * away from its own selection is a button the bench has to hunt for. Chrome, so it is
- * `bg-card` over a hairline seam and never carries the panel's full-strength edge
- * (ui-craft §4, layer 2); the negative margins let it span the page's own padding.
- * `z-30` is the chrome layer this app already uses — the top bar and the filing footer
- * both sit there.
+ * Sticky, because the list it commits is longer than a screen. Chrome, so it is `bg-card`
+ * over a hairline seam; `z-30` is the chrome layer the app already uses.
  *
- * Download reaches every stage; the act reaches three of them. On Sent and Completed the
- * bar therefore carries one button, which is the truthful shape of a record: there is
- * nothing to do to these rows here, and the papers are still worth taking away.
+ * **One button per act the selection holds**, in the tab's own status order, each over
+ * its own count. The first is the strong one and the rest are bordered — the Ration teal
+ * Law, with the teal on the work that comes first in the line. With nothing selected the
+ * view's own act stands disabled, so the bar says what it is for before anything is
+ * picked; a view with no act (Completed, Failed) carries Download alone, which is the
+ * truthful shape of a record.
  *
- * The line beside the buttons is `aria-live`, so a screen reader hears the selection
- * change, and what an act did, without going looking for either.
+ * The line beside the buttons is `aria-live`: the selection changing, and what an act
+ * did, are heard without going looking for them.
  */
 function ProcessBar({
-  stage,
+  tab,
+  view,
   count,
+  groups,
   notice,
   onDownload,
   onRequestAct,
-  actRef,
 }: {
-  stage: ProcessStage;
+  tab: ProcessTab;
+  view: ProcessView;
   count: number;
+  groups: { act: ProcessAct; rows: CourtProcess[] }[];
   notice: string;
   onDownload: () => void;
-  /** Opens the shared confirmation. The act itself lives on the screen. */
-  onRequestAct: () => void;
-  /** Handed down so the confirmation can give the keyboard back to this button. */
-  actRef: React.Ref<HTMLButtonElement>;
+  /** Opens the act's confirmation. The button is handed over for focus to return to. */
+  onRequestAct: (act: ProcessActId, button: HTMLButtonElement) => void;
 }) {
+  /* What the bar offers before anything is picked: the view's own act, or under All the
+     first one the tab has. */
+  const idleActId =
+    view === "all"
+      ? tab.statuses.map((id) => processStatus(id).act).find(Boolean)
+      : processStatus(view).act;
+  const idle = idleActId ? processAct(idleActId) : undefined;
+
+  /* Rows the selection holds that no act takes — an SMS out with its channel, say, under
+     a selection being recorded. Said, so the count on the buttons adds up. */
+  const taken = groups.reduce((sum, group) => sum + group.rows.length, 0);
+  const untaken = groups.length > 0 ? count - taken : 0;
+
   const summary =
     notice ||
     (count === 0
-      ? stage.act
+      ? idle
         ? "Select the processes to act on."
         : "Select the processes to download."
-      : `${count} ${plural(count, "process", "processes")} selected.`);
+      : `${count} ${plural(count, "process", "processes")} selected${
+          untaken > 0
+            ? ` · ${untaken} ${plural(untaken, "is reported by its channel", "are reported by their channels")}`
+            : ""
+        }.`);
 
   return (
-    <div className="sticky bottom-0 z-30 -mx-6 -mb-6 border-t border-hairline bg-card px-6 py-3 md:-mx-8 md:-mb-8 md:px-8 md:py-4">
+    /* `mt-auto`: with no pages a short list ends partway down the screen, and the bar
+       followed it there with bare canvas beneath (owner, 2026-10-06). The page column is
+       already the viewport's height, so the auto margin seats the bar on its floor;
+       a long list still pushes it down and `sticky` takes over. */
+    <div className="sticky bottom-0 z-30 -mx-6 -mb-6 mt-auto border-t border-hairline bg-card px-6 py-3 md:-mx-8 md:-mb-8 md:px-8 md:py-4">
       <div className="flex flex-wrap items-center justify-end gap-3">
         <p
           className="mr-auto text-body-compact text-muted-foreground tabular-nums"
@@ -868,11 +993,6 @@ function ProcessBar({
           {summary}
         </p>
 
-        {/* One bordered action beside the strong one, per the Ration Teal Law: the teal
-            is spent on the act that moves the line, and taking a copy away is the quieter
-            of the two. On the record stages it is the only button, and it stays `outline`
-            rather than being promoted — a stage with nothing to do to it should not grow
-            a strong action to fill the space. */}
         <Button
           type="button"
           variant="outline"
@@ -885,15 +1005,23 @@ function ProcessBar({
             : "Download selected documents"}
         </Button>
 
-        {stage.act ? (
-          <Button
-            ref={actRef}
-            type="button"
-            disabled={count === 0}
-            className="w-full sm:w-fit"
-            onClick={onRequestAct}
-          >
-            {stage.act.bar(count)}
+        {groups.length > 0 ? (
+          groups.map((group, index) => (
+            <Button
+              key={group.act.id}
+              type="button"
+              variant={index === 0 ? "default" : "outline"}
+              className="w-full sm:w-fit"
+              onClick={(event) =>
+                onRequestAct(group.act.id, event.currentTarget)
+              }
+            >
+              {group.act.bar(group.rows.length)}
+            </Button>
+          ))
+        ) : idle ? (
+          <Button type="button" disabled className="w-full sm:w-fit">
+            {idle.idle}
           </Button>
         ) : null}
       </div>
@@ -904,33 +1032,26 @@ function ProcessBar({
 /**
  * Why the list is empty, and what to do about it.
  *
- * Three facts, so three states. An empty stage is the line being clear at that point, and
- * what *that* means differs at each of the five, so the words come off the stage. A
- * filter that matched nothing anywhere is a dead end with one action worth offering.
- *
- * And then the state a single-stage queue never has: **the row is in the line, just not
- * at this stage.** A process moves, so the most ordinary search on this screen — a case
- * number typed while standing on the tab it was last seen at — finds nothing here and
- * everything one tab over. Answering that with "no process matches" is true of the tab
- * and useless about the line, and it is how a working search gets reported as broken. So
- * the stage that has the row says so by name, with its count, and takes the search along
- * when the bench follows it.
+ * Three facts, so three states: the view is clear (its own words), a filter matched
+ * nothing anywhere, or — the one a line has that a queue does not — **the row is in the
+ * line, just not here**. A process moves, so a case number typed where the row was last
+ * seen finds it one pill or one tab over; the statuses that have it say so by name, with
+ * their counts, and take the search along when the bench follows them.
  *
  * Borderless and unpadded; the panel is already the frame.
  */
 function ProcessEmpty({
-  stage,
+  empty,
   isFiltered,
   elsewhere,
   onClear,
-  onGoToStage,
+  onGoTo,
 }: {
-  stage: ProcessStage;
+  empty: { title: string; description: string };
   isFiltered: boolean;
-  /** Stages that do hold something matching. Empty unless this stage found nothing. */
-  elsewhere: { stage: ProcessStage; count: number }[];
+  elsewhere: { tab: ProcessTab; status: ProcessStatus; count: number }[];
   onClear: () => void;
-  onGoToStage: (next: ProcessStageId) => void;
+  onGoTo: (status: ProcessStatus) => void;
 }) {
   const found = isFiltered && elsewhere.length > 0;
   const total = elsewhere.reduce((sum, entry) => sum + entry.count, 0);
@@ -949,40 +1070,34 @@ function ProcessEmpty({
         </EmptyMedia>
         <EmptyTitle className="text-title-s font-semibold">
           {found
-            ? "Further along the line"
+            ? "Elsewhere in the line"
             : isFiltered
               ? "No process matches these filters"
-              : stage.empty.title}
+              : empty.title}
         </EmptyTitle>
         <EmptyDescription className="text-body">
           {found
-            ? `Nothing at this stage matches, but ${total === 1 ? "1 process does" : `${total} processes do`} elsewhere in the line. A process leaves a stage as the court works it.`
+            ? `Nothing here matches, but ${total === 1 ? "1 process does" : `${total} processes do`} under another status. A process moves on as the court works it.`
             : isFiltered
               ? "No process anywhere in this line matches the type, channel, date or search you asked for."
-              : stage.empty.description}
+              : empty.description}
         </EmptyDescription>
       </EmptyHeader>
       {isFiltered ? (
         <EmptyContent>
-          {/* One button per stage that holds something, carrying this search with it.
-              At most four, and in practice one — they wrap rather than truncate, because
-              a stage name the bench cannot read is a destination it cannot choose. */}
           <div className="flex flex-wrap items-center justify-center gap-2">
             {elsewhere.map((entry) => (
               <Button
-                key={entry.stage.id}
+                key={entry.status.id}
                 variant="outline"
-                onClick={() => onGoToStage(entry.stage.id)}
+                onClick={() => onGoTo(entry.status)}
               >
                 <span className="tabular-nums">
-                  {entry.count} in {entry.stage.label}
+                  {entry.count} in {entry.status.label}
                 </span>
               </Button>
             ))}
-            <Button
-              variant={found ? "ghost" : "outline"}
-              onClick={onClear}
-            >
+            <Button variant={found ? "ghost" : "outline"} onClick={onClear}>
               Clear filters
             </Button>
           </div>
@@ -993,77 +1108,105 @@ function ProcessEmpty({
 }
 
 /**
- * The same rows below `md`, stacked.
+ * The same rows below `md`, stacked — and under All, under the same status headings the
+ * table bands by.
  *
- * The checkbox and the opener stay separate controls here too, for the same reason they
- * do in the table: one tap cannot mean both. The checkbox takes the leading column at its
- * full 40px target, and a tap anywhere else on the card opens the process — the case name
- * is the keyboard button, with the instrument, number, channel and the two dates spelled
- * out under it because there is no column header to name them.
+ * The checkbox and the opener stay separate controls: one tap cannot mean both. The case
+ * name is the keyboard button, with the instrument, channel, number, status and hearing
+ * spelled out under it because there is no column header to name them.
  */
 function ProcessItemList({
-  stage,
+  tab,
   rows,
+  banded,
   selectedIds,
   onToggle,
   onOpen,
 }: {
-  stage: ProcessStage;
+  tab: ProcessTab;
   rows: CourtProcess[];
+  banded: boolean;
   selectedIds: ReadonlySet<string>;
   onToggle: (process: CourtProcess) => void;
   onOpen: (process: CourtProcess) => void;
 }) {
+  const bands: { status: ProcessStatus | null; rows: CourtProcess[] }[] = banded
+    ? bandByStatus(rows, tab)
+    : [{ status: null, rows }];
+  const statusLine = tab.statuses.length > 1;
+
   return (
-    <ul className="flex flex-col gap-3">
-      {rows.map((process) => {
-        const type = courtProcessTypeLabel(process.type);
-        const inline = courtProcessTypeInline(process.type);
-        const day = stage.dateOf(process);
-        return (
-          <QueueItemRow key={process.id} className="flex gap-3">
-            {/* The DS box expands its own hit area to 40×40; the name it carries is the
-                process and its case, not the column, because a row read aloud has no
-                column header. */}
-            <span className="pt-0.5">
-              <Checkbox
-                checked={selectedIds.has(process.id)}
-                onCheckedChange={() => onToggle(process)}
-                aria-label={`Select the ${inline} in ${process.caseNumber}`}
-              />
-            </span>
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => onOpen(process)}
-                {...rowOpener}
-                className={rowOpenerClass}
-              >
-                <span className="sr-only">Read the {inline} in </span>
-                {causeTitle(process)}
-              </button>
-              <p className="min-w-0 text-body-compact">
-                {type} · {processChannelLabel(process.channel)}
-              </p>
-              <p className="text-caption text-muted-foreground">
-                <Identifier value={process.caseNumber} label="case number" />
-                {day ? (
-                  <>
-                    {` · ${stage.dateColumn} `}
-                    <span className="tabular-nums">
-                      {formatProcessDate(day)}
-                    </span>
-                  </>
-                ) : null}
-                {" · Hearing "}
-                <span className="tabular-nums">
-                  {formatProcessDate(process.hearingDate)}
-                </span>
-              </p>
-            </div>
-          </QueueItemRow>
-        );
-      })}
-    </ul>
+    <div className="flex flex-col gap-4">
+      {bands.map((band) => (
+        <section
+          key={band.status?.id ?? "rows"}
+          aria-label={band.status?.label}
+          className="flex flex-col gap-3"
+        >
+          {band.status ? (
+            <h3 className="flex items-baseline gap-2 text-body-compact font-semibold">
+              {band.status.label}
+              <span className="tabular-nums font-normal text-muted-foreground">
+                {band.rows.length}
+              </span>
+            </h3>
+          ) : null}
+          <ul className="flex flex-col gap-3">
+            {band.rows.map((process) => {
+              const inline = courtProcessTypeInline(process.type);
+              return (
+                <QueueItemRow key={process.id} className="flex gap-3">
+                  <span className="pt-0.5">
+                    <Checkbox
+                      checked={selectedIds.has(process.id)}
+                      onCheckedChange={() => onToggle(process)}
+                      aria-label={`Select the ${inline} in ${process.caseNumber}`}
+                    />
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpen(process)}
+                      {...rowOpener}
+                      className={rowOpenerClass}
+                    >
+                      <span className="sr-only">Read the {inline} in </span>
+                      {causeTitle(process)}
+                    </button>
+                    <p className="min-w-0 text-body-compact">
+                      {courtProcessTypeLabel(process.type)} ·{" "}
+                      {processChannelLabel(process.channel)}
+                    </p>
+                    {statusLine ? (
+                      <p className="min-w-0 text-body-compact">
+                        <ProcessStatusText process={process} />
+                      </p>
+                    ) : null}
+                    <p className="text-caption text-muted-foreground">
+                      <Identifier
+                        value={process.caseNumber}
+                        label="case number"
+                      />
+                      {statusLine ? null : (
+                        <>
+                          {` · ${tab.dateColumn} `}
+                          <span className="tabular-nums">
+                            {formatProcessDate(process.paidOn)}
+                          </span>
+                        </>
+                      )}
+                      {" · Hearing "}
+                      <span className="tabular-nums">
+                        {formatProcessDate(process.hearingDate)}
+                      </span>
+                    </p>
+                  </div>
+                </QueueItemRow>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }

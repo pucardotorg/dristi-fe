@@ -315,10 +315,14 @@ function useSidebarStateOrNull(): "expanded" | "collapsed" | null {
  */
 export function ChromeDialogContent({
   className,
+  style,
+  mobileSheet = false,
   ...props
-}: React.ComponentProps<typeof DialogContent>) {
+}: React.ComponentProps<typeof DialogContent> & { mobileSheet?: boolean }) {
   const pageDialog = useChromePageDialog();
-  return <DialogContent className={cn(className, pageDialog)} {...props} />;
+  const sheet = useBottomSheet();
+  return <DialogContent className={cn(className, pageDialog, mobileSheet && sheet.className)}
+    style={{ ...style, ...(mobileSheet ? sheet.style : undefined) }} {...props} />;
 }
 
 export function ChromeAlertDialogContent({

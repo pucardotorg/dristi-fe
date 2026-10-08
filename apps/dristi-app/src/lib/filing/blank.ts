@@ -13,6 +13,7 @@ import {
   FINAL_RELIEF_TEMPLATE,
   INTERIM_RELIEF_TEMPLATE,
 } from "./options";
+import { WALK_ORDER } from "./steps";
 import type {
   Accused,
   Address,
@@ -29,6 +30,7 @@ import type {
   IntakeGroup,
   IntakeSlot,
   Jurisdiction,
+  SignInstrument,
   UserProfile,
   Representative,
   Witness,
@@ -95,6 +97,8 @@ export function blankComplainant(): Complainant {
     },
     entType: "",
     entName: "",
+    entCinPan: "",
+    entCinPanSkippedAt: null,
     entPhone: "",
     entEmail: "",
     entAddr: blankAddress(),
@@ -195,7 +199,7 @@ export function intakeChequeGroup(n: number): IntakeGroup {
         key: `c${n}f`,
         docType: "cheque-front",
         label: "Cheque (front side)",
-        desc: "The bounced cheque, front side — a photo or scan.",
+        desc: "The bounced cheque, front side. A photo or scan.",
         required: true,
         file: null,
       },
@@ -386,13 +390,13 @@ export function buildDocumentGroups(draft: FilingDraft): DocumentGroup[] {
     const n = i + 1;
     const id = `complainant-${n}`;
     const specs: DocSpec[] = [
-      { name: "Identity proof — complainant", required: true, intakeKey: `p${n}id` },
+      { name: "Identity proof: complainant", required: true, intakeKey: `p${n}id` },
       { name: "Power of attorney", required: c.poa === "yes", intakeKey: `p${n}poa` },
       { name: "Vakalatnama", required: c.pip !== "yes", intakeKey: `p${n}vak` },
     ];
     groups.push({
       id,
-      title: `Complainant ${n} — documents`,
+      title: `Complainant ${n}: documents`,
       docs: [
         ...specs.map((s) => docRow(s, findExisting(id, s), resolveSlot(s.intakeKey))),
         ...customOf(id),
@@ -415,7 +419,7 @@ export function buildDocumentGroups(draft: FilingDraft): DocumentGroup[] {
 export function createBlankDraft(id: string, profile?: UserProfile | null): FilingDraft {
   const now = new Date().toISOString();
   const draft: FilingDraft = {
-    version: 5,
+    version: 7,
     id,
     caseType: "s138",
     status: "draft",
@@ -436,12 +440,16 @@ export function createBlankDraft(id: string, profile?: UserProfile | null): Fili
     affidavit: "",
     documents: [],
     sign: {
-      mode: null,
+      mode: "digital",
+      requestedAt: null,
+      notified: {},
       signed: {},
       signedCopy: null,
+      paperFallback: null,
       confirmed: {},
       deliveryChannel: DELIVERY_CHANNEL,
       process: {},
+      oaths: {},
       paid: false,
       paidAt: null,
       paidAmount: null,
@@ -512,6 +520,16 @@ const blankAdr = (): AdrPrayer => ({
 export function migrateDraft(draft: FilingDraft): FilingDraft {
   migrateAdr(draft);
 
+  // migrateAdr moves the one renamed id this branch knows to carry across
+  // ("settlement"); a step dropped or renamed some other way — the next one will not
+  // be predictable either — otherwise survives on the draft as an id this branch's
+  // router cannot resolve, and `getStep` throws over it deep inside the queue list.
+  // Reopening onto the first screen is a smaller loss than that.
+  // Oath stopped being a step of its own: it is taken during signing now. A draft left
+  // there reopens on the screen that used to come after it.
+  if ((draft.lastStep as string) === "oath") draft.lastStep = "affidavit";
+  if (!WALK_ORDER.includes(draft.lastStep)) draft.lastStep = "upload";
+
   draft.intake ??= {
     cheques: [intakeChequeGroup(1)],
     parties: [intakePartyGroup(1)],
@@ -526,12 +544,16 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
   draft.witnesses ??= [blankWitness()];
   draft.documents ??= [];
   draft.sign ??= {
-    mode: null,
+    mode: "digital",
+    requestedAt: null,
+    notified: {},
     signed: {},
     signedCopy: null,
+    paperFallback: null,
     confirmed: {},
     deliveryChannel: DELIVERY_CHANNEL,
     process: {},
+    oaths: {},
     paid: false,
     paidAt: null,
     paidAmount: null,
@@ -561,17 +583,67 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
     c.differentlyAbled ??= "";
     c.rep.gender ??= "";
     c.rep.differentlyAbled ??= "";
+    // The complainant's oath was retired with the Oath step — advocates take it now.
+    delete (c as Complainant & { oathVideo?: unknown }).oathVideo;
+    c.entCinPan ??= "";
+    c.entCinPanSkippedAt ??= null;
   }
   // The upfront choice used to be one set of rounds for the whole case; it is now made
   // per accused (§19.3). Nothing is carried across: an old draft's single choice cannot
   // say which accused it was for, and the defaults it falls back to are the court's.
   draft.sign.process ??= {};
+  draft.sign.oaths ??= {};
   draft.sign.paidAmount ??= null;
   draft.affidavit ??= "";
   // Phone confirmation on the upload path is newer than these drafts.
   draft.sign.confirmed ??= {};
-  draft.version = 5;
+  // So is the confirmation that e-signing could not be used. An older paper draft has
+  // none, and none is invented for it: the window asks before the upload reopens.
+  draft.sign.paperFallback ??= null;
+  migrateSignMode(draft);
+  draft.version = 7;
   return draft;
+}
+
+/**
+ * Bring a draft's signing block up to the two-level model.
+ *
+ * Signing used to be one flat choice — `esign` | `dsc` | `upload` — recorded only once
+ * somebody had signed, which left the system with no idea how a complaint was going to
+ * be signed until it already had been. It is now a decision about the filing (`digital`
+ * or `upload`, presumed digital) plus, per signature, the instrument that made it. An
+ * older draft's `esign` and `dsc` were both digital signing; a bare `true` against a
+ * signatory says a signature exists without saying what made it, so it keeps the mode's
+ * own instrument and no timestamp it cannot vouch for.
+ */
+function migrateSignMode(draft: FilingDraft) {
+  const sign = draft.sign as unknown as {
+    mode: string | null;
+    requestedAt?: string | null;
+    notified?: Record<string, string>;
+    signed: Record<string, unknown>;
+  };
+
+  const legacy = sign.mode;
+  const upload = legacy === "upload";
+  sign.mode = upload ? "upload" : "digital";
+  sign.notified ??= {};
+
+  const was: SignInstrument = upload ? "paper" : legacy === "dsc" ? "dsc" : "aadhaar";
+  for (const [id, value] of Object.entries(sign.signed ?? {})) {
+    if (value === true) sign.signed[id] = { at: "", with: was };
+    else if (!value) delete sign.signed[id];
+  }
+
+  /*
+   * A draft that already carries signatures was, by definition, sent for signature —
+   * there is no other way those could exist. Nothing is known about when, and inventing
+   * a time would put a fact in the record that never happened, so it takes the draft's
+   * own last-saved time.
+   */
+  if (sign.requestedAt === undefined) {
+    sign.requestedAt = Object.keys(sign.signed ?? {}).length ? draft.updatedAt : null;
+  }
 }
 
 /**

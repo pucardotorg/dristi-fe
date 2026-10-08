@@ -16,16 +16,21 @@ import {
 } from "@/lib/employee/content";
 import { setCourtRole } from "@/lib/employee/court-role";
 import {
-  COURT_NAV_GROUPS,
   COURT_NAV_LINKS,
   COURT_NAV_TRAILING,
   courtNavRowsFor,
+  courtNavGroupsFor,
+  courtNavGroupsForSeat,
+  courtNavItemsForSeat,
+  seatHasNarrowRail,
   isCourtNavActive,
   isCourtNavCombinedActive,
   isCourtNavCombinedRow,
   type CourtNavGroup,
   type CourtNavItem,
 } from "@/lib/employee/navigation";
+import { useCognizanceLayout } from "@/components/employee/use-cognizance-layout";
+import type { CognizanceLayout } from "@/lib/employee/cognizance-layout";
 import { useCourtNavLayout } from "@/components/employee/use-court-nav-layout";
 import type { CourtNavLayout } from "@/lib/employee/nav-layout";
 import { BrandGlyph } from "@/components/brand-lockup";
@@ -66,6 +71,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -273,6 +281,38 @@ function CourtNavRow({
             <RowContents item={item} />
           </Link>
         </SidebarMenuButton>
+        {/* Only Take cognizance carries these today, and only while the "split" setting
+            (`cognizance-layout.ts`) is live — `courtNavGroupsFor` is what decides
+            whether `children` is even present. Hidden with the rest of the row's own
+            label when the rail folds (`SidebarMenuSub`'s own rule). */}
+        {item.children && item.children.length > 0 ? (
+          <SidebarMenuSub>
+            {item.children.map((child) =>
+              child.href ? (
+                <SidebarMenuSubItem key={child.id}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={isCourtNavActive(pathname, child.href)}
+                  >
+                    <Link
+                      href={child.href}
+                      aria-current={
+                        isCourtNavActive(pathname, child.href) ? "page" : undefined
+                      }
+                    >
+                      <span className="min-w-0 flex-1 truncate">{child.label}</span>
+                      {child.count !== undefined && child.count > 0 ? (
+                        <span className="shrink-0 text-caption text-muted-foreground tabular-nums">
+                          {child.count}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              ) : null,
+            )}
+          </SidebarMenuSub>
+        ) : null}
       </SidebarMenuItem>
     );
   }
@@ -293,13 +333,18 @@ function CourtNavRow({
   );
 }
 
-/** A group is current when the page open is one of its rows. */
+/** A group is current when the page open is one of its rows, or one of a row's children. */
 function isCourtNavGroupActive(
   pathname: string,
   group: CourtNavGroup,
 ): boolean {
   return group.items.some(
-    (item) => item.href !== undefined && isCourtNavActive(pathname, item.href),
+    (item) =>
+      (item.href !== undefined && isCourtNavActive(pathname, item.href)) ||
+      (item.children?.some(
+        (child) => child.href !== undefined && isCourtNavActive(pathname, child.href),
+      ) ??
+        false),
   );
 }
 
@@ -337,11 +382,10 @@ function isCourtNavGroupActive(
  * section that opens has to be right in the same paint as the screen behind it, not one
  * frame later.
  */
-function useCourtNavDisclosure() {
+function useCourtNavDisclosure(groups: CourtNavGroup[]) {
   const pathname = usePathname();
   const currentId =
-    COURT_NAV_GROUPS.find((group) => isCourtNavGroupActive(pathname, group))
-      ?.id ?? null;
+    groups.find((group) => isCourtNavGroupActive(pathname, group))?.id ?? null;
   const [openId, setOpenId] = React.useState<string | null>(currentId);
   const [derivedFrom, setDerivedFrom] = React.useState(pathname);
 
@@ -775,7 +819,7 @@ function CourtNavGroupSection({
  * "an ellipsis here has nothing behind it", and every order the sign queues produce is
  * headed with the court — so it wrapped and the footer grew. This row is a fixed 56px
  * matched to the top bar, so it cannot grow, and the column here is no wider. The demo
- * value fits ("JMFC Court 1, Kollam" measures ~133px against ~152px available); a longer
+ * value fits ("JMFC Court 1" is well inside the ~152px available); a longer
  * bench truncates, and `title` is what stands behind the ellipsis that the foot had
  * nothing to offer. Folded, it goes `sr-only` rather than disappearing — the same trade
  * every other label in this rail makes when the strip takes over.
@@ -853,10 +897,18 @@ function initialsOf(name: string): string {
  * second control, because both are one person's preference about how their own rail looks,
  * not two different kinds of setting.
  *
- * Both sections are radio groups rather than plain items: each is one mutually exclusive
- * answer, and the menu has to show which one is live without being opened twice. `w-auto
- * min-w-48` because the primitive otherwise inherits the trigger's width, and a 40px
- * trigger would pinch "Bench clerk" to a column of letters.
+ * **Take cognizance** (`cognizance-layout.ts`) — a third, narrower preference: whether
+ * that one row keeps its reference-split queues as tabs inside one screen (today's
+ * built default) or gives each its own row under it (owner, 2026-09-26, added as a
+ * setting rather than a replacement — see `courtNavGroupsFor`). Its own section rather
+ * than folded into Rail layout, because it answers a different question — the shape of
+ * one row, not the shape of the whole rail — and the two must stay choosable
+ * independently of each other.
+ *
+ * All three sections are radio groups rather than plain items: each is one mutually
+ * exclusive answer, and the menu has to show which one is live without being opened
+ * twice. `w-auto min-w-48` because the primitive otherwise inherits the trigger's
+ * width, and a 40px trigger would pinch "Bench clerk" to a column of letters.
  *
  * The tooltip stays, and now names the control rather than excusing it. Its trigger
  * wraps the menu's so one button carries both — the hover name and the click.
@@ -867,6 +919,7 @@ function initialsOf(name: string): string {
 function CourtSettingsControl() {
   const seat = useCourtRole();
   const [layout, setLayout] = useCourtNavLayout();
+  const [cognizanceLayout, setCognizanceLayout] = useCognizanceLayout();
   return (
     <DropdownMenu>
       <Tooltip>
@@ -917,6 +970,19 @@ function CourtSettingsControl() {
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="schedule">
             Today’s schedule
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Take cognizance</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={cognizanceLayout}
+          onValueChange={(next) => setCognizanceLayout(next as CognizanceLayout)}
+        >
+          <DropdownMenuRadioItem value="tabs">
+            Combined, with tabs
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="split">
+            Split into two rows
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
@@ -1000,8 +1066,14 @@ function CourtIdentityFooter() {
 }
 
 export function EmployeeNav() {
-  const { openId, setOpenId, currentId } = useCourtNavDisclosure();
-  const [layout] = useCourtNavLayout();
+  const [cognizanceLayout] = useCognizanceLayout();
+  const seat = useCourtRole();
+  const groups = courtNavGroupsForSeat(courtNavGroupsFor(cognizanceLayout), seat);
+  const { openId, setOpenId, currentId } = useCourtNavDisclosure(groups);
+  const [savedLayout] = useCourtNavLayout();
+  /* A seat cut down to a few rows has nothing to fold into a combined row, so it shows
+     them open whatever layout is saved. */
+  const layout = seatHasNarrowRail(seat) ? "open" : savedLayout;
   const pathname = usePathname();
   return (
     /* Rows that go nowhere explain themselves on hover and on focus; at the DS default of
@@ -1020,16 +1092,16 @@ export function EmployeeNav() {
         <SidebarGroup className="gap-1">
           <SidebarMenu className={RAIL_MENU}>
             <CourtSearchRow />
-            {COURT_NAV_LINKS.map((item) => (
+            {courtNavItemsForSeat(COURT_NAV_LINKS, seat).map((item) => (
               <CourtNavRow key={item.id} item={item} />
             ))}
           </SidebarMenu>
           {layout === "open" ? (
-            COURT_NAV_GROUPS.map((group) => (
+            groups.map((group) => (
               <CourtNavOpenSection key={group.id} group={group} />
             ))
           ) : layout === "grouped" ? (
-            COURT_NAV_GROUPS.map((group) => (
+            groups.map((group) => (
               <CourtNavGroupSection
                 key={group.id}
                 group={group}
@@ -1067,7 +1139,7 @@ export function EmployeeNav() {
               from the queues above it; without one it reads as a fifth kind of work. */}
           <CourtNavBreak />
           <SidebarMenu className={RAIL_MENU}>
-            {COURT_NAV_TRAILING.map((item) => (
+            {courtNavItemsForSeat(COURT_NAV_TRAILING, seat).map((item) => (
               <CourtNavRow key={item.id} item={item} />
             ))}
           </SidebarMenu>

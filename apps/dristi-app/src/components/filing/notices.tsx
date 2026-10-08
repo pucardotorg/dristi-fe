@@ -111,7 +111,7 @@ export function SectionNotice({
     >
       <Icon aria-hidden className={icon} />
       {title ? <AlertTitle>{title}</AlertTitle> : null}
-      <AlertDescription>{children}</AlertDescription>
+      <AlertDescription className="min-w-0 text-wrap md:text-wrap">{children}</AlertDescription>
       {onDismiss ? (
         <Button
           type="button"

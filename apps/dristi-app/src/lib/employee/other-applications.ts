@@ -195,7 +195,7 @@ export type OtherApplication = {
  * rows. The first page is deliberately the hard one: it carries both of the very long
  * type labels, the longest corporate accused, and an application with no counsel at all.
  *
- * Names follow the fixtures the rest of the court side uses: Kollam parties and the same
+ * Names follow the fixtures the rest of the court side uses: local parties and the same
  * bar, but not the same matters as `CAUSE_LIST`, `SCHEDULING_QUEUE`, `REGISTER_QUEUE`,
  * `RESCHEDULING_QUEUE` or `DELAY_CONDONATION_QUEUE`.
  */
@@ -315,7 +315,7 @@ export const OTHER_APPLICATIONS_QUEUE: OtherApplication[] = [
     appliedOn: "2025-12-02",
     filedFor: "complainant",
     reason:
-      "The complainant asks that this case be heard along with the connected matter pending in another court at Kollam.",
+      "The complainant asks that this case be heard along with the connected matter pending in another court in the district.",
   },
   {
     id: "oa-2141",

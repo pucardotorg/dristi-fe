@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SANDBOX DATA — the filed S-138 complaint that scrutiny sent back.
+ * SANDBOX DATA — the filed S-138 complaints that scrutiny sent back.
  *
  * The correction screen is the e-filing form re-entered in a correction posture, so it
  * needs a real draft to re-enter. This seeds one, once, into the same IndexedDB the
@@ -11,8 +11,8 @@
  * defect reads as resolved before anyone has touched it).
  *
  * The uploads are drawn locally as SVGs rather than shipped as binary fixtures: they only
- * have to be a page the officer's annotation box can sit on, and a repo does not need
- * four scans of an imaginary cheque in it. Nothing here has been sent to a real court.
+ * have to be a readable page, and a repo does not need four scans of an imaginary cheque
+ * in it. Nothing here has been sent to a real court.
  */
 
 import {
@@ -25,9 +25,14 @@ import { getRepository } from "./data";
 import type { FilingDraft, IntakeSlot, StoredFileRef } from "./types";
 
 export { SCRUTINY_DRAFT_ID } from "@/lib/tasks/scrutiny-return";
-import { SCRUTINY_DRAFT_ID, SCRUTINY_FILES } from "@/lib/tasks/scrutiny-return";
+import {
+  SCRUTINY_DRAFT_ID,
+  SCRUTINY_DRAFT_ID_LAKSHMI,
+  SCRUTINY_DRAFT_ID_RAFI,
+  SCRUTINY_FILES,
+} from "@/lib/tasks/scrutiny-return";
 
-/** Page geometry the annotation boxes are expressed in — keep in step with the seed. */
+/** Page geometry of the drawn uploads. */
 const W = 900;
 const H = 400;
 
@@ -51,34 +56,34 @@ function docSvg(title: string, lines: [string, string][]): Blob {
 
 const PAGES: Record<string, () => Blob> = {
   [SCRUTINY_FILES.cheque1.id]: () =>
-    docSvg("Kerala Gramin Bank — Chalakudy", [
+    docSvg("Kerala Gramin Bank, Chalakudy", [
       ["Pay", "Sainaba K."],
       ["Rupees", "Two lakh forty thousand only"],
       ["Date", "14 / 05 / 2026"],
       ["Cheque no.", "447162"],
     ]),
   [SCRUTINY_FILES.cheque2.id]: () =>
-    docSvg("Kerala Gramin Bank — Kodungallur town branch", [
+    docSvg("Kerala Gramin Bank, Kodungallur town branch", [
       ["Pay", "Sainaba K."],
       ["Rupees", "One lakh eighty-five thousand only"],
       ["Date", "02 / 06 / 2026"],
       ["Cheque no.", "447163"],
     ]),
   [SCRUTINY_FILES.memo2.id]: () =>
-    docSvg("Cheque return memo — cheque 447163", [
+    docSvg("Cheque return memo: cheque 447163", [
       ["Amount", "1,85,000.00"],
       ["Presented on", "09 / 06 / 2026"],
       ["Returned on", "11 / 06 / 2026"],
       ["Reason", "Funds insufficient"],
     ]),
   [SCRUTINY_FILES.adCard.id]: () =>
-    docSvg("Acknowledgement due — RP 4471 8820 3IN", [
+    docSvg("Acknowledgement due: RP 4471 8820 3IN", [
       ["Addressee", "Riyas M."],
       ["Delivered on", "(cut off at the fold)"],
       ["Signature", "(cut off at the fold)"],
     ]),
   [SCRUTINY_FILES.ifscEvidence.id]: () =>
-    docSvg("Branch certificate — Kerala Gramin Bank", [
+    docSvg("Branch certificate: Kerala Gramin Bank", [
       ["Branch", "Kodungallur town"],
       ["IFSC", "KLGB0040213"],
       ["MICR", "680487002"],
@@ -162,7 +167,7 @@ function buildDraft(): FilingDraft {
   two.sameAsPrev = "no";
   two.ifsc = "KLGB0040213";
   two.bankName = "Kerala Gramin Bank";
-  two.bankBranch = "Kollam"; // Defect 3 — not the branch on the leaf.
+  two.bankBranch = "Main"; // Defect 3 — not the branch on the leaf.
   two.presentDate = "2026-06-09";
   two.returnDate = "2026-06-11";
   two.returnReason = "funds-insufficient";
@@ -205,27 +210,193 @@ function buildDraft(): FilingDraft {
   fill(c2.slots[1], SCRUTINY_FILES.memo2);
 
   d.documents = buildDocumentGroups(d);
+  d.scrutinyReturn = { resubmittedAt: null };
   return d;
 }
 
-let seeding: Promise<FilingDraft | null> | null = null;
+/**
+ * Lakshmi Devi v. Thomas Kurian, as scrutiny received it: one cheque, the complainant's
+ * age and the notice's tracking number missing, and the cheque number short a digit.
+ */
+function buildLakshmiDraft(): FilingDraft {
+  const d = createBlankDraft(SCRUTINY_DRAFT_ID_LAKSHMI);
+  d.lastStep = "cheque";
+
+  const c = d.complainants[0];
+  c.mobile = "9447120456";
+  c.verified = true;
+  c.name = "Lakshmi Devi";
+  c.age = ""; // Defect 2 — not stated.
+  c.res = { line1: "Sreenilayam, Temple Road", city: "Kollam", pin: "691001", district: "Kollam", state: "Kerala" };
+  c.perm = { ...c.res };
+
+  d.advocates[0].name = "Anjali Nair";
+  d.advocates[0].barNumber = "K/1188/2011";
+
+  const a = d.accused[0];
+  a.name = "Thomas Kurian";
+  a.contacts = [{ mobile: "9895034412", email: "" }];
+  a.addresses = [
+    {
+      addr: { line1: "Kurian Villa, Beach Road", city: "Kollam", pin: "691001", district: "Kollam", state: "Kerala" },
+      police: "Kollam East",
+    },
+  ];
+
+  const one = d.cheques[0];
+  one.dateOnCheque = "2026-05-20";
+  one.amount = "150000";
+  one.chequeNumber = "30918"; // Defect 1 — five digits, not six.
+  one.ifsc = "SBIN0070451";
+  one.bankName = "State Bank of India";
+  one.bankBranch = "Kollam";
+  one.presentDate = "2026-06-01";
+  one.returnDate = "2026-06-03";
+  one.returnReason = "funds-insufficient";
+
+  const n = d.notices[0];
+  n.natureDebt = "loan";
+  n.whyIssued = "repayment";
+  n.dispatchDate = "2026-06-15";
+  n.modeService = "registered-post-ad";
+  n.tracking = ""; // Defect 3 — not stated.
+  n.delivered = "yes";
+  n.deliveryDate = "2026-06-18";
+  n.replied = "no";
+  n.paymentStatus = "none";
+
+  d.jurisdiction.deposited = "yes";
+  d.jurisdiction.ifsc = "SBIN0070451";
+  d.jurisdiction.payeeBankName = "State Bank of India";
+  d.jurisdiction.payeeBankBranch = "Kollam";
+  d.jurisdiction.payeeFetched = true;
+  d.jurisdiction.payeePolice = "Kollam East";
+  d.jurisdiction.drawerPolice = "Kollam East";
+  d.jurisdiction.causeDate = "2026-07-03";
+  d.jurisdiction.filingDate = "2026-07-22";
+
+  d.documents = buildDocumentGroups(d);
+  d.scrutinyReturn = { resubmittedAt: null };
+  return d;
+}
 
 /**
- * Make sure the returned filing is in this browser, and hand it back. Idempotent: an
+ * Mohammed Rafi v. Suresh Babu, as scrutiny received it: the branch stated as "Main",
+ * and the AD card scanned with the delivery date cut off.
+ */
+function buildRafiDraft(): FilingDraft {
+  const d = createBlankDraft(SCRUTINY_DRAFT_ID_RAFI);
+  d.lastStep = "cheque";
+
+  const c = d.complainants[0];
+  c.mobile = "9846551203";
+  c.verified = true;
+  c.name = "Mohammed Rafi";
+  c.age = "39";
+  c.res = { line1: "Rafi Manzil, Mosque Lane", city: "Karunagappally", pin: "690518", district: "Kollam", state: "Kerala" };
+  c.perm = { ...c.res };
+
+  d.advocates[0].name = "Anjali Nair";
+  d.advocates[0].barNumber = "K/1188/2011";
+
+  const a = d.accused[0];
+  a.name = "Suresh Babu";
+  a.contacts = [{ mobile: "9744218830", email: "" }];
+  a.addresses = [
+    {
+      addr: { line1: "Thekkethil House", city: "Karunagappally", pin: "690518", district: "Kollam", state: "Kerala" },
+      police: "Karunagappally",
+    },
+  ];
+
+  const one = d.cheques[0];
+  one.dateOnCheque = "2026-05-10";
+  one.amount = "320000";
+  one.chequeNumber = "556021";
+  one.ifsc = "FDRL0001234";
+  one.bankName = "Federal Bank";
+  one.bankBranch = "Main"; // Defect 1 — not the branch on the leaf.
+  one.presentDate = "2026-05-22";
+  one.returnDate = "2026-05-24";
+  one.returnReason = "funds-insufficient";
+
+  const n = d.notices[0];
+  n.natureDebt = "loan";
+  n.whyIssued = "repayment";
+  n.dispatchDate = "2026-06-05";
+  n.modeService = "registered-post-ad";
+  n.tracking = "RK556021447IN";
+  n.delivered = "yes";
+  n.deliveryDate = "2026-06-09";
+  n.replied = "no";
+  n.paymentStatus = "none";
+
+  d.jurisdiction.deposited = "yes";
+  d.jurisdiction.ifsc = "FDRL0001234";
+  d.jurisdiction.payeeBankName = "Federal Bank";
+  d.jurisdiction.payeeBankBranch = "Karunagappally";
+  d.jurisdiction.payeeFetched = true;
+  d.jurisdiction.payeePolice = "Karunagappally";
+  d.jurisdiction.drawerPolice = "Karunagappally";
+  d.jurisdiction.causeDate = "2026-06-24";
+  d.jurisdiction.filingDate = "2026-07-15";
+
+  // Defect 2 — the AD card, cut off at the fold.
+  fill(d.intake.cheques[0].slots[4], SCRUTINY_FILES.adCard);
+
+  d.documents = buildDocumentGroups(d);
+  d.scrutinyReturn = { resubmittedAt: null };
+  return d;
+}
+
+/** Every seeded return, by draft id. */
+const BUILDERS: Record<string, () => FilingDraft> = {
+  [SCRUTINY_DRAFT_ID]: buildDraft,
+  [SCRUTINY_DRAFT_ID_LAKSHMI]: buildLakshmiDraft,
+  [SCRUTINY_DRAFT_ID_RAFI]: buildRafiDraft,
+};
+
+const seeding = new Map<string, Promise<FilingDraft | null>>();
+
+/**
+ * Make sure a returned filing is in this browser, and hand it back. Idempotent: an
  * existing draft is never overwritten, so corrections made in a previous sitting survive.
  */
 export function ensureScrutinyDraft(draftId: string): Promise<FilingDraft | null> {
-  if (draftId !== SCRUTINY_DRAFT_ID) return getRepository().getDraft(draftId);
-  if (!seeding) {
-    seeding = (async () => {
+  const build = BUILDERS[draftId];
+  if (!build) return getRepository().getDraft(draftId);
+  let pending = seeding.get(draftId);
+  if (!pending) {
+    pending = (async () => {
       const repo = getRepository();
-      const existing = await repo.getDraft(SCRUTINY_DRAFT_ID);
+      const existing = await repo.getDraft(draftId);
       await Promise.all(Object.values(SCRUTINY_FILES).map(ensureFile));
-      if (existing) return existing;
-      const draft = buildDraft();
+      if (existing) {
+        // Seeded before returns were marked: mark it now, so it stays off Drafts.
+        if (existing.scrutinyReturn) return existing;
+        const marked = { ...existing, scrutinyReturn: { resubmittedAt: null } };
+        await repo.putDraft(marked);
+        return marked;
+      }
+      const draft = build();
       await repo.putDraft(draft);
       return draft;
     })().catch(() => null);
+    seeding.set(draftId, pending);
   }
-  return seeding;
+  return pending;
+}
+
+/**
+ * Mark returned filings seeded before returns were marked, so the dashboard keeps them
+ * off Drafts without each having to be opened first. Only drafts already in the browser.
+ */
+export async function markScrutinyReturns(): Promise<void> {
+  const repo = getRepository();
+  for (const id of Object.keys(BUILDERS)) {
+    const existing = await repo.getDraft(id);
+    if (existing && !existing.scrutinyReturn) {
+      await repo.putDraft({ ...existing, scrutinyReturn: { resubmittedAt: null } });
+    }
+  }
 }

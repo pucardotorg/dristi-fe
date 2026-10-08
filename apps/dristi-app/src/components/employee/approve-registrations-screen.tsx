@@ -3,11 +3,21 @@
 import * as React from "react";
 import { SearchXIcon, UserCheckIcon } from "lucide-react";
 
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
+import { QueueItemRow } from "@/components/employee/queue-item-row";
 import { RegistrationDialog } from "@/components/employee/approve-registrations-dialog";
-import { RegistrationsTable } from "@/components/employee/approve-registrations-table";
+import {
+  DecidedRegistrationsTable,
+  RegistrationsTable,
+  decidedOnLabel,
+  waitClass,
+} from "@/components/employee/approve-registrations-table";
 import {
   rowActivation,
   rowOpener,
@@ -15,6 +25,7 @@ import {
 } from "@/lib/employee/row-activation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Empty,
   EmptyContent,
@@ -23,30 +34,49 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { PAGE_SIZE, type HearingsPageSize } from "@/lib/employee/hearings";
 import {
+  PAGE_SIZE,
+  formatListingDate,
+  type HearingsPageSize,
+} from "@/lib/employee/hearings";
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  DECIDED_REGISTRATIONS,
+  DECIDED_SORTS,
   EMPTY_REGISTRATIONS_FILTERS,
+  PENDING_SORTS,
+  REGISTER_OPTIONS,
   REGISTRATIONS_QUEUE,
+  REQUEST_TYPE_OPTIONS,
+  WAIT_OPTIONS,
+  decisionDay,
+  filterDecided,
   filterRegistrations,
   formatDaysWaitingSpoken,
   nextInQueue,
   registrationWaitTone,
   accountTypeVariant,
-  requestKindLabel,
   roleLabel,
+  sortDecided,
+  sortPending,
   APPROVE_REGISTRATIONS_TITLE,
+  type DecidedRegistration,
+  type DecidedSort,
+  type PendingSort,
+  type RegistrationOutcome,
   type RegistrationRequest,
   type RegistrationsFilters,
-  type WaitTone,
 } from "@/lib/employee/approve-registrations";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
 
-const waitClass: Record<WaitTone, string> = {
-  plain: "",
-  warning: "text-warning-ink",
-  destructive: "text-destructive-ink",
-};
+type RegistrationsTab = "pending" | RegistrationOutcome;
+
+const TABS: { id: RegistrationsTab; label: string }[] = [
+  { id: "pending", label: "Pending" },
+  { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" },
+];
 
 /**
  * Approve registrations — the registration requests waiting on this court's scrutiny officer.
@@ -74,68 +104,107 @@ const waitClass: Record<WaitTone, string> = {
  * registrations without opening a single photograph would void the only identity check
  * the product has. Clearing the queue is therefore slow by construction.
  *
- * **Nothing here is approved or refused.** Both paths drop their rows from the demo queue
+ * **Three tabs** (owner, 2026-10-07): Pending is the work; Approved and Rejected are the
+ * record of it, read-only. A decision taken here moves the row from Pending to the tab it
+ * belongs on, so the officer can see what they just did.
+ *
+ * **Nothing here is approved or refused.** Both paths move their rows between demo lists
  * and nothing else — see `lib/employee/approve-registrations.ts`. No account is opened, no
  * access is granted or withheld, no reason is sent, and nothing persists past a reload.
  */
 export function ApproveRegistrationsScreen() {
-  /* One state, not a draft and an applied one: the list answers the box as it is typed,
-     so there is never a moment where what the officer has written and what the table is
-     showing disagree. Every change resets to page one — the old Search button did that,
-     and a keystroke that narrows thirty-nine requests to four must not leave the reader
-     on page three of nothing. */
+  const [tab, setTab] = React.useState<RegistrationsTab>("pending");
+  /* One state, filtered as typed; every change resets to page one, so a narrowed list
+     never leaves the reader on page three of nothing. */
   const [filters, setFilters] = React.useState<RegistrationsFilters>(
     EMPTY_REGISTRATIONS_FILTERS,
   );
+  const [pendingSort, setPendingSort] = React.useState<PendingSort>("longest");
+  const [decidedSort, setDecidedSort] = React.useState<DecidedSort>("recent");
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
-  const [decidedIds, setDecidedIds] = React.useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  /* Decisions taken on this screen, newest first — they lead their tab. */
+  const [decided, setDecided] = React.useState<DecidedRegistration[]>([]);
   const [open, setOpen] = React.useState<RegistrationRequest | null>(null);
   const [announcement, setAnnouncement] = React.useState("");
   const searchRef = React.useRef<HTMLInputElement>(null);
 
+  const decidedIds = new Set(decided.map((entry) => entry.request.id));
   const remaining = REGISTRATIONS_QUEUE.filter(
     (request) => !decidedIds.has(request.id),
   );
-  const rows = filterRegistrations(remaining, filters);
+  const pendingRows = sortPending(
+    filterRegistrations(remaining, filters),
+    pendingSort,
+  );
+  const record = [...decided, ...DECIDED_REGISTRATIONS];
+  const decidedRows =
+    tab === "pending"
+      ? []
+      : sortDecided(
+          filterDecided(
+            record.filter((entry) => entry.outcome === tab),
+            filters,
+          ),
+          decidedSort,
+        );
 
-  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const total = tab === "pending" ? pendingRows.length : decidedRows.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
-  const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = filters.query.trim() !== "";
+  const pagePending = pendingRows.slice(start, start + pageSize);
+  const pageDecided = decidedRows.slice(start, start + pageSize);
+  const shown = tab === "pending" ? pagePending.length : pageDecided.length;
+  const isFiltered =
+    filters.query.trim() !== "" ||
+    filters.accountType !== "all" ||
+    (tab === "pending" &&
+      (filters.requestType !== "all" ||
+        filters.register !== "all" ||
+        filters.wait !== "all"));
 
-  function changeFilters(next: RegistrationsFilters) {
-    setFilters(next);
+  function changeFilters(next: Partial<RegistrationsFilters>) {
+    setFilters((current) => ({ ...current, ...next }));
     setPage(1);
   }
 
   function clearFilters() {
-    changeFilters(EMPTY_REGISTRATIONS_FILTERS);
+    setFilters(EMPTY_REGISTRATIONS_FILTERS);
+    setPage(1);
   }
 
-  /** Both decisions end here: the row leaves the demo queue, and nothing else happens. */
-  function removeFromQueue(id: string, spoken: string) {
-    setDecidedIds((current) => new Set(current).add(id));
+  /* A tab is a different list: the search carries over (it is the same person being
+     looked for), the pending-only filters reset so a hidden filter cannot narrow a tab
+     that does not show it. */
+  function changeTab(next: RegistrationsTab) {
+    setTab(next);
+    setFilters((current) => ({
+      ...EMPTY_REGISTRATIONS_FILTERS,
+      query: current.query,
+      accountType: current.accountType,
+    }));
+    setPage(1);
+  }
+
+  function decide(entry: DecidedRegistration, spoken: string) {
+    setDecided((current) => [entry, ...current]);
     setAnnouncement(spoken);
   }
 
-  /* The overlay stays open through both: it ends on a settled stage that says what
-     happened and offers the next request, and the row has already left the list behind
-     it (`nextInQueue` is read off `rows`, which no longer holds this one). */
+  /* The overlay stays open through both: it ends on a settled stage that offers the next
+     request, and the row has already left the list behind it. */
   function approveOne(request: RegistrationRequest) {
-    removeFromQueue(
-      request.id,
-      `${request.applicationNumber} approved on this screen and removed from the queue. No account was opened and nobody was told.`,
+    decide(
+      { request, outcome: "approved", daysAgo: 0 },
+      `${request.fullName} approved on this screen and moved to Approved. No account was opened and nobody was told.`,
     );
   }
 
-  function rejectOne(request: RegistrationRequest) {
-    removeFromQueue(
-      request.id,
-      `${request.applicationNumber} rejected on this screen and removed from the queue. The reason was not sent to anyone.`,
+  function rejectOne(request: RegistrationRequest, reason: string) {
+    decide(
+      { request, outcome: "rejected", daysAgo: 0, reason },
+      `${request.fullName} rejected on this screen and moved to Rejected. The reason was not sent to anyone.`,
     );
   }
 
@@ -144,31 +213,14 @@ export function ApproveRegistrationsScreen() {
   }
 
   return (
-    /* **The beige canvas — the product default** (owner, 2026-09-11). Built here first as
-       an iteration the owner could say no to; they kept it and made it the default for
-       every work surface (ui-craft §1.0).
-
-       Warm neutral-2 — the rail's own tone — so page and rail are one ground and the white
-       panel is the only lifted thing on the screen. The top bar stays `bg-card`, so the
-       chrome still reads as chrome. Dark keeps `bg-background`, because `muted` sits above
-       `card` there and a tinted canvas would invert the depth. */
+    /* The beige canvas — the product default (owner, 2026-09-11; ui-craft §1.0). */
     <div className="flex min-w-0 flex-1 flex-col gap-8 p-6 md:p-8">
       <header className="flex flex-col gap-2">
-        {/* **"Approve registrations"**, not "Approve registrations" (owner, 2026-09-11: the
-            queue is advocates *and* their clerks, so the old title named half of it). Verb
-            and object, like every other row in the Actions group — "Register cases",
-            "Approve copy application" — and "approve" because it is the word the screen
-            already speaks in: *Pending approval*, *Confirm approval*, *waiting for
-            approval*. The officer rejects here too, the way they refuse copies under
-            "Approve copy application"; the group names each queue by what it exists to
-            grant. `APPROVE_REGISTRATIONS_TITLE` is shared with the rail and the tab, so the
+        {/* `APPROVE_REGISTRATIONS_TITLE` is shared with the rail and the tab, so the
             three can never disagree. */}
         <h1 className="text-title text-balance font-semibold">
           {APPROVE_REGISTRATIONS_TITLE}
         </h1>
-        {/* The count is the whole point of the queue, so the supporting line carries it
-            rather than restating the title. Singular is spelled out because
-            "1 registrations" is the kind of thing a court notices. */}
         <p className="text-body text-muted-foreground">
           {remaining.length === 1
             ? "1 registration is waiting for approval."
@@ -176,80 +228,122 @@ export function ApproveRegistrationsScreen() {
         </p>
       </header>
 
-      {/* One panel: search, list and footer are one unit of work, so they share one lifted
-          sheet — the same recipe every other court-side list uses. Nothing inside draws a
-          second frame. */}
-      <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card shadow-raised p-6">
-        <RegistrationFilters
-          filters={filters}
-          searchRef={searchRef}
-          onChange={changeFilters}
-        />
+      <Tabs
+        value={tab}
+        onValueChange={(value) => changeTab(value as RegistrationsTab)}
+        className="flex min-w-0 flex-col gap-6"
+      >
+        {/* Line TabsList: the mark sits on the gutter's own rule (`after:-bottom-px`). */}
+        <div className="overflow-x-auto border-b border-hairline [scrollbar-width:none]">
+          <TabsList
+            variant="line"
+            aria-label="Registrations"
+            className="h-10 w-max min-w-full justify-start rounded-none p-0 group-data-horizontal/tabs:h-10"
+          >
+            {TABS.map((entry) => (
+              <TabsTrigger
+                key={entry.id}
+                value={entry.id}
+                className="h-10 flex-none gap-2 px-3 text-body-compact group-data-horizontal/tabs:after:-bottom-px"
+              >
+                {entry.label}
+                {/* Counts mean work: only Pending carries one. */}
+                {entry.id === "pending" ? (
+                  <span className="font-normal tabular-nums">{remaining.length}</span>
+                ) : null}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-        {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
-        <QueueAnnouncer
-          from={start + 1}
-          to={start + pageRows.length}
-          total={rows.length}
-        />
+        {TABS.map((entry) => (
+          <TabsContent key={entry.id} value={entry.id} className="min-w-0 outline-none">
+            {entry.id !== tab ? null : (
+              /* One panel: filters, list and footer are one unit of work. */
+              <section className="flex min-w-0 flex-col gap-6 rounded-xl border border-hairline bg-card p-6 shadow-raised">
+                <RegistrationFilters
+                  tab={tab}
+                  filters={filters}
+                  searchRef={searchRef}
+                  onChange={changeFilters}
+                  onClear={clearFilters}
+                  pendingSort={pendingSort}
+                  onPendingSortChange={(next) => {
+                    setPendingSort(next);
+                    setPage(1);
+                  }}
+                  decidedSort={decidedSort}
+                  onDecidedSortChange={(next) => {
+                    setDecidedSort(next);
+                    setPage(1);
+                  }}
+                />
 
-        {pageRows.length === 0 ? (
-          <RegistrationsEmpty isFiltered={isFiltered} onClear={clearFilters} />
-        ) : (
-          <div className="flex min-w-0 flex-col gap-4">
-            {/* min-w-0 lets this flex item shrink below the table's content width, so a
-                wide table scrolls inside the panel instead of pushing the page sideways. */}
-            <div className="min-w-0 overflow-x-auto">
-              {/* Five columns do not survive a phone, and they do not survive a laptop
-                  either. Measured on the render: the table's natural width is ~780px, and
-                  what the panel actually offers is the viewport less the 256px rail, the
-                  page's `p-8` and the panel's `p-6` — 656px at 1024. The column that goes
-                  over the right edge is `Days waiting`: the one tied to a statutory clock,
-                  and the key the queue is read by. A wait an officer has to scroll
-                  sideways to reach is a wait they will not see.
-                  So the swap is at `xl`, two steps later than the sibling queues rather
-                  than one. `lg` was the obvious cut and it is the wrong one — at exactly
-                  1024 the table comes back and is still clipped; the whole table first
-                  fits somewhere around 1150, and `xl` is the next rung of the ladder past
-                  that (RESPONSIVE.md: use the prefix, do not hardcode a pixel breakpoint).
-                  Below it the stacked items carry every one of these facts and spell the
-                  wait out in words. (The sibling tables are five columns too and clip the
-                  same way; whether they move with this one is their own change.) */}
-              <div className="hidden xl:block">
-                <RegistrationsTable rows={pageRows} onOpen={setOpen} />
-              </div>
-              <div className="xl:hidden">
-                <RegistrationItemList rows={pageRows} onOpen={setOpen} />
-              </div>
-            </div>
+                {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
+                <QueueAnnouncer from={start + 1} to={start + shown} total={total} />
 
-            <ListFooter
-              id="approve-registrations-page-size"
-              from={start + 1}
-              to={start + pageRows.length}
-              total={rows.length}
-              page={currentPage}
-              pageCount={pageCount}
-              onPageChange={setPage}
-              pageSize={pageSize}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-              }}
-            />
-          </div>
-        )}
-      </section>
+                {shown === 0 ? (
+                  <RegistrationsEmpty
+                    tab={tab}
+                    isFiltered={isFiltered}
+                    onClear={clearFilters}
+                  />
+                ) : (
+                  <div className="flex min-w-0 flex-col gap-4">
+                    {/* The table swaps to stacked items below `xl`: measured on the render,
+                        the columns first fit the panel around 1150px. */}
+                    <div className="min-w-0 overflow-x-auto">
+                      {tab === "pending" ? (
+                        <>
+                          <div className="hidden xl:block">
+                            <RegistrationsTable rows={pagePending} onOpen={setOpen} />
+                          </div>
+                          <div className="xl:hidden">
+                            <RegistrationItemList rows={pagePending} onOpen={setOpen} />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="hidden xl:block">
+                            <DecidedRegistrationsTable rows={pageDecided} outcome={tab} />
+                          </div>
+                          <div className="xl:hidden">
+                            <DecidedItemList rows={pageDecided} outcome={tab} />
+                          </div>
+                        </>
+                      )}
+                    </div>
 
-      {/* What actually changed, for anyone not watching the list. A decision that only
-          shows as a row disappearing is silent to a screen reader. */}
+                    <ListFooter
+                      id="approve-registrations-page-size"
+                      from={start + 1}
+                      to={start + shown}
+                      total={total}
+                      page={currentPage}
+                      pageCount={pageCount}
+                      onPageChange={setPage}
+                      pageSize={pageSize}
+                      onPageSizeChange={(size) => {
+                        setPageSize(size);
+                        setPage(1);
+                      }}
+                    />
+                  </div>
+                )}
+              </section>
+            )}
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      {/* What actually changed, for anyone not watching the list. */}
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
 
       <RegistrationDialog
         request={open}
-        next={open ? nextInQueue(rows, open) : null}
+        next={open ? nextInQueue(pendingRows, open) : null}
         onOpenChange={setOpen}
         onApprove={approveOne}
         onReject={rejectOne}
@@ -261,71 +355,142 @@ export function ApproveRegistrationsScreen() {
 }
 
 /**
- * One text box, filtering as it is typed — the whole filter row.
+ * The court side's filter row (`CourtFilters`): search inline, the structured filters in
+ * the Filters sheet with chips for what is applied, and the order at the end of the row.
  *
- * The reference sliced this queue by *User Type*, whose only value on this screen is
- * Advocate, and by *Application Number* alone, which is the one identifier an officer is
- * least likely to be holding. Neither completes a sentence anybody would say. What
- * replaces both is a single box reaching the name, the Bar registration ID and the
- * application number, because which of the three the officer has depends only on how the
- * question reached them. The visible label is "Search requests" so it does not promise
- * less than it does (ACCESSIBILITY §12 wants a permanent label either way).
- *
- * The Search button is gone. With one box there is nothing to compose before asking, so
- * it only ever stood between the officer and the answer — and at thirty-nine pending it
- * stood there once per lookup. The way back to the whole queue is the `×` inside the box
- * (`QueueSearchField`), which is why there is no "Clear search" beside it either: on this
- * screen the search *is* the filters, and two controls for one undo is one too many.
- *
- * **The page now has no teal at all, and the brief already argued that it should not.**
- * Search was its only `bg-primary`; D9 says the Ration Teal Law has nothing to spend it
- * on here, because this page has no page-level act — there is no bulk approve (see the
- * screen doc), and the decision is taken in the overlay, where the teal is Approve.
- * Nothing was promoted to fill the gap.
- *
- * The form element stays so Enter in the box is swallowed rather than reloading the page:
- * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
- * left to catch it.
+ * **Contextual by tab.** Pending is read by what needs a decision — account type, request
+ * type, what the register said, and how long they have waited (the same bands the wait
+ * column colours by). A decided request is no longer read by any of those but who it was,
+ * so Approved and Rejected keep only the account type — one control, which `CourtFilters`
+ * shows on the row rather than behind a button.
  */
 function RegistrationFilters({
+  tab,
   filters,
   searchRef,
   onChange,
+  onClear,
+  pendingSort,
+  onPendingSortChange,
+  decidedSort,
+  onDecidedSortChange,
 }: {
+  tab: RegistrationsTab;
   filters: RegistrationsFilters;
   searchRef: React.Ref<HTMLInputElement>;
-  onChange: (filters: RegistrationsFilters) => void;
+  onChange: (filters: Partial<RegistrationsFilters>) => void;
+  onClear: () => void;
+  pendingSort: PendingSort;
+  onPendingSortChange: (sort: PendingSort) => void;
+  decidedSort: DecidedSort;
+  onDecidedSortChange: (sort: DecidedSort) => void;
 }) {
+  const fields: CourtFilterField[] = [
+    {
+      id: "registrations-account-type",
+      label: "Account type",
+      value: filters.accountType,
+      all: "all",
+      allLabel: "All account types",
+      options: ACCOUNT_TYPE_OPTIONS,
+      onApply: (value) =>
+        onChange({ accountType: value as RegistrationsFilters["accountType"] }),
+    },
+  ];
+  if (tab === "pending") {
+    fields.push(
+      {
+        id: "registrations-request-type",
+        label: "Request type",
+        value: filters.requestType,
+        all: "all",
+        allLabel: "All request types",
+        options: REQUEST_TYPE_OPTIONS,
+        onApply: (value) =>
+          onChange({ requestType: value as RegistrationsFilters["requestType"] }),
+      },
+      {
+        /* Advocates only — clerks have no register, so asking for any answer leaves
+           them out by itself. */
+        id: "registrations-register",
+        label: "Bar Council check",
+        value: filters.register,
+        all: "all",
+        allLabel: "Any result",
+        options: REGISTER_OPTIONS,
+        onApply: (value) =>
+          onChange({ register: value as RegistrationsFilters["register"] }),
+      },
+      {
+        id: "registrations-wait",
+        label: "Waiting",
+        value: filters.wait,
+        all: "all",
+        allLabel: "Any wait",
+        options: WAIT_OPTIONS,
+        onApply: (value) => onChange({ wait: value as RegistrationsFilters["wait"] }),
+      },
+    );
+  }
+
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <QueueSearchField
-        label="Search requests"
-        className="sm:w-96"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Name, registration number or application number"
-      />
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search registrations",
+        value: filters.query,
+        onChange: (query) => onChange({ query }),
+        placeholder: "Name or registration number",
+      }}
+      searchRef={searchRef}
+      fields={fields}
+      trailing={
+        tab === "pending" ? (
+          <CourtSortSelect
+            id="registrations-sort"
+            value={pendingSort}
+            options={PENDING_SORTS}
+            onChange={onPendingSortChange}
+          />
+        ) : (
+          <CourtSortSelect
+            id="registrations-sort"
+            value={decidedSort}
+            options={DECIDED_SORTS}
+            onChange={onDecidedSortChange}
+          />
+        )
+      }
+      onClearAll={onClear}
+    />
   );
 }
 
+const EMPTY_COPY: Record<RegistrationsTab, { title: string; description: string }> = {
+  pending: {
+    title: "No registrations waiting",
+    description: "Everyone who has applied to this court has been dealt with.",
+  },
+  approved: {
+    title: "No approved registrations",
+    description: "Registrations this court approves are listed here.",
+  },
+  rejected: {
+    title: "No rejected registrations",
+    description: "Registrations this court rejects are listed here until they are resubmitted.",
+  },
+};
+
 /**
- * Why the list is empty, and what to do about it.
- *
- * Two different facts, so two different states: a search that matched nothing is a dead
- * end with an action worth offering, while an empty queue is the office being up to date —
- * the same good-empty the sibling queues use. No action is offered on that one, because
- * there is nothing for the court to do: every row in this queue arrives from the other
- * side of the product. Borderless and unpadded; the panel is already the frame.
+ * Why the list is empty, and what to do about it: a filter that matched nothing offers
+ * its way back; an empty tab is simply the state of the office. Borderless and unpadded;
+ * the panel is already the frame.
  */
 function RegistrationsEmpty({
+  tab,
   isFiltered,
   onClear,
 }: {
+  tab: RegistrationsTab;
   isFiltered: boolean;
   onClear: () => void;
 }) {
@@ -333,27 +498,21 @@ function RegistrationsEmpty({
     <Empty className="border-0 p-0">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          {isFiltered ? (
-            <SearchXIcon aria-hidden />
-          ) : (
-            <UserCheckIcon aria-hidden />
-          )}
+          {isFiltered ? <SearchXIcon aria-hidden /> : <UserCheckIcon aria-hidden />}
         </EmptyMedia>
         <EmptyTitle className="text-title-s font-semibold">
-          {isFiltered
-            ? "No requests match this search"
-            : "No registrations waiting"}
+          {isFiltered ? "No registrations match" : EMPTY_COPY[tab].title}
         </EmptyTitle>
         <EmptyDescription className="text-body">
           {isFiltered
-            ? "No request waiting for approval matches the name, registration number or application number you searched for."
-            : "Everyone who has applied to this court has been dealt with."}
+            ? "Nothing on this tab matches the search and filters you have applied."
+            : EMPTY_COPY[tab].description}
         </EmptyDescription>
       </EmptyHeader>
       {isFiltered ? (
         <EmptyContent>
           <Button variant="outline" onClick={onClear}>
-            Clear search
+            Clear all
           </Button>
         </EmptyContent>
       ) : null}
@@ -362,13 +521,8 @@ function RegistrationsEmpty({
 }
 
 /**
- * The same rows below `xl`, stacked.
- *
- * A queue read on a phone, a tablet or a narrow laptop is still who is waiting, what they
- * claim and how long they have been kept — and the officer can still open and decide one,
- * because a phone that could only read this list would be a phone that cannot do the work. The
- * column headers are gone, so each fact is spelled out where the header would have said
- * it — which is why the wait reads "19 days waiting" here and not "19".
+ * The same rows below `xl`, stacked. The column headers are gone, so each fact is spelled
+ * out where the header would have said it — "19 days waiting", not "19".
  */
 function RegistrationItemList({
   rows,
@@ -379,58 +533,78 @@ function RegistrationItemList({
 }) {
   return (
     <ul className="flex flex-col gap-3">
-      {rows.map((request) => {
-        const kind = requestKindLabel(request);
-        return (
-          <li
-            key={request.id}
-            {...rowActivation(
-              "flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong",
-            )}
+      {rows.map((request) => (
+        <li
+          key={request.id}
+          {...rowActivation(
+            "flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong",
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => onOpen(request)}
+            {...rowOpener}
+            className={rowOpenerClass}
           >
-            <button
-              type="button"
-              onClick={() => onOpen(request)}
-              {...rowOpener}
-              className={rowOpenerClass}
+            <span className="sr-only">Review </span>
+            <span lang={request.fullNameLang}>{request.fullName}</span>
+          </button>
+          <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+            <Badge variant={accountTypeVariant(request.registrantKind)}>
+              {roleLabel(request.registrantKind)}
+            </Badge>
+            <Identifier value={request.registrationNumber} label="registration number" />
+            <span aria-hidden>·</span>
+            <span
+              className={cn(
+                "tabular-nums",
+                waitClass[registrationWaitTone(request.daysWaiting)],
+              )}
             >
-              <span className="sr-only">Review </span>
-              {/* The number is the row's opener — the face without a second control. */}
-              <Identifier value={request.applicationNumber} label="application number" copyable={false} />
-            </button>
-            <p
-              className="min-w-0 text-body-compact"
-              lang={request.fullNameLang}
-            >
-              {request.fullName}
-            </p>
-            <p className="text-caption text-muted-foreground">
-              <Identifier value={request.registrationNumber} label="registration number" />
-              {" · "}
-              <span
-                className={cn(
-                  "tabular-nums",
-                  waitClass[registrationWaitTone(request.daysWaiting)],
-                )}
-              >
-                {formatDaysWaitingSpoken(request.daysWaiting)}
-              </span>
-            </p>
-            {/* As in the table: the account type is the one pill, and the request type
-                is text beside it. One presentation per fact across both layouts. */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={accountTypeVariant(request.registrantKind)}>
-                {roleLabel(request.registrantKind)}
-              </Badge>
-              {kind ? (
-                <span className="text-caption text-muted-foreground">
-                  {kind}
-                </span>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
+              {formatDaysWaitingSpoken(request.daysWaiting)}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function DecidedItemList({
+  rows,
+  outcome,
+}: {
+  rows: DecidedRegistration[];
+  outcome: RegistrationOutcome;
+}) {
+  return (
+    <ul className="flex flex-col gap-3">
+      {rows.map((entry) => (
+        <QueueItemRow key={entry.request.id} className="flex flex-col gap-2">
+          <p
+            className="text-body-compact font-medium text-foreground"
+            lang={entry.request.fullNameLang}
+          >
+            {entry.request.fullName}
+          </p>
+          <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+            <Badge variant={accountTypeVariant(entry.request.registrantKind)}>
+              {roleLabel(entry.request.registrantKind)}
+            </Badge>
+            <Identifier
+              value={entry.request.registrationNumber}
+              label="registration number"
+            />
+            <span aria-hidden>·</span>
+            <span className="tabular-nums">
+              {decidedOnLabel(outcome)} {formatListingDate(decisionDay(entry))}
+            </span>
+          </div>
+          {entry.reason ? (
+            <p className="text-body-compact text-muted-foreground">{entry.reason}</p>
+          ) : null}
+        </QueueItemRow>
+      ))}
     </ul>
   );
 }

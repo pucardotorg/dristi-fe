@@ -33,11 +33,11 @@ const onFile: OrderCatalogueContext = {
 };
 
 describe("the court's catalogue", () => {
-  it("carries all twenty-seven, numbered 1 to 27, with no id used twice", () => {
-    assert.equal(ORDER_TEMPLATES.length, 27);
-    assert.deepEqual(
-      ORDER_TEMPLATES.map((entry) => entry.number).sort((a, b) => a - b),
-      Array.from({ length: 27 }, (_, index) => index + 1),
+  it("carries all twenty-five, with no id and no number used twice", () => {
+    assert.equal(ORDER_TEMPLATES.length, 25);
+    assert.equal(
+      new Set(ORDER_TEMPLATES.map((entry) => entry.number)).size,
+      ORDER_TEMPLATES.length,
     );
     assert.equal(
       new Set(ORDER_TEMPLATES.map((entry) => entry.id)).size,

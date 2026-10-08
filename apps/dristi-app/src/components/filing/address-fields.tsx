@@ -29,17 +29,19 @@ export function AddressFields({
   onChange,
   prefilled = false,
   onViewSource,
+  prefilledFields,
   idPrefix,
 }: {
   value: Address;
   onChange: (next: Address) => void;
   prefilled?: boolean;
-  onViewSource?: () => void;
+  onViewSource?: (field: keyof Address) => void;
+  prefilledFields?: Partial<Record<keyof Address, boolean>>;
   idPrefix?: string;
 }) {
   const set = (k: keyof Address) => (v: string) => onChange({ ...value, [k]: v });
-  const src = prefilled ? onViewSource : undefined;
-  const pf = (has: string) => prefilled && !!has;
+  const pf = (key: keyof Address) => prefilled && !!value[key] && (prefilledFields?.[key] ?? !prefilledFields);
+  const src = (key: keyof Address) => pf(key) && onViewSource ? () => onViewSource(key) : undefined;
 
   const [pinFill, setPinFill] = React.useState<PinFill | null>(null);
 
@@ -112,8 +114,8 @@ export function AddressFields({
           value={value.line1}
           onChange={set("line1")}
           placeholder="House / building, street, area"
-          prefilled={pf(value.line1)}
-          onViewSource={src}
+          prefilled={pf("line1")}
+                onViewSource={src("line1")}
           autoComplete="address-line1"
         />
       </FormField>
@@ -127,8 +129,8 @@ export function AddressFields({
             placeholder="6-digit"
             inputMode="numeric"
             maxLength={6}
-            prefilled={pf(value.pin)}
-            onViewSource={src}
+            prefilled={pf("pin")}
+                onViewSource={src("pin")}
             autoComplete="postal-code"
           />
         </FormField>
@@ -137,8 +139,8 @@ export function AddressFields({
             value={value.city}
             onChange={set("city")}
             placeholder="City or town"
-            prefilled={pf(value.city)}
-            onViewSource={src}
+            prefilled={pf("city")}
+                onViewSource={src("city")}
             autoComplete="address-level2"
           />
         </FormField>
@@ -150,8 +152,8 @@ export function AddressFields({
               value={value.district}
               onChange={setDistrict}
               placeholder="District"
-              prefilled={pf(value.district)}
-              onViewSource={src}
+              prefilled={pf("district")}
+                onViewSource={src("district")}
             />
           </FormField>
           <FormField label="State / UT" required>
@@ -160,8 +162,8 @@ export function AddressFields({
               onValueChange={setState}
               options={STATES}
               placeholder="Select state"
-              prefilled={pf(value.state)}
-              onViewSource={src}
+              prefilled={pf("state")}
+                onViewSource={src("state")}
             />
           </FormField>
         </FormRow>

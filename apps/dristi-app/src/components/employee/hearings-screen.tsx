@@ -59,7 +59,25 @@ import {
 } from "@/lib/employee/hearings";
 import { Identifier } from "@/components/chrome/identifier";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
-import { CourtFilters } from "@/components/employee/court-filters";
+import { CourtFilters, CourtSortSelect } from "@/components/employee/court-filters";
+import {
+  caseSorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+
+type HearingSort = "item" | "name" | "newest";
+
+/**
+ * The cause list's own order — the court's serial, the S. no. column — by default: it is
+ * the order the bench calls the matters in.
+ */
+const HEARING_SORTS: CourtSortSpec<CourtHearing, HearingSort>[] = [
+  { id: "item", label: "Cause list order", compare: (a, b) => a.item - b.item },
+  caseSorts<CourtHearing>()[2] as CourtSortSpec<CourtHearing, HearingSort>,
+  caseSorts<CourtHearing>()[0] as CourtSortSpec<CourtHearing, HearingSort>,
+];
 
 /**
  * Today's hearings — the court's cause list for the day it is sitting.
@@ -105,7 +123,9 @@ export function HearingsScreen() {
   const [openHearingId, setOpenHearingId] = React.useState<string | null>(null);
 
   const listed = withHearingSession(hearingsForDay(activeDay, today), session);
-  const rows = filterHearings(listed, filters);
+  const [sort, setSort] = React.useState<HearingSort>("item");
+
+  const rows = sortRows(filterHearings(listed, filters), HEARING_SORTS, sort);
 
   /**
    * Reading a matter without calling it — the cause title on the row, and the row
@@ -198,8 +218,13 @@ export function HearingsScreen() {
   const openHearing =
     listed.find((hearing) => hearing.id === openHearingId) ?? null;
 
-  function changeFilters(next: HearingFilters) {
-    setFilters(next);
+  /**
+   * Change some of the filters. A patch, merged into the latest state: the Filters sheet
+   * applies every field it changed in one go, and a whole set built by each field from
+   * this render's `filters` kept only the last field's change.
+   */
+  function changeFilters(patch: Partial<HearingFilters>) {
+    setFilters((current) => ({ ...current, ...patch }));
     setPage(1);
   }
 
@@ -240,6 +265,17 @@ export function HearingsScreen() {
             setPage(1);
           }}
           onClear={clearFilters}
+          trailing={
+            <CourtSortSelect
+              id="hearings-sort"
+              value={sort}
+              options={sortOptions(HEARING_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
         />
 
         {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -346,22 +382,26 @@ function HearingsFilters({
   onDayChange,
   onClearDay,
   onClear,
+  trailing,
 }: {
   filters: HearingFilters;
-  onChange: (filters: HearingFilters) => void;
+  /** Merge a change into the filters — a patch, not a whole set. */
+  onChange: (patch: Partial<HearingFilters>) => void;
   /** The day in view, already resolved to today when none is picked. */
   day: string;
   today: string;
   onDayChange: (day: string) => void;
   onClearDay: () => void;
   onClear: () => void;
+  /** The list's sort control (`CourtSortSelect`), at the end of the row. */
+  trailing?: React.ReactNode;
 }) {
   return (
     <CourtFilters
       search={{
         label: "Search cases",
         value: filters.query,
-        onChange: (query) => onChange({ ...filters, query }),
+        onChange: (query) => onChange({ query }),
         placeholder: "Case name or number",
       }}
       fields={[
@@ -376,7 +416,7 @@ function HearingsFilters({
             label: status.label,
           })),
           onApply: (value) =>
-            onChange({ ...filters, status: value as HearingFilters["status"] }),
+            onChange({ status: value as HearingFilters["status"] }),
         },
         {
           id: "hearings-purpose",
@@ -389,7 +429,7 @@ function HearingsFilters({
             label: purpose.label,
           })),
           onApply: (value) =>
-            onChange({ ...filters, purpose: value as HearingFilters["purpose"] }),
+            onChange({ purpose: value as HearingFilters["purpose"] }),
         },
       ]}
       date={{
@@ -404,6 +444,7 @@ function HearingsFilters({
           else onClearDay();
         },
       }}
+      trailing={trailing}
       onClearAll={onClear}
     />
   );

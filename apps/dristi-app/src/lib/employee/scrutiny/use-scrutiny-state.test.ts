@@ -3,12 +3,11 @@ import { describe, it } from "node:test";
 
 import { DOC_ROW } from "./bundle";
 import { FIELD_BY_ID } from "./sections";
-import type { Draft, Flag, FlagMap, Rect, ScrutinyLookups } from "./types";
+import type { Draft, FlagMap, ScrutinyLookups } from "./types";
 import {
   applyLinkDoc as applyLinkDocRaw,
   applyRemoveFlag,
   applySaveFlag as applySaveFlagRaw,
-  shouldAskReupload as shouldAskReuploadRaw,
   survivingPartner,
   type ScrutinyState,
 } from "./use-scrutiny-state";
@@ -16,35 +15,14 @@ import {
 /** The authored case's own maps — the fixture these transitions were written against. */
 const LOOK: ScrutinyLookups = { fieldById: FIELD_BY_ID, docRow: DOC_ROW };
 const applySaveFlag = (s: ScrutinyState) => applySaveFlagRaw(s, LOOK);
-const shouldAskReupload = (s: ScrutinyState, docId: string) =>
-  shouldAskReuploadRaw(s, docId, LOOK);
 const applyLinkDoc = (s: ScrutinyState, docId: string) =>
   applyLinkDocRaw(s, docId, LOOK);
 
-const RECT: Rect = [10, 20, 30, 40];
-
 function draft(over: Partial<Draft> = {}): Draft {
   return {
-    value: "",
     text: "",
     reason: null,
-    voice: false,
-    recording: false,
-    prefilled: false,
-    evidence: null,
-    askReupload: null,
     linked: null,
-    ...over,
-  };
-}
-
-function flag(over: Partial<Flag> = {}): Flag {
-  return {
-    correction: null,
-    reason: null,
-    comment: null,
-    voice: false,
-    evidence: null,
     ...over,
   };
 }
@@ -55,20 +33,17 @@ function state(over: Partial<ScrutinyState> = {}): ScrutinyState {
     selectedId: null,
     composeField: null,
     draft: null,
-    tool: "select",
-    evidenceTarget: null,
     pendingFocus: null,
     ...over,
   };
 }
 
-/** The fixture's own trap: a mark on the Aadhaar, drawn from the Full name composer. */
+/** The Full name composer, about a value read from the Aadhaar. */
 function composingName(over: Partial<Draft> = {}): ScrutinyState {
   return state({
     composeField: "c-name",
     draft: draft({
       text: "Only the address side of the Aadhaar was uploaded.",
-      evidence: { doc: "aadhaar", rect: RECT },
       ...over,
     }),
   });
@@ -81,51 +56,15 @@ const LINKED = {
   note: "Re-scan the front side at 300 dpi.",
 };
 
-describe("shouldAskReupload — keyed to the act, not the evidence", () => {
-  it("asks when a field composer's mark lands on an uploaded document", () => {
-    assert.equal(shouldAskReupload(composingName(), "aadhaar"), true);
-  });
-
-  it("never asks from a document row's own composer", () => {
-    const s = state({
-      composeField: "d-aadhaar",
-      draft: draft({ evidence: { doc: "aadhaar", rect: RECT } }),
-    });
-    assert.equal(shouldAskReupload(s, "aadhaar"), false);
-  });
-
-  it("never asks about a generated page — it IS the field", () => {
-    assert.equal(shouldAskReupload(composingName(), "complaint"), false);
-    assert.equal(shouldAskReupload(composingName(), "synopsis"), false);
-  });
-
-  it("stays quiet once that document already carries an item", () => {
-    const s = composingName();
-    s.flags = { "d-aadhaar": flag({ reason: "Page missing" }) };
-    assert.equal(shouldAskReupload(s, "aadhaar"), false);
-  });
-
-  it("does not re-ask about a document already in the linked block", () => {
-    assert.equal(
-      shouldAskReupload(composingName({ linked: LINKED }), "aadhaar"),
-      false,
-    );
-  });
-});
-
 describe("applyLinkDoc — the sub-composer opens, nothing is created", () => {
-  it("opens an empty linked block and clears the question", () => {
-    const next = applyLinkDoc(
-      composingName({ askReupload: "aadhaar" }),
-      "aadhaar",
-    );
+  it("opens an empty linked block", () => {
+    const next = applyLinkDoc(composingName(), "aadhaar");
     assert.deepEqual(next.draft?.linked, {
       rowId: "d-aadhaar",
       docId: "aadhaar",
       reason: null,
       note: "",
     });
-    assert.equal(next.draft?.askReupload, null);
     // Nothing exists yet — the officer still has to say what is wrong, and save.
     assert.deepEqual(next.flags, {});
   });
@@ -145,7 +84,7 @@ describe("applyLinkDoc — the sub-composer opens, nothing is created", () => {
 });
 
 describe("applySaveFlag — one act, two grants", () => {
-  it("writes both items and copies the rectangle onto the document one", () => {
+  it("writes both items, linked to each other", () => {
     const next = applySaveFlag(composingName({ linked: LINKED }));
 
     const fieldItem = next.flags["c-name"];
@@ -154,9 +93,6 @@ describe("applySaveFlag — one act, two grants", () => {
 
     assert.equal(fieldItem.linkedTo, "d-aadhaar");
     assert.equal(docItem.linkedFrom, "c-name");
-    // The mark IS the picture of the defect; the advocate may never see the two
-    // items side by side.
-    assert.deepEqual(docItem.evidence, { doc: "aadhaar", rect: RECT });
     assert.equal(docItem.reason, "Page missing");
     // The field note is about the value, the document note about the file. Two items
     // repeating one sentence leave the advocate unable to tell what answers what.
@@ -190,7 +126,6 @@ describe("applySaveFlag — one act, two grants", () => {
       composeField: "c-name",
       draft: draft({
         text: "Only the address side of the Aadhaar was uploaded.",
-        evidence: { doc: "aadhaar", rect: RECT },
         linked: null,
       }),
     };
@@ -198,27 +133,6 @@ describe("applySaveFlag — one act, two grants", () => {
     const next = applySaveFlag(editing);
     assert.equal(next.flags["d-aadhaar"], undefined);
     assert.equal(next.flags["c-name"].linkedTo, null);
-  });
-
-  it("leaves a saved document item's rectangle alone when the field's mark is taken off", () => {
-    const saved = applySaveFlag(composingName({ linked: LINKED }));
-    const editing: ScrutinyState = {
-      ...saved,
-      composeField: "c-name",
-      draft: draft({
-        text: "Only the address side of the Aadhaar was uploaded.",
-        evidence: null,
-        linked: LINKED,
-      }),
-    };
-
-    const next = applySaveFlag(editing);
-    assert.equal(next.flags["c-name"].evidence, null);
-    // The copy became the document item's own the moment it was saved.
-    assert.deepEqual(next.flags["d-aadhaar"].evidence, {
-      doc: "aadhaar",
-      rect: RECT,
-    });
   });
 
   it("keeps the document row's own linkedFrom when it is edited directly", () => {

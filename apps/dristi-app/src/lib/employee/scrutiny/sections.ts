@@ -196,7 +196,6 @@ export const SECTIONS: SectionDef[] = [
             id: "j-court",
             label: "Court",
             value: "24×7 ON Court, Ahmedabad",
-            aiok: "Consistent with the accused's address",
           },
           { id: "j-cause", label: "Date of cause of action", value: "28/04/2016" },
           { id: "j-file", label: "Date of complaint filing", value: "04/07/2026" },
@@ -304,24 +303,6 @@ export const FIELD_BY_ID: Record<string, FlatField> = Object.fromEntries(
  * legitimate only when the document — not the value — is the problem.
  */
 export const DOC_REASONS = ["Blurry / unreadable", "Wrong document", "Page missing"] as const
-
-/**
- * Simulated speech-to-text. The officer records; this is what comes back.
- * Keyed by field id, with a generic fallback.
- */
-export const TRANSCRIPTS: Record<string, string> = {
-  "q-amt":
-    "The cheque reads fifty lakh twenty-five thousand — I have entered the correct amount, please confirm it.",
-  "c-name":
-    "Only the address side of the Aadhaar has been uploaded, so the name cannot be verified. Please upload the front side as well.",
-  "n-mode":
-    "Dispatch is marked registered post but there is no postal receipt among the documents. Please upload the receipt so service can be verified.",
-  "d-affidavit":
-    "The second paragraph of the scanned affidavit is blurred and unreadable. Please re-scan and upload a clean copy.",
-}
-
-export const TRANSCRIPT_FALLBACK =
-  "Please check this against the case bundle and correct it before refiling."
 
 /** The officer's standing checks — visible, tickable, never hover-gated. */
 export const CHECKS = [

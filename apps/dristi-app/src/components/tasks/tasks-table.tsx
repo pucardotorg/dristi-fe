@@ -50,11 +50,6 @@ import { AdvocateStack } from "@/components/tasks/advocate-stack";
 
 /* ───────────────────────────── cells ───────────────────────────── */
 
-/** "24×7 ON Court" — the court without the town the whole list shares. */
-function courtShort(court: string): string {
-  return court.replace(/,\s*Kollam$/, "");
-}
-
 function CaseCell({ kase }: { kase: Case }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
@@ -66,7 +61,7 @@ function CaseCell({ kase }: { kase: Case }) {
           "Not yet numbered"
         )}
         <span aria-hidden> · </span>
-        {courtShort(kase.court)}
+        {kase.court}
       </span>
     </div>
   );
@@ -858,7 +853,7 @@ function TaskCard({
                   "Not yet numbered"
                 )}
                 <span aria-hidden> · </span>
-                {courtShort(kase.court)}
+                {kase.court}
               </span>
               {fifthHead && fifth ? (
                 <span className="text-caption text-muted-foreground">

@@ -10,6 +10,8 @@ import {
   draftRows,
   NO_DEADLINE,
   pageWindow,
+  pendingPaymentRows,
+  pendingSignatureRows,
   registeredRows,
   scrutinyRows,
   sortOptionFor,
@@ -17,6 +19,7 @@ import {
   TAB_SORTS,
   type QueueRow,
 } from "./queue";
+import { signatories } from "./selectors";
 import type { FilingDraft } from "./types";
 
 const TODAY = "2026-08-31";
@@ -73,8 +76,7 @@ describe("draftClock — the File by column", () => {
   it("past the window it keeps the date and names condonation — never 'overdue' or 'barred'", () => {
     const clock = draftClock(draftAt(45));
     assert.match(clock.lead, DATE);
-    assert.match(clock.sub ?? "", /^Window closed/);
-    assert.match(clock.sub ?? "", /condonation application/);
+    assert.equal(clock.sub, "Delay condonation applicable");
     assert.equal(clock.tone, "danger");
     const words = `${clock.lead} ${clock.sub}`.toLowerCase();
     for (const banned of ["overdue", "barred", "time-barred", "expired"]) {
@@ -91,12 +93,18 @@ describe("draftClock — the File by column", () => {
     assert.equal(draftClock(draft).lead, "15/09/2026");
   });
 
-  it("carries completion separately, as a number and a save date", () => {
+  it("carries the last-saved date and the case type", () => {
     const [row] = draftRows([draftAt(5)]);
-    assert.ok(row.progress, "a draft row carries progress");
-    assert.ok(row.progress.percent >= 0 && row.progress.percent <= 100);
+    assert.ok(row.progress, "a draft row carries its save date");
     assert.match(row.progress.savedOn, DATE);
+    assert.equal(row.caseType, "S138 of NIA");
     assert.doesNotMatch(row.info.lead, /% complete/);
+  });
+
+  it("sends a PSA draft to the placeholder, since it has no filing flow yet", () => {
+    const [row] = draftRows([{ ...draftAt(5), caseType: "pss25" }]);
+    assert.equal(row.caseType, "S25 of PSA");
+    assert.equal(row.action.href, "/filings/new/pss-act");
   });
 });
 
@@ -123,7 +131,7 @@ describe("each tab has its own order, and the default is the useful one", () => 
       (r) => r.urgencyAt === "9999-12-31" && r.info.lead !== "Awaiting listing"
     );
     assert.ok(past.length > 0, "fixtures should hold at least one past listing");
-    for (const row of past) assert.equal(row.info.sub, "Last listed — no new date yet");
+    for (const row of past) assert.equal(row.info.sub, "Last listed. No new date yet");
   });
 
   it("drafts lead with the tightest deadline", () => {
@@ -173,6 +181,91 @@ describe("each tab has its own order, and the default is the useful one", () => 
   });
 });
 
+describe("pendingSignatureRows and pendingPaymentRows — where a draft goes once drafting is done", () => {
+  function sentForSignature(id: string): FilingDraft {
+    const draft = createBlankDraft(id);
+    draft.sign.requestedAt = "2026-08-20T10:00:00.000Z";
+    return draft;
+  }
+
+  it("a draft still drafting appears on neither tab", () => {
+    const draft = createBlankDraft("d1");
+    assert.equal(draftRows([draft]).length, 1);
+    assert.equal(pendingSignatureRows([draft], null).length, 0);
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
+  });
+
+  it("sending it for signature moves it off Drafts and onto Pending signature", () => {
+    const draft = sentForSignature("d1");
+    assert.equal(draftRows([draft]).length, 0);
+    const [row] = pendingSignatureRows([draft], null);
+    assert.ok(row, "expected a pending-signature row");
+    assert.ok((row.count ?? 0) > 0, "nobody has signed yet");
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
+  });
+
+  it("choosing the paper path counts as sent, even though it sets no requestedAt of its own", () => {
+    const draft = createBlankDraft("d1");
+    draft.sign.mode = "upload";
+    assert.equal(draftRows([draft]).length, 0);
+    assert.equal(pendingSignatureRows([draft], null).length, 1);
+  });
+
+  it("names who it is waiting on, from the filer's own point of view", () => {
+    const draft = sentForSignature("d1");
+    const everyone = [...signatories(draft, null).complainants, ...signatories(draft, null).advocates];
+    const you = everyone.find((s) => s.you);
+    assert.ok(you, "a blank draft always resolves a 'you'");
+
+    const [before] = pendingSignatureRows([draft], null);
+    assert.equal(before.youPending, true);
+    assert.match(before.info.sub ?? "", /waiting on you/i);
+
+    // Sign for "you" — whoever is left, if anyone, is someone else's signature to give.
+    draft.sign.signed[you!.id] = { at: "2026-08-20T10:05:00.000Z", with: "aadhaar" };
+    const after = pendingSignatureRows([draft], null)[0];
+    if (after) {
+      assert.equal(after.youPending, false);
+      assert.doesNotMatch(after.info.sub ?? "", /waiting on you\b/i);
+    }
+  });
+
+  it("an advocate's row asks for sign and oath together, then the oath alone — never a bulk sign", () => {
+    const draft = sentForSignature("d1");
+    draft.complainants[0].name = "Zeenath Beevi";
+    draft.advocates[0].name = "Anjali Nair";
+    draft.advocates[0].barNumber = "K/123/2010";
+    const advocate = signatories(draft, null).advocates[0];
+    assert.ok(advocate?.you, "with no profile, the advocate slot is 'you'");
+
+    const [before] = pendingSignatureRows([draft], null);
+    assert.equal(before.action.label, "Sign and take oath");
+    assert.equal(before.youPending, true);
+
+    draft.sign.signed[advocate.id] = { at: "2026-08-20T10:05:00.000Z", with: "aadhaar" };
+    const [after] = pendingSignatureRows([draft], null);
+    assert.equal(after.action.label, "Take oath");
+    assert.equal(after.youPending, false, "an oath is not something a bulk sign can give");
+    assert.match(after.info.sub ?? "", /waiting on you/i);
+    assert.equal(after.info.tone, "warning");
+  });
+
+  it("moves to Pending payment once everyone has signed, and drops off it once paid", () => {
+    const draft = sentForSignature("d1");
+    const everyone = [...signatories(draft, null).complainants, ...signatories(draft, null).advocates];
+    for (const s of everyone) {
+      draft.sign.signed[s.id] = { at: "2026-08-20T10:05:00.000Z", with: "aadhaar" };
+    }
+    assert.equal(pendingSignatureRows([draft], null).length, 0);
+    const [row] = pendingPaymentRows([draft], null);
+    assert.ok(row, "expected a pending-payment row");
+    assert.ok((row.amount ?? 0) > 0);
+
+    draft.sign.paid = true;
+    assert.equal(pendingPaymentRows([draft], null).length, 0);
+  });
+});
+
 describe("columns carry information", () => {
   it("no tab shows a column whose value never changes", () => {
     const sets: Record<string, QueueRow[]> = {
@@ -198,19 +291,19 @@ describe("columns carry information", () => {
     assert.equal(draftRows([draftAt(5)])[0].ref, undefined);
   });
 
-  it("case type is gone from every tab — one type exists", () => {
+  it("every tab names the parties; drafts also name the case type (owner, 2026-10-08)", () => {
     for (const layout of Object.values(TAB_LAYOUT)) {
       assert.equal(layout.columns.includes("parties"), true);
-      assert.equal((layout.columns as string[]).includes("caseType"), false);
     }
+    assert.equal(TAB_LAYOUT.drafts.columns.includes("caseType"), true);
   });
 });
 
 describe("filters and paging", () => {
   const rows: QueueRow[] = [
-    row("a", "JMFC-I, Kollam", "2026-08-01", "meera nair v. anwar s."),
-    row("b", "JMFC-II, Kollam", "2026-08-20", "suresh menon v. k. menon"),
-    row("c", "JMFC-I, Kollam", "2026-08-10", "latha r. v. riya jacob"),
+    row("a", "JMFC-I", "2026-08-01", "meera nair v. anwar s."),
+    row("b", "JMFC-II", "2026-08-20", "suresh menon v. k. menon"),
+    row("c", "JMFC-I", "2026-08-10", "latha r. v. riya jacob"),
   ];
 
   function row(id: string, court: string, at: string, haystack: string): QueueRow {
@@ -242,7 +335,7 @@ describe("filters and paging", () => {
   });
 
   it("search and court filter compose", () => {
-    const out = applyQueueFilters(rows, { q: "menon", court: "JMFC-II, Kollam", sort: asc });
+    const out = applyQueueFilters(rows, { q: "menon", court: "JMFC-II", sort: asc });
     assert.deepEqual(
       out.map((r) => r.id),
       ["b"]

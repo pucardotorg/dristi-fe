@@ -76,7 +76,7 @@ describe("caseReviewFor", () => {
     for (const complaint of REGISTER_QUEUE) {
       const file = caseReviewFor(complaint.id, TODAY);
       assert.ok(file, `${complaint.id} has no file`);
-      assert.equal(file.caseNumber, complaint.caseNumber);
+      assert.equal(file.caseNumber, complaint.filingNumber);
       assert.ok(file.title.includes(complaint.parties.complainant));
       assert.ok(file.title.includes(complaint.parties.accused));
     }

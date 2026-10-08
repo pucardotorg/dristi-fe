@@ -6,7 +6,6 @@ import { SearchXIcon, UserCheckIcon } from "lucide-react";
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignWitnessDepositionDialog } from "@/components/employee/sign-witness-deposition-dialog";
 import { SignWitnessDepositionTable } from "@/components/employee/sign-witness-deposition-table";
@@ -42,6 +41,50 @@ import {
   type WitnessDepositionFilters,
 } from "@/lib/employee/sign-witness-deposition";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
+import {
+  caseSorts,
+  daySorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+import {
+  applyColumnFilters,
+  columnFilterFields,
+  emptyColumnFilters,
+  hasColumnFilters,
+  type ColumnFilter,
+} from "@/lib/employee/court-column-filters";
+
+const DEPOSITION_COLUMN_FILTERS: ColumnFilter<WitnessDeposition>[] = [
+  {
+    id: "deposition-side",
+    label: "Witness of",
+    allLabel: "Either side",
+    options: [
+      { value: "complainant", label: "The complainant" },
+      { value: "accused", label: "The defence" },
+    ],
+    test: (row, value) => row.witness.side === value,
+  },
+];
+
+type DepositionSort = "oldest" | "newest" | "name";
+
+/** Oldest deposition first, by the Date of deposition column. */
+const DEPOSITION_SORTS: CourtSortSpec<WitnessDeposition, DepositionSort>[] = [
+  ...daySorts<WitnessDeposition, DepositionSort>(
+    (row) => row.depositionOn,
+    { id: "oldest", label: "Oldest deposition first", latest: false },
+    { id: "newest", label: "Newest deposition first" },
+  ),
+  caseSorts<WitnessDeposition>()[2] as CourtSortSpec<WitnessDeposition, DepositionSort>,
+];
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -100,13 +143,22 @@ export function SignWitnessDepositionScreen() {
   const remaining = WITNESS_DEPOSITION_QUEUE.filter(
     (deposition) => !signedIds.has(deposition.id),
   );
-  const rows = filterWitnessDepositions(remaining, filters);
+  const [columns, setColumns] = React.useState(() =>
+    emptyColumnFilters(DEPOSITION_COLUMN_FILTERS),
+  );
+  const [sort, setSort] = React.useState<DepositionSort>("oldest");
+
+  const rows = sortRows(
+    applyColumnFilters(filterWitnessDepositions(remaining, filters), DEPOSITION_COLUMN_FILTERS, columns),
+    DEPOSITION_SORTS,
+    sort,
+  );
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = filters.query !== "";
+  const isFiltered = filters.query !== "" || hasColumnFilters(columns);
 
   /**
    * What is selected *and* still in the list.
@@ -131,6 +183,7 @@ export function SignWitnessDepositionScreen() {
 
   function clearFilters() {
     changeFilters(EMPTY_WITNESS_DEPOSITION_FILTERS);
+    setColumns(emptyColumnFilters(DEPOSITION_COLUMN_FILTERS));
   }
 
   function toggle(deposition: WitnessDeposition) {
@@ -206,6 +259,22 @@ export function SignWitnessDepositionScreen() {
           filters={filters}
           searchRef={searchRef}
           onChange={changeFilters}
+          onClear={clearFilters}
+          fields={columnFilterFields(DEPOSITION_COLUMN_FILTERS, columns, (id, value) => {
+            setColumns((current) => ({ ...current, [id]: value }));
+            setPage(1);
+          })}
+          trailing={
+            <CourtSortSelect
+              id="deposition-sort"
+              value={sort}
+              options={sortOptions(DEPOSITION_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
         />
 
         {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -302,58 +371,38 @@ export function SignWitnessDepositionScreen() {
 }
 
 /**
- * The reference's one control, filtering as it is typed.
- *
- * This screen filters on free text and nothing else, because that is all the reference
- * gives it — and it is the right call: the other signing queues cut by a process type
- * or a status their rows actually carry, and every row here is in one state. A date
- * filter would be a fourth control cutting on a column the bench does not come here to
- * narrow.
- *
- * The control carries a visible label. The reference labels the box with the things it
- * searches, which is a hint rather than a name; ACCESSIBILITY §12 wants a permanent
- * label, so "Search cases" is the deviation, and the smallest one available. The
- * placeholder keeps the reference's reach and adds the witness.
- *
- * The Search button is gone: the list answers the box as it is typed, so a button that
- * only re-asked what the control already said was a step between the bench and the
- * answer. The way back to the whole queue is the `×` inside the box
- * (`QueueSearchField`) — which is why there is no "Clear search" beside it either: on
- * this screen the search *is* the filters, and two controls for one undo is one too many.
- * The empty state keeps its own Clear, where it is the invitation out of a dead end.
- *
- * That also spends the page's teal down to one. Search carried `bg-primary` (whatever
- * the paragraph above used to claim), and it sat two regions away from the act this
- * screen exists for. With it gone the only strong fill left is the one in the action bar,
- * which is what the Ration Teal Law wanted all along.
- *
- * The form element stays so Enter in the box is swallowed rather than reloading the page:
- * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
- * left to catch it.
+ * The search box, whose witness, and the order on the end of the row — the court-side
+ * filter row (`CourtFilters`).
  */
 function DepositionFiltersForm({
   filters,
   searchRef,
   onChange,
+  onClear,
+  fields,
+  trailing,
 }: {
   filters: WitnessDepositionFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
   onChange: (filters: WitnessDepositionFilters) => void;
+  onClear: () => void;
+  fields: CourtFilterField[];
+  /** The list's sort control (`CourtSortSelect`). */
+  trailing: React.ReactNode;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-80"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number or witness"
-      />
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or witness",
+      }}
+      searchRef={searchRef}
+      fields={fields}
+      trailing={trailing}
+      onClearAll={onClear}
+    />
   );
 }
 

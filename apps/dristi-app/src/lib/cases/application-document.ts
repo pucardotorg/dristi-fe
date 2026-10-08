@@ -38,8 +38,8 @@ export type GeneratedApplication = {
 };
 
 /**
- * The register's dummy pack writes this court long-form — "JMFC-I, Kollam"
- * appears as "Judicial First Class Magistrate Court-I, Kollam" in
+ * The register's dummy pack writes this court long-form — "JMFC-I"
+ * appears as "Judicial First Class Magistrate Court-I" in
  * applications-dummy.json — so the expansion is the product's own
  * vocabulary, not an invented one. Unmatched courts pass through as-is.
  */
@@ -66,9 +66,14 @@ const DATED_TYPES = new Set([
 ]);
 
 export function buildGeneratedApplication(
-  draft: ApplicationDraft,
-  record: CaseRecord
+  given: ApplicationDraft,
+  record: CaseRecord,
+  /** The side filing it, where the draft does not say (the court's task
+   *  screens pass it). The draft's own side wins. */
+  side?: "complainant" | "accused"
 ): GeneratedApplication | null {
+  const draft =
+    side && !given.filedForSide ? { ...given, filedForSide: side } : given;
   if (!draft.type) return null;
 
   const complainant = record.parties.complainant;
@@ -427,9 +432,10 @@ export function generatedApplicationFilename(record: CaseRecord): string {
  */
 export function downloadGeneratedApplication(
   draft: ApplicationDraft,
-  record: CaseRecord
+  record: CaseRecord,
+  side?: "complainant" | "accused"
 ): void {
-  const generated = buildGeneratedApplication(draft, record);
+  const generated = buildGeneratedApplication(draft, record, side);
   if (generated) downloadApplicationText(generated, record);
 }
 

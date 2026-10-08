@@ -32,7 +32,11 @@ export function FilingShell({ children }: { children: React.ReactNode }) {
       <SourceRailSlot.Provider value={slot}>
         <SectionsRail />
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        {/* The canvas tint (see `FilingMain`) runs the full column, not just the form
+            card area, so the sticky Sections trigger can float transparently over the
+            content that scrolls beneath it instead of masking it behind a band. `FilingMain`
+            fills the rest, so this only ever shows in the trigger's own strip. */}
+        <main className="flex min-w-0 flex-1 flex-col bg-muted dark:bg-background">
           <SectionsTrigger />
           {children}
         </main>
@@ -97,7 +101,11 @@ export function FilingMain({
   return (
     <div
       className={cn(
-        "flex-1 bg-muted px-4 pb-8 pt-6 sm:px-6 dark:bg-background",
+        /* 24px gutters at every width, the page frame's own (`PAGE_GUTTER`): at 16 the
+           title sat tighter to the glass than on any other screen. The cards give the
+           8px back on a phone by padding at 16, the product's phone card padding, so a
+           field is exactly as wide as it was. */
+        "flex-1 bg-muted px-6 pb-8 pt-6 max-sm:[&_[data-slot=card]]:[--card-spacing:--spacing(4)] dark:bg-background",
         sourceOpen ? "lg:px-6" : "lg:px-12",
         className
       )}

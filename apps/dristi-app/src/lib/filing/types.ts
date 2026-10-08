@@ -157,6 +157,13 @@ export type Representative = {
 /** Field keys that document reading can machine-fill on a complainant. */
 export type ComplainantPrefillKey = "name" | "email" | "res" | "entName" | "age";
 
+/** A video of an advocate reciting the oath, uploaded or recorded in place. */
+export type OathVideoUpload = {
+  file: StoredFileRef;
+  /** Seconds, read from the file's own metadata; null when it could not be read. */
+  durationSeconds: number | null;
+};
+
 export type Complainant = {
   id: string;
   pip: YesNo;
@@ -180,6 +187,17 @@ export type Complainant = {
   poaHolder: PoaHolder;
   entType: string;
   entName: string;
+  /**
+   * The institution's CIN or PAN, stored upper-case — used to identify cases belonging
+   * to the same complainant. Mandatory but skippable (handover `LIT-18a`): leaving the
+   * step without one needs the filer's declaration that they understand the consequence.
+   */
+  entCinPan: string;
+  /**
+   * When the filer declared they are skipping the CIN or PAN and understand the case will
+   * not be linked to the complainant's other cases (`LIT-18a`). `null` = no declaration.
+   */
+  entCinPanSkippedAt: string | null;
   entPhone: string;
   entEmail: string;
   entAddr: Address;
@@ -350,7 +368,14 @@ export type Signatory = {
   name: string;
   role: string;
   status: "pending" | "signed";
+  /** What made the signature, once there is one — Aadhaar OTP, a DSC, or paper. */
+  signedWith?: SignInstrument;
   you?: boolean;
+  /**
+   * Advocates only: whether the oath is in. Advocates sign *and* take the oath; a
+   * complainant only signs, so this is absent on their rows.
+   */
+  oathTaken?: boolean;
 };
 
 /**
@@ -402,12 +427,69 @@ export type AccusedProcessChoice = {
   addresses?: number[];
 };
 
+/**
+ * What one signature was made with. Aadhaar OTP and a DSC are both *digital* — the
+ * difference is the instrument in the signer's own hands, which is theirs to pick and
+ * need not match anyone else's. `paper` is a signature on the uploaded copy.
+ */
+export type SignInstrument = "aadhaar" | "dsc" | "paper";
+
+/** What stopped e-signing, as the person turning to paper says it (`PAPER_FALLBACK_REASONS`). */
+export type PaperFallbackReason =
+  | "otp-not-received"
+  | "dsc-not-working"
+  | "party-cannot-esign"
+  | "server-not-responding"
+  | "other";
+
+/**
+ * The confirmation taken before anyone is allowed onto the paper path: that they could
+ * not e-sign, and what stopped them. Paper is the discouraged route (owner, 2026-10-06),
+ * so it is reached by saying so, not by picking it from a menu of equals.
+ */
+export type PaperFallback = {
+  reason: PaperFallbackReason;
+  /** ISO timestamp of the confirmation. */
+  at: string;
+};
+
+/** One signature, as the record will have to state it later. */
+export type SignatureRecord = {
+  /** ISO timestamp — IST in the live service. */
+  at: string;
+  with: SignInstrument;
+};
+
 export type SignState = {
-  mode: "esign" | "upload" | null;
-  /** Signatory id → signed. Signatories themselves are derived, not stored. */
-  signed: Record<string, boolean>;
+  /**
+   * How this complaint is signed, at the level of the filing: every party signs in the
+   * system ("digital"), or the complaint is printed, signed by hand and brought back as
+   * one file ("upload"). It is *not* a personal choice — it decides what the court's
+   * system asks of every other party — so it is presumed "digital" and changed
+   * deliberately, never left unset (owner, 2026-09-23).
+   */
+  mode: "digital" | "upload";
+  /**
+   * When the signature requests went out: the moment this stopped being a private draft
+   * and became work in other people's queues. `null` means nobody has been asked yet,
+   * and nothing has left the building.
+   */
+  requestedAt: string | null;
+  /**
+   * Signatory id → when their link was last sent. Kept per party because a reminder is
+   * about one of them, and because "asked at 14:02" is a fact the row has to state.
+   */
+  notified: Record<string, string>;
+  /** Signatory id → their signature. Signatories themselves are derived, not stored. */
+  signed: Record<string, SignatureRecord>;
   /** The signed copy, when signing by upload. */
   signedCopy: StoredFileRef | null;
+  /**
+   * Why this filing is on paper, confirmed by the filer before the upload opened. Kept
+   * while the mode is "upload" and cleared when it goes back to digital; `null` on a
+   * paper draft means the confirmation has not been taken yet, so the window asks first.
+   */
+  paperFallback: PaperFallback | null;
   /**
    * Signatory id → phone confirmation, for the upload path only. Every complainant row
    * has to be confirmed before an uploaded copy can be submitted.
@@ -422,12 +504,27 @@ export type SignState = {
    * with `processPlan()` rather than reading it raw.
    */
   process: Record<string, AccusedProcessChoice>;
+  /**
+   * Advocate signatory id → their oath. Taken during signing, after the e-signature,
+   * by whichever advocate signs for that slot. It affirms the contents of this exact
+   * complaint, so it goes wherever the signatures go when the complaint is edited.
+   */
+  oaths: Record<string, AdvocateOath>;
   paid: boolean;
   paidAt: string | null;
   /** Rupees actually taken — the court fees plus every prepaid process round. */
   paidAmount: number | null;
   paymentRef: string | null;
   caseFileNumber: string | null;
+};
+
+/**
+ * One advocate's oath. `video` is null only for the sandbox shortcut that marks the
+ * other parties as done — there is no recording behind it, and the rail says so.
+ */
+export type AdvocateOath = {
+  at: string;
+  video: OathVideoUpload | null;
 };
 
 /* ─────────────────────────────────── Draft ──────────────────────────────────────── */
@@ -439,9 +536,10 @@ export type DismissedNotices = {
 };
 
 export type FilingDraft = {
-  version: 5;
+  version: 7;
   id: string;
-  caseType: "s138";
+  /** `pss25` has no filing flow yet — such a draft opens the placeholder page. */
+  caseType: "s138" | "pss25";
   status: "draft" | "filed";
   /** Where the person last was — "Continue draft" resumes here. */
   lastStep: StepId;
@@ -465,6 +563,12 @@ export type FilingDraft = {
   createdAt: string;
   updatedAt: string;
   filedAt: string | null;
+  /**
+   * Set on a filing scrutiny returned. Once the corrections are made, the complaint goes
+   * back through the same Sign step as at e-filing (handover `SIG-07`) and is sent back
+   * to scrutiny from there instead of paying again. `resubmittedAt` is when it went.
+   */
+  scrutinyReturn?: { resubmittedAt: string | null };
 };
 
 /* ─────────────────────────────────── Profile ────────────────────────────────────── */

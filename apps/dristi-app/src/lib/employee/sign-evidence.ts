@@ -186,7 +186,7 @@ type EvidenceCase = {
 /**
  * The markings this bench has not yet signed, case by case.
  *
- * Names follow the fixtures the rest of the court side uses: Kollam parties and the same
+ * Names follow the fixtures the rest of the court side uses: local parties and the same
  * bar practising in this court.
  */
 const EVIDENCE_CASES: EvidenceCase[] = [
@@ -367,7 +367,7 @@ const EVIDENCE_CASES: EvidenceCase[] = [
   {
     caseNumber: "ST/716/2026",
     parties: {
-      complainant: "Kollam Coir Exports",
+      complainant: "Lakeside Coir Exports",
       accused: "Devika Ramachandran",
     },
     witnesses: [

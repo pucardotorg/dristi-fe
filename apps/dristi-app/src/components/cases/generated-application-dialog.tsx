@@ -43,19 +43,22 @@ export function GeneratedApplicationDialog({
   onAddSignature,
   signLabel = "Add signature",
   onReturnFocus,
+  side,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: ApplicationDraft;
   record: CaseRecord;
+  /** The side filing it, so "Filed for" names the right party. */
+  side?: "complainant" | "accused";
   onAddSignature: () => void;
   onReturnFocus: () => void;
   /** The CTA's words. A clerk sends it to be signed rather than signing it. */
   signLabel?: string;
 }) {
   const document = useMemo(
-    () => buildGeneratedApplication(draft, record),
-    [draft, record]
+    () => buildGeneratedApplication(draft, record, side),
+    [draft, record, side]
   );
   // Day precision, so recomputing per render never changes the text.
   const generatedOn = formatCaseDate(new Date().toISOString());
@@ -115,7 +118,7 @@ export function GeneratedApplicationDialog({
             ),
           }}
           download={{
-            onDownload: () => downloadGeneratedApplication(draft, record),
+            onDownload: () => downloadGeneratedApplication(draft, record, side),
           }}
           height="fill"
         />

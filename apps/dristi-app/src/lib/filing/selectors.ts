@@ -1,5 +1,6 @@
 /** Derived reads over the draft — pure functions so screens and the shell agree. */
 
+import { ADVOCATE_OATH } from "./config";
 import { addDays, addressToString, daysBetween, todayIso } from "./format";
 import {
   CHANNEL_FEE,
@@ -71,9 +72,42 @@ export function complainantLabel(c: Complainant, index: number): string {
   return c.name || c.entName || `Complainant ${index + 1}`;
 }
 
+/** A company's CIN: listing, industry code, state, year, ownership, registration number. */
+const CIN_PATTERN = /^[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/;
+/** An income-tax PAN: five letters, four digits, one letter. */
+const PAN_PATTERN = /^[A-Z]{5}\d{4}[A-Z]$/;
+
+/** Upper-cased, spaces dropped — how a CIN or PAN is typed is not part of the number. */
+export function normaliseCinPan(value: string): string {
+  return value.replace(/\s+/g, "").toUpperCase();
+}
+
+/** Well-formed as either a CIN or a PAN. Says nothing about whether it is registered. */
+export function isCinOrPan(value: string): boolean {
+  const v = normaliseCinPan(value);
+  return CIN_PATTERN.test(v) || PAN_PATTERN.test(v);
+}
+
+/**
+ * Indexes of institutional complainants with no usable CIN or PAN — empty, or not in
+ * either format — and no declaration skipping it. Individuals are never asked for one.
+ */
+export function complainantsMissingCinPan(complainants: Complainant[]): number[] {
+  return complainants.flatMap((c, i) => (cinPanAnswered(c) ? [] : [i]));
+}
+
+/**
+ * The CIN or PAN is mandatory for an institution, but skippable by declaration
+ * (`LIT-18a`): answered means a valid one, or the declaration on record.
+ */
+export function cinPanAnswered(c: Complainant): boolean {
+  if (c.type !== "institution") return true;
+  return isCinOrPan(c.entCinPan ?? "") || !!c.entCinPanSkippedAt;
+}
+
 /** Complainant names as the advocate multi-select shows them. */
 export function complainantChoices(complainants: Complainant[]): string[] {
-  return complainants.map((c, i) => `Complainant ${i + 1}${c.name ? ` — ${c.name}` : ""}`);
+  return complainants.map((c, i) => `Complainant ${i + 1}${c.name ? `: ${c.name}` : ""}`);
 }
 
 /**
@@ -121,7 +155,7 @@ export function accusedHasContact(a: Accused): boolean {
 export function complainantComplete(c: Complainant): boolean {
   const named = c.type === "institution" ? !!c.entName.trim() : !!c.name.trim();
   const addr = c.type === "institution" ? c.entAddr : c.res;
-  return named && !!c.mobile.trim() && !!addr.line1.trim();
+  return named && !!c.mobile.trim() && !!addr.line1.trim() && cinPanAnswered(c);
 }
 
 /* ───────────────────────────── Case details ────────────────────────── */
@@ -187,9 +221,13 @@ function sameMobile(a: string, b: string): boolean {
  */
 export function signatories(
   draft: FilingDraft,
-  profile: UserProfile | null
+  profile: UserProfile | null,
+  /** Whether advocates take the oath — the deployment's switch unless a test says otherwise. */
+  oath: boolean = ADVOCATE_OATH
 ): { complainants: Signatory[]; advocates: Signatory[] } {
-  const signedOf = (id: string): Signatory["status"] => (draft.sign.signed[id] ? "signed" : "pending");
+  const signedOf = (id: string): Signatory["status"] =>
+    draft.sign.signed[id] ? "signed" : "pending";
+  const signedWith = (id: string) => draft.sign.signed[id]?.with;
 
   const complainants: Signatory[] = draft.complainants.map((c, i) => {
     const n = i + 1;
@@ -207,7 +245,14 @@ export function signatories(
       role = `Complainant ${n} · Individual`;
     }
     const you = !!profile?.mobile && sameMobile(profile.mobile, c.mobile);
-    return { id: `sig-c-${c.id}`, name, role, status: signedOf(`sig-c-${c.id}`), you };
+    return {
+      id: `sig-c-${c.id}`,
+      name,
+      role,
+      status: signedOf(`sig-c-${c.id}`),
+      signedWith: signedWith(`sig-c-${c.id}`),
+      you,
+    };
   });
 
   const myBar = profile?.barNumber.trim().toUpperCase() ?? "";
@@ -229,7 +274,10 @@ export function signatories(
         name: `Advocate for Complainant ${i + 1}`,
         role,
         status: signedOf(`sig-a-${c.id}`),
+        signedWith: signedWith(`sig-a-${c.id}`),
         you,
+        // No oath state at all while the oath is switched off: nothing waits on it.
+        oathTaken: oath ? !!draft.sign.oaths?.[`sig-a-${c.id}`] : undefined,
       },
     ];
   });
@@ -240,6 +288,29 @@ export function signatories(
     else if (complainants[0]) complainants[0].you = true;
   }
   return { complainants, advocates };
+}
+
+/**
+ * Something is still owed by this signatory: their signature, or — an advocate — the
+ * oath that follows it.
+ */
+export function isOutstanding(s: Signatory): boolean {
+  return s.status === "pending" || s.oathTaken === false;
+}
+
+/**
+ * Every signature and every advocate's oath is in — the gate to the court fee. One
+ * reading, shared by the Sign step, the dashboard queues and batch payment, so none of
+ * them can open the fee earlier than the others.
+ */
+export function signingComplete(
+  draft: FilingDraft,
+  profile: UserProfile | null,
+  oath: boolean = ADVOCATE_OATH
+): boolean {
+  const { complainants, advocates } = signatories(draft, profile, oath);
+  const everyone = [...complainants, ...advocates];
+  return everyone.length > 0 && !everyone.some(isOutstanding);
 }
 
 /**
@@ -403,6 +474,7 @@ export type BilledLine = {
   /** How that unit count is arrived at, e.g. "3 addresses × 2 rounds". */
   unitNote: string;
   amount: number;
+  /** What the charge is for, shown under the line on the bill. Absent when unsourced. */
   note?: string;
 };
 
@@ -578,6 +650,7 @@ export function feeBill(draft: FilingDraft): FeeBill {
         units,
         unitNote: unitNote(n, option.perAddress ? addresses : null),
         amount: option.fee * units,
+        note: option.billNote,
       });
     }
 
@@ -590,7 +663,8 @@ export function feeBill(draft: FilingDraft): FeeBill {
         units,
         unitNote: unitNote(plan.delivery, addresses),
         amount: CHANNEL_FEE.amount * units,
-        note: CHANNEL_FEE.note,
+        // No note: CHANNEL_FEE's says the rate is a placeholder, which is ours to know,
+        // not the filer's. The per-address, per-round count is on the line itself.
       });
     }
   }

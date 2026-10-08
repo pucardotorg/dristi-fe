@@ -1,10 +1,10 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useRef, useSyncExternalStore } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ExternalLinkIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 
 import { REGISTER_CARDS_QUERY } from "@/components/cases/register-layout";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
@@ -40,9 +40,11 @@ import {
   formatWeekdayDate,
   isSameDay,
   peekExtras,
+  dayStamp,
   peekHistory,
   type CaseTask,
 } from "@/lib/cases/peek";
+import { hearingRecords } from "@/lib/cases/hearing-record";
 import { caseDetailHref, caseSectionHref } from "@/lib/cases/sections";
 import {
   formatCaseDate,
@@ -397,6 +399,11 @@ function CasePeekOverview({
   extras: ReturnType<typeof peekExtras>;
 }) {
   const tasks = extras.tasks ?? [];
+  // The latest sitting that has a business of the day recorded.
+  const latest = useMemo(
+    () => hearingRecords(record).find((h) => h.summary && h.on <= dayStamp(now)),
+    [record, now]
+  );
   const complainantCounsel = counselFor(record, "complainant");
   const accusedCounsel = counselFor(record, "accused");
 
@@ -447,12 +454,19 @@ function CasePeekOverview({
         </section>
       ) : null}
 
-      {record.previousHearingOn ? (
+      {latest ? (
+        <LastHearingCard
+          on={latest.on}
+          purpose={latest.purpose}
+          order={latest.summary as string}
+          label="Business of the day"
+        />
+      ) : record.previousHearingOn ? (
         <LastHearingCard
           on={record.previousHearingOn}
           purpose={record.substage ?? stageLabel(record.stage)}
           order={extras.orderOfTheDay ?? record.latestUpdate}
-          directed={Boolean(extras.orderOfTheDay)}
+          label={extras.orderOfTheDay ? "Order of the day" : "Latest update"}
         />
       ) : null}
     </div>
@@ -544,12 +558,13 @@ function LastHearingCard({
   on,
   purpose,
   order,
-  directed,
+  label,
 }: {
   on: string;
   purpose: string;
   order: string;
-  directed: boolean;
+  /** What the text is: the business of the day, or a fallback note. */
+  label: string;
 }) {
   const day = new Date(`${on}T00:00:00`).toLocaleDateString("en-IN", {
     day: "numeric",
@@ -561,7 +576,7 @@ function LastHearingCard({
   return (
     <section className="flex flex-col gap-4">
       <SectionHeading>
-        {directed ? "Last direction" : "Last hearing"}
+        Last hearing
       </SectionHeading>
       <Card size="sm">
         <CardHeader>
@@ -590,7 +605,7 @@ function LastHearingCard({
         <CardContent>
           <div className="flex flex-col gap-2 rounded-md bg-surface-sunken p-4">
             <p className="text-body-compact font-medium text-foreground">
-              {directed ? "Order of the day" : "Latest update"}
+              {label}
             </p>
             <p className="text-body-compact text-muted-foreground">{order}</p>
           </div>
@@ -681,27 +696,100 @@ function TaskRow({
   );
 }
 
+/**
+ * The case so far, oldest first: the filing, every hearing with its business
+ * of the day, and the disposal. A long BOTD shows two lines and opens in place.
+ */
 function CasePeekHistory({ record, now }: { record: CaseRecord; now: number }) {
-  const items = peekHistory(record, now);
+  const items = useMemo(() => {
+    const today = dayStamp(now);
+    const milestones = peekHistory(record, now);
+    const filed = milestones[0];
+    const disposal = record.disposal
+      ? milestones.find((item) => item.on === record.disposal?.on)
+      : undefined;
+    const hearings = hearingRecords(record)
+      .filter((h) => !(record.disposal && h.on === dayStamp(record.disposal.on)))
+      .reverse()
+      .map((h) => ({
+        key: h.id,
+        on: h.on,
+        title: h.purpose,
+        botd: h.summary,
+        status: (h.on > today ? "future" : h.on === today ? "current" : "past") as
+          | "past"
+          | "current"
+          | "future",
+      }));
+    return [
+      { key: "filed", on: filed.on, title: filed.title, botd: undefined, status: filed.status },
+      ...hearings,
+      ...(disposal
+        ? [{ key: "disposal", on: disposal.on, title: disposal.title, botd: undefined, status: disposal.status }]
+        : []),
+    ];
+  }, [record, now]);
 
   return (
     <div className="p-6">
       <Timeline>
         {items.map((item) => (
           <TimelineItem
-            key={`${item.on}-${item.title}`}
+            key={item.key}
             status={item.status}
             title={item.title}
             description={formatCaseDate(item.on)}
           >
-            {item.note ? (
-              <p className="mt-1 text-body-compact text-muted-foreground">
-                {item.note}
-              </p>
-            ) : null}
+            {item.botd ? <BotdText text={item.botd} /> : null}
           </TimelineItem>
         ))}
       </Timeline>
+    </div>
+  );
+}
+
+/** A hearing's business of the day: two lines, then "Read more" opens the rest. */
+function BotdText({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  const [long, setLong] = useState(false);
+
+  // Only offer the toggle when the clamp is actually hiding text.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      if (!open) setLong(el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [open, text]);
+
+  return (
+    <div className="mt-2 flex flex-col items-start gap-1 rounded-md bg-surface-sunken px-3 py-2.5">
+      <span className="mb-1 text-caption font-medium text-foreground">Business of the day</span>
+      <p
+        ref={ref}
+        className={cn("text-body-compact text-muted-foreground", !open && "line-clamp-2")}
+      >
+        {text}
+      </p>
+      {long || open ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="relative mt-2 flex items-center gap-1 text-caption font-medium text-foreground underline-offset-2 after:absolute after:-inset-2 hover:underline focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          {open ? "Show less" : "Read more"}
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={cn("size-3.5 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")}
+          />
+        </button>
+      ) : null}
     </div>
   );
 }
