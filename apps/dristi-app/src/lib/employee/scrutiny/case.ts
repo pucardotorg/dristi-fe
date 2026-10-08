@@ -7,7 +7,6 @@ import {
   CHECKS,
   FIELD_BY_ID,
   SECTIONS,
-  TRANSCRIPTS,
 } from "@/lib/employee/scrutiny/sections";
 import type {
   BundleDoc,
@@ -62,7 +61,6 @@ export function buildScrutinyCase(filing: Filing): ScrutinyCase {
       bundle: BUNDLE,
       docById: DOC_BY_ID,
       docRow: DOC_ROW,
-      transcripts: TRANSCRIPTS,
       checks: CHECKS,
       history: HISTORY,
       historySummary: HISTORY_SUMMARY,
@@ -81,7 +79,6 @@ export function buildScrutinyCase(filing: Filing): ScrutinyCase {
     bundle: derived.bundle,
     docById: indexBy<BundleDoc>(derived.bundle),
     docRow: derived.docRow,
-    transcripts: derived.transcripts,
     checks: derived.checks,
     history: derived.history,
     historySummary: derived.historySummary,

@@ -12,12 +12,28 @@ export type Option = { value: string; label: string };
 export const CASE_TYPE = {
   code: "s138",
   short: "S-138, NI Act",
-  title: "Cheque bounce (S-138, NI Act)",
+  /** The case-type column's label (owner, 2026-10-08). */
+  label: "S138 of NIA",
+  title: "Section 138 of Negotiable Instruments Act",
   offence: "Section 138, Negotiable Instruments Act, 1881",
   /** "Complaint under …" — the screen-length form of the proceeding's title. */
   proceedingTitleShort: "Complaint under S-138, NI Act",
   /** "Complaint under …" — the full statutory form, for PDFs (the complaint document's heading). */
   proceedingTitleLong: "Complaint under Section 138 of the Negotiable Instruments Act, 1881",
+} as const;
+
+/**
+ * Dishonour of an electronic funds transfer (Section 25, Payment and Settlement Systems
+ * Act, 2007). Listed on Start a new filing, but there is no filing flow for it yet — the
+ * row opens a placeholder page (owner, 2026-10-08).
+ */
+export const PSS_CASE_TYPE = {
+  code: "pss25",
+  short: "S-25, PSS Act",
+  /** The case-type column's label (owner, 2026-10-08). */
+  label: "S25 of PSA",
+  title: "Section 25 of Payment and Settlement Systems Act",
+  offence: "Section 25, Payment and Settlement Systems Act, 2007",
 } as const;
 
 export const COURT = {

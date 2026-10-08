@@ -188,10 +188,16 @@ export type Complainant = {
   entType: string;
   entName: string;
   /**
-   * Optional. The institution's CIN or PAN, stored upper-case — used to identify cases
-   * belonging to the same complainant. Leaving the step without one asks first.
+   * The institution's CIN or PAN, stored upper-case — used to identify cases belonging
+   * to the same complainant. Mandatory but skippable (handover `LIT-18a`): leaving the
+   * step without one needs the filer's declaration that they understand the consequence.
    */
   entCinPan: string;
+  /**
+   * When the filer declared they are skipping the CIN or PAN and understand the case will
+   * not be linked to the complainant's other cases (`LIT-18a`). `null` = no declaration.
+   */
+  entCinPanSkippedAt: string | null;
   entPhone: string;
   entEmail: string;
   entAddr: Address;
@@ -531,7 +537,8 @@ export type DismissedNotices = {
 export type FilingDraft = {
   version: 7;
   id: string;
-  caseType: "s138";
+  /** `pss25` has no filing flow yet — such a draft opens the placeholder page. */
+  caseType: "s138" | "pss25";
   status: "draft" | "filed";
   /** Where the person last was — "Continue draft" resumes here. */
   lastStep: StepId;
@@ -555,6 +562,12 @@ export type FilingDraft = {
   createdAt: string;
   updatedAt: string;
   filedAt: string | null;
+  /**
+   * Set on a filing scrutiny returned. Once the corrections are made, the complaint goes
+   * back through the same Sign step as at e-filing (handover `SIG-07`) and is sent back
+   * to scrutiny from there instead of paying again. `resubmittedAt` is when it went.
+   */
+  scrutinyReturn?: { resubmittedAt: string | null };
 };
 
 /* ─────────────────────────────────── Profile ────────────────────────────────────── */

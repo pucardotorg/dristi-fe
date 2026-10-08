@@ -29,6 +29,8 @@ export type { StepId } from "./types";
 export const FILINGS_HOME = "/filings";
 /** Creates a fresh draft and opens it. */
 export const NEW_FILING = "/filings/new";
+/** Placeholder for the PSS Act case type, which cannot be filed yet. */
+export const NEW_PSS_FILING = "/filings/new/pss-act";
 
 export type FilingStep = {
   id: StepId;

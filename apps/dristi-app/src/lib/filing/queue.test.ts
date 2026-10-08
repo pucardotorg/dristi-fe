@@ -93,12 +93,18 @@ describe("draftClock — the File by column", () => {
     assert.equal(draftClock(draft).lead, "15/09/2026");
   });
 
-  it("carries completion separately, as a number and a save date", () => {
+  it("carries the last-saved date and the case type", () => {
     const [row] = draftRows([draftAt(5)]);
-    assert.ok(row.progress, "a draft row carries progress");
-    assert.ok(row.progress.percent >= 0 && row.progress.percent <= 100);
+    assert.ok(row.progress, "a draft row carries its save date");
     assert.match(row.progress.savedOn, DATE);
+    assert.equal(row.caseType, "S138 of NIA");
     assert.doesNotMatch(row.info.lead, /% complete/);
+  });
+
+  it("sends a PSA draft to the placeholder, since it has no filing flow yet", () => {
+    const [row] = draftRows([{ ...draftAt(5), caseType: "pss25" }]);
+    assert.equal(row.caseType, "S25 of PSA");
+    assert.equal(row.action.href, "/filings/new/pss-act");
   });
 });
 
@@ -265,11 +271,11 @@ describe("columns carry information", () => {
     assert.equal(draftRows([draftAt(5)])[0].ref, undefined);
   });
 
-  it("case type is gone from every tab — one type exists", () => {
+  it("every tab names the parties; drafts also name the case type (owner, 2026-10-08)", () => {
     for (const layout of Object.values(TAB_LAYOUT)) {
       assert.equal(layout.columns.includes("parties"), true);
-      assert.equal((layout.columns as string[]).includes("caseType"), false);
     }
+    assert.equal(TAB_LAYOUT.drafts.columns.includes("caseType"), true);
   });
 });
 

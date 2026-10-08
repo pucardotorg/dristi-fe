@@ -23,9 +23,9 @@ export const HISTORY: HistoryEvent[] = [
     items: [
       {
         ref: "q-amt",
-        what: "Cheque amount · correction",
+        what: "Cheque amount · flag",
         was: "₹52,05,000 → ₹50,25,000",
-        status: "confirmed 13 Jul",
+        status: "corrected 13 Jul",
       },
       {
         ref: "c-name",

@@ -89,12 +89,19 @@ export function isCinOrPan(value: string): boolean {
 
 /**
  * Indexes of institutional complainants with no usable CIN or PAN — empty, or not in
- * either format. Individuals are never asked for one.
+ * either format — and no declaration skipping it. Individuals are never asked for one.
  */
 export function complainantsMissingCinPan(complainants: Complainant[]): number[] {
-  return complainants.flatMap((c, i) =>
-    c.type === "institution" && !isCinOrPan(c.entCinPan ?? "") ? [i] : []
-  );
+  return complainants.flatMap((c, i) => (cinPanAnswered(c) ? [] : [i]));
+}
+
+/**
+ * The CIN or PAN is mandatory for an institution, but skippable by declaration
+ * (`LIT-18a`): answered means a valid one, or the declaration on record.
+ */
+export function cinPanAnswered(c: Complainant): boolean {
+  if (c.type !== "institution") return true;
+  return isCinOrPan(c.entCinPan ?? "") || !!c.entCinPanSkippedAt;
 }
 
 /** Complainant names as the advocate multi-select shows them. */
@@ -147,7 +154,7 @@ export function accusedHasContact(a: Accused): boolean {
 export function complainantComplete(c: Complainant): boolean {
   const named = c.type === "institution" ? !!c.entName.trim() : !!c.name.trim();
   const addr = c.type === "institution" ? c.entAddr : c.res;
-  return named && !!c.mobile.trim() && !!addr.line1.trim();
+  return named && !!c.mobile.trim() && !!addr.line1.trim() && cinPanAnswered(c);
 }
 
 /* ───────────────────────────── Case details ────────────────────────── */
