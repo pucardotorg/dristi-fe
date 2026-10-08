@@ -26,8 +26,8 @@
  *
  * `choose` — e-signing, as the one card, saying what it does to the other parties; paper
  *   is a link beneath it for when e-signing has not worked (owner, 2026-10-06).
- * `fallback` — what stopped e-signing, and the filer's confirmation that they cannot.
- *   Nothing changes until they continue, so looking at it costs nothing.
+ * `fallback` — what went wrong with e-signing, one reason, then continue to the upload.
+ *   Nothing changes until they continue, so looking costs nothing.
  * `sign` — the link is out; now the filer's own instrument, Aadhaar OTP or their DSC.
  * `otp` / `dsc` — that instrument, doing its one job.
  * `done` — what just happened, resolving in the same scene as the act.
@@ -61,6 +61,7 @@ import { isOutstanding, phoneConfirmers, signatories } from "@/lib/filing/select
 import { useFiling } from "@/lib/filing/store";
 import type {
   OathVideoUpload,
+  PaperFallbackReason,
   PhoneConfirmer,
   SignInstrument,
   StoredFileRef,
@@ -73,11 +74,9 @@ import { Label } from "@/components/ui/label";
 import { SectionNotice } from "@/components/filing/notices";
 import { OathCapture } from "@/components/filing/oath-capture";
 import {
-  NO_PAPER_FALLBACK_ANSWER,
   PaperFallbackLink,
   PaperFallbackQuestion,
-  paperFallbackAnswered,
-  type PaperFallbackAnswer,
+  paperFallbackReasons,
 } from "@/components/filing/paper-fallback";
 import {
   ChoiceCard,
@@ -246,12 +245,13 @@ function SignFlowBody({
   const resendTimer = React.useRef<number | null>(null);
 
   /* ── turning to paper ──────────────────────────────────────────────────── */
-  /* A filer who already confirmed and stepped back sees their answer, not a blank. */
-  const [fallback, setFallback] = React.useState<PaperFallbackAnswer>(() =>
-    sign.paperFallback
-      ? { reason: sign.paperFallback.reason, confirmed: true }
-      : NO_PAPER_FALLBACK_ANSWER
-  );
+  /* A filer who already gave a reason and stepped back sees it picked, not a blank —
+     unless it is one the list no longer offers. */
+  const fallbackReasons = paperFallbackReasons(otherSigners);
+  const [fallbackReason, setFallbackReason] = React.useState<PaperFallbackReason | "">(() => {
+    const saved = sign.paperFallback?.reason;
+    return saved && fallbackReasons.some((r) => r.id === saved) ? saved : "";
+  });
   /** Requests already out on the digital path, which turning to paper withdraws. */
   const requested = sign.mode === "digital" && sign.requestedAt !== null;
   const anySigned = sign.mode === "digital" && everyone.some((s) => s.status === "signed");
@@ -327,11 +327,11 @@ function SignFlowBody({
    * Paper instead, once the filer has said why. Nothing is sent to anyone, and anything
    * already outstanding is recalled — the printed copy has to carry every signature by
    * hand regardless. A draft already on paper (one from before this question existed)
-   * only gains the confirmation; its copy and confirmations stay where they are.
+   * only gains the reason; its copy and confirmations stay where they are.
    */
   const continueToPaper = () => {
-    if (!paperFallbackAnswered(fallback)) return;
-    const paperFallback = { reason: fallback.reason, at: new Date().toISOString() };
+    if (!fallbackReason) return;
+    const paperFallback = { reason: fallbackReason, at: new Date().toISOString() };
     const alreadyOnPaper = sign.mode === "upload";
     update((d) => {
       d.sign.paperFallback = paperFallback;
@@ -534,11 +534,7 @@ function SignFlowBody({
         >
           Keep e-signing
         </Button>
-        <Button
-          type="button"
-          disabled={!paperFallbackAnswered(fallback)}
-          onClick={continueToPaper}
-        >
+        <Button type="button" disabled={!fallbackReason} onClick={continueToPaper}>
           Continue to upload
         </Button>
       </>
@@ -643,7 +639,11 @@ function SignFlowBody({
                     } — the PDF you upload has to carry every signature by hand.`}
               </SectionNotice>
             ) : null}
-            <PaperFallbackQuestion value={fallback} onChange={setFallback} />
+            <PaperFallbackQuestion
+              reasons={fallbackReasons}
+              value={fallbackReason}
+              onChange={setFallbackReason}
+            />
           </StageColumn>
         ) : flow.stage === "sign" ? (
           <StageColumn>

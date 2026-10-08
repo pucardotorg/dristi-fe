@@ -69,9 +69,9 @@ export type QueueRow = {
   /** When the draft was last touched. Drafts only. */
   progress?: { savedOn: string };
   /**
-   * Whether the signed-in profile is one of the people still asked to sign. Pending-
-   * signature rows only — this is what a bulk sign can actually act on: you cannot sign
-   * for a party who is not you, however pressing their row looks.
+   * Whether the signed-in profile still has a signature to add. Pending-signature rows
+   * only — this is what a bulk sign can actually act on: you cannot sign for a party who
+   * is not you, and an oath still owed is not a signature, however pressing the row looks.
    */
   youPending?: boolean;
   /** The court fee still owed, in rupees. Pending-payment rows only — for the bulk total. */
@@ -307,21 +307,36 @@ export function draftRows(drafts: FilingDraft[]): QueueRow[] {
 /** Who is still asked to sign, read from the filer's own point of view. */
 function pendingSummary(everyone: Signatory[]): {
   count: number;
+  youOwe: boolean;
   youPending: boolean;
   sub: string;
+  action: string;
 } {
   // An advocate who has signed but not yet taken the oath is still owed.
   const pending = everyone.filter(isOutstanding);
-  const youPending = pending.some((s) => s.you);
+  const yours = pending.filter((s) => s.you);
+  const youOwe = yours.length > 0;
+  // Only a signature can be batched — an oath is a recording of its own.
+  const youPending = yours.some((s) => s.status === "pending");
+  // Only an advocate's row carries `oathTaken`, and it stays false until they swear.
+  const yourOath = yours.some((s) => s.oathTaken === false);
   const others = pending.filter((s) => !s.you).length;
-  const sub = youPending
+  // The row says what is left for you: sign and oath are one act for an advocate.
+  const action = youPending
+    ? yourOath
+      ? "Sign and take oath"
+      : "Sign"
+    : yourOath
+      ? "Take oath"
+      : "Continue signing";
+  const sub = youOwe
     ? others
       ? `Waiting on you and ${others} other ${others === 1 ? "party" : "parties"}`
       : "Waiting on you"
     : others === 1
       ? "Waiting on the other party"
       : `Waiting on ${others} other parties`;
-  return { count: pending.length, youPending, sub };
+  return { count: pending.length, youOwe, youPending, sub, action };
 }
 
 /**
@@ -339,7 +354,7 @@ export function pendingSignatureRows(
     const everyone = [...complainants, ...advocates];
     if (signingComplete(draft, profile)) return [];
     const parties = draftTitle(draft);
-    const { count, youPending, sub } = pendingSummary(everyone);
+    const { count, youOwe, youPending, sub, action } = pendingSummary(everyone);
     // The moment it left the drafting phase — the paper path never sets `requestedAt`,
     // so its own last edit is the closest honest stand-in for "waiting since".
     const since = (draft.sign.requestedAt ?? draft.updatedAt).slice(0, 10);
@@ -347,9 +362,9 @@ export function pendingSignatureRows(
       id: draft.id,
       parties,
       court: "",
-      info: { lead: String(count), sub, tone: youPending ? "warning" : "default" },
+      info: { lead: String(count), sub, tone: youOwe ? "warning" : "default" },
       count,
-      action: { label: "Continue signing", href: stepHref(draft.id, "sign") },
+      action: { label: action, href: stepHref(draft.id, "sign") },
       urgencyAt: since,
       recencyAt: draft.updatedAt.slice(0, 10),
       youPending,

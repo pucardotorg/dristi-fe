@@ -9,9 +9,11 @@
  * the way the rest of the flow had taught you.
  *
  * Committing to a mode is its own step, not a click on the rail: the rail carries one
- * "Continue to sign" button, which opens a dialog naming both paths and what each one
- * does to the *other* signatories — before either is clickable, not after. Nothing here
- * is a private action; every party on the complaint signs the one way that was chosen.
+ * "Continue to signing" button ("Sign and take your oath" when you sign as an advocate,
+ * since the oath follows the signature in the same window), which opens a dialog naming
+ * both paths and what each one does to the *other* signatories — before either is
+ * clickable, not after. Nothing here is a private action; every party on the complaint
+ * signs the one way that was chosen.
  *
  * The paying half of the flow lives here too: fees → process and address → payment →
  * the case file number. The document itself is the shared court sheet Preview renders.
@@ -34,7 +36,6 @@ import {
   PrinterIcon,
   SignatureIcon,
   UploadIcon,
-  VideoIcon,
 } from "lucide-react";
 
 import { ADVOCATE_OATH } from "@/lib/filing/config";
@@ -469,6 +470,8 @@ export function SignSection() {
   /** Advocates who have signed and not yet sworn. */
   const oathsOwed = advocates.filter((s) => s.status === "signed" && s.oathTaken === false);
   const yourOathOwed = oathsOwed.some((s) => s.you);
+  /** You sign as an advocate, so your oath follows your signature — one act, one CTA. */
+  const yourOathAhead = yous.some((s) => s.oathTaken === false);
   /** Other people with something still to do, by link. */
   const othersOutstanding = everyone.filter((s) => !s.you && isOutstanding(s));
   /** Everyone the requests go out to — the signatories who are not at this keyboard. */
@@ -853,7 +856,9 @@ export function SignSection() {
 
   /** Where things stand, in one sentence, while something is still owed. */
   const waitingLine = !youSigned && yous.length > 0
-    ? "Your signature is still needed."
+    ? yourOathAhead
+      ? "Your signature and oath are still needed."
+      : "Your signature is still needed."
     : yourOathOwed
       ? "Your signature is in. Take your oath to finish."
       : yous.length === 0 && pending > 0
@@ -904,7 +909,6 @@ export function SignSection() {
         className="w-full"
         onClick={() => openFlow("paper")}
       >
-        <UploadIcon data-icon="inline-start" aria-hidden />
         Upload signed copy
       </Button>
       {/* Either mode can be chosen from the other: a filer who picked paper and then
@@ -931,8 +935,7 @@ export function SignSection() {
       className="w-full"
       onClick={() => openFlow("choose")}
     >
-      <SignatureIcon data-icon="inline-start" aria-hidden />
-      Continue to signing
+      {yourOathAhead ? "Sign and take your oath" : "Continue to signing"}
     </Button>
   ) : (
     /* ── Asked, and waiting — on a signature, or on an advocate's oath ── */
@@ -946,8 +949,7 @@ export function SignSection() {
           className="w-full"
           onClick={() => openFlow("sign")}
         >
-          <SignatureIcon data-icon="inline-start" aria-hidden />
-          Add your e-signature
+          {yourOathAhead ? "E-sign and take your oath" : "Add your e-signature"}
         </Button>
       ) : yourOathOwed ? (
         <Button
@@ -956,7 +958,6 @@ export function SignSection() {
           className="w-full"
           onClick={() => openFlow("oath")}
         >
-          <VideoIcon data-icon="inline-start" aria-hidden />
           Take your oath
         </Button>
       ) : null}

@@ -10,11 +10,10 @@
  *
  * - it is reached from a link under the e-sign route, phrased as the problem it solves
  *   ("Unable to e-sign?"), not from a card beside it;
- * - and before any upload opens, the person says what stopped e-signing and confirms, in
- *   plain words, that they cannot e-sign.
+ * - and before any upload opens, the person picks what went wrong with e-signing.
  *
  * Both pieces live here so every window asks it the same way. Nothing here writes to a
- * record: the owning window decides what the confirmation unlocks and stores it.
+ * record: the owning window decides what the reason unlocks and stores it.
  */
 
 import * as React from "react";
@@ -22,9 +21,8 @@ import * as React from "react";
 import { PAPER_FALLBACK_REASONS } from "@/lib/filing/options";
 import type { PaperFallbackReason } from "@/lib/filing/types";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { ChoicePillGroup } from "@/components/cases/filing-form-shared";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 /**
  * The way onto the paper path, under the e-sign route. A link-weight button keeps it
@@ -42,68 +40,59 @@ export function PaperFallbackLink({ onClick }: { onClick: () => void }) {
   );
 }
 
-/** The reason and the confirmation, together — what the paper path asks for first. */
-export type PaperFallbackAnswer = {
-  reason: PaperFallbackReason | "";
-  confirmed: boolean;
-};
-
-export const NO_PAPER_FALLBACK_ANSWER: PaperFallbackAnswer = {
-  reason: "",
-  confirmed: false,
-};
-
-/** Both questions answered — what the window's continue button waits on. */
-export function paperFallbackAnswered(
-  answer: PaperFallbackAnswer
-): answer is { reason: PaperFallbackReason; confirmed: true } {
-  return answer.reason !== "" && answer.confirmed;
-}
-
 /**
- * The two questions, in the order a person answers them: what went wrong, then the
- * sentence that commits to paper — last, so it sits beside the button it unlocks.
+ * What went wrong with e-signing — one reason, then "Continue to upload" in the window's
+ * footer. The owner chose this over rows that each continue on a press (2026-10-07):
+ * the reason is picked and seen selected before anything is withdrawn.
  *
- * The reason is the product's required single choice (`ChoicePillGroup`): every option
- * visible as a pill, real radios underneath. The confirmation is a checkbox whose whole
- * sentence is its label, as the accused step's "no contact details" confirmation is.
+ * It is a single choice, so the control is a radio, not a checkbox, set in the DS's
+ * choice card (`FieldLabel` around a horizontal `Field`): the whole row is the target,
+ * and the picked row takes the DS's own selected border and fill. The question labels
+ * the radio group, so a screen reader hears what the rows are a choice between.
  */
 export function PaperFallbackQuestion({
   value,
   onChange,
   reasons = PAPER_FALLBACK_REASONS,
 }: {
-  value: PaperFallbackAnswer;
-  onChange: (next: PaperFallbackAnswer) => void;
-  /** A window with one signer drops "A party did not respond" — there is nobody else. */
+  value: PaperFallbackReason | "";
+  onChange: (reason: PaperFallbackReason) => void;
+  /** A window with one signer drops "Another party can't e-sign" — there is nobody else. */
   reasons?: readonly { id: PaperFallbackReason; label: string }[];
 }) {
-  const checkboxId = React.useId();
+  const questionId = React.useId();
+  const optionId = React.useId();
   return (
-    <div className="flex flex-col rounded-xl border border-hairline bg-card">
-      <div className="p-4">
-        <ChoicePillGroup
-          legend="What stopped e-signing?"
-          options={reasons}
-          value={value.reason}
-          onChange={(reason) => onChange({ ...value, reason })}
-        />
-      </div>
-      <Label
-        htmlFor={checkboxId}
-        className="items-start gap-3 border-t border-hairline p-4 text-body font-normal text-foreground"
+    <div className="flex flex-col gap-3">
+      <h3 id={questionId} className="text-body font-semibold">
+        What went wrong with e-signing?
+      </h3>
+      <RadioGroup
+        value={value}
+        onValueChange={(next) => onChange(next as PaperFallbackReason)}
+        aria-labelledby={questionId}
+        className="gap-2"
       >
-        <Checkbox
-          id={checkboxId}
-          checked={value.confirmed}
-          onCheckedChange={(checked) => onChange({ ...value, confirmed: checked === true })}
-          className="mt-0.5"
-        />
-        {/* Wraps to several lines — the Label's own leading-none would collide. */}
-        <span className="leading-normal">
-          I confirm I am unable to e-sign and am continuing with a physical upload.
-        </span>
-      </Label>
+        {reasons.map((reason) => {
+          const id = `${optionId}-${reason.id}`;
+          return (
+            <FieldLabel key={reason.id} htmlFor={id} className="bg-card">
+              <Field orientation="horizontal" className="gap-3">
+                <RadioGroupItem value={reason.id} id={id} />
+                {/* Reasons wrap in longer languages rather than clip. */}
+                <span className="text-body font-normal text-foreground">{reason.label}</span>
+              </Field>
+            </FieldLabel>
+          );
+        })}
+      </RadioGroup>
     </div>
   );
+}
+
+/** The reasons that make sense for this window — nobody else to wait on with one signer. */
+export function paperFallbackReasons(otherSigners: number) {
+  return otherSigners > 0
+    ? PAPER_FALLBACK_REASONS
+    : PAPER_FALLBACK_REASONS.filter((r) => r.id !== "party-cannot-esign");
 }
