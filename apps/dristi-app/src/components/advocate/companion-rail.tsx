@@ -737,7 +737,9 @@ function TasksPanel({
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
+    // min-h-0 lets the panel shrink to its container (the bottom sheet caps its
+    // height), so the list in the middle scrolls instead of being clipped.
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <TaskTraceStyles />
       <PanelHeader
         title={pick(advHome.railTitle, locale)}
