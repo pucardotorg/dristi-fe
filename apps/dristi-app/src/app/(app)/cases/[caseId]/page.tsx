@@ -40,6 +40,7 @@ import {
   parseCaseOrigin,
   parseCaseSection,
 } from "@/lib/cases/sections";
+import { serverCourtText } from "@/lib/court/server";
 
 function findCase(caseId: string) {
   return CASES.find((record) => record.id === caseId);
@@ -50,7 +51,8 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { caseId } = await props.params;
   const record = findCase(caseId);
-  return { title: record ? record.caseNumber : "Case" };
+  const courtText = await serverCourtText();
+  return { title: record ? courtText(record.caseNumber) : "Case" };
 }
 
 /**

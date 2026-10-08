@@ -24,6 +24,7 @@ import { type ApplicationDraft } from "@/lib/cases/application-draft";
 import { submissionTypeLabel } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { Identifier } from "@/components/chrome/identifier";
+import { useCourtLocalized } from "@/components/court/court-provider";
 
 /**
  * What Generate application produces — the court-form document, shown before
@@ -136,12 +137,13 @@ export function GeneratedApplicationDialog({
  * document to keep in step with the draft.
  */
 function GeneratedApplicationDocument({
-  document,
+  document: storedDocument,
   generatedOn,
 }: {
   document: GeneratedApplication;
   generatedOn: string;
 }) {
+  const document = useCourtLocalized(storedDocument);
   return (
     /*
       The `paper` family, not the app palette: this is a facsimile of a filed

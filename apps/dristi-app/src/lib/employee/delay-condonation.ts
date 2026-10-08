@@ -42,6 +42,8 @@ import {
   type CourtCounsel,
 } from "./hearings";
 import { CASE_STAGES, type CaseStage } from "./schedule";
+import { caseSearchKey } from "@/lib/court/localize";
+import { localizeForDownload } from "@/lib/court/browser";
 
 export type DelayCondonationStage = "registration" | CaseStage;
 
@@ -624,7 +626,7 @@ export function filterDelayCondonationCases(
   rows: DelayCondonationCase[],
   filters: DelayCondonationFilters,
 ): DelayCondonationCase[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   return rows.filter((entry) => {
     if (filters.stage !== "all" && entry.stage !== filters.stage) return false;
     if (!query) return true;
@@ -785,7 +787,7 @@ export function downloadDelayCondonationDocument(
 ): void {
   const document = buildDelayCondonationDocument(matter);
   const url = URL.createObjectURL(
-    new Blob([delayCondonationDocumentText(document)], { type: "text/plain" }),
+    new Blob([localizeForDownload(delayCondonationDocumentText(document))], { type: "text/plain" }),
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;

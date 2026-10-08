@@ -66,6 +66,7 @@ import {
   StepTrail,
   type TrailStep,
 } from "@/components/filing/sign-stages";
+import { useCourtText } from "@/components/court/court-provider";
 
 type Stage = "why" | "account" | "sign" | "otp" | "dsc" | "signed" | "oath" | "done";
 type Start = "why" | "sign" | "oath" | "done";
@@ -127,6 +128,7 @@ export function SignLinkScreen() {
 }
 
 function SignLinkBody({ draftId, signatoryId }: { draftId: string; signatoryId: string }) {
+  const courtText = useCourtText();
   const { draft, update } = useFiling();
   const [locale, setLocale] = React.useState<Locale>("en");
 
@@ -220,7 +222,7 @@ function SignLinkBody({ draftId, signatoryId }: { draftId: string; signatoryId: 
             {filed ? "This complaint has been filed" : "You have been asked to sign a complaint"}
           </h1>
           <p className="text-body text-pretty text-muted-foreground">
-            {filer} is filing {parties} in the {COURT.name}.
+            {filer} is filing {parties} in the {courtText(COURT.name)}.
           </p>
         </div>
 
@@ -336,6 +338,7 @@ function SignLinkWizard({
   onSignIn: () => void;
   onClose: () => void;
 }) {
+  const courtText = useCourtText();
   const flow = useStagedFlow<Stage>({ order: ORDER[start], scene: SCENES, arrival: "forward" });
   /** An advocate who also takes the oath — only while the oath is switched on. */
   const sworn = isAdvocate && ADVOCATE_OATH;
@@ -530,7 +533,7 @@ function SignLinkWizard({
             </div>
             <div className="flex min-w-0 flex-col gap-0.5">
               <dt className="text-body-compact text-muted-foreground">Court</dt>
-              <dd className="text-body-compact font-medium">{COURT.name}</dd>
+              <dd className="text-body-compact font-medium">{courtText(COURT.name)}</dd>
             </div>
             {chequeAmount ? (
               <div className="flex min-w-0 flex-col gap-0.5">

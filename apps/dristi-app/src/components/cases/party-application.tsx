@@ -59,6 +59,7 @@ import { formatCaseDate } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 import { DOCUMENT_GROUND } from "@/components/cases/document-ground";
 import { Identifier } from "@/components/chrome/identifier";
+import { useCourtLocalized } from "@/components/court/court-provider";
 
 /** The case, as the paper names it — passed down from whoever holds it. */
 export type CaseRef = {
@@ -91,6 +92,9 @@ export function PartyApplicationDocument({
   caseRef: CaseRef;
   doc: PartyApplicationDoc;
 }) {
+  // The download carries what the sheet shows: the selected state's court and numbers.
+  const courtCaseRef = useCourtLocalized(caseRef);
+  const courtDoc = useCourtLocalized(doc);
   const generatedOn = formatCaseDate(new Date().toISOString());
 
   return (
@@ -115,7 +119,7 @@ export function PartyApplicationDocument({
             variant="ghost"
             size="icon-sm"
             aria-label={`Download ${doc.matter}`}
-            onClick={() => downloadPartyApplication(caseRef, doc, generatedOn)}
+            onClick={() => downloadPartyApplication(courtCaseRef, courtDoc, generatedOn)}
           >
             <DownloadIcon aria-hidden />
           </Button>
@@ -196,14 +200,16 @@ function FullViewButton({
  * themes, per the generated-application precedent.
  */
 function PartyApplicationPaper({
-  caseRef,
-  doc,
+  caseRef: storedCaseRef,
+  doc: storedDoc,
   generatedOn,
 }: {
   caseRef: CaseRef;
   doc: PartyApplicationDoc;
   generatedOn: string;
 }) {
+  const caseRef = useCourtLocalized(storedCaseRef);
+  const doc = useCourtLocalized(storedDoc);
   return (
     <article className="flex flex-col gap-6 rounded-md bg-paper p-6 text-paper-foreground [&_[data-slot=description-details]]:text-paper-foreground [&_[data-slot=description-term]]:text-paper-muted-foreground">
       <header className="flex flex-col gap-2 text-center">

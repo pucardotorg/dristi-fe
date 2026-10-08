@@ -54,6 +54,8 @@ import {
   type CounselSide,
   type CourtCounsel,
 } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
+import { localizeForDownload } from "@/lib/court/browser";
 
 /**
  * Who is in the box.
@@ -763,7 +765,7 @@ export function filterWitnessDepositions(
   rows: WitnessDeposition[],
   filters: WitnessDepositionFilters,
 ): WitnessDeposition[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   if (!query) return rows;
   return rows.filter((deposition) => {
     const haystack = [
@@ -1025,7 +1027,7 @@ export function downloadWitnessDepositionDocument(
 ): void {
   const document = buildWitnessDepositionDocument(deposition);
   const url = URL.createObjectURL(
-    new Blob([witnessDepositionDocumentText(document)], { type: "text/plain" }),
+    new Blob([localizeForDownload(witnessDepositionDocumentText(document))], { type: "text/plain" }),
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;

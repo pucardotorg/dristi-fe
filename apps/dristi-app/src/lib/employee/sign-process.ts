@@ -45,6 +45,7 @@
 import { CURRENT_STAFF } from "./content";
 import { matchesQuery } from "./filter-state";
 import { causeTitle, formatListingDate, parseIsoDay } from "./hearings";
+import { localizeForDownload } from "@/lib/court/browser";
 
 /**
  * Which instrument the row is — the "Process type" column.
@@ -1877,7 +1878,7 @@ export function processDocumentFilename(process: CourtProcess): string {
 export function downloadProcessDocument(process: CourtProcess): void {
   const document = buildProcessDocument(process);
   const url = URL.createObjectURL(
-    new Blob([processDocumentText(document)], { type: "text/plain" }),
+    new Blob([localizeForDownload(processDocumentText(document))], { type: "text/plain" }),
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
@@ -1903,7 +1904,7 @@ export function downloadProcessBundle(rows: CourtProcess[]): void {
   const body = rows
     .map((process) => processDocumentText(buildProcessDocument(process)))
     .join("\n\n———\n\n");
-  const url = URL.createObjectURL(new Blob([body], { type: "text/plain" }));
+  const url = URL.createObjectURL(new Blob([localizeForDownload(body)], { type: "text/plain" }));
   const anchor = window.document.createElement("a");
   anchor.href = url;
   anchor.download = `process-${rows.length}-documents.txt`;

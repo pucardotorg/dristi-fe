@@ -34,6 +34,7 @@ import {
   orNot,
   witnessSummaries,
 } from "./derive";
+import { useCourtText } from "@/components/court/court-provider";
 
 /* ───────────────────────────── Sheet primitives ────────────────────── */
 
@@ -115,6 +116,7 @@ function DocP({
 /* ───────────────────────────── The document ────────────────────────── */
 
 export function CourtDocument({ draft }: { draft: FilingDraft }) {
+  const courtText = useCourtText();
   const complainant = complainantSummary(draft.complainants[0]);
   const advocates = advocateSummaries(draft);
   const accused = accusedSummaries(draft);
@@ -136,10 +138,10 @@ export function CourtDocument({ draft }: { draft: FilingDraft }) {
       {/* Court and cause title */}
       <div className="flex flex-col gap-1 text-center">
         <p className="text-caption font-medium tracking-wide text-paper-muted-foreground">
-          In the {COURT.name}
+          In the {courtText(COURT.name)}
         </p>
         <p className="text-body-compact font-semibold tabular-nums">
-          Criminal Complaint (CMP) No. ______ of {complaintYear(draft)}
+          {courtText("Criminal Complaint (CMP) No.")} ______ of {complaintYear(draft)}
         </p>
       </div>
 

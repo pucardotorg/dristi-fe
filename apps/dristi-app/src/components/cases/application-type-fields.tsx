@@ -39,6 +39,7 @@ import {
   type YesNo,
 } from "@/lib/cases/application-draft";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
+import { useCourtText } from "@/components/court/court-provider";
 
 /** Formatting markup renders the same in the editor and in the review pane. */
 export const RICH_TEXT_CLASSES =
@@ -900,6 +901,7 @@ function SettlementFields(props: FieldsProps) {
 /* --------------------------------------------------- 7 · transfer --------- */
 
 function TransferFields(props: FieldsProps) {
+  const courtText = useCourtText();
   const { draft, errors, record, actions } = props;
   const courts = transferCourtOptions(record.court);
 
@@ -914,7 +916,7 @@ function TransferFields(props: FieldsProps) {
       </SectionCard>
 
       <SectionCard title="Transfer">
-        <PrefilledField label="Current court" value={record.court} />
+        <PrefilledField label="Current court" value={courtText(record.court)} />
 
         <Field data-invalid={Boolean(errors.fields.requestedCourt)}>
           <FieldLabel htmlFor="requested-court">Requested court</FieldLabel>

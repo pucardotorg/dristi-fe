@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Locale } from "@/lib/onboarding/content";
 import { Identifier } from "@/components/chrome/identifier";
+import { CourtSetting } from "@/components/court/court-setting";
 
 const REQUIRED_MARK = <span className="text-destructive">*</span>;
 
@@ -200,6 +201,8 @@ export function ProfileSettings({ locale, profileName, idSubmitted, submittedId,
           <Button variant="outline">Set password</Button>
         </div>
       </section>
+
+      <CourtSetting />
     </main>
   );
 }

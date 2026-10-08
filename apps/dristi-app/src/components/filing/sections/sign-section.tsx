@@ -103,6 +103,7 @@ import { CourtDocument } from "@/components/filing/sections/preview/court-docume
 import { useFilePicker } from "@/components/filing/use-file-picker";
 import { ChromeDialogContent } from "@/components/chrome/app-chrome";
 import { Identifier } from "@/components/chrome/identifier";
+import { useCourt, useCourtText } from "@/components/court/court-provider";
 
 type ModalKey =
   | "esign"
@@ -388,6 +389,7 @@ function FeeGroup({
 }
 
 export function SignSection() {
+  const courtText = useCourtText();
   const { draft, update, hrefFor, flush } = useFiling();
   const { profile } = useProfile();
   const { prev } = neighbours("sign");
@@ -445,7 +447,9 @@ export function SignSection() {
   const onPaper = sign.mode === "upload";
 
   /** The bill, derived from this draft — see `feeBill` for what makes it specific. */
-  const bill = React.useMemo(() => feeBill(draft), [draft]);
+  // The selected state's schedule (Settings → Court); Kerala's is the default.
+  const courtFees = useCourt().profile.fees;
+  const bill = React.useMemo(() => feeBill(draft, courtFees), [draft, courtFees]);
   /** What each accused is having served — defaults applied, floors held (`PAY-10/11/15`). */
   const plans = React.useMemo(() => processPlan(draft), [draft]);
 
@@ -1055,12 +1059,12 @@ export function SignSection() {
           }
           description={
             filed
-              ? `Filed in the ${COURT.name} under S-138, Negotiable Instruments Act.`
+              ? `Filed in the ${courtText(COURT.name)} under S-138, Negotiable Instruments Act.`
               : resubmitted
                 ? "The corrections have been sent back to scrutiny."
                 : returned
                   ? "Scrutiny returned this complaint. Everyone signs the corrected version again, the same way as when it was filed, before it goes back."
-                  : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${COURT.name}.`
+                  : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${courtText(COURT.name)}.`
           }
         />
 
@@ -1405,7 +1409,7 @@ export function SignSection() {
           <DialogHeader>
             <DialogTitle>Pay court fees</DialogTitle>
             <DialogDescription>
-              Payable to the {COURT.name} for this complaint.
+              Payable to the {courtText(COURT.name)} for this complaint.
             </DialogDescription>
           </DialogHeader>
 

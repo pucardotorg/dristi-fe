@@ -14,6 +14,7 @@
  * what put already-heard dates at the top of a column headed "Next hearing".
  */
 
+import type { FeeSchedule } from "@/lib/court/fees";
 import { CASES } from "@/lib/cases/fixtures";
 import type { CaseRecord } from "@/lib/cases/types";
 import type { Case as TaskCase, Task } from "@/lib/tasks/types";
@@ -32,6 +33,7 @@ import {
 import { CASE_TYPE, PSS_CASE_TYPE } from "./options";
 import { NEW_PSS_FILING, stepHref } from "./steps";
 import type { FilingDraft, Signatory, UserProfile } from "./types";
+import { caseSearchKey } from "@/lib/court/localize";
 
 export const QUEUE_TABS = [
   { id: "drafts", label: "Drafts" },
@@ -382,7 +384,8 @@ export function pendingSignatureRows(
  */
 export function pendingPaymentRows(
   drafts: FilingDraft[],
-  profile: UserProfile | null
+  profile: UserProfile | null,
+  schedule?: FeeSchedule
 ): QueueRow[] {
   return drafts.flatMap((draft) => {
     if (draft.sign.paid) return [];
@@ -390,7 +393,7 @@ export function pendingPaymentRows(
     if (draft.scrutinyReturn) return [];
     if (!signingComplete(draft, profile)) return [];
     const parties = draftTitle(draft);
-    const amount = feeBill(draft).total;
+    const amount = feeBill(draft, schedule).total;
     const since = (draft.sign.requestedAt ?? draft.updatedAt).slice(0, 10);
     const row: QueueRow = {
       id: draft.id,
@@ -533,7 +536,7 @@ export function courtsOf(rows: QueueRow[]): string[] {
 }
 
 export function applyQueueFilters(rows: QueueRow[], filters: QueueFilters): QueueRow[] {
-  const q = filters.q.trim().toLowerCase();
+  const q = caseSearchKey(filters.q);
   const { key, dir } = filters.sort;
   return rows
     .filter(

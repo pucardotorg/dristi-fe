@@ -12,6 +12,7 @@ import { CASES } from "@/lib/cases/fixtures";
 import { Breadcrumbs } from "@/components/shell/chrome";
 import { areaOf, originCrumb, safeOrigin } from "@/lib/nav/origin";
 import { cn } from "@/lib/utils";
+import { serverCourtText } from "@/lib/court/server";
 
 function findCase(caseId: string) {
   return CASES.find((record) => record.id === caseId);
@@ -39,8 +40,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { caseId } = await params;
   const record = findCase(caseId);
+  const courtText = await serverCourtText();
   return {
-    title: record ? `Raise application · ${record.caseNumber}` : "Raise application",
+    title: record ? `Raise application · ${courtText(record.caseNumber)}` : "Raise application",
   };
 }
 

@@ -131,6 +131,7 @@ import {
   type ProcessVariables,
 } from "@/lib/employee/process-variables";
 import { cn } from "@/lib/utils";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * The order one cognizance act draws up — the PRD's composite, opened for the judge to
@@ -195,6 +196,7 @@ function OrderBody({
   matter: CognizanceCase;
   act: CognizanceAct;
 }) {
+  const courtText = useCourtText();
   const today = useCourtToday();
   const subject: OrderSubject = { kind: "cognizance", matter, act };
   const next = nextCognizanceCase(matter.id);
@@ -612,7 +614,7 @@ function OrderBody({
           className="h-[85dvh] sm:max-w-4xl"
           title={signFlow.stage === "read" ? "Order" : "Add signature"}
           titleRef={signFlow.titleRef}
-          description={`${subjectCauseTitle(subject)} · ${matter.caseNumber}`}
+          description={`${subjectCauseTitle(subject)} · ${courtText(matter.caseNumber)}`}
           sceneKey={signFlow.sceneKey}
           motion={signFlow.motion}
           onCloseAutoFocus={(event) => {
@@ -665,7 +667,7 @@ function OrderBody({
           ) : (
             <SignatureStage
               noun="order"
-              subject={`You are adding your signature to the order in ${matter.caseNumber}.`}
+              subject={`You are adding your signature to the order in ${courtText(matter.caseNumber)}.`}
               warning="This records how the order is to be signed. Nothing is issued from this screen."
               choice={signature}
             />

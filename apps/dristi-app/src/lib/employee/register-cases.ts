@@ -27,6 +27,7 @@
  */
 
 import { type CourtCounsel } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
 
 export type RegisterCase = {
   id: string;
@@ -369,7 +370,7 @@ export function filterRegisterCases(
   rows: RegisterCase[],
   filters: RegisterFilters,
 ): RegisterCase[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   if (!query) return rows;
   return rows.filter((entry) => {
     const haystack = [

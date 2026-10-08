@@ -88,6 +88,7 @@ import {
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * Raise an application → bail. Staged dialog, same shell as the join flows:
@@ -271,6 +272,7 @@ function ApplicationDraft({
   expanded?: boolean;
   onExpand?: () => void;
 }) {
+  const courtText = useCourtText();
   return (
     <div
       className={cn(
@@ -301,7 +303,7 @@ function ApplicationDraft({
           {pick(bailDialog.draftPageLabel, locale)}
         </p>
         <p className="text-center text-body-compact font-semibold text-balance">
-          {pick(bailDialog.draftCourtLine, locale)}
+          {courtText(pick(bailDialog.draftCourtLine, locale))}
         </p>
         <p className="text-center text-body-compact font-medium tabular-nums">
           {fillCopy(bailDialog.draftCaseLine, locale, {

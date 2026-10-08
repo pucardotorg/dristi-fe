@@ -169,6 +169,7 @@ import {
   type OrderTemplateId,
 } from "@/lib/employee/order-templates";
 import { Identifier } from "@/components/chrome/identifier";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * The composer's own read-then-sign overlay — the shared two-stage flow the four signing
@@ -456,6 +457,7 @@ function OrderMissing() {
 }
 
 function OrderReady({ hearing }: { hearing: CourtHearing }) {
+  const courtText = useCourtText();
   const router = useRouter();
   const session = useHearingSession();
   const today = useCourtToday();
@@ -1675,7 +1677,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           className="h-[85dvh] sm:max-w-4xl"
           title={signFlow.stage === "read" ? orderDocument.title : "Add signature"}
           titleRef={signFlow.titleRef}
-          description={`${causeTitle(hearing)} · ${hearing.caseNumber}`}
+          description={`${causeTitle(hearing)} · ${courtText(hearing.caseNumber)}`}
           sceneKey={signFlow.sceneKey}
           motion={signFlow.motion}
           onCloseAutoFocus={(event) => {
@@ -1715,7 +1717,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
           ) : (
             <SignatureStage
               noun="order"
-              subject={`You are adding your signature to the order in ${hearing.caseNumber}.`}
+              subject={`You are adding your signature to the order in ${courtText(hearing.caseNumber)}.`}
               warning="This records how the order is to be signed. Nothing is issued from this screen."
               choice={signature}
             />

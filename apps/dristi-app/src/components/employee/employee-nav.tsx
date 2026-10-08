@@ -83,6 +83,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useCourt, useCourtText } from "@/components/court/court-provider";
+import { COURT_IDS, courtProfile, isCourtId } from "@/lib/court/profiles";
 
 /**
  * The court-side navigation rail — the magistrate's own, not the advocate's.
@@ -825,6 +827,7 @@ function CourtNavGroupSection({
  * every other label in this rail makes when the strip takes over.
  */
 function CourtRailHeader() {
+  const courtText = useCourtText();
   const { isMobile } = useSidebar();
   const { court } = useCourtSession();
   const handoff = useFoldFocusHandoff(
@@ -835,10 +838,10 @@ function CourtRailHeader() {
     <div className={RAIL_BRAND_ROW}>
       <BrandGlyph className="h-6 shrink-0" onDark={CHARCOAL_PLATE.darkPlate} />
       <span
-        title={court}
+        title={courtText(court)}
         className="min-w-0 flex-1 truncate text-body-compact font-medium group-data-[collapsible=icon]:sr-only"
       >
-        {court}
+        {courtText(court)}
       </span>
       {isMobile ? null : (
         <SidebarTrigger
@@ -905,7 +908,12 @@ function initialsOf(name: string): string {
  * one row, not the shape of the whole rail — and the two must stay choosable
  * independently of each other.
  *
- * All three sections are radio groups rather than plain items: each is one mutually
+ * **Court** — which state's court the whole app runs as (`lib/court/profiles.ts`). The
+ * same choice as the advocate's Settings → Court, through the same provider: a deployment
+ * fact rather than a preference, but the court side has no settings page to hold it, and
+ * a demo moves between the two halves without signing out.
+ *
+ * All four sections are radio groups rather than plain items: each is one mutually
  * exclusive answer, and the menu has to show which one is live without being opened
  * twice. `w-auto min-w-48` because the primitive otherwise inherits the trigger's
  * width, and a 40px trigger would pinch "Bench clerk" to a column of letters.
@@ -918,6 +926,7 @@ function initialsOf(name: string): string {
  */
 function CourtSettingsControl() {
   const seat = useCourtRole();
+  const { court, setCourt } = useCourt();
   const [layout, setLayout] = useCourtNavLayout();
   const [cognizanceLayout, setCognizanceLayout] = useCognizanceLayout();
   return (
@@ -984,6 +993,20 @@ function CourtSettingsControl() {
           <DropdownMenuRadioItem value="split">
             Split into two rows
           </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Court</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={court}
+          onValueChange={(next) => {
+            if (isCourtId(next)) setCourt(next);
+          }}
+        >
+          {COURT_IDS.map((id) => (
+            <DropdownMenuRadioItem key={id} value={id}>
+              {courtProfile(id).state}
+            </DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -20,6 +20,7 @@
 import { canView, canViewTask, cardKindOf, isBinding, TERMINAL, viewOf } from "./permissions";
 import { compareUrgency, consequenceAt, daysUntil, isOverdue } from "./urgency";
 import type { Case, PillKind, Person, PersonId, Task, TaskView } from "./types";
+import { caseSearchKey } from "@/lib/court/localize";
 
 /** Past its date *and* still binding — the one rule the cell, the filter and the band share. */
 export function readsAsOverdue(task: Task, now: Date | string): boolean {
@@ -119,7 +120,7 @@ export function tasksInView(world: World, view: TaskView): Task[] {
 }
 
 function matchesSearch(task: Task, kase: Case, q: string): boolean {
-  const needle = q.trim().toLowerCase();
+  const needle = caseSearchKey(q);
   if (!needle) return true;
   const hay = [task.title, kase.parties, kase.stNumber, kase.cnr, kase.court].join(" ").toLowerCase();
   return needle.split(/\s+/).every((word) => hay.includes(word));

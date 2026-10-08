@@ -64,6 +64,7 @@ import {
   totalChequeText,
   witnessSummaries,
 } from "@/components/filing/sections/preview/derive";
+import { useCourtText } from "@/components/court/court-provider";
 
 /* ───────────────────────────── Key-value rows ──────────────────────── */
 
@@ -331,6 +332,7 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
 /* ───────────────────────────── Screen ──────────────────────────────── */
 
 export function PreviewSection() {
+  const courtText = useCourtText();
   const { draft, hrefFor } = useFiling();
   const { prev, next } = neighbours("preview");
   const router = useRouter();
@@ -428,7 +430,7 @@ export function PreviewSection() {
               <KeyValues
                 rows={[
                   { term: "Offence", value: CASE_TYPE.offence },
-                  { term: "Court", value: COURT.name },
+                  { term: "Court", value: courtText(COURT.name) },
                   { term: "Total cheque amount", value: totalChequeText(draft) },
                   { term: "Amount claimed", value: amountClaimedText(draft) },
                 ]}

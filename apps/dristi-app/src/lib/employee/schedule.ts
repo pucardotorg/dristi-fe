@@ -21,6 +21,7 @@
  */
 
 import { type CourtCounsel } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
 
 /**
  * Where a case has reached in the §138 process — a different axis from a hearing's
@@ -273,7 +274,7 @@ export function filterSchedulingCases(
   rows: SchedulingCase[],
   filters: ScheduleFilters,
 ): SchedulingCase[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   return rows.filter((entry) => {
     if (filters.stage !== "all" && entry.stage !== filters.stage) return false;
     if (!query) return true;

@@ -35,6 +35,8 @@ import {
   type CourtCaseStage,
   type CourtHearingPurposeId,
 } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
+import { localizeForDownload } from "@/lib/court/browser";
 
 export type ReschedulableHearing = {
   id: string;
@@ -498,7 +500,7 @@ export function filterReschedulable(
   rows: ReschedulableHearing[],
   filters: RescheduleFilters,
 ): ReschedulableHearing[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
 
   /* ISO days sort as strings, so each bound is a plain comparison — no Date per row.
      A `null` end is not a bound at all rather than a bound at today. */
@@ -670,7 +672,7 @@ export function rescheduleOrderFilename(order: RescheduleOrder): string {
  */
 export function downloadRescheduleOrder(order: RescheduleOrder): void {
   const url = URL.createObjectURL(
-    new Blob([rescheduleOrderText(order)], { type: "text/plain" }),
+    new Blob([localizeForDownload(rescheduleOrderText(order))], { type: "text/plain" }),
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;

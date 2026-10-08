@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
+import { CourtProvider } from "@/components/court/court-provider";
 import { DesignModeLoader } from "@/components/design-mode-loader";
 import { FeedbackProvider } from "@/components/feedback-provider";
 import { LocaleProvider } from "@/components/shell/locale";
 import { ThemeProvider } from "@/components/theme-provider";
+import { serverCourt } from "@/lib/court/server";
 
 import "./globals.css";
 /* App-owned rules on chrome we do not author; globals.css is synced from the DS. */
@@ -18,11 +20,15 @@ export const metadata: Metadata = {
     "PUCAR's platform for NI Act §138 (cheque-dishonour) cases through Indian courts.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Which state's court the app runs as (Settings). Read here so the server renders that
+  // state's names and numbers from the first paint; see `CourtProvider`.
+  const court = await serverCourt();
+
   return (
     <html
       lang="en"
@@ -38,8 +44,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <LocaleProvider>
-            <FeedbackProvider>{children}</FeedbackProvider>
-            <DesignModeLoader />
+            <CourtProvider initialCourt={court}>
+              <FeedbackProvider>{children}</FeedbackProvider>
+              <DesignModeLoader />
+            </CourtProvider>
           </LocaleProvider>
         </ThemeProvider>
       </body>

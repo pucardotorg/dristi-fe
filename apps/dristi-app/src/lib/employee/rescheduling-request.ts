@@ -36,6 +36,8 @@ import {
   type CourtCounsel,
   type CourtHearingPurposeId,
 } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
+import { localizeForDownload } from "@/lib/court/browser";
 
 export type ReschedulingRequest = {
   id: string;
@@ -345,7 +347,7 @@ export function filterReschedulingRequests(
   rows: ReschedulingRequest[],
   filters: ReschedulingFilters,
 ): ReschedulingRequest[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   if (!query) return rows;
   return rows.filter((entry) => {
     const haystack = [
@@ -506,7 +508,7 @@ export function downloadReschedulingDocument(
 ): void {
   const document = buildReschedulingDocument(request);
   const url = URL.createObjectURL(
-    new Blob([reschedulingDocumentText(document)], { type: "text/plain" }),
+    new Blob([localizeForDownload(reschedulingDocumentText(document))], { type: "text/plain" }),
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;

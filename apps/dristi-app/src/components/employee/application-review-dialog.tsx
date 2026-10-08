@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { useCourtLocalized } from "@/components/court/court-provider";
 
 /**
  * One application, as paper.
@@ -176,10 +177,11 @@ export function ApplicationReviewOverlay({
  * product, not another panel of it.
  */
 export function ApplicationFacsimile({
-  document,
+  document: storedDocument,
 }: {
   document: CourtApplicationDocument;
 }) {
+  const document = useCourtLocalized(storedDocument);
   return (
     <article className="flex flex-col gap-6 rounded-md bg-paper p-6 text-paper-foreground [&_[data-slot=description-details]]:text-paper-foreground [&_[data-slot=description-term]]:text-paper-muted-foreground">
       <header className="flex flex-col gap-2 text-center">

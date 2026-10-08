@@ -29,6 +29,7 @@ import {
   PAGE_TITLE,
 } from "@/components/shell/page-frame";
 import { cn } from "@/lib/utils";
+import { useCourt } from "@/components/court/court-provider";
 
 /**
  * No client has pushed a batch across, because nothing in the app can receive one yet.
@@ -48,6 +49,8 @@ const BATCH: BulkBatch | null = null;
  * the stores that already own them.
  */
 export function FilingsDashboard() {
+  // What a pending payment costs follows the selected state's schedule (Settings).
+  const courtFees = useCourt().profile.fees;
   const mounted = useMounted();
   const { profile } = useProfile();
   const { ready, error, readAt, drafts, filed, discard, reload } = useDrafts();
@@ -69,12 +72,12 @@ export function FilingsDashboard() {
     () => ({
       drafts: draftRows(drafts),
       pendingSignature: pendingSignatureRows(drafts, profile),
-      pendingPayment: pendingPaymentRows(drafts, profile),
+      pendingPayment: pendingPaymentRows(drafts, profile, courtFees),
       scrutiny: scrutinyRows(today),
       returned: returnedRows(tasks, taskCases),
       registered: registeredRows(today),
     }),
-    [drafts, profile, tasks, taskCases, today]
+    [drafts, profile, courtFees, tasks, taskCases, today]
   );
 
   return (

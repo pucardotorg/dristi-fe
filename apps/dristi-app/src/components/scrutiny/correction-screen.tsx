@@ -97,6 +97,7 @@ import { SectionBody } from "@/components/scrutiny/section-body";
 import { useTaskActions } from "@/components/tasks/use-task-actions";
 import { Identifier } from "@/components/chrome/identifier";
 import { useOrigin } from "@/components/shell/origin";
+import { useCourtText } from "@/components/court/court-provider";
 
 /** Where the correction round starts when nothing is flagged on a step yet. */
 const FALLBACK_STEP: StepId = "cheque";
@@ -173,6 +174,7 @@ function focusTheAction(scope: HTMLElement): void {
 }
 
 export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
+  const courtText = useCourtText();
   const router = useRouter();
   const { draft, update } = useFiling();
   const { act, busy, online } = useTaskActions();
@@ -643,7 +645,7 @@ export function CorrectionScreen({ task, kase }: { task: Task; kase: Case }) {
           " · Not yet numbered"
         )}
         {" · "}
-        {kase.court}
+        {courtText(kase.court)}
         {" · "}
         <span className="tabular-nums">
           Returned {task.returned ? longDate(task.returned.at) : "—"}
