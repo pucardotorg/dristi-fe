@@ -98,6 +98,7 @@ export function blankComplainant(): Complainant {
     entType: "",
     entName: "",
     entCinPan: "",
+    entCinPanSkippedAt: null,
     entPhone: "",
     entEmail: "",
     entAddr: blankAddress(),
@@ -585,6 +586,7 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
     // The complainant's oath was retired with the Oath step — advocates take it now.
     delete (c as Complainant & { oathVideo?: unknown }).oathVideo;
     c.entCinPan ??= "";
+    c.entCinPanSkippedAt ??= null;
   }
   // The upfront choice used to be one set of rounds for the whole case; it is now made
   // per accused (§19.3). Nothing is carried across: an old draft's single choice cannot

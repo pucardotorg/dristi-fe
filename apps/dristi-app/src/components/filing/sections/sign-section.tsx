@@ -58,6 +58,8 @@ import {
 } from "@/lib/filing/selectors";
 import { FILINGS_HOME, neighbours } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
+import { useTasks } from "@/lib/tasks/store";
+import { refile } from "@/lib/tasks/transitions";
 import type { AdvocateOath, SignInstrument, Signatory } from "@/lib/filing/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +92,7 @@ import { FilingPageHeader } from "@/components/filing/filing-page-header";
 import { FilingMain, useSourceRailSlot } from "@/components/filing/filing-shell";
 import { PANEL_CLASS } from "@/components/filing/form-card";
 import { useLeaveGuard } from "@/components/filing/leave-guard";
+import { useTaskActions } from "@/components/tasks/use-task-actions";
 import {
   SignFlowDialog,
   type SignFlowStart,
@@ -406,6 +409,20 @@ export function SignSection() {
 
   const filed = draft.status === "filed";
   const sign = draft.sign;
+
+  /*
+   * A filing scrutiny returned. After the corrections it comes back through this same
+   * step, signed exactly as at e-filing (handover `SIG-07`), and is sent back to
+   * scrutiny from here — no second court fee, so the footer's act is the send.
+   */
+  const returned = !!draft.scrutinyReturn;
+  const resubmitted = !!draft.scrutinyReturn?.resubmittedAt;
+  const { tasks } = useTasks();
+  const { act, busy, online } = useTaskActions();
+  const returnTask = returned
+    ? tasks.find((t) => t.kind === "returned" && t.draftId === draft.id)
+    : undefined;
+  const [sendOpen, setSendOpen] = React.useState(false);
   /**
    * The one question the whole step turns on: has this complaint been sent for
    * signature? Until it has, nothing has left the building and everything here is still
@@ -448,14 +465,16 @@ export function SignSection() {
     otherSigners === 1 ? "The other party" : `The other ${otherSigners} parties`;
   const have = otherSigners === 1 ? "has" : "have";
 
+  /** What the footer's act waits on — the court fee, or the send back to scrutiny. */
+  const opens = returned ? "Sending back opens" : "The court fee opens";
   /** Why the court fee is not open yet — said on the button that is shut, not beside it. */
   const payGate = allSigned
-    ? `The court fee opens once ${oathsOwed.length === 1 ? "the advocate's oath is" : "every advocate's oath is"} in.`
+    ? `${opens} once ${oathsOwed.length === 1 ? "the advocate's oath is" : "every advocate's oath is"} in.`
     : onPaper
-      ? "The court fee opens once the signed copy is in."
+      ? `${opens} once the signed copy is in.`
       : requested
-        ? `The court fee opens once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in${advocates.length > 0 ? ", with the advocate's oath" : ""}.`
-        : `The court fee opens once every signature${advocates.length > 0 ? " and the advocate's oath is" : " is"} in.`;
+        ? `${opens} once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in${advocates.length > 0 ? ", with the advocate's oath" : ""}.`
+        : `${opens} once every signature${advocates.length > 0 ? " and the advocate's oath is" : " is"} in.`;
 
   /**
    * Every signature on this screen belongs to *this* version of the complaint. Going back
@@ -861,7 +880,7 @@ export function SignSection() {
         {onPaper ? "The uploaded copy carries every signature" : "Every party has signed"}
         {/* No advocate on the complaint means no oath — so say nothing about one. */}
         {advocates.length > 0 ? ", and every advocate has taken the oath." : "."}{" "}
-        You can pay the court fee now.
+        {returned ? "You can send the corrections to scrutiny now." : "You can pay the court fee now."}
       </SectionNotice>
       {onPaper ? (
         <Button
@@ -998,7 +1017,29 @@ export function SignSection() {
     </section>
   );
 
-  const backHref = filed ? hrefFor("preview") : prev ? hrefFor(prev) : hrefFor("preview");
+  const fixHref = returnTask ? `/tasks/${encodeURIComponent(returnTask.id)}/fix` : null;
+  const backHref = filed
+    ? hrefFor("preview")
+    : fixHref
+      ? fixHref
+      : prev
+        ? hrefFor(prev)
+        : hrefFor("preview");
+
+  /** Send the re-signed corrections to scrutiny — the act `refile` records on the task. */
+  const sendBack = async () => {
+    setSendOpen(false);
+    if (!returnTask) {
+      toast.error("The scrutiny return for this filing could not be found.");
+      return;
+    }
+    const done = await act(returnTask.id, refile, "Corrections sent to scrutiny");
+    if (!done) return;
+    update((d) => {
+      d.scrutinyReturn = { resubmittedAt: new Date().toISOString() };
+    });
+    router.push(`/tasks?task=${encodeURIComponent(returnTask.id)}`);
+  };
 
   return (
     <>
@@ -1006,11 +1047,21 @@ export function SignSection() {
 
       <FilingMain width="wide" sourceOpen={docked}>
         <FilingPageHeader
-          title={filed ? "Complaint filed" : "Sign the complaint"}
+          title={
+            filed
+              ? "Complaint filed"
+              : returned
+                ? "Sign the corrected complaint"
+                : "Sign the complaint"
+          }
           description={
             filed
               ? `Filed in the ${COURT.name} under S-138, Negotiable Instruments Act.`
-              : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${COURT.name}.`
+              : resubmitted
+                ? "The corrections have been sent back to scrutiny."
+                : returned
+                  ? "Scrutiny returned this complaint. Everyone signs the corrected version again, the same way as when it was filed, before it goes back."
+                  : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${COURT.name}.`
           }
         />
 
@@ -1068,7 +1119,7 @@ export function SignSection() {
           onBack={() => {
             if (!guardLeaving(backHref)) router.push(backHref);
           }}
-          continueLabel="Continue to pay fees"
+          continueLabel={returned ? "Send corrections to scrutiny" : "Continue to pay fees"}
           /*
            * Nothing to pay for until the sheet is signed, so the step's one real action
            * stays dead until it is — and then it is the focal teal, as on every other
@@ -1076,12 +1127,20 @@ export function SignSection() {
            * instead of as a sentence taking a row of the footer beside it (owner,
            * 2026-09-24); pressing it says the same thing, for a reader who cannot hover.
            */
-          continueBlocked={!complete}
+          continueBlocked={!complete || resubmitted || (returned && (!online || !!busy))}
           continueHint={complete ? undefined : payGate}
           showSaveState={false}
           onContinue={() => {
+            if (resubmitted) {
+              toast("These corrections have already been sent to scrutiny.");
+              return;
+            }
             if (!complete) {
               toast(payGate);
+              return;
+            }
+            if (returned) {
+              setSendOpen(true);
               return;
             }
             setModal("payment");
@@ -1524,6 +1583,18 @@ export function SignSection() {
         confirmLabel={anySigned ? "Go back and re-sign" : "Go back and recall"}
         cancelLabel="Stay here"
         onConfirm={confirmLeave}
+      />
+
+      {/* ── Sending re-signed corrections back to scrutiny ── */}
+      <ConfirmDialog
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        title="Send these corrections to scrutiny?"
+        description="The re-signed complaint goes back to the Registry. A re-submission cannot be recalled, and limitation runs from the Registry's receipt."
+        confirmLabel="Send to scrutiny"
+        cancelLabel="Not yet"
+        destructive={false}
+        onConfirm={() => void sendBack()}
       />
 
       {/* ── And back the other way ── */}

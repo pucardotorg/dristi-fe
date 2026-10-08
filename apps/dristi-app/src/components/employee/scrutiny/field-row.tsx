@@ -3,11 +3,8 @@
 import * as React from "react";
 import { toast } from "sonner";
 import {
-  ArrowUpRightIcon,
-  CheckIcon,
   FileTextIcon,
   FlagIcon,
-  MicIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 
@@ -21,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { FlagComposer } from "@/components/employee/scrutiny/flag-composer";
 import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
-import { MarkThumb } from "@/components/employee/scrutiny/mark-thumb";
 import {
   FieldValue,
   RecordLink,
@@ -56,13 +52,11 @@ export function FieldRow({
   field,
   controller,
   aiOn,
-  onGoToDoc,
   onGoToItem,
 }: {
   field: FlatField;
   controller: ScrutinyController;
   aiOn: boolean;
-  onGoToDoc: (docId: string) => void;
   onGoToItem: (fieldId: string) => void;
 }) {
   const { docById } = useScrutinyCase();
@@ -73,7 +67,7 @@ export function FieldRow({
     ? "Edit this flag"
     : field.docrow
       ? "Flag document"
-      : "Correct or flag";
+      : "Flag";
 
   return (
     <DescriptionRow
@@ -123,7 +117,7 @@ export function FieldRow({
              */}
             {composing ? null : (
               <>
-                <ValueLines field={field} flag={flag} />
+                <ValueLines field={field} />
                 <Hints field={field} flag={flag} aiOn={aiOn} />
               </>
             )}
@@ -191,7 +185,6 @@ export function FieldRow({
           field={field}
           flag={flag}
           controller={controller}
-          onGoToDoc={onGoToDoc}
           onGoToItem={onGoToItem}
         />
       ) : null}
@@ -199,21 +192,8 @@ export function FieldRow({
   );
 }
 
-/**
- * A saved correction shows the proposed value as THE value, with the filed value on one
- * quiet line beneath — no strikethrough noise in the primary position.
- */
-function ValueLines({ field, flag }: { field: FlatField; flag?: FlagType }) {
-  if (flag?.correction) {
-    // Only the proposed value — the current truth of the row. The filed value lives in
-    // the raised item's well below, beside the note and the actions, so the whole
-    // record of "what changed and why" reads as one block instead of three.
-    return (
-      <div className="text-body-compact font-medium break-words">
-        <FieldValue field={field} value={flag.correction} />
-      </div>
-    );
-  }
+/** The filed value. A raised item never replaces it — the advocate makes the fix. */
+function ValueLines({ field }: { field: FlatField }) {
   if (!field.value) return null;
   return (
     <div
@@ -250,11 +230,7 @@ function Hints({
   const flagged = !!flag;
   const thumbId = field.thumb ?? field.docrow;
   const thumbDoc = thumbId ? docById[thumbId] : undefined;
-  // The item's crop is strictly more specific than the row's source thumbnail. Showing
-  // both stacks two sunken boxes of the same document in one row.
-  const croppedHere = flag?.evidence?.doc === thumbId;
-
-  if (thumbDoc?.src && !croppedHere) {
+  if (thumbDoc?.src) {
     lines.push(
       <div
         key="thumb"
@@ -284,13 +260,6 @@ function Hints({
       </HintLine>,
     );
   }
-  if (aiOn && field.aiok && !flagged) {
-    lines.push(
-      <HintLine key="aiok" tone="success" icon={<CheckIcon />}>
-        {field.aiok}
-      </HintLine>,
-    );
-  }
   if (field.nodoc) {
     lines.push(
       <HintLine key="nodoc" tone="muted" icon={<FileTextIcon />}>
@@ -312,7 +281,6 @@ function Hints({
 const HINT_TONE = {
   muted: "text-muted-foreground",
   warning: "text-warning-muted-foreground",
-  success: "text-success-muted-foreground",
 } as const;
 
 function HintLine({
@@ -344,24 +312,20 @@ function RaisedItem({
   field,
   flag,
   controller,
-  onGoToDoc,
   onGoToItem,
 }: {
   field: FlatField;
   flag: FlagType;
   controller: ScrutinyController;
-  onGoToDoc: (docId: string) => void;
   onGoToItem: (fieldId: string) => void;
 }) {
   const { docById, docRow, fieldById } = useScrutinyCase();
-  const evidence = flag.evidence;
-  const evidenceDoc = evidence ? docById[evidence.doc] : undefined;
   const partnerId = flag.linkedTo ?? flag.linkedFrom ?? null;
   const partner = partnerId ? fieldById[partnerId] : undefined;
   // A field sourced from an uploaded document could have had a re-upload requested,
   // so the row states the answer either way. Generated pages have nothing to re-upload.
   const reuploadApplies = !field.docrow && !!field.doc && !!docRow[field.doc];
-  const silent = !flag.comment && !flag.correction && !flag.reason;
+  const silent = !flag.comment && !flag.reason;
 
   /*
    * The record is a small table: one label column, one value column, rows only where
@@ -385,12 +349,8 @@ function RaisedItem({
       )}
     >
       <div className="flex items-center gap-2">
-        <Badge variant={flag.correction ? "info" : "destructive"}>
-          {flag.correction
-            ? "FSO’s correction"
-            : field.docrow
-              ? "Document issue"
-              : "Flag"}
+        <Badge variant="destructive">
+          {field.docrow ? "Document issue" : "Flag"}
         </Badge>
         <span className="ms-auto -my-1 flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover/frow:opacity-100 group-focus-within/frow:opacity-100 group-aria-selected/frow:opacity-100 [@media(hover:none)]:opacity-100">
           {/* `xs` is the record's own density — two words inside a well inside a row —
@@ -438,27 +398,6 @@ function RaisedItem({
       </div>
 
       <RecordList>
-        {flag.correction ? (
-          <>
-            {/* Original first, then the correction under it — the reader sees what was
-                filed, then what it becomes (owner, 2026-09-15). */}
-            <RecordRow label="Original value">
-              <span className="text-muted-foreground line-through">
-                {field.value ? (
-                  <FieldValue field={field} value={field.value} copyable={false} />
-                ) : (
-                  "—"
-                )}
-              </span>
-            </RecordRow>
-            <RecordRow label="FSO’s value">
-              <span className="font-medium">
-                <FieldValue field={field} value={flag.correction} />
-              </span>
-            </RecordRow>
-          </>
-        ) : null}
-
         {field.docrow && flag.reason ? (
           <RecordRow label="Reason">{flag.reason}</RecordRow>
         ) : null}
@@ -466,39 +405,10 @@ function RaisedItem({
         {flag.comment ? (
           <RecordRow label="FSO’s comment">
             <span className="break-words">{flag.comment}</span>
-            {flag.voice ? (
-              <span className="ms-2 inline-flex items-center gap-1 text-caption text-muted-foreground">
-                <MicIcon className="size-3" aria-hidden="true" /> voice
-              </span>
-            ) : null}
           </RecordRow>
         ) : silent ? (
           <RecordRow label="FSO’s comment">
             <span className="text-warning-ink">{SILENT_FALLBACK}</span>
-          </RecordRow>
-        ) : null}
-
-        {evidence && evidenceDoc ? (
-          <RecordRow label="Annotation">
-            <button
-              type="button"
-              className="-m-1 flex items-center gap-2 rounded-md p-1 pe-2 text-start transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              onClick={(event) => {
-                event.stopPropagation();
-                onGoToDoc(evidence.doc);
-              }}
-              aria-label={`Go to the annotation on Doc ${evidenceDoc.no}, ${docName(evidence.doc, docById)}`}
-            >
-              <MarkThumb evidence={evidence} />
-              <span className="min-w-0 truncate">
-                <span className="tabular-nums">Doc {evidenceDoc.no}</span> ·{" "}
-                {docName(evidence.doc, docById)}
-              </span>
-              <ArrowUpRightIcon
-                className="size-3 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </button>
           </RecordRow>
         ) : null}
 

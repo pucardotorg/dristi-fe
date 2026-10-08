@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { blankComplainant } from "./blank";
-import { complainantsMissingCinPan, isCinOrPan, normaliseCinPan } from "./selectors";
+import { cinPanAnswered, complainantsMissingCinPan, isCinOrPan, normaliseCinPan } from "./selectors";
 
 describe("CIN / PAN", () => {
   it("accepts a CIN and a PAN, however they were typed", () => {
@@ -27,5 +27,13 @@ describe("CIN / PAN", () => {
     const empty = { ...blankComplainant(), type: "institution" as const };
     const typo = { ...blankComplainant(), type: "institution" as const, entCinPan: "ABCDE12" };
     assert.deepEqual(complainantsMissingCinPan([person, filled, empty, typo]), [2, 3]);
+  });
+
+  it("is mandatory, but a recorded declaration skips it (LIT-18a)", () => {
+    const empty = { ...blankComplainant(), type: "institution" as const };
+    const skipped = { ...empty, entCinPanSkippedAt: "2026-10-08T10:00:00.000Z" };
+    assert.equal(cinPanAnswered(empty), false);
+    assert.equal(cinPanAnswered(skipped), true);
+    assert.deepEqual(complainantsMissingCinPan([empty, skipped]), [0]);
   });
 });

@@ -10,7 +10,14 @@
  * decides the application. Nothing here has been sent to a real court.
  */
 
-import { SCRUTINY_DEFECTS, SCRUTINY_DRAFT_ID } from "./scrutiny-return";
+import {
+  SCRUTINY_DEFECTS,
+  SCRUTINY_DEFECTS_LAKSHMI,
+  SCRUTINY_DEFECTS_RAFI,
+  SCRUTINY_DRAFT_ID,
+  SCRUTINY_DRAFT_ID_LAKSHMI,
+  SCRUTINY_DRAFT_ID_RAFI,
+} from "./scrutiny-return";
 import type { Case, Defect, Person, Task } from "./types";
 
 /** Bump when the seed's shape changes; a browser holding an older seed is re-seeded.
@@ -336,7 +343,7 @@ function shortDate(iso: string): string {
 /* ───────────────────────────── cases ───────────────────────────── */
 
 /**
- * How long a scrutiny return leaves to cure the defects.
+ * How long a scrutiny return leaves to fix the defects.
  *
  * Open question O7: the real window is not confirmed — practice is believed to be around
  * three days, and the brief's instruction is to assume five until the rule is known. So
@@ -345,7 +352,7 @@ function shortDate(iso: string): string {
  * running (`docs/product/product-foundation.md` §3).
  */
 const RETURN_WINDOW_NOTE =
-  "Assumed 5 days from the return to cure the defects — the Registry's window is not yet confirmed";
+  "Assumed 5 days from the return to fix the defects — the Registry's window is not yet confirmed";
 
 const ON = "24×7 ON Court";
 const JMFC1 = "JMFC Court 1";
@@ -423,6 +430,8 @@ export const CASES: Case[] = [
   ...OTHER_CASES,
   // Matters before filing — no ST number, no CNR yet; the statutory clocks live here.
   { id: "c-sainaba", stNumber: "", cnr: "", parties: "Sainaba K. v. Riyas M.", court: ON, stage: "Pre-filing", signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
+  { id: "c-lakshmi", stNumber: "", cnr: "", parties: "Lakshmi Devi v. Thomas Kurian", court: ON, stage: "Pre-filing", signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
+  { id: "c-rafi", stNumber: "", cnr: "", parties: "Mohammed Rafi v. Suresh Babu", court: ON, stage: "Pre-filing", signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
   { id: "c-arun", stNumber: "", cnr: "", parties: "Arun K. v. Meera Enterprises", court: ON, stage: "Pre-filing", signatories: ["p-rm"], advocates: ["p-rm", "p-sp"] },
   { id: "c-bindu", stNumber: "", cnr: "", parties: "Bindu S. v. Kerala Agro Traders", court: ON, stage: "Pre-filing", signatories: ["p-an"], advocates: ["p-an", "p-sp"] },
 ];
@@ -895,12 +904,43 @@ export function buildTasks(): Task[] {
       returned: { by: "scrutiny", at: at(-2, 11), defects: SCRUTINY_DEFECTS },
     }),
     task({
+      id: "t-retlakshmi",
+      caseId: "c-lakshmi",
+      kind: "returned",
+      title: "Fix 3 defects and re-file the complaint",
+      why: created(-1, "Scrutiny returned the complaint for compliance with 3 defects"),
+      whatToDo:
+        "Correct each flagged field in the filing and submit the corrections to scrutiny.",
+      dueAt: at(4),
+      dueKind: "court-set",
+      deadlineNote: RETURN_WINDOW_NOTE,
+      draftId: SCRUTINY_DRAFT_ID_LAKSHMI,
+      status: "open",
+      returned: { by: "scrutiny", at: at(-1, 11), defects: SCRUTINY_DEFECTS_LAKSHMI },
+    }),
+    task({
+      id: "t-retrafi",
+      caseId: "c-rafi",
+      kind: "returned",
+      title: "Fix 2 defects and re-file the complaint",
+      why: created(-3, "Scrutiny returned the complaint for compliance with 2 defects"),
+      whatToDo:
+        "Correct the flagged field, replace the flagged document, and submit the corrections to scrutiny.",
+      documentsNeeded: ["Proof of delivery of demand notice (AD card)"],
+      dueAt: at(2),
+      dueKind: "court-set",
+      deadlineNote: RETURN_WINDOW_NOTE,
+      draftId: SCRUTINY_DRAFT_ID_RAFI,
+      status: "open",
+      returned: { by: "scrutiny", at: at(-3, 11), defects: SCRUTINY_DEFECTS_RAFI },
+    }),
+    task({
       id: "t-ret941",
       caseId: "c-941",
       kind: "returned",
       title: "Fix 2 defects and re-file the application to condone the delay",
       why: created(-3, "Scrutiny returned the application to condone the delay with 2 defects"),
-      whatToDo: "Cure each defect, attach the corrected document where one is needed, and re-file.",
+      whatToDo: "Fix each defect, attach the corrected document where one is needed, and re-file.",
       documentsNeeded: ["Affidavit in support (attested)", "Postal acknowledgement"],
       dueAt: at(2),
       dueKind: "court-set",
@@ -922,7 +962,7 @@ export function buildTasks(): Task[] {
       kind: "returned",
       title: "Fix 1 defect and re-file the affidavit of the complainant",
       why: created(-4, "Scrutiny returned the chief affidavit with 1 defect"),
-      whatToDo: "Cure the defect, attach the corrected affidavit, and re-file.",
+      whatToDo: "Fix the defect, attach the corrected affidavit, and re-file.",
       documentsNeeded: ["Chief affidavit (sworn)"],
       dueAt: at(1),
       dueKind: "court-set",
@@ -956,12 +996,12 @@ export function buildTasks(): Task[] {
       kind: "returned",
       title: "Fix 2 defects and re-file the application to condone the delay",
       why: created(-20, "Scrutiny returned the application with 2 defects"),
-      whatToDo: "Cure each defect, attach the corrected document where one is needed, and re-file.",
+      whatToDo: "Fix each defect, attach the corrected document where one is needed, and re-file.",
       dueAt: at(-15),
       dueKind: "court-set",
       deadlineNote: RETURN_WINDOW_NOTE,
       status: "expired",
-      statusNote: "cure window lapsed",
+      statusNote: "fix window lapsed",
       returned: {
         by: "scrutiny",
         at: at(-20, 11),
@@ -972,7 +1012,7 @@ export function buildTasks(): Task[] {
       },
       history: [
         { at: at(-20, 11), text: "Created — scrutiny returned the application with 2 defects" },
-        { at: at(-12, 11), text: "Expired — cure window lapsed" },
+        { at: at(-12, 11), text: "Expired — fix window lapsed" },
       ],
     }),
 
