@@ -55,6 +55,8 @@ export function BatchFilingDialog({
   const [running, setRunning] = React.useState(false);
   const [otp, setOtp] = React.useState("");
   const [acted, setActed] = React.useState(0);
+  /** Filings signed here that still wait on your oath — it cannot be batched. */
+  const [sworeLater, setSworeLater] = React.useState(0);
   /* Adjusted during render, not an effect — this derives from a prop change rather than
      synchronising with anything outside React (see the same pattern in BatchActDialog). */
   const [wasOpen, setWasOpen] = React.useState(open);
@@ -64,6 +66,7 @@ export function BatchFilingDialog({
       setStep("confirm");
       setOtp("");
       setActed(0);
+      setSworeLater(0);
     }
   }
 
@@ -76,6 +79,7 @@ export function BatchFilingDialog({
     const repo = getRepository();
     const now = new Date().toISOString();
     let done = 0;
+    let oathsOwed = 0;
     for (const row of rows) {
       const draft = await repo.getDraft(row.id);
       if (!draft) continue;
@@ -86,6 +90,7 @@ export function BatchFilingDialog({
         );
         if (!yours.length) continue;
         for (const s of yours) draft.sign.signed[s.id] = { at: now, with: "aadhaar" };
+        if (yours.some((s) => s.oathTaken === false)) oathsOwed += 1;
       } else {
         // Every signature and every advocate's oath — an oath cannot be batched.
         if (!signingComplete(draft, profile) || draft.sign.paid) continue;
@@ -104,6 +109,7 @@ export function BatchFilingDialog({
       done += 1;
     }
     setActed(done);
+    setSworeLater(oathsOwed);
     setRunning(false);
     setStep("success");
   };
@@ -233,7 +239,13 @@ export function BatchFilingDialog({
                 </DialogTitle>
                 <DialogDescription className="text-body-compact text-pretty text-success-foreground">
                   {kind === "sign"
-                    ? "One OTP covered the set, the same as signing one at a time. A filing still waiting on another party stays on this tab until they sign."
+                    ? sworeLater > 0
+                      ? acted === 1
+                        ? "Your oath is still to be taken on this filing. Open it from this tab to record it."
+                        : sworeLater === 1
+                          ? "Your oath is still to be taken on one of them. Open it from this tab to record it."
+                          : `Your oath is still to be taken on ${sworeLater} of them. Open each from this tab to record it.`
+                      : "One OTP covered the set, the same as signing one at a time. A filing still waiting on another party stays on this tab until they sign."
                     : "This is a sandbox — nothing has been sent to a real court."}
                 </DialogDescription>
               </div>

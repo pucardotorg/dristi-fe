@@ -9,12 +9,13 @@
  * in (no clock yet, comfortably in time, inside the two-day warning, due today, and a
  * closed window) and every state Pending signature and Pending payment can be in: sent
  * and nobody has signed, sent and only the filer's own signature is still needed, sent
- * and only someone else's is, and fully signed with the court fee still owed. Seeded
+ * and only someone else's is, and fully signed with the court fee still owed — plus one
+ * with a second advocate, whose signature and oath go out by link. Seeded
  * once per version (a marker in localStorage), so a draft the person discards stays
  * discarded. Nothing here has been sent to a real court.
  */
 
-import { blankCheque, createBlankDraft } from "./blank";
+import { blankCheque, blankComplainant, createBlankDraft } from "./blank";
 import { getRepository } from "./data";
 import { addDays } from "./format";
 import { signatories } from "./selectors";
@@ -29,6 +30,8 @@ const SEEDED_KEY = "dristi.filing.sampleDrafts.v1";
  * thrown away, not just adding the new ones.
  */
 const SIGN_SEEDED_KEY = "dristi.filing.sampleDrafts.sign.v1";
+/** The two-advocate sample, added later still — its own marker for the same reason. */
+const ADVOCATE_LINK_SEEDED_KEY = "dristi.filing.sampleDrafts.advocateLink.v1";
 
 /**
  * The demand notice's service date, worked back from how many days the person should
@@ -55,6 +58,11 @@ type Sample = {
    */
   reach: "start" | "parties" | "cheque" | "notice" | "most" | "sign-you-pending" | "sign-them-pending" | "pay-pending";
   savedDaysAgo: number;
+  /**
+   * A second complainant with their own advocate. That advocate is not at this keyboard,
+   * so their signature and oath go out by link — the only way to walk the link's oath.
+   */
+  second?: { complainant: string; mobile: string; advocate: string; barNumber: string };
 };
 
 const SAMPLES: Sample[] = [
@@ -73,7 +81,24 @@ const SIGN_SAMPLES: Sample[] = [
   { id: "sample-draft-9", complainant: "Zeenath Beevi", accused: "Manoj Pillai", daysLeft: 11, reach: "pay-pending", savedDaysAgo: 2 },
 ];
 
-function build(sample: Sample, today: string): FilingDraft {
+/**
+ * Two complainants, each with their own advocate. You are the first advocate and have
+ * signed; the second advocate's signature and oath are waiting on their link.
+ */
+export const ADVOCATE_LINK_SAMPLES: Sample[] = [
+  {
+    id: "sample-draft-10",
+    complainant: "Priya Varghese",
+    accused: "Shaji Thomas",
+    daysLeft: 10,
+    reach: "sign-them-pending",
+    savedDaysAgo: 0,
+    second: { complainant: "Fathima Rasheed", mobile: "9847055610", advocate: "Thomas Kurian", barNumber: "K/2204/2015" },
+  },
+];
+
+/** One sample as a draft. Exported so tests can check a fixture without IndexedDB. */
+export function buildSampleDraft(sample: Sample, today: string): FilingDraft {
   const d = createBlankDraft(sample.id);
   const savedOn = addDays(today, -sample.savedDaysAgo);
   d.createdAt = `${addDays(savedOn, -2)}T10:00:00.000Z`;
@@ -93,6 +118,13 @@ function build(sample: Sample, today: string): FilingDraft {
   c.perm = { ...c.res };
   d.advocates[0].name = "Anjali Nair";
   d.advocates[0].barNumber = "K/1188/2011";
+  if (sample.second) {
+    const c2 = { ...blankComplainant(), name: sample.second.complainant, mobile: sample.second.mobile, verified: true, age: "39" };
+    c2.res = { line1: "Kallingal House, Temple Road", city: "Kodungallur", pin: "680664", district: "Thrissur", state: "Kerala" };
+    c2.perm = { ...c2.res };
+    d.complainants.push(c2);
+    d.advocates.push({ id: `${sample.id}-adv-2`, forComplainants: [1], name: sample.second.advocate, barNumber: sample.second.barNumber });
+  }
   if (sample.accused) {
     const a = d.accused[0];
     a.name = sample.accused;
@@ -155,6 +187,8 @@ function build(sample: Sample, today: string): FilingDraft {
       if (sample.reach === "pay-pending" || s.you) {
         d.sign.signed[s.id] = { at: sentAt, with: "aadhaar" };
       }
+      // Everyone not at this keyboard was sent their link when the filer sent it out.
+      if (!s.you) d.sign.notified[s.id] = sentAt;
       // Only the fee is left on `pay-pending`, so its advocates have sworn too. There is
       // no sample video, which the roster states rather than hides.
       if (sample.reach === "pay-pending" && s.oathTaken === false) {
@@ -173,7 +207,7 @@ async function seedOnce(key: string, samples: Sample[], today: string): Promise<
   const repo = getRepository();
   for (const sample of samples) {
     const existing = await repo.getDraft(sample.id);
-    if (!existing) await repo.putDraft(build(sample, today));
+    if (!existing) await repo.putDraft(buildSampleDraft(sample, today));
   }
   window.localStorage.setItem(key, new Date().toISOString());
 }
@@ -187,6 +221,7 @@ export function ensureSampleDrafts(): Promise<void> {
       const today = new Date().toISOString().slice(0, 10);
       await seedOnce(SEEDED_KEY, SAMPLES, today);
       await seedOnce(SIGN_SEEDED_KEY, SIGN_SAMPLES, today);
+      await seedOnce(ADVOCATE_LINK_SEEDED_KEY, ADVOCATE_LINK_SAMPLES, today);
     } catch {
       /* storage blocked — the queue simply opens empty */
     }

@@ -54,7 +54,7 @@ export const FILING_STEPS: FilingStep[] = [
   { id: "documents", title: "Documents", group: "Evidence", segment: "documents", icon: FileTextIcon },
   { id: "affidavit", title: "Affidavit", group: "Affidavit", segment: "affidavit", icon: FileCheckIcon },
   { id: "preview", title: "Preview", group: "Preview", segment: "preview", icon: EyeIcon },
-  { id: "sign", title: "Sign", group: "Sign", segment: "sign", icon: PenToolIcon },
+  { id: "sign", title: "Sign and oath", group: "Sign and oath", segment: "sign", icon: PenToolIcon },
   { id: "pay-fees", title: "Pay fees", group: "Pay fees", segment: "sign", icon: WalletIcon, placeholder: true },
 ];
 

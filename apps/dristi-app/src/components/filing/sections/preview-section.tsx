@@ -19,7 +19,8 @@ import {
 
 import { joinDot } from "@/lib/filing/format";
 import { CASE_TYPE, COURT } from "@/lib/filing/options";
-import { sectionComplete } from "@/lib/filing/selectors";
+import { useProfile } from "@/lib/filing/profile";
+import { sectionComplete, signatories } from "@/lib/filing/selectors";
 import { neighbours, type StepId } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
 import type { FilingDraft } from "@/lib/filing/types";
@@ -383,6 +384,9 @@ export function PreviewSection() {
   // Completeness per section, from the same rule the sidebar counts with.
   const done = (key: PanelKey) => sectionComplete(draft, panels[key].step);
   const readyToSign = sectionComplete(draft, "preview");
+  // Signing as an advocate means taking the oath in the same step, so the way there says so.
+  const { profile } = useProfile();
+  const yourOathAhead = signatories(draft, profile).advocates.some((s) => s.you);
   const outstanding = (Object.keys(panels) as PanelKey[]).filter((k) => !done(k)).length;
 
   /** The browser's print dialog — which is also how a PDF is saved. */
@@ -716,7 +720,7 @@ export function PreviewSection() {
       <FilingFooter
         backHref={prev ? hrefFor(prev) : undefined}
         continueHref={next ? hrefFor(next) : undefined}
-        continueLabel="Continue to sign"
+        continueLabel={yourOathAhead ? "Continue to sign and oath" : "Continue to sign"}
         showSaveState={false}
         status={
           readyToSign ? (

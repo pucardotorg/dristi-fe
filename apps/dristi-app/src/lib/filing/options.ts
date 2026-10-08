@@ -199,18 +199,22 @@ export const DELIVERY_CHANNEL = "E-post";
 /* ───────────────────────────── Signing ───────────────────────────── */
 
 /**
- * What stopped e-signing — the common failures the owner named (2026-10-06), in plain
- * words rather than legal ones. Every signing window that offers paper asks this; a
- * window with one signer has nobody else to wait on, so it passes a subset rather than
- * keeping a second list.
+ * What stopped e-signing, in plain words rather than legal ones — one reason per way
+ * e-signing can fail here: each instrument (Aadhaar OTP, DSC), another signer, and the
+ * e-sign service itself (owner, 2026-10-07). A slow party is not on the list: paper
+ * still needs their signature by hand, so it is a party who *cannot* e-sign. Not yet
+ * confirmed against what filers actually hit. Every signing window that offers paper
+ * asks this; a window with one signer has nobody else, so it passes a subset rather
+ * than keeping a second list.
  */
 export const PAPER_FALLBACK_REASONS: readonly {
   id: PaperFallbackReason;
   label: string;
 }[] = [
-  { id: "otp-not-received", label: "OTP not received" },
-  { id: "party-did-not-respond", label: "A party did not respond" },
-  { id: "server-not-responding", label: "Server not responding" },
+  { id: "otp-not-received", label: "The OTP didn't arrive" },
+  { id: "dsc-not-working", label: "My DSC isn't working" },
+  { id: "party-cannot-esign", label: "Another party can't e-sign" },
+  { id: "server-not-responding", label: "The e-sign service isn't responding" },
   { id: "other", label: "Something else" },
 ];
 

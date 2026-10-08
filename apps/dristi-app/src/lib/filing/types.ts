@@ -431,7 +431,8 @@ export type SignInstrument = "aadhaar" | "dsc" | "paper";
 /** What stopped e-signing, as the person turning to paper says it (`PAPER_FALLBACK_REASONS`). */
 export type PaperFallbackReason =
   | "otp-not-received"
-  | "party-did-not-respond"
+  | "dsc-not-working"
+  | "party-cannot-esign"
   | "server-not-responding"
   | "other";
 
