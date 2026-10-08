@@ -479,9 +479,14 @@ export const advHome = {
   /** Advanced filters: the menu entry, the button when people are narrowed, and the sheet. */
   advancedFilters: t("Custom filters", "ഇഷ്ടാനുസൃത ഫിൽട്ടറുകൾ"),
   /** Under the filters while any are hiding hearings in the sitting. */
-  hiddenOne: t("1 hearing hidden by filters", "ഫിൽട്ടറുകൾ കാരണം 1 വിചാരണ മറച്ചു"),
-  hiddenMany: t("{n} hearings hidden by filters", "ഫിൽട്ടറുകൾ കാരണം {n} വിചാരണകൾ മറച്ചു"),
-  showAllHearings: t("Show all", "എല്ലാം കാണിക്കുക"),
+  hiddenOne: t("1 hearing hidden", "1 വിചാരണ മറച്ചു"),
+  hiddenMany: t("{n} hearings hidden", "{n} വിചാരണകൾ മറച്ചു"),
+  showAllHearings: t("Show all hearings", "എല്ലാ വിചാരണകളും കാണിക്കുക"),
+  /** The access button while people are left out: says how many, not just "custom". */
+  excludedOne: t("1 person excluded", "1 വ്യക്തിയെ ഒഴിവാക്കി"),
+  excludedMany: t("{n} people excluded", "{n} പേരെ ഒഴിവാക്കി"),
+  /** The same on a phone, where the button is half the row. */
+  excludedShort: t("{n} excluded", "{n} ഒഴിവാക്കി"),
   customFilter: t("Custom filters", "ഇഷ്ടാനുസൃത ഫിൽട്ടറുകൾ"),
   customBadge: t("On", "ഓൺ"),
   filtersTitle: t("Filter hearings", "വിചാരണകൾ ഫിൽട്ടർ ചെയ്യുക"),

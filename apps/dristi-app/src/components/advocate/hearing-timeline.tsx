@@ -18,6 +18,7 @@ import { useCompactBoard } from "./use-compact-board";
 import { useCanHover } from "./use-can-hover";
 import { Identifier } from "@/components/chrome/identifier";
 import { LocateHearingIcon } from "./locate-hearing-icon";
+import "./filter-roll.css";
 import { MobileHearingCard } from "@/components/advocate/mobile-hearing-card";
 import { AccessButton } from "@/components/advocate/access-button";
 import { Badge } from "@/components/ui/badge";
@@ -548,10 +549,41 @@ function InfoTip({ text }: { text: string }) {
 }
 
 /**
+ * "Custom filters" and the count take turns on the button (filter-roll.css).
+ * Both faces share one grid cell so the button keeps the wider one's width and
+ * never jumps. A phone shows the short count ("1 excluded") to stay on one
+ * line. Screen readers get both, once.
+ */
+function CustomLabel({ custom, excluded, short }: { custom: string; excluded: string; short: string }) {
+  const faces = [custom, excluded, custom];
+  return (
+    <>
+      <span className="sr-only">{`${custom}: ${excluded}`}</span>
+      <span aria-hidden="true" className="relative inline-grid h-[1lh] overflow-hidden whitespace-nowrap">
+        <span className="filter-roll-track col-start-1 row-start-1 flex flex-col items-center">
+          {faces.map((face, i) => (
+            <span key={i} className="h-[1lh]">
+              {face === excluded ? (
+                <>
+                  <span className="lg:hidden">{short}</span>
+                  <span className="hidden lg:inline">{excluded}</span>
+                </>
+              ) : (
+                face
+              )}
+            </span>
+          ))}
+        </span>
+      </span>
+    </>
+  );
+}
+
+/**
  * Which of the sitting's hearings to show. "All hearings" is everything and
  * ticks both kinds; the two kinds below it can each be ticked off (one always
  * stays). Anything finer, by person, lives in the advanced filters sheet; once
- * set, the button says "Custom filter" and "All hearings" is no longer ticked,
+ * set, the button counts who is left out ("2 people excluded") and "All hearings" is no longer ticked,
  * so the menu never claims "all" while people are left out. Picking "All
  * hearings" again clears everything.
  */
@@ -579,9 +611,17 @@ function AccessMenu({
     onChange({ scope: next.mine && next.office ? "all" : next.mine ? "mine" : "office", hidden: [...hidden] });
   };
 
-  const label = custom
-    ? pick(advHome.customFilter, locale)
-    : pick(scope === "all" ? advHome.accessAll : scope === "mine" ? advHome.accessMine : advHome.accessOfficeOnly, locale);
+  const n = String(hidden.length);
+  const excluded = hidden.length === 1 ? pick(advHome.excludedOne, locale) : fillCopy(advHome.excludedMany, locale, { n });
+  const label = custom ? (
+    <CustomLabel
+      custom={pick(advHome.customFilter, locale)}
+      excluded={excluded}
+      short={fillCopy(advHome.excludedShort, locale, { n })}
+    />
+  ) : (
+    pick(scope === "all" ? advHome.accessAll : scope === "mine" ? advHome.accessMine : advHome.accessOfficeOnly, locale)
+  );
 
   return (
     <DropdownMenu>
@@ -1844,39 +1884,43 @@ function SlotTabs({
         const change = (patch: Partial<SlotFilter>) => onFilterChange(slot.key, { ...filter, ...patch });
         const people = peopleOptionsOf(slot.hearings, filter.scope);
         const courts = courtOptionsOf(slot.hearings);
-        const hiddenCount = Math.max(0, slot.hearings.length - slot.board.summary.total);
+        const hiddenCount = slot.hiddenByAccess;
         const filterRow = (
-          <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center">
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:items-start">
             {filterVariant === "menu" ? (
               <>
+                <span aria-hidden="true" className="hidden flex-1 lg:block" />
                 {/* How much the filters are holding back, with a one-click undo,
-                    so a narrowed sitting is never mistaken for the whole of it. */}
-                {hiddenCount > 0 ? (
-                  <p className="order-last col-span-2 flex flex-wrap items-center gap-x-1.5 text-body-compact text-brand-muted-foreground lg:order-none lg:col-span-1 lg:flex-1">
-                    <span>
-                      {hiddenCount === 1
-                        ? pick(advHome.hiddenOne, locale)
-                        : fillCopy(advHome.hiddenMany, locale, { n: String(hiddenCount) })}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <button
-                      type="button"
-                      onClick={() => onFilterChange(slot.key, NO_SLOT_FILTER)}
-                      className="relative font-medium underline underline-offset-2 after:absolute after:-inset-2 hover:text-foreground"
-                    >
-                      {pick(advHome.showAllHearings, locale)}
-                    </button>
-                  </p>
-                ) : (
-                  <span aria-hidden="true" className="hidden flex-1 lg:block" />
-                )}
-                <AccessMenu
-                  scope={filter.scope}
-                  hidden={filter.hidden}
-                  onChange={({ scope, hidden }) => change({ scope, people: [], hidden })}
-                  onAdvanced={() => setAdvancedFor(slot.key)}
-                  locale={locale}
-                />
+                    right under the button doing the hiding, from its left edge,
+                    so cause and effect read as one unit. Counts only what this
+                    button hides, never the courts filter. On desktop the button
+                    stretches to the line's width so the two share edges. */}
+                <div className="contents lg:flex lg:flex-col lg:gap-1.5">
+                  <AccessMenu
+                    scope={filter.scope}
+                    hidden={filter.hidden}
+                    onChange={({ scope, hidden }) => change({ scope, people: [], hidden })}
+                    onAdvanced={() => setAdvancedFor(slot.key)}
+                    locale={locale}
+                  />
+                  {hiddenCount > 0 ? (
+                    <p className="order-last col-span-2 flex items-center gap-x-1 text-caption font-normal whitespace-nowrap text-brand-muted-foreground">
+                      <span>
+                        {hiddenCount === 1
+                          ? pick(advHome.hiddenOne, locale)
+                          : fillCopy(advHome.hiddenMany, locale, { n: String(hiddenCount) })}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <button
+                        type="button"
+                        onClick={() => onFilterChange(slot.key, NO_SLOT_FILTER)}
+                        className="relative font-medium underline underline-offset-2 after:absolute after:-inset-2 hover:text-foreground"
+                      >
+                        {pick(advHome.showAllHearings, locale)}
+                      </button>
+                    </p>
+                  ) : null}
+                </div>
                 <HearingFiltersSheet
                   open={advancedFor === slot.key}
                   onOpenChange={(open) => setAdvancedFor(open ? slot.key : null)}

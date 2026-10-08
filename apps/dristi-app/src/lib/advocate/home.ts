@@ -664,6 +664,11 @@ export type DaySlot = {
   hearings: TimelineHearing[];
   /** The sitting's board — time-grouped or flat per config, after its filter. */
   board: DayTimeline;
+  /**
+   * Matters the access filter (kind and people) keeps off the board, courts
+   * aside: the count under the access button speaks for that button only.
+   */
+  hiddenByAccess: number;
 };
 
 /**
@@ -881,7 +886,10 @@ export function daySlotsOn(
 
   return sittings.map((window, i) => {
     const key = `sitting-${i}`;
-    const shown = filterSlotHearings(world, buckets[i], filters?.[key] ?? NO_SLOT_FILTER);
+    const filter = filters?.[key] ?? NO_SLOT_FILTER;
+    const shown = filterSlotHearings(world, buckets[i], filter);
+    const hiddenByAccess =
+      buckets[i].length - filterSlotHearings(world, buckets[i], { ...filter, courts: [] }).length;
     const board = config.groupByTime
       ? groupByTimeSlots(shown, now)
       : buildFlatBoard(shown);
@@ -898,6 +906,7 @@ export function daySlotsOn(
         nowMinutes >= minutesOf(window.start) &&
         nowMinutes <= minutesOf(window.end),
       board,
+      hiddenByAccess,
     };
   });
 }
