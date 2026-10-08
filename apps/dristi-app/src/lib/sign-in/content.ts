@@ -18,9 +18,8 @@
  * English follows it. Register matches `lib/onboarding/content.ts`.
  */
 
-import type { Locale } from "@/lib/onboarding/content";
+import type { Copy } from "@/lib/onboarding/content";
 
-type Copy = Record<Locale, string>;
 const t = (en: string, ml: string): Copy => ({ en, ml });
 
 /** Who is signing in. Sent with every attempt — the same person can hold both roles

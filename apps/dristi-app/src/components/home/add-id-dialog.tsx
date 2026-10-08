@@ -60,10 +60,19 @@ export function AddIdForm({
   locale,
   onSubmitted,
   onCancel,
+  formId,
+  hideActions = false,
+  onDirtyChange,
 }: {
   locale: Locale;
   onSubmitted: (submission: SubmittedId) => void;
   onCancel: () => void;
+  /** Lets a dialog footer submit the form (Settings). */
+  formId?: string;
+  /** The host renders its own Cancel and Submit. */
+  hideActions?: boolean;
+  /** Tells the host something has been chosen, for its discard guard. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [idType, setIdType] = React.useState<IdType | "">("");
   const [file, setFile] = React.useState<File | null>(null);
@@ -75,6 +84,11 @@ export function AddIdForm({
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const previewUrlRef = React.useRef("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const dirty = idType !== "" || file !== null;
+  React.useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   React.useEffect(
     () => () => {
@@ -135,6 +149,7 @@ export function AddIdForm({
   return (
     <>
       <form
+        id={formId}
         lang={locale}
         noValidate
         className="flex flex-col gap-4"
@@ -263,10 +278,12 @@ export function AddIdForm({
                         : null}
                 </FieldError>
               </Field>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-          <Button type="submit">{pick(idUpload.submit, locale)}</Button>
-        </div>
+        {hideActions ? null : (
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+            <Button type="submit">{pick(idUpload.submit, locale)}</Button>
+          </div>
+        )}
       </form>
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <ChromeDialogContent

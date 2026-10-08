@@ -24,7 +24,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { caseOf, tasksInView } from "@/lib/tasks/selectors";
 import { compareUrgency, daysUntil, isOverdue } from "@/lib/tasks/urgency";
 import { useChrome, type Crumb } from "@/components/shell/chrome";
-import { useLocale } from "@/components/shell/locale";
+import { useLanguagePair, useLocale } from "@/components/shell/locale";
 import { useProfile } from "@/components/shell/profile";
 import {
   NotificationsBell,
@@ -34,7 +34,7 @@ import {
   SegmentedControl,
   SegmentedControlItem,
 } from "@/components/ui/segmented-control";
-import { LOCALES, pick, ui, type Locale } from "@/lib/onboarding/content";
+import { pick, ui, type Locale } from "@/lib/onboarding/content";
 
 /**
  * The one breadcrumb in the app. Route-aware: Tasks › the task › the action. The task
@@ -358,6 +358,7 @@ function useTaskNotifications() {
 /** The app-wide language switch. Citizen screens render bilingual; the rest ignore it. */
 function LanguageToggle() {
   const { locale, setLocale } = useLocale();
+  const languagePair = useLanguagePair();
   return (
     <SegmentedControl
       size="compact"
@@ -367,7 +368,7 @@ function LanguageToggle() {
       aria-label={pick(ui.language, locale)}
       className="ml-auto shrink-0"
     >
-      {LOCALES.map((l) => (
+      {languagePair.map((l) => (
         <SegmentedControlItem key={l.value} value={l.value}>
           {l.label}
         </SegmentedControlItem>

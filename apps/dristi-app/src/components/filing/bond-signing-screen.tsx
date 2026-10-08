@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useLanguagePair } from "@/components/shell/locale";
 import { PenLineIcon } from "lucide-react";
 
 import { Banner } from "@/components/ui/banner";
@@ -15,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { BrandLockup } from "@/components/brand-lockup";
 import { BondDocument, BondSignerList } from "@/components/filing/bond-document";
 import { buildBondSigners } from "@/components/filing/bail-bond-status-dialog";
-import { LOCALES, pick, ui, type Locale } from "@/lib/onboarding/content";
+import { pick, ui, type Locale } from "@/lib/onboarding/content";
 import { joinDialog } from "@/lib/join/content";
 import { ACCESS_CASES } from "@/lib/access/content";
 import {
@@ -43,6 +44,7 @@ const PARTY_PHONES = [BOND_LITIGANT.phone, ...ALL_SURETIES.map((entry) => entry.
 
 export function BondSigningScreen() {
   const [locale, setLocale] = React.useState<Locale>("en");
+  const languagePair = useLanguagePair();
   const [stage, setStage] = React.useState<"phone" | "status">("phone");
   const [phone, setPhone] = React.useState("");
   const [phoneTouched, setPhoneTouched] = React.useState(false);
@@ -89,7 +91,7 @@ export function BondSigningScreen() {
           onValueChange={(value) => value && setLocale(value as Locale)}
           aria-label={pick(ui.language, locale)}
         >
-          {LOCALES.map((l) => (
+          {languagePair.map((l) => (
             <SegmentedControlItem key={l.value} value={l.value}>
               {l.label}
             </SegmentedControlItem>

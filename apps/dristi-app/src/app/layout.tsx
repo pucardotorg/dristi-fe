@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { DesignModeLoader } from "@/components/design-mode-loader";
 import { FeedbackProvider } from "@/components/feedback-provider";
 import { LocaleProvider } from "@/components/shell/locale";
+import { TextSizeRoot } from "@/components/shell/text-size";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import "./globals.css";
@@ -38,6 +39,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <LocaleProvider>
+            <TextSizeRoot />
             <FeedbackProvider>{children}</FeedbackProvider>
             <DesignModeLoader />
           </LocaleProvider>

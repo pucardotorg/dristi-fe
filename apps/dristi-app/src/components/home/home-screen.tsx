@@ -131,7 +131,7 @@ export function HomeScreen({
               ))}
             </div>
           ) : (
-            <p className="text-body-compact text-muted-foreground">Cases you join or file will appear here.</p>
+            <p className="text-body-compact text-muted-foreground">{pick(home.casesEmpty, locale)}</p>
           )}
         </section>
 

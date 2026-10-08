@@ -1,6 +1,5 @@
-import type { Locale } from "@/lib/onboarding/content";
+import type { Copy } from "@/lib/onboarding/content";
 
-type Copy = Record<Locale, string>;
 const t = (en: string, ml: string): Copy => ({ en, ml });
 
 export const registrationUi = {

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useLanguagePair } from "@/components/shell/locale";
 import { ArrowLeftIcon, ArrowRightIcon, GlobeIcon, XIcon } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 
@@ -30,7 +31,6 @@ import {
 } from "@/components/onboarding/steps";
 import { VideoSlot } from "@/components/onboarding/video-slot";
 import {
-  LOCALES,
   STEP_ORDER,
   choices,
   dateStep,
@@ -82,6 +82,7 @@ export function OnboardingModal({
   locale: Locale;
   onLocaleChange: (locale: Locale) => void;
 }) {
+  const languagePair = useLanguagePair();
   const [index, setIndex] = React.useState(0);
   const step = STEP_ORDER[index];
   const isFirst = index === 0;
@@ -149,7 +150,7 @@ export function OnboardingModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {LOCALES.map((l) => (
+                {languagePair.map((l) => (
                   <SelectItem key={l.value} value={l.value}>
                     {l.label}
                   </SelectItem>

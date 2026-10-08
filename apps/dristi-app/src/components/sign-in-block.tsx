@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useLanguagePair } from "@/components/shell/locale";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -32,7 +33,7 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { Separator } from "@/components/ui/separator";
-import { LOCALES, pick, ui, type Locale } from "@/lib/onboarding/content";
+import { pick, ui, type Locale } from "@/lib/onboarding/content";
 import { registrationUi } from "@/lib/registration/content";
 import { cn } from "@/lib/utils";
 import {
@@ -184,6 +185,7 @@ export function SignInBlock({
    *  outright. Everyone else gets the neutral headline — same destination either way. */
   summoned?: boolean;
 }) {
+  const languagePair = useLanguagePair();
   const [registrationOpen, setRegistrationOpen] = React.useState(false);
   /* A rejected registration on the signed-in number routes into its
      correction round instead of the portal — the SMS told them to sign in
@@ -390,7 +392,7 @@ export function SignInBlock({
             onValueChange={(value) => value && onLocaleChange(value as Locale)}
             aria-label={pick(ui.language, locale)}
           >
-            {LOCALES.map((l) => (
+            {languagePair.map((l) => (
               <SegmentedControlItem
                 key={l.value}
                 value={l.value}

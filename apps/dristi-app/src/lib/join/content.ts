@@ -1,4 +1,4 @@
-import type { Locale } from "@/lib/onboarding/content";
+import type { Copy, Locale } from "@/lib/onboarding/content";
 
 /**
  * Post-login join-a-case — content model.
@@ -14,8 +14,9 @@ import type { Locale } from "@/lib/onboarding/content";
  * who you are joining as, which party you are, and how you will appear.
  */
 
-type Copy = Record<Locale, string>;
 const t = (en: string, ml: string): Copy => ({ en, ml });
+/** Adds the demo's extra languages (Hindi, Tamil, Bengali) to a line (owner, Sept 30). */
+const more = (copy: Copy, extra: Partial<Copy>): Copy => ({ ...copy, ...extra });
 
 /* ------------------------------------------------------------------ case model */
 
@@ -82,37 +83,106 @@ export const DEMO_PROFILE_NAME = "Rajan K. Nair";
 /* ------------------------------------------------------------------ home screen */
 
 export const home = {
-  welcome: t("Welcome, {name}", "സ്വാഗതം, {name}"),
-  fileTitle: t("File a new case", "പുതിയ കേസ് ഫയൽ ചെയ്യുക"),
-  fileBody: t(
+  welcome: more(t("Welcome, {name}", "സ്വാഗതം, {name}"), {
+    hi: "स्वागत है, {name}",
+    ta: "வணக்கம், {name}",
+    bn: "স্বাগতম, {name}",
+  }),
+  fileTitle: more(t("File a new case", "പുതിയ കേസ് ഫയൽ ചെയ്യുക"), {
+    hi: "नया मामला दर्ज करें",
+    ta: "புதிய வழக்கைத் தாக்கல் செய்யுங்கள்",
+    bn: "নতুন মামলা দায়ের করুন",
+  }),
+  fileBody: more(t(
     "Start a new cheque bounce case and follow it from filing to decision.",
     "പുതിയ ചെക്ക് മടക്ക കേസ് തുടങ്ങി ഫയലിംഗ് മുതൽ തീരുമാനം വരെ പിന്തുടരുക.",
-  ),
-  fileAction: t("File a case", "കേസ് ഫയൽ ചെയ്യുക"),
-  joinTitle: t("Join an ongoing case", "നിലവിലുള്ള കേസിൽ ചേരുക"),
-  joinBody: t(
+  ), {
+    hi: "चेक बाउंस का नया मामला शुरू करें और दाखिले से फ़ैसले तक उस पर नज़र रखें।",
+    ta: "புதிய காசோலை திரும்புதல் வழக்கைத் தொடங்கி, தாக்கல் முதல் தீர்ப்பு வரை பின்தொடருங்கள்.",
+    bn: "নতুন চেক বাউন্স মামলা শুরু করুন এবং দাখিল থেকে রায় পর্যন্ত অনুসরণ করুন।",
+  }),
+  fileAction: more(t("File a case", "കേസ് ഫയൽ ചെയ്യുക"), {
+    hi: "मामला दर्ज करें",
+    ta: "வழக்கைத் தாக்கல் செய்",
+    bn: "মামলা দায়ের করুন",
+  }),
+  joinTitle: more(t("Join an ongoing case", "നിലവിലുള്ള കേസിൽ ചേരുക"), {
+    hi: "चल रहे मामले से जुड़ें",
+    ta: "நடப்பு வழக்கில் இணையுங்கள்",
+    bn: "চলমান মামলায় যোগ দিন",
+  }),
+  joinBody: more(t(
     "Received a summons, or part of a case already in court? Find it and join.",
     "സമൻസ് ലഭിച്ചോ, അല്ലെങ്കിൽ കോടതിയിലുള്ള കേസിന്റെ ഭാഗമാണോ? കേസ് കണ്ടെത്തി ചേരുക.",
-  ),
-  joinAction: t("Join a case", "കേസിൽ ചേരുക"),
-  casesHeading: t("Your cases", "നിങ്ങളുടെ കേസുകൾ"),
-  caseNumberLabel: t("Case number", "കേസ് നമ്പർ"),
-  hearingLabel: t("Next hearing", "അടുത്ത ഹിയറിംഗ്"),
-  statusJoined: t("Joined", "ചേർന്നു"),
-  statusApproval: t("Approval pending", "അനുമതി ബാക്കി"),
-  statusSummons: t("Action required", "നടപടി ആവശ്യമാണ്"),
-  reviewSummons: t("Review and join", "പരിശോധിച്ച് ചേരുക"),
-  viewCase: t("View case", "കേസ് കാണുക"),
+  ), {
+    hi: "समन मिला है, या अदालत में चल रहे किसी मामले का हिस्सा हैं? उसे खोजें और जुड़ें।",
+    ta: "அழைப்பாணை வந்ததா, அல்லது நீதிமன்றத்தில் உள்ள வழக்கின் ஒரு பகுதியா? அதைக் கண்டுபிடித்து இணையுங்கள்.",
+    bn: "সমন পেয়েছেন, বা আদালতে থাকা কোনো মামলার অংশ? খুঁজে নিয়ে যোগ দিন।",
+  }),
+  joinAction: more(t("Join a case", "കേസിൽ ചേരുക"), {
+    hi: "मामले से जुड़ें",
+    ta: "வழக்கில் இணை",
+    bn: "মামলায় যোগ দিন",
+  }),
+  casesHeading: more(t("Your cases", "നിങ്ങളുടെ കേസുകൾ"), {
+    hi: "आपके मामले",
+    ta: "உங்கள் வழக்குகள்",
+    bn: "আপনার মামলা",
+  }),
+  casesEmpty: more(t("Cases you join or file will appear here.", "നിങ്ങൾ ചേരുന്നതോ ഫയൽ ചെയ്യുന്നതോ ആയ കേസുകൾ ഇവിടെ കാണാം."), {
+    hi: "आप जिन मामलों से जुड़ेंगे या जो दर्ज करेंगे, वे यहाँ दिखेंगे।",
+    ta: "நீங்கள் இணையும் அல்லது தாக்கல் செய்யும் வழக்குகள் இங்கே தோன்றும்.",
+    bn: "আপনি যে মামলায় যোগ দেবেন বা দায়ের করবেন, সেগুলো এখানে দেখা যাবে।",
+  }),
+  caseNumberLabel: more(t("Case number", "കേസ് നമ്പർ"), {
+    hi: "मामला संख्या",
+    ta: "வழக்கு எண்",
+    bn: "মামলা নম্বর",
+  }),
+  hearingLabel: more(t("Next hearing", "അടുത്ത ഹിയറിംഗ്"), {
+    hi: "अगली सुनवाई",
+    ta: "அடுத்த விசாரணை",
+    bn: "পরবর্তী শুনানি",
+  }),
+  statusJoined: more(t("Joined", "ചേർന്നു"), {
+    hi: "जुड़ गए",
+    ta: "இணைந்துவிட்டீர்கள்",
+    bn: "যোগ দিয়েছেন",
+  }),
+  statusApproval: more(t("Approval pending", "അനുമതി ബാക്കി"), {
+    hi: "मंज़ूरी बाकी",
+    ta: "ஒப்புதல் நிலுவையில்",
+    bn: "অনুমোদন বাকি",
+  }),
+  statusSummons: more(t("Action required", "നടപടി ആവശ്യമാണ്"), {
+    hi: "कार्रवाई ज़रूरी",
+    ta: "நடவடிக்கை தேவை",
+    bn: "পদক্ষেপ প্রয়োজন",
+  }),
+  reviewSummons: more(t("Review and join", "പരിശോധിച്ച് ചേരുക"), {
+    hi: "देखें और जुड़ें",
+    ta: "பார்த்து இணையுங்கள்",
+    bn: "দেখে যোগ দিন",
+  }),
+  viewCase: more(t("View case", "കേസ് കാണുക"), {
+    hi: "मामला देखें",
+    ta: "வழக்கைப் பார்",
+    bn: "মামলা দেখুন",
+  }),
   viewDetails: t("View request details", "അപേക്ഷയുടെ വിവരങ്ങൾ കാണുക"),
   requestDetailsTitle: t("Request details", "അപേക്ഷയുടെ വിവരങ്ങൾ"),
   requestDetailsBody: t(
     "Magistrate approval is pending. You cannot open the case file until the request is approved.",
     "മജിസ്‌ട്രേറ്റിന്റെ അനുമതി ബാക്കിയുണ്ട്. അപേക്ഷ അംഗീകരിക്കും വരെ കേസ് ഫയൽ തുറക്കാൻ കഴിയില്ല.",
   ),
-  prototypeTitle: t(
+  prototypeTitle: more(t(
     "Prototype: destination not connected",
     "പ്രോട്ടോടൈപ്പ്: ലക്ഷ്യസ്ഥാനം ബന്ധിപ്പിച്ചിട്ടില്ല",
-  ),
+  ), {
+    hi: "प्रोटोटाइप: गंतव्य जुड़ा नहीं है",
+    ta: "முன்மாதிரி: இலக்கு இணைக்கப்படவில்லை",
+    bn: "প্রোটোটাইপ: গন্তব্য যুক্ত নয়",
+  }),
   prototypeFile: t(
     "This action will open the e-filing flow.",
     "ഈ പ്രവർത്തനം ഇ-ഫയലിംഗ് ഫ്ലോ തുറക്കും.",
@@ -459,9 +529,9 @@ export const caseDetails = {
   otherAccused: t("Other accused", "മറ്റ് പ്രതി"),
 } as const;
 
-export function fill(copy: Copy, locale: Locale, values: Record<string, string>) {
+export function fill(copy: Copy, locale: Locale, values: Record<string, string>): string {
   return Object.entries(values).reduce(
     (text, [key, value]) => text.replaceAll(`{${key}}`, value),
-    copy[locale],
+    copy[locale] ?? copy.en,
   );
 }

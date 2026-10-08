@@ -18,12 +18,9 @@
  * Copy: sentence case (DS Law). Reconciled against Summons_Kollam_v14.
  */
 
-export type Locale = "en" | "ml";
+import type { Locale } from "@/lib/i18n/languages";
 
-export const LOCALES: { value: Locale; label: string }[] = [
-  { value: "en", label: "English" },
-  { value: "ml", label: "മലയാളം" },
-];
+export type { Locale };
 
 export type CaseSummary = {
   accusedName?: string;
@@ -47,7 +44,11 @@ export const STEP_ORDER: StepId[] = [
   "join",
 ];
 
-type Copy = Record<Locale, string>;
+/**
+ * One string in every language it has been written in. English is required and is the
+ * fallback: a language with no line shows the English one (see `pick`).
+ */
+export type Copy = { en: string } & Partial<Record<Exclude<Locale, "en">, string>>;
 const t = (en: string, ml: string): Copy => ({ en, ml });
 
 export const stepTitles: Record<StepId, Copy> = {
@@ -503,6 +504,6 @@ export const videos: Record<StepId, { title: Copy; youtubeId?: string }> = {
   join: { title: t("How do I join my case?", "കേസിൽ എങ്ങനെ ചേരും?") },
 };
 
-export function pick(copy: Copy, locale: Locale) {
-  return copy[locale];
+export function pick(copy: Copy, locale: Locale): string {
+  return copy[locale] ?? copy.en;
 }

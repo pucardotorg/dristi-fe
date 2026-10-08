@@ -1,4 +1,4 @@
-import type { Locale } from "@/lib/onboarding/content";
+import type { Copy } from "@/lib/onboarding/content";
 import { DEMO_JOIN_CASE, type CaseParty, type JoinCase } from "@/lib/join/content";
 
 export { fill as fillCopy } from "@/lib/join/content";
@@ -18,7 +18,6 @@ export { fill as fillCopy } from "@/lib/join/content";
  * that an approver must clear first.
  */
 
-type Copy = Record<Locale, string>;
 const t = (en: string, ml: string): Copy => ({ en, ml });
 
 /* ------------------------------------------------------------------- demo data */

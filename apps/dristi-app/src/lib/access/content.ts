@@ -1,4 +1,4 @@
-import type { Locale } from "@/lib/onboarding/content";
+import type { Copy } from "@/lib/onboarding/content";
 
 export { fill as fillCopy } from "@/lib/join/content";
 
@@ -17,7 +17,6 @@ export { fill as fillCopy } from "@/lib/join/content";
  * appear per case ("Joined as Clerk"), never on the person.
  */
 
-type Copy = Record<Locale, string>;
 const t = (en: string, ml: string): Copy => ({ en, ml });
 
 /* ------------------------------------------------------------------- demo data */

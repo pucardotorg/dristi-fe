@@ -42,7 +42,7 @@ const AREAS: { prefix: string; label: string; href?: string }[] = [
     href: "/raise-application",
   },
   { prefix: "/people", label: "People", href: "/people" },
-  { prefix: "/settings", label: "Settings" },
+  { prefix: "/settings", label: "Settings", href: "/settings" },
   { prefix: "/advocate", label: "Home", href: "/advocate" },
   { prefix: "/home", label: "Home", href: "/home" },
 ];
