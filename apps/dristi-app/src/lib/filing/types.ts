@@ -24,7 +24,6 @@ export type StepId =
   | "jurisdiction"
   | "adr-prayer"
   | "witnesses"
-  | "oath"
   | "documents"
   | "affidavit"
   | "preview"
@@ -158,10 +157,7 @@ export type Representative = {
 /** Field keys that document reading can machine-fill on a complainant. */
 export type ComplainantPrefillKey = "name" | "email" | "res" | "entName" | "age";
 
-/**
- * A video of the complainant (or, for an institution, their authorised representative)
- * reciting the oath — its own screen, optional, one per complainant record.
- */
+/** A video of an advocate reciting the oath, uploaded or recorded in place. */
 export type OathVideoUpload = {
   file: StoredFileRef;
   /** Seconds, read from the file's own metadata; null when it could not be read. */
@@ -191,14 +187,17 @@ export type Complainant = {
   poaHolder: PoaHolder;
   entType: string;
   entName: string;
+  /**
+   * Optional. The institution's CIN or PAN, stored upper-case — used to identify cases
+   * belonging to the same complainant. Leaving the step without one asks first.
+   */
+  entCinPan: string;
   entPhone: string;
   entEmail: string;
   entAddr: Address;
   rep: Representative;
   /** Party-in-person affidavit body (HTML from the rich text editor). */
   affidavit: string;
-  /** Optional — the recorded oath, if this complainant chose to provide one. */
-  oathVideo: OathVideoUpload | null;
   prefilled: Partial<Record<ComplainantPrefillKey, boolean>>;
   edited: Partial<Record<ComplainantPrefillKey, boolean>>;
   toReview: boolean;
@@ -366,6 +365,11 @@ export type Signatory = {
   /** What made the signature, once there is one — Aadhaar OTP, a DSC, or paper. */
   signedWith?: SignInstrument;
   you?: boolean;
+  /**
+   * Advocates only: whether the oath is in. Advocates sign *and* take the oath; a
+   * complainant only signs, so this is absent on their rows.
+   */
+  oathTaken?: boolean;
 };
 
 /**
@@ -424,6 +428,24 @@ export type AccusedProcessChoice = {
  */
 export type SignInstrument = "aadhaar" | "dsc" | "paper";
 
+/** What stopped e-signing, as the person turning to paper says it (`PAPER_FALLBACK_REASONS`). */
+export type PaperFallbackReason =
+  | "otp-not-received"
+  | "party-did-not-respond"
+  | "server-not-responding"
+  | "other";
+
+/**
+ * The confirmation taken before anyone is allowed onto the paper path: that they could
+ * not e-sign, and what stopped them. Paper is the discouraged route (owner, 2026-10-06),
+ * so it is reached by saying so, not by picking it from a menu of equals.
+ */
+export type PaperFallback = {
+  reason: PaperFallbackReason;
+  /** ISO timestamp of the confirmation. */
+  at: string;
+};
+
 /** One signature, as the record will have to state it later. */
 export type SignatureRecord = {
   /** ISO timestamp — IST in the live service. */
@@ -456,6 +478,12 @@ export type SignState = {
   /** The signed copy, when signing by upload. */
   signedCopy: StoredFileRef | null;
   /**
+   * Why this filing is on paper, confirmed by the filer before the upload opened. Kept
+   * while the mode is "upload" and cleared when it goes back to digital; `null` on a
+   * paper draft means the confirmation has not been taken yet, so the window asks first.
+   */
+  paperFallback: PaperFallback | null;
+  /**
    * Signatory id → phone confirmation, for the upload path only. Every complainant row
    * has to be confirmed before an uploaded copy can be submitted.
    */
@@ -469,12 +497,27 @@ export type SignState = {
    * with `processPlan()` rather than reading it raw.
    */
   process: Record<string, AccusedProcessChoice>;
+  /**
+   * Advocate signatory id → their oath. Taken during signing, after the e-signature,
+   * by whichever advocate signs for that slot. It affirms the contents of this exact
+   * complaint, so it goes wherever the signatures go when the complaint is edited.
+   */
+  oaths: Record<string, AdvocateOath>;
   paid: boolean;
   paidAt: string | null;
   /** Rupees actually taken — the court fees plus every prepaid process round. */
   paidAmount: number | null;
   paymentRef: string | null;
   caseFileNumber: string | null;
+};
+
+/**
+ * One advocate's oath. `video` is null only for the sandbox shortcut that marks the
+ * other parties as done — there is no recording behind it, and the rail says so.
+ */
+export type AdvocateOath = {
+  at: string;
+  video: OathVideoUpload | null;
 };
 
 /* ─────────────────────────────────── Draft ──────────────────────────────────────── */

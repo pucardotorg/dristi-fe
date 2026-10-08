@@ -155,6 +155,11 @@ function build(sample: Sample, today: string): FilingDraft {
       if (sample.reach === "pay-pending" || s.you) {
         d.sign.signed[s.id] = { at: sentAt, with: "aadhaar" };
       }
+      // Only the fee is left on `pay-pending`, so its advocates have sworn too. There is
+      // no sample video, which the roster states rather than hides.
+      if (sample.reach === "pay-pending" && s.oathTaken === false) {
+        d.sign.oaths[s.id] = { at: sentAt, video: null };
+      }
     }
   }
   return d;
