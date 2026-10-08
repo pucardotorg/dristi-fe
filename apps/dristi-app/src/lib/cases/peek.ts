@@ -458,7 +458,7 @@ const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
     tasks: [
       {
         id: "t-1003-1",
-        title: "Fix 2 defects — condonation of delay application",
+        title: "Fix 2 defects: condonation of delay application",
         dueOn: "2026-08-08",
       },
     ],

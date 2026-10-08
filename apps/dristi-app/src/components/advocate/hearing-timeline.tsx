@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   ChevronDown,
   ChevronRight,
+  Clock,
   CircleCheck,
   ListFilter,
   ScrollText,
@@ -21,6 +22,7 @@ import { LocateHearingIcon } from "./locate-hearing-icon";
 import "./filter-roll.css";
 import { MobileHearingCard } from "@/components/advocate/mobile-hearing-card";
 import { AccessButton } from "@/components/advocate/access-button";
+import { QueueTag } from "@/components/advocate/queue-tag";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -70,6 +72,7 @@ import {
   NO_SLOT_FILTER,
   type DaySlot,
   type HearingAccess,
+  type HearingQueue,
   type PeopleOption,
   type PeopleScope,
   type SlotFilter,
@@ -116,6 +119,8 @@ const ViewInCauseListContext = React.createContext<((caseId: string) => void) | 
  * its Vakalatnama: what each row's access button shows. Null hides the button.
  */
 const AccessContext = React.createContext<((kase: Case) => HearingAccess) | null>(null);
+/** Where a scheduled matter stands in its court's queue today; null hides the tag. */
+const QueueContext = React.createContext<((hearing: TimelineHearing) => HearingQueue | null) | null>(null);
 
 /** A court the filter can offer — its full name, short label, and count. */
 export type CourtOption = { court: string; label: string; count: number };
@@ -953,13 +958,16 @@ function HearingRow({
   const onViewInCauseList = React.useContext(ViewInCauseListContext);
   const accessOf = React.useContext(AccessContext);
   const access = accessOf ? accessOf(hearing.kase) : null;
-  if (isMobile) return <MobileHearingCard hearing={hearing} locale={locale} selected={selected} onOpenCase={onOpenCase} onOpenTasks={onOpenTasks} onViewInCauseList={onViewInCauseList} access={access} time={showTime && showTimes ? <HearingTime at={hearing.at} approx={hearing.approxTime} locale={locale} /> : null} />;
+  const queueFor = React.useContext(QueueContext);
+  const queue = queueFor ? queueFor(hearing) : null;
+  if (isMobile) return <MobileHearingCard hearing={hearing} locale={locale} selected={selected} queue={queue} onOpenCase={onOpenCase} onOpenTasks={onOpenTasks} onViewInCauseList={onViewInCauseList} access={access} time={showTime && showTimes ? <HearingTime at={hearing.at} approx={hearing.approxTime} locale={locale} /> : null} />;
   const hasPills = hearing.blockers.length > 0 || hearing.passedOver;
   return (
     <div
       className={cn(
         "group/row relative grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 gap-y-2 px-4 py-4 transition-colors hover:bg-accent has-focus-visible:bg-accent active:bg-accent-strong lg:grid-cols-[auto_minmax(0,1fr)_auto]",
-        selected && "ring-2 ring-inset ring-brand-accent",
+        // No ring for the case open in the peek: that cue belongs to View case,
+        // not Home (owner, Oct 8).
         className
       )}
     >
@@ -1023,9 +1031,11 @@ function HearingRow({
             the icons on the detail's, and the row keeps the text's height. */}
         <CourtLabel court={hearing.court} label={hearing.courtLabel} number={hearing.kase.courtNumber} className="relative z-10 font-medium text-muted-foreground lg:leading-6" />
         <div className="flex items-center gap-2">
+          {/* Access, then the queue, then the cause-list jump (owner, Oct 8). */}
           {access ? (
             <AccessButton access={access} locale={locale} variant="outline" className={ROW_ICON} />
           ) : null}
+          {queue ? <QueueTag queue={queue} locale={locale} /> : null}
           <ViewInCauseListButton caseId={hearing.kase.id} locale={locale} />
         </div>
       </div>
@@ -1581,14 +1591,31 @@ function EmptyBoard({ locale, onClear }: { locale: Locale; onClear: () => void }
 /* ─────────────────────────── slot tabs ─────────────────────────── */
 
 /** The live dot a sitting's tab wears while a matter in it is being called. */
-function LiveMark({ locale }: { locale: Locale }) {
+/**
+ * A clock before each sitting's time, so the tabs read as time slots (a
+ * designer could not tell). The live sitting's clock is teal and carries the
+ * "now" pulse as a ring around it, in place of the separate dot; the others
+ * are a quiet beige clock, fainter once the sitting has ended (desktop only;
+ * phones and tablets keep just the live one, for width).
+ */
+function SlotClock({ live, ended, locale }: { live: boolean; ended: boolean; locale: Locale }) {
+  if (!live) {
+    return (
+      <Clock
+        aria-hidden="true"
+        // Desktop only: on a tablet the three short ranges need the width.
+        className={cn("hidden size-3.5 shrink-0 text-muted-foreground lg:block", ended && "opacity-60")}
+      />
+    );
+  }
   return (
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          {/* A wider hover target than the 8px dot, so the tip is easy to find. */}
           <span aria-hidden="true" className="-m-1 flex shrink-0 p-1">
-            <span className="now-dot size-2 rounded-full bg-primary" />
+            <span className="now-dot flex size-3.5 items-center justify-center rounded-full text-primary">
+              <Clock className="size-3.5" />
+            </span>
           </span>
         </TooltipTrigger>
         <TooltipContent side="top">{pick(advHome.slotLiveTip, locale)}</TooltipContent>
@@ -1664,6 +1691,7 @@ export function HearingTimeline({
   onFilterChange,
   peopleOptionsOf,
   accessOf,
+  queueOf,
   onViewCauseList,
   onJoinCourt,
   onRefresh,
@@ -1690,6 +1718,8 @@ export function HearingTimeline({
   peopleOptionsOf: (hearings: TimelineHearing[], scope: PeopleScope) => PeopleOption[];
   /** How the viewer reaches a matter, for each row's access button. */
   accessOf: (kase: Case) => HearingAccess;
+  /** Today's queue position for a scheduled matter (null: no tag). */
+  queueOf?: (hearing: TimelineHearing) => HearingQueue | null;
   onViewCauseList: () => void;
   onJoinCourt: () => void;
   onRefresh: () => void;
@@ -1709,6 +1739,7 @@ export function HearingTimeline({
       <ShowTimesContext.Provider value={showTimes}>
       <ViewInCauseListContext.Provider value={onViewInCauseList}>
       <AccessContext.Provider value={accessOf}>
+      <QueueContext.Provider value={queueOf ?? null}>
         <div className="flex flex-col gap-4 pb-16 lg:gap-4 lg:pb-8">
           <RailStyles />
           {/* The day's own actions, above the tabs on a phone or tablet, full
@@ -1742,6 +1773,7 @@ export function HearingTimeline({
             locale={locale}
           />
         </div>
+      </QueueContext.Provider>
       </AccessContext.Provider>
       </ViewInCauseListContext.Provider>
       </ShowTimesContext.Provider>
@@ -1796,7 +1828,10 @@ function SlotTabs({
   const activeIndex = daySlots.indexOf(selectedSlot);
 
   return (
-    <Tabs value={selectedSlot.key} onValueChange={setActive} className="gap-6 md:gap-0">
+    // At least a screen tall (less the app header), so a shorter sitting
+    // never shrinks the page under a reader who has scrolled down: the
+    // browser would clamp the scroll and jump them back up.
+    <Tabs value={selectedSlot.key} onValueChange={setActive} className="min-h-[calc(100svh-3.5rem)] gap-6 md:gap-0">
       {/* Phone: the Case view's tab row. The sittings that fit stay on one
           line; the rest fold into More, so the row never wraps to two lines. */}
       <div className="md:hidden">
@@ -1814,8 +1849,9 @@ function SlotTabs({
             measure: `${shortSitting(slot.window)}${slot.live ? "*" : ""}`,
             label: (
               <>
+                {/* Phone: only the live sitting carries a clock, for width. */}
+                {slot.live ? <SlotClock live ended={false} locale={locale} /> : null}
                 <span className="tabular-nums">{shortSitting(slot.window)}</span>
-                {slot.live ? <LiveMark locale={locale} /> : null}
               </>
             ),
           }))}
@@ -1858,7 +1894,7 @@ function SlotTabs({
               {!isActive ? (
                 <TabHover lean={i === activeIndex + 1 ? "left" : i === activeIndex - 1 ? "right" : null} />
               ) : null}
-              {slot.live ? <LiveMark locale={locale} /> : null}
+              <SlotClock live={slot.live} ended={slot.ended} locale={locale} />
               {/* Short on a tablet, where three full ranges cannot share the row. */}
               <span className="min-w-0 truncate tabular-nums lg:hidden">{shortSitting(slot.window)}</span>
               <span className="hidden min-w-0 truncate tabular-nums lg:inline">{slot.label}</span>
