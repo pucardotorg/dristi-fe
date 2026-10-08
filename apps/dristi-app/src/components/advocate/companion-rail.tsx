@@ -282,8 +282,8 @@ function WhenBlock({
 }
 
 function groupLabel(locale: Locale, group: TaskPanelGroup): string {
-  if (group.key === "related") return pick({ en: "Other tasks for this hearing", ml: "ഈ ഹിയറിങ്ങിന്റെ മറ്റ് ജോലികൾ" }, locale);
-  if (group.key === "hearing") return pick({ en: "For this hearing", ml: "ഈ ഹിയറിങ്ങിന്" }, locale);
+  if (group.key === "related") return pick({ en: "Other tasks for this case", ml: "ഈ കേസിന്റെ മറ്റ് ജോലികൾ" }, locale);
+  if (group.key === "hearing") return pick({ en: "For this case", ml: "ഈ കേസിന്" }, locale);
   if (group.key === "today") return pick(advHome.groupToday, locale);
   return pick(advHome.groupSoon, locale);
 }
@@ -352,7 +352,8 @@ function BucketTrigger({
     >
       <span
         className={cn(
-          "text-caption font-semibold tracking-wider uppercase",
+          /* Sentence case, as every heading in the product (owner, Oct 8). */
+          "text-caption font-semibold",
           lead ? "text-warning-ink" : "text-muted-foreground"
         )}
       >
@@ -743,7 +744,7 @@ function TasksPanel({
       <TaskTraceStyles />
       <PanelHeader
         title={pick(advHome.railTitle, locale)}
-        caption={related.length ? pick({ en: "Due in the next 3 days and tasks for this hearing", ml: "അടുത്ത 3 ദിവസത്തെ ജോലികളും ഈ ഹിയറിങ്ങിന്റെ ജോലികളും" }, locale) : pick(advHome.railScope, locale)}
+        caption={related.length ? pick({ en: "Due in the next 3 days and tasks for this case", ml: "അടുത്ത 3 ദിവസത്തെ ജോലികളും ഈ കേസിന്റെ ജോലികളും" }, locale) : pick(advHome.railScope, locale)}
         locale={locale}
         onClose={onClose}
       />
