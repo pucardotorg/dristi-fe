@@ -77,6 +77,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { idUpload } from "@/lib/join/content";
+import { useCourtLocalized } from "@/components/court/court-provider";
 
 /** The record's address — the app's one structured grammar. */
 export type EditableAddress = StructuredAddress;
@@ -216,7 +217,8 @@ function EditLitigantDialog({
   /* The record's pre-fill. Mobile is display only — the number is how this
      party signs in, so it never rides a correction application. */
   const recordMobile = litigant.mobile ?? demoMobile(litigant.name);
-  const recordAddress = litigant.address ?? demoAddress(litigant.name);
+  // The record's address is prefilled in the selected court's places (Settings → Court).
+  const recordAddress = useCourtLocalized(litigant.address ?? demoAddress(litigant.name));
   const recordId =
     litigant.idProof === undefined ? demoIdProof(litigant.name) : litigant.idProof;
 

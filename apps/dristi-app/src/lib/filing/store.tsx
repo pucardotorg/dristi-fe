@@ -17,6 +17,8 @@ import { buildDocumentGroups } from "./blank";
 import { deleteDraftWithFiles, getRepository } from "./data";
 import { stepFromPathname, stepHref } from "./steps";
 import type { FilingDraft, StepId } from "./types";
+import { useCourt } from "@/components/court/court-provider";
+import { localizeDeep } from "@/lib/court/localize";
 
 export type SaveState = "saving" | "saved" | "error";
 
@@ -88,6 +90,7 @@ export function FilingProvider({
   );
   const [saveState, setSaveState] = React.useState<SaveState>("saved");
   const pathname = usePathname();
+  const { court } = useCourt();
 
   // Latest draft for the debounced writer / flush, without re-binding callbacks.
   const draftRef = React.useRef<FilingDraft | null>(null);
@@ -102,8 +105,12 @@ export function FilingProvider({
       .then((d) => {
         if (cancelled) return;
         if (d) {
-          draftRef.current = d;
-          setState({ status: "ready", draft: d });
+          // Sample and prefilled drafts are written in Kerala's terms; a draft opens in
+          // the selected court's (Settings → Court). Nothing is written back until the
+          // filer edits, so the stored draft is unchanged by opening it.
+          const voiced = localizeDeep(d, court);
+          draftRef.current = voiced;
+          setState({ status: "ready", draft: voiced });
         } else {
           setState({ status: "missing" });
         }
@@ -114,7 +121,7 @@ export function FilingProvider({
     return () => {
       cancelled = true;
     };
-  }, [draftId, setState]);
+  }, [draftId, setState, court]);
 
   const write = React.useCallback(async () => {
     const d = draftRef.current;

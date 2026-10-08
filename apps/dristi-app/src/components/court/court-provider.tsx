@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 
 import {
   COURT_COOKIE,
@@ -15,6 +14,8 @@ import {
   localizeCourtText,
   localizeDeep,
 } from "@/lib/court/localize";
+
+import { CourtTextLayer } from "./court-text-layer";
 
 /**
  * The state's court the whole app runs as — one choice for both halves.
@@ -43,24 +44,30 @@ export function CourtProvider({
   initialCourt?: CourtId;
 }) {
   const [court, setCourtState] = React.useState<CourtId>(initialCourt);
-  const router = useRouter();
 
   const value = React.useMemo<CourtValue>(
     () => ({
       court,
       profile: courtProfile(court),
       setCourt: (next) => {
+        if (next === court) return;
         setCourtState(next);
         document.cookie = `${COURT_COOKIE}=${next}; path=/; max-age=${ONE_YEAR}; samesite=lax`;
-        // Client screens follow the state at once; what the server rendered — tab
-        // titles, a page's ready-made case line — is fetched again for the new court.
-        router.refresh();
+        // A full reload, not a refresh: the text layer only ever re-voices towards the
+        // selected state (`CourtTextLayer`), so the page is drawn again from the start
+        // in the new court's terms — server render, first paint and all.
+        window.location.reload();
       },
     }),
-    [court, router]
+    [court]
   );
 
-  return <CourtContext.Provider value={value}>{children}</CourtContext.Provider>;
+  return (
+    <CourtContext.Provider value={value}>
+      {children}
+      <CourtTextLayer />
+    </CourtContext.Provider>
+  );
 }
 
 /**

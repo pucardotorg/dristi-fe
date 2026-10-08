@@ -1,6 +1,6 @@
 # Court switch
 Updated: 2026-10-08
-Status: implemented (uncommitted on `feature/court-switch`; render-checked on :3001)
+Status: implemented on `feature/court-switch`, review fixes verified by full re-capture (see Verification)
 
 ## Current outcome
 
@@ -54,6 +54,10 @@ the existing screens. No screen, step or field is added.
 | 2026-10-08 | Gujarat's case type is carried by the sample case; no new type picker at scrutiny. | Proposed by Claude, not explicitly confirmed | Built as proposed |
 | 2026-10-08 | Branch `feature/court-switch` from `origin/main`. The owner wrote "feature-court-switch"; the repo convention `feature/<kebab>` was used. | Owner request / CLAUDE.md | Done |
 
+| 2026-10-08 | Owner review: "too many places where things are not updated." A full capture review found Kerala still on 385 of 798 Gujarat captures and 51 of 100 in Punjab and Haryana: places, "Kerala", Bar numbers, PINs, Malayalam-script names, numbers in prose. | Owner, review | Fixed, see below |
+| 2026-10-08 | Kerala's sample geography moves with the court: each Kerala town maps to a real town in the state (Kollam → Ahmedabad / Ludhiana / Panchkula), as do PINs, Bar Council prefixes, "Kerala" and "Malayalam". People's names stay. | Implementation choice under the owner's "Gujarat instead of Kollam" | Built |
+| 2026-10-08 | For any state but Kerala, a render layer (`court-text-layer.tsx`) re-voices all shown text and labels; switching courts reloads the page. Replaces chasing render sites one at a time. Inputs, editors and Settings' court cards are left alone. | Implementation choice after the review | Built |
+
 ## Changes and tradeoffs
 
 - **Display transform, not per-state fixtures.** Forking about 1,000 fixtures per state was
@@ -63,6 +67,12 @@ the existing screens. No screen, step or field is added.
   The cost is that the root layout is now dynamic.
 - **Gujarat's type from the sequence.** No classification field exists. `seq % 5` gives
   eCR EN on 3, eCR MA on 4, and eCC otherwise. It is stable per case and mostly eCC.
+- **Render layer over per-site wrappers.** The first build re-voiced chosen render
+  sites and missed the long tail; the review proved it. The layer is one mechanism for
+  every screen. Costs: it is a demo seam (a live build reads state data from MDMS), a
+  non-Kerala page is hidden until the layer's first pass (2s safety reveal), and
+  switching courts reloads. Text typed into inputs is not rewritten; filing drafts are
+  re-voiced as they load instead, and order text is filled from re-voiced facts.
 - **Assumptions to confirm:**
   - Talwana ₹50 is billed per process.
   - The Punjab CNR prefix `PBXX03` is a placeholder.
@@ -72,24 +82,27 @@ the existing screens. No screen, step or field is added.
 
 ## Verification and open work
 
-- **Automated.** `lib/court/*.test.ts`: 12 tests pass. App suite: 1122 pass, 3 fail. The 3
-  failures are the oath tests in `queue.test.ts` and `sample-drafts.test.ts`, which fail
-  identically on `origin/main`.
-- **DS gates.** tokens, typography, ui-sync and table-rows pass. Spacing fails only on the
-  pre-existing `companion-rail.tsx:226 gap-3.5`, which is also on `origin/main`. ESLint is
-  clean on changed files.
-- **Render.** Playwright against `localhost:3001` (this checkout, `feature/court-switch`):
-  - `/settings` checked at desktop (light) and 375px (dark).
-  - In-place switch and persistence across navigation.
-  - Court rail, court sign-in, signing document dialog, filing Sign step, and the Punjab
-    fee bill (₹62 + ₹100 + ₹100).
-  - 20 routes swept in Haryana: 0 Kerala-format numbers or "ON Court" left on the 17 that
-    resolved. The other 3 were guessed URLs that don't exist (404).
-- **Not checked.** Screen readers, every dialog and peek, download filenames (these still
-  carry the Kerala number).
+- **Review, 2026-10-08.** Every route on both sides captured with Playwright against
+  :3001 on this branch: Gujarat explored through tabs, menus and dialogs (about 800
+  states), Punjab and Haryana screen by screen (100 each). Each capture was checked for
+  Kerala places (127, from `places.ts`), house names, "Kerala", "Malayalam", Malayalam
+  script, Kerala case, filing and CNR numbers, Bar numbers, PINs, "24×7 ON Court", Kerala
+  fee heads and, in Punjab, "Sign and oath". Checks covered visible text, aria-labels,
+  titles, placeholders, form values and the tab title.
+  - Before the fix: 481 of 998 captures still showed Kerala. This is an undercount: that
+    pass did not yet know Kollam's villages or house names.
+  - After the fix: 0 of 984, with no console or hydration errors.
+  - Annotated before/after review: https://claude.ai/artifact/J2xNRip6MxeHXbPmYnfz8J
+- **Kerala.** Unchanged: smoke-checked on Settings, hearings, a case, registrations and
+  cognizance, with no errors.
+- **Automated.** `lib/court/*.test.ts` (19) pass. App suite: 1129 pass, 3 fail. The 3
+  failures are the oath tests, which also fail on `origin/main`. DS gates pass except the
+  pre-existing `companion-rail.tsx` spacing finding.
 - **Open.**
-  - Real logos, court names and Punjab CNR codes.
-  - Confirm the Talwana unit.
-  - The vakalatnama court list still offers Kerala stub courts (Ernakulam, Kochi).
-  - The landing page placeholder copy still says "24×7 ON Courts".
-  - Not committed or PR'd.
+  - Real logos and court names.
+  - Punjab's CNR district code.
+  - Talwana unit.
+  - People's names stay Malayali (owner to decide).
+  - Malayalam second-language copy needs state translations.
+  - Download filenames still carry Kerala numbers.
+  - Sample geography is town-by-town, not district-consistent.

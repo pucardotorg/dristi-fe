@@ -61,6 +61,9 @@ export function CourtSetting() {
           if (isCourtId(next)) setCourt(next);
         }}
         aria-labelledby="court-setting-title"
+        // Each card shows its own state's terms whichever court is selected, so the
+        // text layer must leave them alone.
+        data-court-raw=""
         className="grid grid-cols-1 gap-3 sm:grid-cols-2"
       >
         {COURT_IDS.map((id) => {

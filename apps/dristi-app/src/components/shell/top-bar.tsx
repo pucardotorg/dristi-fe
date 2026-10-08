@@ -35,6 +35,7 @@ import {
   SegmentedControlItem,
 } from "@/components/ui/segmented-control";
 import { LOCALES, pick, ui, type Locale } from "@/lib/onboarding/content";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * The one breadcrumb in the app. Route-aware: Tasks › the task › the action. The task
@@ -57,7 +58,13 @@ function useTrail() {
    * which is what a screen reached directly deserves.
    */
   const root = crumbRoot ?? areaOf(pathname);
-  return { crumbs, root };
+  /* Screens publish their crumbs in the fixtures' Kerala terms — a case number, a step
+     name. The trail shows them as the selected court does (Settings → Court). */
+  const courtText = useCourtText();
+  return {
+    crumbs: crumbs.map((crumb) => ({ ...crumb, label: courtText(crumb.label) })),
+    root: { ...root, label: courtText(root.label) },
+  };
 }
 
 /** Every crumb, linked, in order. Shared by the wide bar and the phone's opened row. */

@@ -34,6 +34,9 @@ export default async function RootLayout({
       lang="en"
       dir="ltr"
       suppressHydrationWarning
+      // Another state's court is drawn hidden until its text layer has run once
+      // (`CourtTextLayer`, `chrome.css`), so Kerala's words never flash first.
+      data-court-pending={court === "kerala" ? undefined : ""}
       className="h-full antialiased"
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">

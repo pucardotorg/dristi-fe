@@ -73,9 +73,63 @@ test("a number typed the way a state shows it finds the Kerala record underneath
   assert.equal(caseSearchKey("eCR EN/58/2025"), "58/2025");
   assert.equal(caseSearchKey("eCC/6"), "6");
   assert.equal(caseSearchKey("GJ-000049-2025"), "kl-000049-2025");
-  assert.equal(caseSearchKey("HRPK030000232025"), "klkm520000232025");
+  assert.equal(caseSearchKey("HRPK030000232025"), "0000232025");
   // Kerala queries and names are only lower-cased.
   assert.equal(caseSearchKey("ST/6/2025"), "st/6/2025");
   assert.equal(caseSearchKey("Anand Traders"), "anand traders");
   assert.ok("st 241/2026".includes(caseSearchKey("NACT/241/2026")));
+});
+
+test("scrutiny's Ahmedabad filing numbers stay in Gujarat and become NACT elsewhere", () => {
+  assert.equal(localizeCaseNumber("F/AHM/2026/00319", "gujarat"), "F/AHM/2026/00319");
+  assert.equal(localizeCaseNumber("F/AHM/2026/00319", "haryana"), "NACT/319/2026");
+  assert.equal(localizeCaseNumber("F/AHM/2026/00319", "kerala"), "F/AHM/2026/00319");
+});
+
+test("Kerala's sample places, PIN codes and Bar numbers move to the state", () => {
+  assert.equal(
+    localizeCourtText("Sreenilayam, Chinnakada, Kollam, Kerala — 691001", "gujarat"),
+    "Shanti Kunj, Navrangpura, Ahmedabad, Gujarat — 381001",
+  );
+  assert.equal(localizeCourtText("Kollam East police station", "haryana"), "Panchkula East police station");
+  assert.equal(localizeCourtText("Kerala Gramin Bank, Punalur", "punjab"), "Punjab Gramin Bank, Khanna");
+  assert.equal(localizeCourtText("Court language: Malayalam", "gujarat"), "Court language: Gujarati");
+  assert.equal(localizeCourtText("KL/1109/2009 · K/1234/2020", "haryana"), "HR/1109/2009 · P/1234/2020");
+  // Amounts and longer numbers are not PIN codes.
+  assert.equal(localizeCourtText("₹6,91,001 · 6910012345", "gujarat"), "₹6,91,001 · 6910012345");
+  assert.equal(localizeCourtText("Cheque number 691234", "gujarat"), "Cheque number 691234");
+  assert.equal(localizeCourtText("PIN 690518", "punjab"), "PIN 140518");
+  const once = localizeCourtText("Chinnakada, Kollam 691001", "punjab");
+  assert.equal(localizeCourtText(once, "punjab"), once);
+  assert.equal(localizeCourtText("Chinnakada, Kollam", "kerala"), "Chinnakada, Kollam");
+});
+
+test("the scrutiny queue's Ahmedabad filings stay in Gujarat and move elsewhere", () => {
+  const address = "335, Sardar Complex, Nikol, Ahmedabad, Gujarat — 380008";
+  assert.equal(localizeCourtText(address, "gujarat"), address);
+  assert.equal(localizeCourtText(address, "haryana"), "335, Sardar Complex, Nikol, Panchkula, Haryana — 130008");
+});
+
+test("names in Malayalam script, Bar applications and lone PIN fields follow the state", () => {
+  assert.equal(localizeCourtText("അനിൽകുമാർ പി. നായർ", "gujarat"), "અનિલકુમાર પી. નાયર");
+  assert.equal(localizeCourtText("KL-ADV-000164-2026", "haryana"), "HR-ADV-000164-2026");
+  assert.deepEqual(localizeDeep({ pin: "680664", cheque: "680664" }, "punjab"), { pin: "140664", cheque: "680664" });
+});
+
+test("CNRs from any Kerala establishment take the state's prefix", () => {
+  assert.equal(localizeCaseNumber("KLKM010016292025", "punjab"), "PBXX030016292025");
+});
+
+test("house names and the scrutiny queue's Gujarat Bar numbers follow the state", () => {
+  assert.equal(localizeCourtText("Puthenveedu, Market Road, Kodungallur", "punjab"), "Guru Kripa, Market Road, Kapurthala");
+  assert.equal(localizeCourtText("G/111/2011", "haryana"), "P/111/2011");
+  assert.equal(localizeCourtText("G/111/2011", "gujarat"), "G/111/2011");
+});
+
+test("every Kerala locality in the data has a stand-in, the same one each time", () => {
+  const once = localizeCourtText("Thevally, Asramam and Mundakkal", "gujarat");
+  assert.doesNotMatch(once, /Thevally|Asramam|Mundakkal/);
+  assert.equal(localizeCourtText("Thevally", "gujarat"), localizeCourtText("Thevally", "gujarat"));
+  assert.equal(localizeCourtText("Bar Council of Kerala", "haryana"), "Bar Council of Punjab and Haryana");
+  assert.equal(localizeCourtText("Bar Council of Kerala", "gujarat"), "Bar Council of Gujarat");
 });

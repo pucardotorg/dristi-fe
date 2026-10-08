@@ -997,6 +997,7 @@ function CourtSettingsControl() {
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Court</DropdownMenuLabel>
         <DropdownMenuRadioGroup
+          data-court-raw=""
           value={court}
           onValueChange={(next) => {
             if (isCourtId(next)) setCourt(next);

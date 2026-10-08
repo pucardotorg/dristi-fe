@@ -26,6 +26,15 @@
  * - **Signing.** Punjab's filing step is "Sign", where the others' is "Sign and oath".
  */
 
+import {
+  BAR_PREFIX,
+  COURT_LANGUAGE,
+  KERALA_PLACE_PATTERN,
+  PIN_PREFIX,
+  PLACES,
+  HOUSE_NAMES,
+  SCRIPT_NAMES,
+} from "./places";
 import { courtProfile, type CourtId, type CourtProfile } from "./profiles";
 
 /**
@@ -65,6 +74,51 @@ const NAME_RULES: Rule[] = [
   [/\bJMFC COURT (\d+)\b(?!,)/g, (p, n) => `JMFC COURT ${n}, ${p.state.toUpperCase()}`],
 ];
 
+/**
+ * Kerala's sample geography and the state's other marks — places, the state's own
+ * name, its court language, PIN codes and Bar Council numbers (`places.ts`). Run after
+ * the court names, so "24×7 ON Court" is never read as containing a place.
+ */
+const PLACE_RULES: Rule[] = [
+  [KERALA_PLACE_PATTERN, (p, place) => PLACES[p.id]?.[place] ?? place],
+  // The Bar Council is a body, not a place: Punjab and Haryana share one.
+  [
+    /\bBar Council of Kerala\b/g,
+    (p) => `Bar Council of ${p.id === "gujarat" ? "Gujarat" : "Punjab and Haryana"}`,
+  ],
+  [/\bKerala\b/g, (p) => p.state],
+  // The scrutiny queue's sample filings are Ahmedabad's: right for Gujarat as they stand,
+  // and moved to the state's demo district everywhere else.
+  [/\bAhmedabad\b/g, (p) => (p.id === "gujarat" ? "Ahmedabad" : (PLACES[p.id]?.Kollam ?? "Ahmedabad"))],
+  [/\bGujarat\b/g, (p) => (p.id === "gujarat" ? "Gujarat" : p.state)],
+  [/\bKERALA\b/g, (p) => p.state.toUpperCase()],
+  [/\bMalayalam\b/g, (p) => COURT_LANGUAGE[p.id] ?? "Malayalam"],
+  [
+    new RegExp(`(${Object.keys(SCRIPT_NAMES).join("|")})`, "g"),
+    (p, name) => SCRIPT_NAMES[name]?.[p.id] ?? name,
+  ],
+  // Kerala's PIN codes (67xxxx–69xxxx) move to the state's postal circle — only where an
+  // address puts them (after a place, a dash or "PIN"), so a cheque number is left alone.
+  [
+    /(?<=(?:PIN(?: code)?\s*:?\s*|[—–-]\s*|[A-Z][a-z]+,?\s))(6[7-9]|3[6-9])(\d{4})\b/g,
+    // Gujarat's own (36–39) are the scrutiny queue's: kept in Gujarat, moved elsewhere.
+    (p, circle, rest) =>
+      circle.startsWith("3") && p.id === "gujarat"
+        ? `${circle}${rest}`
+        : `${PIN_PREFIX[p.id] ?? circle}${rest}`,
+  ],
+  // Kerala Bar Council enrolments: "KL/1109/2009" and the short "K/1234/2020".
+  [/\bKL\/(\d+\/\d{4})\b/g, (p, rest) => `${BAR_PREFIX[p.id]?.long ?? "KL"}/${rest}`],
+  [/\bK\/(\d+\/\d{4})\b/g, (p, rest) => `${BAR_PREFIX[p.id]?.short ?? "K"}/${rest}`],
+  // The scrutiny queue's advocates are Gujarat's (G/…, GJ/…): kept there, moved elsewhere.
+  [/\bGJ\/(\d+\/\d{4})\b/g, (p, rest) => `${p.id === "gujarat" ? "GJ" : (BAR_PREFIX[p.id]?.long ?? "GJ")}/${rest}`],
+  [/\bG\/(\d+\/\d{4})\b/g, (p, rest) => `${p.id === "gujarat" ? "G" : (BAR_PREFIX[p.id]?.short ?? "G")}/${rest}`],
+  [
+    new RegExp(`\\b(${Object.keys(HOUSE_NAMES).join("|")})\\b`, "g"),
+    (p, house) => HOUSE_NAMES[house]?.[p.id] ?? house,
+  ],
+];
+
 const NUMBER_RULES: Rule[] = [
   [
     /\bKL-(\d{6})-(\d{4})\b/g,
@@ -85,7 +139,18 @@ const NUMBER_RULES: Rule[] = [
     (p, seq, year) =>
       p.numbering.kind === "nact" ? `NACT/${seq}/${year}` : `eCC/${seq}/${year}`,
   ],
-  [/\bKLKM52(\d{10})\b/g, (p, rest) => `${p.cnrPrefix}${rest}`],
+  // KLKM + the two-digit establishment code — 52 for the 24×7 court, others for the
+  // district's benches — then the sequence and year.
+  [/\bKLKM\d{2}(\d{10})\b/g, (p, rest) => `${p.cnrPrefix}${rest}`],
+  // Other platform numbers carry the tenant too: an advocate's registration application.
+  [/\bKL-([A-Z]+-\d+-\d{4})\b/g, (p, rest) => `${p.cnrPrefix.slice(0, 2)}-${rest}`],
+  // The scrutiny queue's filing numbers are Ahmedabad's (`F/AHM/2026/00319`) — right for
+  // Gujarat as they stand, and the platform's NACT filing number for Punjab and Haryana.
+  [
+    /\bF\/AHM\/(\d{4})\/(\d+)\b/g,
+    (p, year, seq) =>
+      p.numbering.kind === "nact" ? `NACT/${Number(seq)}/${year}` : `F/AHM/${year}/${seq}`,
+  ],
 ];
 
 function apply(text: string, rules: Rule[], profile: CourtProfile): string {
@@ -112,8 +177,14 @@ export function localizeCaseNumber(value: string, court: CourtId): string {
 export function localizeCourtText(text: string, court: CourtId): string {
   const profile = courtProfile(court);
   if (profile.numbering.kind === "kerala") return text;
-  return apply(apply(text, NAME_RULES, profile), NUMBER_RULES, profile);
+  return apply(
+    apply(apply(text, NAME_RULES, profile), PLACE_RULES, profile),
+    NUMBER_RULES,
+    profile,
+  );
 }
+
+const PIN_FIELD = /^(?:pin|pinCode|pincode|postalCode)$/;
 
 function isPlainObject(value: object): boolean {
   const proto = Object.getPrototypeOf(value);
@@ -134,7 +205,16 @@ export function localizeDeep<T>(value: T, court: CourtId): T {
     if (typeof v === "string") return localizeCourtText(v, court);
     if (Array.isArray(v)) return v.map(walk);
     if (v && typeof v === "object" && isPlainObject(v) && !("$$typeof" in v)) {
-      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+      return Object.fromEntries(
+        Object.entries(v).map(([k, x]) => [
+          k,
+          // A PIN on its own has no address around it to be recognised by, so the field
+          // name says what it is.
+          PIN_FIELD.test(k) && typeof x === "string"
+            ? localizeCourtText(`PIN ${x}`, court).slice(4)
+            : walk(x),
+        ]),
+      );
     }
     return v;
   };
@@ -158,5 +238,5 @@ export function caseSearchKey(query: string): string {
     .toLowerCase()
     .replace(/\b(?:e\s*cr\s*(?:en|ma)|e\s*cc|nact)\s*\//g, "")
     .replace(/\b(?:gj|pb|hr)-(?=\d)/g, "kl-")
-    .replace(/\b(?:gjah01|hrpk03|pbxx03)/g, "klkm52");
+    .replace(/\b(?:gjah01|hrpk03|pbxx03)/g, "");
 }

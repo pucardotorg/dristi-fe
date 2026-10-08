@@ -59,6 +59,7 @@ import {
   causeTitleOf,
   courtDocumentOf,
 } from "@/lib/employee/application-tasks";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * One application task, answered (`handovers/application-lifecycle.md`, "The decision
@@ -119,6 +120,7 @@ function TaskBody({
   all: LifecycleApplication[];
   onReturnFocus: () => void;
 }) {
+  const courtText = useCourtText();
   const seat = useCourtRole() as CourtSeat;
   const on = today();
   const record = caseOf(application);
@@ -181,12 +183,16 @@ function TaskBody({
     );
   }
 
+  /* Written in the selected court's numbers (Settings → Court), since the order is
+     drafted from it as it reads here. */
   function orderText(kind: "dismiss" | "accept" | "reject"): string {
-    if (kind === "dismiss") return dismissalText(application, filedOn);
-    return decisionText(
-      application,
-      kind,
-      newHearingOn ? formatCaseDate(newHearingOn) : undefined,
+    if (kind === "dismiss") return courtText(dismissalText(application, filedOn));
+    return courtText(
+      decisionText(
+        application,
+        kind,
+        newHearingOn ? formatCaseDate(newHearingOn) : undefined,
+      ),
     );
   }
 

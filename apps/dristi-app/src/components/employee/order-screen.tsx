@@ -169,7 +169,8 @@ import {
   type OrderTemplateId,
 } from "@/lib/employee/order-templates";
 import { Identifier } from "@/components/chrome/identifier";
-import { useCourtText } from "@/components/court/court-provider";
+import { useCourt, useCourtText } from "@/components/court/court-provider";
+import { localizeDeep } from "@/lib/court/localize";
 
 /**
  * The composer's own read-then-sign overlay — the shared two-stage flow the four signing
@@ -420,7 +421,10 @@ const NO_SCROLLBAR = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 const WELL_CLASS = "rounded-lg border border-hairline bg-surface-sunken p-4";
 
 export function OrderScreen({ hearingId }: { hearingId: string }) {
-  const hearing = hearingById(hearingId);
+  // The order is written from this listing — its parties' names and places too — so it
+  // is read in the selected court's terms (Settings → Court).
+  const { court } = useCourt();
+  const hearing = localizeDeep(hearingById(hearingId), court);
   if (!hearing) return <OrderMissing />;
   /* Keyed on the listing so advancing to the next item opens a composer at the top of
      itself rather than inheriting this one's transient state. The draft is not in that
@@ -457,6 +461,8 @@ function OrderMissing() {
 }
 
 function OrderReady({ hearing }: { hearing: CourtHearing }) {
+  // Order text is filled in the selected court's names and numbers (Settings → Court).
+  const { court } = useCourt();
   const courtText = useCourtText();
   const router = useRouter();
   const session = useHearingSession();
@@ -736,7 +742,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
     const item = createOrderItem(
       type,
       undefined,
-      orderTemplateFacts(hearing, draft, today, context),
+      localizeDeep(orderTemplateFacts(hearing, draft, today, context), court),
       /* `variables` is only ever supplied for a process type — `needsProcessVariables`
          gates the row that collects it (`OrderItems`, below) — so `type` is never
          `"others"` on this branch. */
@@ -782,7 +788,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
        offers it), so the type is never `"others"` and this cast is safe. */
     const type = item.type as OrderTemplateId;
     const resolved = fillPartyVariables(
-      fillGeneralVariables(orderTemplate(type).botd, orderTemplateFacts(hearing, draft, today)),
+      fillGeneralVariables(orderTemplate(type).botd, localizeDeep(orderTemplateFacts(hearing, draft, today), court)),
       type,
       processParties(variables),
     );
@@ -959,7 +965,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
    * this screen's.
    */
   const candidates = suggestCandidates(
-    orderTemplateFacts(hearing, draft, today),
+    localizeDeep(orderTemplateFacts(hearing, draft, today), court),
     catalogue,
     suggestions.map((entry) => entry.template.id),
   );
@@ -1007,7 +1013,7 @@ function OrderReady({ hearing }: { hearing: CourtHearing }) {
       const item = createOrderItem(
         type,
         nextOrderItemId(),
-        orderTemplateFacts(hearing, draft, today),
+        localizeDeep(orderTemplateFacts(hearing, draft, today), court),
       );
       setDraft((current) => ({ ...current, items: [...current.items, item] }));
       const open = openSlots(item.text.text);
@@ -2190,6 +2196,7 @@ function OrderItems({
   /** The case a process order's confirmation pre-selects from (`AUT-05`–`AUT-08`). */
   processMatter: CaseMatter;
 }) {
+  const courtText = useCourtText();
   const [query, setQuery] = React.useState("");
   const [openGroup, setOpenGroup] = React.useState<OrderGroupId | null>(null);
   const { boxRef, contentRef, edges, measure } = useScrollEdges();
@@ -2397,7 +2404,8 @@ function OrderItems({
                of these, they do not work down them. */
                 <ol className="flex min-w-0 flex-col gap-2">
                   {suggestions.map((suggestion) => {
-                    const caption = suggestionCaption(suggestion);
+                    const raw = suggestionCaption(suggestion);
+                    const caption = raw === null ? null : courtText(raw);
                     return (
                       <li key={suggestion.template.id} className="min-w-0">
                         <Button
@@ -2514,7 +2522,7 @@ function OrderItems({
                 <ul className="flex min-w-0 flex-col gap-0.5 py-1">
                   <CatalogueRow
                     label={othersRow.label}
-                    caption={othersRow.caption}
+                    caption={othersRow.caption ? courtText(othersRow.caption) : othersRow.caption}
                     reason={othersRow.reason}
                     onSelect={othersRow.select}
                   />
