@@ -1,49 +1,45 @@
 /**
- * Process the court has issued and has still to get out of the building — the signing
- * line for summons, notices, warrants and proclamations, as data.
+ * Process the court has issued — summons, notices, warrants and proclamations — from the
+ * moment it waits on a cover to the moment its channel reports back, as data.
  *
- * The other four signing queues in the rail's Sign group each hold one act: a form, an
- * order, a bail bond, a deposition, signed and gone. This one is not a queue, it is a
- * **line**. A process is drawn up, its RPAD cover is collected, it is sent for
- * signature, it is signed, it is dispatched, and the channel reports back. Five stages,
- * and the reference screens draw them as five tabs of one screen because they are five
- * views of the same row moving.
+ * **Three tabs, cut by who the process is waiting on** (owner, 2026-10-06). The line
+ * used to be five tabs, one per stage, which made three of them statuses of the same
+ * thing and sent the bench across tabs to do one job. What actually changes the work is
+ * whose move it is:
  *
- * **What this screen owns is getting process out; whether it arrived is somewhere
- * else.** The case file's Notice/Process status section (`lib/cases/service.ts`) holds
- * what came back — served, returned undelivered, returned unexecuted — party by party
- * and round by round. That is a record of the outside world, authored from the court
- * file. This is the court's own worklist, and it stops at the point the process leaves.
- * `completed` here means the channel has closed the round off, not that anybody was
- * found.
+ * - **RPAD collection** waits on the advocate. A registered-post process cannot be signed
+ *   until its cover is in the court's hands; nothing else waits here.
+ * - **Issuance** waits on the court. Everything to sign, from every channel; the
+ *   registered-post covers that are signed and still to be taken to the post office; and
+ *   any electronic send the channel refused. A process leaves this tab only when it has
+ *   actually left the court.
+ * - **Service** waits on the channel: out, and then back — completed or failed.
  *
- * **There is no backend and nothing here is signed, sent or served.** `PROCESS_LINE` is
- * demo data shaped to exercise what the screen has to survive: all five process types,
- * all three channels, one case carrying three separate processes, corporate parties long
- * enough to wrap, hearing dates spread across months so the date filter has something to
- * cut on, and enough rows in the three working stages to page at 10, 20 and 30.
+ * Inside a tab, the statuses are pills, not tabs: one at a time, with All to see the tab
+ * whole. The tab is the job; the pill narrows it.
  *
- * **Advancing a row is a screen action, not a court record.** `advanceProcesses` moves a
- * row from one stage to the next in this in-memory list and stamps a day on it. It signs
- * nothing, prints nothing, calls no e-sign provider, posts nothing and notifies nobody.
- * The copy describes what each act *means* so the controls are not misread; the build
- * performs none of it.
+ * **Signing is not sending for registered post** (owner, 2026-10-06). An electronic
+ * channel goes out the moment the process is signed — SMS, email, the police through
+ * ICOPS. A registered-post cover is signed in a batch and taken to the post office later,
+ * so it waits under *To post* until someone marks it posted. A send can also fail before
+ * the process ever leaves (ICOPS not answering); that is still the court's to fix, so it
+ * waits under *Send failed* in the same tab, not under Service.
  *
- * **The process wording is demo text, not court-approved process.** Each type has a
- * template filled from the row's own particulars, so the preview has something
- * real-shaped to render. `docs/product/` defines no §138 process templates, and the rows
- * carry no sums, addresses or process-fee figures — the templates therefore recite none.
- * The statutory hooks they do name are the ones `docs/product/domain/journey.md` already
- * cites for this stage of a §138 case.
+ * **What came back is the channel's word, and only registered post is recorded by hand.**
+ * Electronic channels report their own outcome. A registered-post acknowledgement comes
+ * back to the court as paper, and the clerk records it — in bulk, from the stack of
+ * returned covers, using the same type-the-number-then-Enter gesture the covers came in
+ * by. The case file's Notice/Process status section (`lib/cases/process-status.ts`) is
+ * the party-by-party record of service; this is the court's own worklist.
  *
- * The type names are the reference screens' own words, put into sentence case per the DS
- * Laws. "DCA notice" is left as the reference writes it: `docs/product/` does not define
- * the abbreviation, and expanding it here would be this module deciding what it stands
- * for. See the build report.
+ * **There is no backend and nothing here is signed, sent, posted or served.**
+ * `PROCESS_LINE` is demo data, and every act below moves a row's status in memory and
+ * stamps a day. The one demo-only field, `demoSendFailure`, is how the line shows where a
+ * refused send lands; a real channel decides that for itself.
  *
- * Numbers are `ST/…` and `CMP/…` both — process can issue before cognizance (a §223
- * notice on a complaint still numbered CMP) or after it. None of these rows overlap any
- * other court-side queue.
+ * **The process wording is demo text, not court-approved process** — see
+ * `buildProcessDocument`. Numbers are `ST/…` and `CMP/…` both: process can issue before
+ * cognizance (a §223 notice on a complaint still numbered CMP) or after it.
  */
 
 import { CURRENT_STAFF } from "./content";
@@ -51,22 +47,19 @@ import { matchesQuery } from "./filter-state";
 import { causeTitle, formatListingDate, parseIsoDay } from "./hearings";
 
 /**
- * Which instrument the row is — the reference's "Process type" column.
+ * Which instrument the row is — the "Process type" column.
  *
- * Five, and only these: a row must have a type the templates below can actually write,
- * and a type with no template is a preview that renders nothing. Summons, warrant and
- * proclamation are the case register's own words for the same three instruments
- * (`lib/cases/orders.ts`), restated rather than imported for the reason
- * `sign-orders.ts` restates the register's order titles — the employee area stays
- * self-contained (`content.ts`), and the *words* are the register's so the two halves of
- * the app cannot disagree about what a proclamation is called.
+ * Five, and only these: a row must have a type the templates below can actually write.
+ * The words are the case register's own (`lib/cases/orders.ts`), restated rather than
+ * imported because the employee area stays self-contained (`content.ts`).
  */
 export type CourtProcessTypeId =
   | "summons"
   | "section-223-notice"
   | "dca-notice"
   | "warrant"
-  | "proclamation";
+  | "proclamation"
+  | "attachment";
 
 export const COURT_PROCESS_TYPES: {
   id: CourtProcessTypeId;
@@ -75,65 +68,125 @@ export const COURT_PROCESS_TYPES: {
   /**
    * How it is written inside a sentence: "Read the summons in ST/1301/2026".
    *
-   * Carried rather than lower-cased from `label`, because two of the five do not survive
-   * that. "DCA notice" lower-cased is "dca notice", which is a screen reader being told
-   * to say a word rather than four letters; "Section 223 notice" keeps its capital
-   * because it names a section. Both of these strings are read aloud far more often than
-   * they are seen — they are the accessible names of every row opener and every checkbox
-   * on the screen (ACCESSIBILITY §2, §9).
+   * Carried rather than lower-cased from `label`, because "DCA notice" lower-cased is a
+   * screen reader told to say a word rather than four letters, and "Section 223 notice"
+   * keeps its capital because it names a section (ACCESSIBILITY §2, §9).
    */
   inline: string;
+  /**
+   * Whether the channel *executes* it rather than delivering it — the word its outcome
+   * is written in. A warrant or a proclamation is executed or not executed; a summons or
+   * notice is delivered or not delivered. The reference's Completed tab uses both.
+   */
+  executed: boolean;
 }[] = [
-  { id: "summons", label: "Summons", inline: "summons" },
-  /* The statutory short form keeps its capital and its number, like BNSS and ADR
-     elsewhere in this area. */
+  { id: "summons", label: "Summons", inline: "summons", executed: false },
   {
     id: "section-223-notice",
     label: "Section 223 notice",
     inline: "Section 223 notice",
+    executed: false,
   },
-  { id: "dca-notice", label: "DCA notice", inline: "DCA notice" },
-  { id: "warrant", label: "Warrant", inline: "warrant" },
-  { id: "proclamation", label: "Proclamation", inline: "proclamation" },
+  { id: "dca-notice", label: "DCA notice", inline: "DCA notice", executed: false },
+  { id: "warrant", label: "Warrant", inline: "warrant", executed: true },
+  {
+    id: "proclamation",
+    label: "Proclamation",
+    inline: "proclamation",
+    executed: true,
+  },
+  /* From #43 (2026-10-01): the handover's sixth process type with a police channel,
+     executed like the other two (§6.3, §10.1 of `handovers/process-handover.md`). */
+  { id: "attachment", label: "Attachment", inline: "attachment", executed: true },
 ];
 
+function processType(id: CourtProcessTypeId) {
+  const entry = COURT_PROCESS_TYPES.find((type) => type.id === id);
+  if (!entry) throw new Error(`Unknown process type: ${id}`);
+  return entry;
+}
+
 export function courtProcessTypeLabel(id: CourtProcessTypeId): string {
-  return COURT_PROCESS_TYPES.find((entry) => entry.id === id)?.label ?? id;
+  return processType(id).label;
 }
 
 /** The same instrument, named mid-sentence. See `inline` above. */
 export function courtProcessTypeInline(id: CourtProcessTypeId): string {
-  return COURT_PROCESS_TYPES.find((entry) => entry.id === id)?.inline ?? id;
+  return processType(id).inline;
 }
 
 /**
- * How the process will be delivered — the reference's "Delivery channel" column.
+ * How the process goes out — the "Delivery channel" column.
  *
- * Three, and all three are channels the app's own case-file record already names
- * (`lib/cases/service-dummy.json`: "Police", "Police + RPAD", "Court bailiff"). RPAD is
- * registered post with acknowledgement due — the speed-post route `journey.md` §5 says a
- * summons may take, and the only one of the three that needs anything collected before
- * the court can sign.
+ * The four the owner named for this court (2026-10-06): registered post, the police
+ * through ICOPS, SMS and email. They split two ways, and the split is the whole reason
+ * Issuance has a To post pill:
+ *
+ * - **post** — paper. A cover is collected before signing, and after signing it still has
+ *   to be carried to the post office. Its outcome comes back as paper too, so the clerk
+ *   records it.
+ * - **electronic** — the system sends it on signing and the channel reports back by
+ *   itself. Its send can fail before it leaves.
  */
-export type ProcessChannelId = "rpad" | "police" | "court-bailiff";
+export type ProcessChannelId = "rpad" | "police" | "sms" | "email";
 
-export const PROCESS_CHANNELS: { id: ProcessChannelId; label: string }[] = [
+export type ProcessChannel = {
+  id: ProcessChannelId;
+  label: string;
+  dispatch: "post" | "electronic";
+  /** What the channel is reached through, where that is not the channel's own name. */
+  via?: string;
+};
+
+export const PROCESS_CHANNELS: ProcessChannel[] = [
   // An abbreviation the court uses as a word; it keeps its capitals.
-  { id: "rpad", label: "RPAD" },
-  { id: "police", label: "Police" },
-  { id: "court-bailiff", label: "Court bailiff" },
+  { id: "rpad", label: "RPAD", dispatch: "post" },
+  { id: "police", label: "Police", dispatch: "electronic", via: "ICOPS" },
+  { id: "sms", label: "SMS", dispatch: "electronic" },
+  { id: "email", label: "Email", dispatch: "electronic" },
 ];
 
-export function processChannelLabel(id: ProcessChannelId): string {
-  return PROCESS_CHANNELS.find((entry) => entry.id === id)?.label ?? id;
+function processChannel(id: ProcessChannelId): ProcessChannel {
+  const entry = PROCESS_CHANNELS.find((channel) => channel.id === id);
+  if (!entry) throw new Error(`Unknown process channel: ${id}`);
+  return entry;
 }
 
-/** Where a row has got to in the line. The tab it appears under. */
-export type ProcessStageId =
-  | "pending-rpad-collection"
-  | "pending-sign"
-  | "signed"
-  | "sent"
+export function processChannelLabel(id: ProcessChannelId): string {
+  return processChannel(id).label;
+}
+
+/** Whether a process travels as paper — the one fact every fork on this screen reads. */
+export function goesByPost(process: Pick<CourtProcess, "channel">): boolean {
+  return processChannel(process.channel).dispatch === "post";
+}
+
+/**
+ * Why a registered-post cover came back unserved — the reasons the reference's delivery
+ * dialog offers, word for word bar sentence case.
+ */
+export const NON_SERVICE_REASONS = [
+  "Address not found",
+  "Door locked",
+  "Person not present",
+  "Delivery refused",
+  "Other",
+] as const;
+
+export type NonServiceReason = (typeof NON_SERVICE_REASONS)[number];
+
+/** What the channel reported. `reason` only when it was not served. */
+export type ProcessOutcome =
+  | { served: true }
+  | { served: false; reason: NonServiceReason };
+
+/** Where a row is. The pill it appears under. */
+export type ProcessStatusId =
+  | "awaiting-cover"
+  | "to-sign"
+  | "to-post"
+  | "send-failed"
+  | "in-progress"
   | "completed";
 
 export type CourtProcess = {
@@ -142,143 +195,82 @@ export type CourtProcess = {
   parties: { complainant: string; accused: string };
   type: CourtProcessTypeId;
   channel: ProcessChannelId;
-  stage: ProcessStageId;
+  status: ProcessStatusId;
   /** ISO day the process fee was paid. Every row has one — the fee comes first. */
   paidOn: string;
-  /** The listing this process is returnable for. Always ahead of every day below. */
+  /** The listing this process is returnable for. */
   hearingDate: string;
-  /** ISO day it was drawn up and sent for signature. Absent before that happens. */
+  /** ISO day it was drawn up and sent for signature. */
   issuedOn?: string;
   /** ISO day the signature went on. */
   signedOn?: string;
-  /** ISO day it was handed to the channel. */
+  /** ISO day it left the court: sent electronically, or posted. */
   sentOn?: string;
-  /** ISO day the channel closed the round off. */
-  completedOn?: string;
+  /** Why the last electronic send did not go out. Only while `send-failed`. */
+  sendFailure?: string;
+  /** ISO day the channel's word came back. */
+  returnedOn?: string;
+  /** What that word was. Present exactly when `completed`. */
+  outcome?: ProcessOutcome;
+  /**
+   * Demo only: the refusal this row's channel gives the next time it is sent to. The
+   * line has no channel to ask, so this is how it shows where a refused send lands.
+   */
+  demoSendFailure?: string;
 };
 
 /** The court whose process this is. One bench, one line. */
 const COURT = CURRENT_STAFF.court;
 
-/**
- * What the bench does to move a stage's rows on, and the words it does it in.
- *
- * The copy lives beside the stage rather than in the screen because three acts phrased
- * three ways, each said in six places — a bar button, a question, what it means, a
- * success heading, where the rows went, and the line the bar reads out afterwards — is
- * eighteen strings that have to agree with each other. Kept here they are read as a
- * table; spread through the screen they are eighteen chances to say "sign" where the
- * act is "send".
- */
-export type ProcessAct = {
-  /** The stage a committed row lands in. */
-  advancesTo: ProcessStageId;
-  /** The sticky bar's button. `0` is the idle label. */
-  bar: (count: number) => string;
-  /** The button that commits it, inside the confirmation. */
-  confirm: string;
-  /** The confirmation's question, over "this process" or "8 processes". */
-  question: (subject: string) => string;
-  /** What the act means, at the moment of the act. */
-  meaning: (one: boolean) => string;
-  /** The success heading, over the bare "process" or "8 processes". */
-  done: (phrase: string) => string;
-  /** Where the rows went. */
-  outcome: (one: boolean) => string;
-  /** What the bar reads out once it is over. */
-  notice: (count: number) => string;
-};
-
-export type ProcessStage = {
-  id: ProcessStageId;
-  /** The tab. Sentence case, per the DS Laws. */
-  label: string;
-  /** What the page says under its title while this tab is the one open. */
-  summary: (count: number) => string;
-  /**
-   * The heading of the one column that changes with the stage, and the day under it.
-   *
-   * The reference's own device: every tab shows six columns and the fourth is named for
-   * the moment that stage is about — "Payment made" while the RPAD cover is still being
-   * collected, "Issued date" once the process has been drawn up. The three stages the
-   * reference does not draw follow the same rule rather than inventing a column.
-   */
-  dateColumn: string;
-  dateOf: (process: CourtProcess) => string | undefined;
-  /**
-   * The channel every row at this stage carries, where the stage is defined by one.
-   *
-   * Only RPAD process waits for collection: a police or bailiff round has no cover to
-   * collect and starts at Pending sign. So this stage's channel filter has one possible
-   * answer, which is why the screen does not draw one there — see `ProcessFiltersForm`.
-   */
-  onlyChannel?: ProcessChannelId;
-  /** Whether the hearing-date filter is offered. The reference omits it on the first tab. */
-  hearingDateFilter: boolean;
-  /**
-   * Whether this stage is the clerk matching paper in their hands against this list.
-   *
-   * True at exactly one stage, and the tray above the table is read off it rather than
-   * off the stage's id, so the reason travels with the data the way every other
-   * per-stage difference on this screen does.
-   *
-   * The three working stages are the same loop with the paper pointing different ways.
-   * At collection it points **at** the screen: the cover is in hand and its row has to be
-   * found, so the risk is missing one or ticking one twice and the answer is to keep
-   * everything picked visible. At signing there is no paper at all, so there is nothing
-   * to keep visible and the tray would be furniture copied for symmetry. At dispatch it
-   * points **away** from the screen — the document is produced for a cover — which is a
-   * different problem again and not this one.
-   */
-  reconcilesCovers?: boolean;
-  /** What moves a row out of here. Absent where nothing on this screen does. */
-  act?: ProcessAct;
-  /** What an empty stage means, when no filter is what emptied it. */
-  empty: { title: string; description: string };
-};
-
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
 
+/* ───────────────────────────── statuses ───────────────────────────── */
+
 /**
- * The line, in order. The tab strip is this array.
+ * Paper in the clerk's hands, matched against the list one case number at a time.
  *
- * Left to right is the direction a row travels, which is why the strip opens on the
- * first stage rather than on the biggest pile: the bench works the line from the end
- * nothing has been done to.
+ * Three moments on this screen have it — covers arriving, covers leaving for the post
+ * office, acknowledgements coming back — and they are the same gesture: type the number
+ * on the cover, press Enter, it joins the pile. `postOnly` because only registered post
+ * is paper; an SMS still out with its channel is not something anyone is holding.
  */
-export const PROCESS_STAGES: ProcessStage[] = [
+export type ProcessPile = {
+  /** The tray's name for what it is holding: "covers in hand". */
+  noun: string;
+  postOnly?: boolean;
+};
+
+export type ProcessStatus = {
+  id: ProcessStatusId;
+  tab: ProcessTabId;
+  /** The pill and the band. Sentence case, per the DS Laws. */
+  label: string;
+  /** What the pill's tooltip says the status is. */
+  hint: string;
+  /**
+   * Whether the pill carries a count. Only where the count is work still to do
+   * (owner, 2026-10-06): Completed is a record that only grows, and a number on it would
+   * be the loudest thing on the row saying the least.
+   */
+  counted: boolean;
+  /** The act that moves a row out of here, where one does on this screen. */
+  act?: ProcessActId;
+  pile?: ProcessPile;
+  /** What an empty status means, when no filter is what emptied it. */
+  empty: { title: string; description: string };
+};
+
+export const PROCESS_STATUSES: ProcessStatus[] = [
   {
-    id: "pending-rpad-collection",
-    label: "Pending RPAD collection",
-    summary: (count) =>
-      count === 1
-        ? "1 process is waiting for its registered-post cover to be collected."
-        : `${count} processes are waiting for their registered-post covers to be collected.`,
-    dateColumn: "Payment made",
-    dateOf: (process) => process.paidOn,
-    onlyChannel: "rpad",
-    hearingDateFilter: false,
-    reconcilesCovers: true,
-    act: {
-      advancesTo: "pending-sign",
-      bar: (count) =>
-        count === 0
-          ? "Send selected for signature"
-          : `Send ${count} ${plural(count, "process", "processes")} for signature`,
-      confirm: "Send for signature",
-      question: (subject) => `Send ${subject} for signature?`,
-      meaning: (one) =>
-        one
-          ? "The cover is recorded as collected and the process joins the signing queue. Nothing is signed yet."
-          : "Their covers are recorded as collected and they join the signing queue. Nothing is signed yet.",
-      done: (phrase) => `${capitalise(phrase)} sent for signature`,
-      outcome: (one) =>
-        one ? "It is now waiting to be signed." : "They are now waiting to be signed.",
-      notice: (count) =>
-        `${count} ${plural(count, "process is", "processes are")} waiting to be signed. Nothing was sent.`,
-    },
+    id: "awaiting-cover",
+    hint: "Waiting for the advocate to bring the registered-post cover.",
+    counted: true,
+    tab: "rpad-collection",
+    label: "Awaiting cover",
+    act: "collect",
+    pile: { noun: "covers in hand" },
     empty: {
       title: "No covers to collect",
       description:
@@ -286,127 +278,526 @@ export const PROCESS_STAGES: ProcessStage[] = [
     },
   },
   {
-    id: "pending-sign",
-    label: "Pending sign",
-    summary: (count) =>
-      count === 1
-        ? "1 process is waiting for your signature."
-        : `${count} processes are waiting for your signature.`,
-    dateColumn: "Issued date",
-    dateOf: (process) => process.issuedOn,
-    hearingDateFilter: true,
-    act: {
-      advancesTo: "signed",
-      bar: (count) =>
-        count === 0
-          ? "Sign selected processes"
-          : `Sign ${count} ${plural(count, "process", "processes")}`,
-      confirm: "Sign",
-      question: (subject) => `Sign ${subject}?`,
-      meaning: (one) =>
-        one
-          ? "Your signature goes on the process. This cannot be reversed."
-          : "Your signature goes on every process selected. This cannot be reversed.",
-      done: (phrase) => `${capitalise(phrase)} signed`,
-      outcome: (one) =>
-        one ? "It is ready to be sent." : "They are ready to be sent.",
-      notice: (count) =>
-        `${count} ${plural(count, "process is", "processes are")} marked signed on this screen. Nothing was signed.`,
-    },
+    id: "to-sign",
+    hint: "Issued and waiting for your signature.",
+    counted: true,
+    tab: "issuance",
+    label: "To sign",
+    act: "sign",
     empty: {
       title: "Nothing to sign",
       description: "Every process this court has issued has been signed.",
     },
   },
   {
-    id: "signed",
-    label: "Signed",
-    summary: (count) =>
-      count === 1
-        ? "1 signed process is waiting to be sent."
-        : `${count} signed processes are waiting to be sent.`,
-    dateColumn: "Issued date",
-    dateOf: (process) => process.issuedOn,
-    hearingDateFilter: true,
-    act: {
-      advancesTo: "sent",
-      bar: (count) =>
-        count === 0
-          ? "Send selected processes"
-          : `Send ${count} ${plural(count, "process", "processes")}`,
-      confirm: "Send",
-      question: (subject) => `Send ${subject}?`,
-      meaning: (one) =>
-        one
-          ? "The process is handed to its delivery channel. It cannot be recalled from this screen."
-          : "Each process is handed to its own delivery channel. They cannot be recalled from this screen.",
-      done: (phrase) => `${capitalise(phrase)} sent`,
-      outcome: (one) =>
-        one
-          ? "It is with its delivery channel."
-          : "They are with their delivery channels.",
-      notice: (count) =>
-        `${count} ${plural(count, "process is", "processes are")} marked sent on this screen. Nothing was dispatched.`,
-    },
+    id: "to-post",
+    hint: "Signed registered-post covers, to be taken to the post office.",
+    counted: true,
+    tab: "issuance",
+    label: "To post",
+    act: "post",
+    pile: { noun: "covers to post" },
     empty: {
-      title: "Nothing to send",
-      description: "Every process this court has signed is on its way.",
+      title: "Nothing to post",
+      description: "Every signed registered-post cover has gone to the post office.",
     },
   },
   {
-    id: "sent",
-    label: "Sent",
-    summary: (count) =>
-      count === 1
-        ? "1 process is out with its delivery channel."
-        : `${count} processes are out with their delivery channels.`,
-    dateColumn: "Sent on",
-    dateOf: (process) => process.sentOn,
-    hearingDateFilter: true,
-    /* Nothing on this screen moves a row out of Sent. What closes a round off is the
-       channel reporting back — an RPAD acknowledgement returned, a police or bailiff
-       return filed — which arrives from outside the court's own worklist. The tab is
-       therefore a record: readable, downloadable, and not actionable. */
+    id: "send-failed",
+    hint: "Signed, but the channel did not accept it. Resend to try again.",
+    counted: true,
+    tab: "issuance",
+    label: "Send failed",
+    act: "resend",
+    empty: {
+      title: "No failed sends",
+      description: "Every electronic process this court has signed went out.",
+    },
+  },
+  {
+    id: "in-progress",
+    hint: "Sent, and waiting for the channel to report back.",
+    counted: true,
+    tab: "service",
+    label: "In progress",
+    act: "record",
+    pile: { noun: "returns in hand", postOnly: true },
     empty: {
       title: "Nothing is out",
-      description: "No process this court has sent is still with a channel.",
+      description: "No process this court has sent is still with its channel.",
     },
   },
   {
     id: "completed",
+    hint: "The channel has reported back — served or not.",
+    counted: false,
+    tab: "service",
     label: "Completed",
-    summary: (count) =>
-      count === 1
-        ? "1 process has come back from its delivery channel."
-        : `${count} processes have come back from their delivery channels.`,
-    dateColumn: "Completed on",
-    dateOf: (process) => process.completedOn,
-    hearingDateFilter: true,
     empty: {
-      title: "Nothing has come back",
-      description: "No delivery channel has closed a round off yet.",
+      title: "Nothing has come back yet",
+      description: "No channel has reported back on a process this court sent.",
     },
   },
 ];
 
-export function processStage(id: ProcessStageId): ProcessStage {
-  const stage = PROCESS_STAGES.find((entry) => entry.id === id);
-  if (!stage) throw new Error(`Unknown process stage: ${id}`);
-  return stage;
+function processStatusEmpty(id: ProcessStatusId) {
+  return processStatus(id).empty;
+}
+
+export function processStatus(id: ProcessStatusId): ProcessStatus {
+  const entry = PROCESS_STATUSES.find((status) => status.id === id);
+  if (!entry) throw new Error(`Unknown process status: ${id}`);
+  return entry;
+}
+
+/**
+ * What a row's Status cell says: a word, and either the day it happened or — where the
+ * row went wrong — why. `warn` marks the two that went wrong; the word itself still says
+ * so, so the colour is never the only signal (DS Principles §6).
+ */
+export type ProcessStatusLine = {
+  word: string;
+  day?: string;
+  reason?: string;
+  warn: boolean;
+};
+
+export function processOutcomeWord(
+  process: Pick<CourtProcess, "type">,
+  served: boolean,
+): string {
+  const executed = processType(process.type).executed;
+  if (executed) return served ? "Executed" : "Not executed";
+  return served ? "Delivered" : "Not delivered";
+}
+
+export function processStatusLine(process: CourtProcess): ProcessStatusLine {
+  switch (process.status) {
+    case "awaiting-cover":
+      return { word: "Fee paid", day: process.paidOn, warn: false };
+    case "to-sign":
+      return { word: "Issued", day: process.issuedOn, warn: false };
+    case "to-post":
+      return { word: "Signed", day: process.signedOn, warn: false };
+    case "send-failed":
+      return { word: "Send failed", reason: process.sendFailure, warn: true };
+    case "in-progress":
+      return { word: "Sent", day: process.sentOn, warn: false };
+    case "completed": {
+      /* Completed holds both answers a channel gives (owner, 2026-10-06): served, with
+         the day; or not, with why. Not served is a kind of completion, not a pill. */
+      const outcome = process.outcome;
+      if (outcome && !outcome.served) {
+        return {
+          word: processOutcomeWord(process, false),
+          reason: outcome.reason,
+          warn: true,
+        };
+      }
+      return {
+        word: processOutcomeWord(process, true),
+        day: process.returnedOn,
+        warn: false,
+      };
+    }
+  }
+}
+
+/* ───────────────────────────── tabs ───────────────────────────── */
+
+export type ProcessTabId = "rpad-collection" | "issuance" | "service";
+
+/** One status, or the whole tab. */
+export type ProcessView = ProcessStatusId | "all";
+
+export type ProcessTab = {
+  id: ProcessTabId;
+  /** The tab. Sentence case, per the DS Laws. */
+  label: string;
+  /** Its statuses, in the order the pills and the bands under All show them. */
+  statuses: ProcessStatusId[];
+  /** The pill a tab opens on — the status the work is in. */
+  defaultView: ProcessView;
+  /**
+   * What the tab's count counts — only the statuses that are work. The whole of RPAD
+   * collection and Issuance; on Service, In progress alone, because a registered-post
+   * process out with its channel is a return the court will have to record, and
+   * Completed is a record that only grows (owner, 2026-10-06).
+   */
+  countedStatuses: ProcessStatusId[];
+  /**
+   * The fifth column's heading. "Payment made" on the one-status tab, as the reference
+   * draws it; "Status" where a tab holds several and the row has to say which.
+   */
+  dateColumn: string;
+  /**
+   * The channel every row here carries, where the tab is defined by one. Only RPAD waits
+   * for a cover, so the channel filter has one possible answer there and is not drawn.
+   */
+  onlyChannel?: ProcessChannelId;
+  /**
+   * Whether the outcome and reason filters are offered — only where rows have come back
+   * from their channel (owner, 2026-10-06: success or fail is the first question asked
+   * of Service, and the reason is the one a clerk follows up on).
+   */
+  outcomeFilters: boolean;
+  /** What the All pill's tooltip says. */
+  allHint: string;
+  /** What the tab says empty under All, when no filter is what emptied it. */
+  empty: { title: string; description: string };
+};
+
+export const PROCESS_TABS: ProcessTab[] = [
+  {
+    id: "rpad-collection",
+    label: "RPAD collection",
+    statuses: ["awaiting-cover"],
+    defaultView: "awaiting-cover",
+    countedStatuses: ["awaiting-cover"],
+    dateColumn: "Payment made",
+    onlyChannel: "rpad",
+    outcomeFilters: false,
+    allHint: "Everything waiting for its cover.",
+    empty: processStatusEmpty("awaiting-cover"),
+  },
+  {
+    id: "issuance",
+    label: "Issuance",
+    statuses: ["to-sign", "to-post", "send-failed"],
+    defaultView: "to-sign",
+    countedStatuses: ["to-sign", "to-post", "send-failed"],
+    dateColumn: "Status",
+    outcomeFilters: false,
+    allHint: "Everything still with the court: to sign, to post, or to resend.",
+    empty: {
+      title: "Nothing is waiting on the court",
+      description: "Everything this court has issued is signed and on its way.",
+    },
+  },
+  {
+    id: "service",
+    label: "Service",
+    statuses: ["in-progress", "completed"],
+    defaultView: "in-progress",
+    countedStatuses: ["in-progress"],
+    dateColumn: "Status",
+    outcomeFilters: true,
+    allHint: "Everything the court has sent out, in progress or completed.",
+    empty: {
+      title: "Nothing has gone out",
+      description: "No process this court has signed has left it yet.",
+    },
+  },
+];
+
+export function processTab(id: ProcessTabId): ProcessTab {
+  const entry = PROCESS_TABS.find((tab) => tab.id === id);
+  if (!entry) throw new Error(`Unknown process tab: ${id}`);
+  return entry;
 }
 
 /** Which tab the screen opens on — the head of the line. */
-export const DEFAULT_PROCESS_STAGE: ProcessStageId = PROCESS_STAGES[0].id;
+export const DEFAULT_PROCESS_TAB: ProcessTabId = PROCESS_TABS[0].id;
+
+/** Whether a tab has more than one status, and so a pill row. */
+export function hasPills(tab: ProcessTab): boolean {
+  return tab.statuses.length > 1;
+}
+
+/* ───────────────────────────── acts ───────────────────────────── */
+
+export type ProcessActId = "collect" | "sign" | "post" | "resend" | "record";
 
 /**
- * Every process this court has in the line, newest first inside each stage.
+ * What moves a row on, and the words it is said in.
  *
- * Newest first because a working queue is worked from what was just drawn up. The stages
- * are interleaved in one list rather than kept in five, so a row that advances stays the
- * same object and the five tabs cannot disagree about where it is.
+ * Confirmed the product's plain way (owner, 2026-10-07): an alert with the question and
+ * one line saying where the rows go — `moveLine` — then Back or the act. Nothing else;
+ * the bar says what happened once the window closes.
+ */
+export type ProcessAct = {
+  id: ProcessActId;
+  /** The status a row has to be at for the act to take it. */
+  from: ProcessStatusId;
+  /** The sticky bar's button over a count. */
+  bar: (count: number) => string;
+  idle: string;
+  /** The button that commits it. */
+  confirm: string;
+  /** The question, over "this process" or "5 processes". */
+  question: (subject: string) => string;
+  /** The success heading, over "process" or "5 processes". */
+  done: (phrase: string) => string;
+  /** What the rows are called where "process" is the wrong word — a clerk posting holds covers. */
+  noun?: { one: string; many: string };
+  /** What the bar reads out once it is over. Says plainly that nothing left the browser. */
+  notice: (count: number) => string;
+};
+
+export const PROCESS_ACTS: ProcessAct[] = [
+  {
+    id: "collect",
+    from: "awaiting-cover",
+    bar: (count) =>
+      `Send ${count} ${plural(count, "process", "processes")} for signature`,
+    idle: "Send selected for signature",
+    confirm: "Send for signature",
+    question: (subject) => `Send ${subject} for signature?`,
+    done: (phrase) => `${capitalise(phrase)} sent for signature`,
+    notice: (count) =>
+      `${count} ${plural(count, "process is", "processes are")} waiting to be signed. Nothing was sent.`,
+  },
+  {
+    id: "sign",
+    from: "to-sign",
+    bar: (count) => `Sign ${count} ${plural(count, "process", "processes")}`,
+    idle: "Sign selected processes",
+    confirm: "Sign",
+    question: (subject) => `Sign ${subject}?`,
+    done: (phrase) => `${capitalise(phrase)} signed`,
+    notice: (count) =>
+      `${count} ${plural(count, "process is", "processes are")} marked signed on this screen. Nothing was signed or sent.`,
+  },
+  {
+    id: "post",
+    from: "to-post",
+    bar: (count) => `Mark ${count} ${plural(count, "cover", "covers")} as posted`,
+    idle: "Mark selected as posted",
+    confirm: "Mark as posted",
+    question: (subject) => `Mark ${subject} as posted?`,
+    noun: { one: "cover", many: "covers" },
+    done: (phrase) => `${capitalise(phrase)} posted`,
+    notice: (count) =>
+      `${count} ${plural(count, "process is", "processes are")} marked posted on this screen. Nothing was posted.`,
+  },
+  {
+    id: "resend",
+    from: "send-failed",
+    bar: (count) => `Resend ${count}`,
+    idle: "Resend selected",
+    confirm: "Resend",
+    question: (subject) => `Resend ${subject}?`,
+    done: (phrase) => `${capitalise(phrase)} resent`,
+    notice: (count) =>
+      `${count} ${plural(count, "process is", "processes are")} marked sent on this screen. Nothing was sent.`,
+  },
+  {
+    id: "record",
+    from: "in-progress",
+    bar: (count) => `Record ${count} ${plural(count, "return", "returns")}`,
+    idle: "Record returns",
+    confirm: "Record",
+    question: (subject) => `Record ${subject}`,
+    done: (phrase) => `${capitalise(phrase)} recorded`,
+    notice: (count) =>
+      `${count} ${plural(count, "return is", "returns are")} recorded on this screen. Nothing was written to the case file.`,
+  },
+];
+
+/** Sentence case, so a noun only rises to a capital when it opens the line. */
+function capitalise(phrase: string): string {
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+}
+
+export function processAct(id: ProcessActId): ProcessAct {
+  const entry = PROCESS_ACTS.find((act) => act.id === id);
+  if (!entry) throw new Error(`Unknown process act: ${id}`);
+  return entry;
+}
+
+/**
+ * Whether an act takes this row.
+ *
+ * The status alone, except for recording a return: only registered post comes back as
+ * paper, so an SMS still out with its channel can be selected (to download) but never
+ * recorded by hand.
+ */
+export function actTakes(act: ProcessAct, process: CourtProcess): boolean {
+  if (process.status !== act.from) return false;
+  return act.id === "record" ? goesByPost(process) : true;
+}
+
+/**
+ * The selection split by the acts that would take it, in the order the tab's statuses
+ * run. A Issuance selection can hold rows to sign, covers to post and failed sends at
+ * once, and each gets its own button rather than one verb applied to rows it does not fit.
+ */
+export function actsForSelection(
+  tab: ProcessTab,
+  selected: CourtProcess[],
+): { act: ProcessAct; rows: CourtProcess[] }[] {
+  return tab.statuses
+    .map((id) => processStatus(id).act)
+    .filter((id): id is ProcessActId => id !== undefined)
+    .map((id) => {
+      const act = processAct(id);
+      return { act, rows: selected.filter((process) => actTakes(act, process)) };
+    })
+    .filter((entry) => entry.rows.length > 0);
+}
+
+/**
+ * Run an act over the chosen rows — the demo behind every bar on this screen.
+ *
+ * A pure function over the line so the screen holds one list and no second copy of the
+ * truth. It moves only what the act takes: an id naming a row that has since moved, or no
+ * row at all, is ignored rather than throwing — a line that has moved on under a stale
+ * selection is a real case, not an error.
+ *
+ * Signing forks on the channel. Registered post waits to be posted; an electronic
+ * channel goes out on the day, unless the row's demo channel refuses it.
+ *
+ * **It sends nothing.** It changes a status and stamps a day in memory.
+ */
+export function runProcessAct(
+  rows: CourtProcess[],
+  actId: Exclude<ProcessActId, "record">,
+  ids: ReadonlySet<string>,
+  on: string,
+): CourtProcess[] {
+  const act = processAct(actId);
+  return rows.map((process) => {
+    if (!ids.has(process.id) || !actTakes(act, process)) return process;
+    switch (actId) {
+      case "collect":
+        return { ...process, status: "to-sign", issuedOn: on };
+      case "sign": {
+        const signed = { ...process, signedOn: on };
+        if (goesByPost(process)) return { ...signed, status: "to-post" };
+        return sendElectronically(signed, on);
+      }
+      case "post":
+        return { ...process, status: "in-progress", sentOn: on };
+      case "resend":
+        return sendElectronically(process, on);
+    }
+  });
+}
+
+function sendElectronically(process: CourtProcess, on: string): CourtProcess {
+  const { demoSendFailure, ...rest } = process;
+  if (demoSendFailure) {
+    /* The refusal is used up once it has been shown: resending the same row goes out,
+       which is what a channel that was briefly down would do. */
+    return { ...rest, status: "send-failed", sendFailure: demoSendFailure };
+  }
+  return { ...rest, status: "in-progress", sentOn: on, sendFailure: undefined };
+}
+
+/**
+ * Record what came back on a pile of registered-post covers.
+ *
+ * Each row gets its own outcome; the day is the batch's, because a stack of returned
+ * covers is opened on one day. Rows the act does not take are left alone.
+ */
+export function recordProcessReturns(
+  rows: CourtProcess[],
+  outcomes: ReadonlyMap<string, ProcessOutcome>,
+  on: string,
+): CourtProcess[] {
+  const act = processAct("record");
+  return rows.map((process) => {
+    const outcome = outcomes.get(process.id);
+    if (!outcome || !actTakes(act, process)) return process;
+    return {
+      ...process,
+      status: "completed",
+      outcome,
+      returnedOn: on,
+    };
+  });
+}
+
+/** Where an act sends one row. Signing forks: registered post waits to be posted. */
+function destinationOf(
+  actId: ProcessActId,
+  process: CourtProcess,
+): ProcessStatusId {
+  switch (actId) {
+    case "collect":
+      return "to-sign";
+    case "sign":
+      return goesByPost(process) ? "to-post" : "in-progress";
+    case "post":
+    case "resend":
+      return "in-progress";
+    case "record":
+      return "completed";
+  }
+}
+
+/**
+ * The confirmation's one line: where the rows are going (owner, 2026-10-07 — "one simple
+ * line saying where this is getting taken to"). Said as the pill and the tab it sits in,
+ * the two names the clerk sees on the screen.
+ */
+/** "To post in Issuance" — a pill named by the place the screen shows it. */
+function placeOf(id: ProcessStatusId): string {
+  const status = processStatus(id);
+  return `${status.label} in ${processTab(status.tab).label}`;
+}
+
+/**
+ * The success line: where the rows an act took actually are now — read off the live
+ * rows, because signing forks on the channel. A send its channel refused is left out of
+ * it and said separately (`refusedLine`), so a success fill never carries a failure.
+ */
+export function landedLine(rows: CourtProcess[]): string {
+  const counts = new Map<ProcessStatusId, number>();
+  for (const process of rows) {
+    if (process.status === "send-failed") continue;
+    counts.set(process.status, (counts.get(process.status) ?? 0) + 1);
+  }
+  const entries = [...counts];
+  if (entries.length === 0) return "";
+  if (entries.length === 1) {
+    const [id, count] = entries[0];
+    return `${count === 1 ? "It is" : "They are"} now in ${placeOf(id)}.`;
+  }
+  return `${entries
+    .map(([id, count]) => `${count} ${count === 1 ? "is" : "are"} now in ${placeOf(id)}`)
+    .join(", ")}.`;
+}
+
+/** What could not be sent, if anything — said beside the success, never inside it. */
+export function refusedLine(rows: CourtProcess[]): string {
+  const refused = rows.filter((process) => process.status === "send-failed");
+  if (refused.length === 0) return "";
+  return refused.length === 1
+    ? `1 could not be sent and is in ${placeOf("send-failed")}.`
+    : `${refused.length} could not be sent and are in ${placeOf("send-failed")}.`;
+}
+
+export function moveLine(actId: ProcessActId, rows: CourtProcess[]): string {
+  const counts = new Map<ProcessStatusId, number>();
+  for (const process of rows) {
+    const to = destinationOf(actId, process);
+    counts.set(to, (counts.get(to) ?? 0) + 1);
+  }
+  const place = placeOf;
+  const entries = [...counts];
+  if (entries.length === 1) {
+    return `${rows.length === 1 ? "It moves" : "They move"} to ${place(entries[0][0])}.`;
+  }
+  return `${entries
+    .map(([id, count]) => `${count} ${count === 1 ? "moves" : "move"} to ${place(id)}`)
+    .join(", ")}.`;
+}
+
+
+/* ───────────────────────────── the line ───────────────────────────── */
+
+/**
+ * Every process this court has in the line, newest first inside each status.
+ *
+ * One list rather than seven, so a row that moves stays the same object and the tabs,
+ * the pills and the rail cannot disagree about where it is. Shaped to exercise what the
+ * screen has to survive: all five types, all four channels, one case carrying three
+ * processes, corporate parties long enough to wrap, both kinds of outcome, and a police
+ * warrant whose ICOPS send will be refused.
  */
 export const PROCESS_LINE: CourtProcess[] = [
-  /* Waiting on a registered-post cover. All RPAD, by definition of the stage. */
+  /* Waiting on a registered-post cover. All RPAD, by definition of the tab. */
   {
     id: "pr-1301-a",
     caseNumber: "ST/1301/2026",
@@ -416,7 +807,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "summons",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-09-04",
     hearingDate: "2026-10-05",
   },
@@ -429,7 +820,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "section-223-notice",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-09-04",
     hearingDate: "2026-10-05",
   },
@@ -442,7 +833,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "dca-notice",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-09-04",
     hearingDate: "2026-10-05",
   },
@@ -452,7 +843,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Sheeba Rasheed", accused: "Anil Kumar Pillai" },
     type: "section-223-notice",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-09-03",
     hearingDate: "2026-09-28",
   },
@@ -465,7 +856,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "summons",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-09-02",
     hearingDate: "2026-10-12",
   },
@@ -475,7 +866,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Girija Damodaran", accused: "Sabu Chacko" },
     type: "summons",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-09-01",
     hearingDate: "2026-09-25",
   },
@@ -485,7 +876,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Noushad Ali", accused: "Chinnakada Auto Spares" },
     type: "dca-notice",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-08-31",
     hearingDate: "2026-09-22",
   },
@@ -495,7 +886,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Bindu Rajagopal", accused: "Hameed Kunju" },
     type: "warrant",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-08-28",
     hearingDate: "2026-09-30",
   },
@@ -508,7 +899,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "summons",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-08-27",
     hearingDate: "2026-10-19",
   },
@@ -518,7 +909,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Remya Suresh", accused: "Abdul Latheef" },
     type: "section-223-notice",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-08-26",
     hearingDate: "2026-09-24",
   },
@@ -528,7 +919,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Jayaprakash Menon", accused: "Sindhu Balan" },
     type: "summons",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-08-25",
     hearingDate: "2026-10-26",
   },
@@ -541,19 +932,19 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "summons",
     channel: "rpad",
-    stage: "pending-rpad-collection",
+    status: "awaiting-cover",
     paidOn: "2026-08-24",
     hearingDate: "2026-10-30",
   },
 
-  /* Drawn up and waiting on the signature. Every channel reaches this stage. */
+  /* Drawn up and waiting on the signature. Every channel reaches this status. */
   {
     id: "pr-1322",
     caseNumber: "ST/1322/2026",
     parties: { complainant: "Lekha Vijayan", accused: "Sudheer Nadesan" },
     type: "warrant",
     channel: "police",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-31",
     issuedOn: "2026-09-03",
     hearingDate: "2026-09-21",
@@ -567,7 +958,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "section-223-notice",
     channel: "rpad",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-28",
     issuedOn: "2026-09-02",
     hearingDate: "2026-09-23",
@@ -581,7 +972,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "dca-notice",
     channel: "rpad",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-28",
     issuedOn: "2026-09-02",
     hearingDate: "2026-09-23",
@@ -591,8 +982,8 @@ export const PROCESS_LINE: CourtProcess[] = [
     caseNumber: "ST/1325/2026",
     parties: { complainant: "Salim Muhammed", accused: "Anju Thankachan" },
     type: "summons",
-    channel: "court-bailiff",
-    stage: "pending-sign",
+    channel: "sms",
+    status: "to-sign",
     paidOn: "2026-08-27",
     issuedOn: "2026-09-01",
     hearingDate: "2026-09-29",
@@ -603,7 +994,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Radhika Unnikrishnan", accused: "Byju Thomas" },
     type: "proclamation",
     channel: "police",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-24",
     issuedOn: "2026-08-31",
     hearingDate: "2026-10-08",
@@ -614,7 +1005,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Ismail Kunju", accused: "Pallimukku Textiles" },
     type: "section-223-notice",
     channel: "rpad",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-22",
     issuedOn: "2026-08-28",
     hearingDate: "2026-09-18",
@@ -625,7 +1016,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Sujith Mohan", accused: "Ayisha Beevi" },
     type: "summons",
     channel: "rpad",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-20",
     issuedOn: "2026-08-27",
     hearingDate: "2026-09-17",
@@ -639,9 +1030,10 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "warrant",
     channel: "police",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-18",
     issuedOn: "2026-08-26",
+    demoSendFailure: "No response from ICOPS",
     hearingDate: "2026-09-16",
   },
   {
@@ -649,8 +1041,8 @@ export const PROCESS_LINE: CourtProcess[] = [
     caseNumber: "ST/1337/2026",
     parties: { complainant: "Preetha Nandakumar", accused: "Shibu Kesavan" },
     type: "summons",
-    channel: "court-bailiff",
-    stage: "pending-sign",
+    channel: "email",
+    status: "to-sign",
     paidOn: "2026-08-17",
     issuedOn: "2026-08-24",
     hearingDate: "2026-09-15",
@@ -661,7 +1053,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Aneesh Gopakumar", accused: "Suma Devarajan" },
     type: "dca-notice",
     channel: "rpad",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-14",
     issuedOn: "2026-08-21",
     hearingDate: "2026-09-14",
@@ -672,20 +1064,20 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Vijayamma Kesavan", accused: "Nithin Raj" },
     type: "summons",
     channel: "rpad",
-    stage: "pending-sign",
+    status: "to-sign",
     paidOn: "2026-08-13",
     issuedOn: "2026-08-20",
     hearingDate: "2026-09-11",
   },
 
-  /* Signed, and waiting on the bench to hand them to a channel. */
+  /* Signed. Registered post waits to be posted; two police processes ICOPS did not take. */
   {
     id: "pr-1343",
     caseNumber: "ST/1343/2026",
     parties: { complainant: "Faisal Rahman", accused: "Geetha Sadanandan" },
     type: "summons",
     channel: "rpad",
-    stage: "signed",
+    status: "to-post",
     paidOn: "2026-08-14",
     issuedOn: "2026-08-21",
     signedOn: "2026-08-31",
@@ -695,15 +1087,16 @@ export const PROCESS_LINE: CourtProcess[] = [
     id: "pr-1346",
     caseNumber: "ST/1346/2026",
     parties: {
-      complainant: "Kollam Beach Road Auto Works",
+      complainant: "Beach Road Auto Works",
       accused: "Manoj Chandran",
     },
     type: "warrant",
     channel: "police",
-    stage: "signed",
+    status: "send-failed",
     paidOn: "2026-08-12",
     issuedOn: "2026-08-19",
     signedOn: "2026-08-28",
+    sendFailure: "No response from ICOPS",
     hearingDate: "2026-09-26",
   },
   {
@@ -712,7 +1105,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Shalini Peter", accused: "Rafeeq Muhammed" },
     type: "section-223-notice",
     channel: "rpad",
-    stage: "signed",
+    status: "to-post",
     paidOn: "2026-08-11",
     issuedOn: "2026-08-18",
     signedOn: "2026-08-27",
@@ -723,12 +1116,27 @@ export const PROCESS_LINE: CourtProcess[] = [
     caseNumber: "ST/1349/2026",
     parties: { complainant: "Divya Anilkumar", accused: "Prasanth Vijayan" },
     type: "summons",
-    channel: "court-bailiff",
-    stage: "signed",
+    channel: "sms",
+    status: "in-progress",
     paidOn: "2026-08-10",
     issuedOn: "2026-08-17",
     signedOn: "2026-08-25",
+    sentOn: "2026-08-25",
     hearingDate: "2026-09-10",
+  },
+  /* From #43: an attachment out with the police, so the line carries one. */
+  {
+    id: "pr-1392",
+    caseNumber: "ST/1392/2026",
+    parties: { complainant: "Paravur Fisheries Co-operative", accused: "Biju Thomas" },
+    type: "attachment",
+    channel: "police",
+    status: "in-progress",
+    paidOn: "2026-08-02",
+    issuedOn: "2026-08-07",
+    signedOn: "2026-08-13",
+    sentOn: "2026-08-23",
+    hearingDate: "2026-09-27",
   },
   {
     id: "pr-1352",
@@ -736,10 +1144,11 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Haridas Pillai", accused: "Kavitha Menon" },
     type: "proclamation",
     channel: "police",
-    stage: "signed",
+    status: "send-failed",
     paidOn: "2026-08-07",
     issuedOn: "2026-08-14",
     signedOn: "2026-08-24",
+    sendFailure: "No response from ICOPS",
     hearingDate: "2026-10-01",
   },
   {
@@ -751,7 +1160,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "dca-notice",
     channel: "rpad",
-    stage: "signed",
+    status: "to-post",
     paidOn: "2026-08-06",
     issuedOn: "2026-08-13",
     signedOn: "2026-08-21",
@@ -763,7 +1172,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Asha Vijayakumar", accused: "Siddique Ibrahim" },
     type: "summons",
     channel: "rpad",
-    stage: "signed",
+    status: "to-post",
     paidOn: "2026-08-04",
     issuedOn: "2026-08-12",
     signedOn: "2026-08-19",
@@ -774,11 +1183,12 @@ export const PROCESS_LINE: CourtProcess[] = [
     caseNumber: "ST/1358/2026",
     parties: { complainant: "Benny Mathew", accused: "Sreekala Prasad" },
     type: "summons",
-    channel: "court-bailiff",
-    stage: "signed",
+    channel: "email",
+    status: "in-progress",
     paidOn: "2026-08-03",
     issuedOn: "2026-08-11",
     signedOn: "2026-08-18",
+    sentOn: "2026-08-18",
     hearingDate: "2026-09-07",
   },
 
@@ -789,7 +1199,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Latha Ramakrishnan", accused: "Nazeer Muhammed" },
     type: "summons",
     channel: "rpad",
-    stage: "sent",
+    status: "in-progress",
     paidOn: "2026-07-30",
     issuedOn: "2026-08-06",
     signedOn: "2026-08-13",
@@ -805,7 +1215,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "warrant",
     channel: "police",
-    stage: "sent",
+    status: "in-progress",
     paidOn: "2026-07-28",
     issuedOn: "2026-08-04",
     signedOn: "2026-08-11",
@@ -818,7 +1228,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Manoj Sivadasan", accused: "Rekha Balachandran" },
     type: "section-223-notice",
     channel: "rpad",
-    stage: "sent",
+    status: "in-progress",
     paidOn: "2026-07-27",
     issuedOn: "2026-08-03",
     signedOn: "2026-08-10",
@@ -830,8 +1240,8 @@ export const PROCESS_LINE: CourtProcess[] = [
     caseNumber: "ST/1367/2026",
     parties: { complainant: "Sreedevi Warrier", accused: "Tony Sebastian" },
     type: "summons",
-    channel: "court-bailiff",
-    stage: "sent",
+    channel: "sms",
+    status: "in-progress",
     paidOn: "2026-07-24",
     issuedOn: "2026-07-31",
     signedOn: "2026-08-07",
@@ -844,7 +1254,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Anwar Sadath", accused: "Meera Krishnankutty" },
     type: "proclamation",
     channel: "police",
-    stage: "sent",
+    status: "in-progress",
     paidOn: "2026-07-22",
     issuedOn: "2026-07-29",
     signedOn: "2026-08-05",
@@ -857,7 +1267,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Jaya Sreekumar", accused: "Eravipuram Marine Foods" },
     type: "dca-notice",
     channel: "rpad",
-    stage: "sent",
+    status: "in-progress",
     paidOn: "2026-07-20",
     issuedOn: "2026-07-27",
     signedOn: "2026-08-03",
@@ -870,7 +1280,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Ravi Sankar Nair", accused: "Bushra Yusuf" },
     type: "summons",
     channel: "rpad",
-    stage: "sent",
+    status: "in-progress",
     paidOn: "2026-07-17",
     issuedOn: "2026-07-24",
     signedOn: "2026-07-31",
@@ -878,20 +1288,20 @@ export const PROCESS_LINE: CourtProcess[] = [
     hearingDate: "2026-09-07",
   },
 
-  /* Closed off by the channel. What actually came back is the case file's record, not
-     this queue's — see the module header. */
+  /* Back from the channel — served, or not. */
   {
     id: "pr-1376",
     caseNumber: "ST/1376/2026",
     parties: { complainant: "Shajahan Beevi", accused: "Dileep Raghavan" },
     type: "summons",
     channel: "rpad",
-    stage: "completed",
+    status: "completed",
     paidOn: "2026-07-13",
     issuedOn: "2026-07-20",
     signedOn: "2026-07-27",
     sentOn: "2026-08-03",
-    completedOn: "2026-08-18",
+    returnedOn: "2026-08-18",
+    outcome: { served: true },
     hearingDate: "2026-09-14",
   },
   {
@@ -903,12 +1313,13 @@ export const PROCESS_LINE: CourtProcess[] = [
     },
     type: "warrant",
     channel: "police",
-    stage: "completed",
+    status: "completed",
     paidOn: "2026-07-10",
     issuedOn: "2026-07-17",
     signedOn: "2026-07-24",
     sentOn: "2026-07-31",
-    completedOn: "2026-08-14",
+    returnedOn: "2026-08-14",
+    outcome: { served: true },
     hearingDate: "2026-09-22",
   },
   {
@@ -917,12 +1328,13 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Unnikrishnan Nair", accused: "Farhana Rasheed" },
     type: "section-223-notice",
     channel: "rpad",
-    stage: "completed",
+    status: "completed",
     paidOn: "2026-07-08",
     issuedOn: "2026-07-15",
     signedOn: "2026-07-22",
     sentOn: "2026-07-29",
-    completedOn: "2026-08-11",
+    returnedOn: "2026-08-11",
+    outcome: { served: false, reason: "Door locked" },
     hearingDate: "2026-09-10",
   },
   {
@@ -930,13 +1342,14 @@ export const PROCESS_LINE: CourtProcess[] = [
     caseNumber: "ST/1382/2026",
     parties: { complainant: "Molly Kuriakose", accused: "Sanal Kumar" },
     type: "summons",
-    channel: "court-bailiff",
-    stage: "completed",
+    channel: "email",
+    status: "completed",
     paidOn: "2026-07-06",
     issuedOn: "2026-07-13",
     signedOn: "2026-07-20",
     sentOn: "2026-07-27",
-    completedOn: "2026-08-07",
+    returnedOn: "2026-08-07",
+    outcome: { served: true },
     hearingDate: "2026-09-06",
   },
   {
@@ -945,12 +1358,13 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Abdul Salam", accused: "Nisha Chandrasekharan" },
     type: "proclamation",
     channel: "police",
-    stage: "completed",
+    status: "completed",
     paidOn: "2026-07-03",
     issuedOn: "2026-07-10",
     signedOn: "2026-07-17",
     sentOn: "2026-07-24",
-    completedOn: "2026-08-04",
+    returnedOn: "2026-08-04",
+    outcome: { served: false, reason: "Person not present" },
     hearingDate: "2026-09-29",
   },
   {
@@ -959,22 +1373,93 @@ export const PROCESS_LINE: CourtProcess[] = [
     parties: { complainant: "Gopakumar Pillai", accused: "Thangassery Ice Plant" },
     type: "dca-notice",
     channel: "rpad",
-    stage: "completed",
+    status: "completed",
     paidOn: "2026-07-01",
     issuedOn: "2026-07-08",
     signedOn: "2026-07-15",
     sentOn: "2026-07-22",
-    completedOn: "2026-07-30",
+    returnedOn: "2026-07-30",
+    outcome: { served: true },
     hearingDate: "2026-09-05",
   },
 ];
 
-/** Everything sitting at one stage of the line. */
+/** Everything at one status. */
 export function processesAt(
   rows: CourtProcess[],
-  stage: ProcessStageId,
+  status: ProcessStatusId,
 ): CourtProcess[] {
-  return rows.filter((process) => process.stage === stage);
+  return rows.filter((process) => process.status === status);
+}
+
+/** Everything a tab holds under one pill, or under All. */
+export function processesIn(
+  rows: CourtProcess[],
+  tab: ProcessTab,
+  view: ProcessView,
+): CourtProcess[] {
+  return rows.filter((process) =>
+    view === "all"
+      ? tab.statuses.includes(process.status)
+      : process.status === view,
+  );
+}
+
+/**
+ * A page of rows cut into status bands — what All shows.
+ *
+ * In the tab's own status order, and inside a band the line's own order: the bands are a
+ * cut of the list, not a second sort. Whether to band at all is `spansStatuses`'s
+ * question: a view in one status has nothing to group.
+ */
+export function bandByStatus(
+  rows: CourtProcess[],
+  tab: ProcessTab,
+): { status: ProcessStatus; rows: CourtProcess[] }[] {
+  return tab.statuses
+    .map((id) => ({
+      status: processStatus(id),
+      rows: rows.filter((process) => process.status === id),
+    }))
+    .filter((band) => band.rows.length > 0);
+}
+
+/** Whether these rows hold more than one status — one band is not worth a header. */
+export function spansStatuses(rows: CourtProcess[]): boolean {
+  return new Set(rows.map((process) => process.status)).size > 1;
+}
+
+/**
+ * The rows of a view in band order — what the table pages through under All.
+ *
+ * Paging the line's raw order and banding each page would split one status across pages
+ * and back again. Ordering by band first means a page break falls inside a band at most
+ * once, and the bands read top to bottom in the tab's own order.
+ */
+export function orderForView(
+  rows: CourtProcess[],
+  tab: ProcessTab,
+): CourtProcess[] {
+  return tab.statuses.flatMap((id) =>
+    rows.filter((process) => process.status === id),
+  );
+}
+
+/** The paper this view is matched against, if it is a view that has any. */
+export function pileFor(view: ProcessView): ProcessPile | undefined {
+  return view === "all" ? undefined : processStatus(view).pile;
+}
+
+/** The rows a pile can take: the view's own, narrowed to paper where only paper counts. */
+export function pilePool(
+  rows: CourtProcess[],
+  view: ProcessView,
+): CourtProcess[] {
+  const pile = pileFor(view);
+  if (!pile || view === "all") return [];
+  return processesAt(rows, view).filter(
+    (process) => !pile.postOnly || goesByPost(process),
+  );
 }
 
 /** One envelope's worth of selection: a case, and the process picked out of it. */
@@ -988,20 +1473,12 @@ export type SelectedCase = {
  * The selection as the pile of envelopes it stands for.
  *
  * A cover is one per **case**, so the thing the clerk is holding is a case number, not a
- * process — a case with a summons, a Section 223 notice and a DCA notice arrives in one
- * envelope. Grouping here is what lets the table stay one row per process, the way the
- * other four stages draw it, while the tray above it counts in the unit the clerk counts
- * in. Both numbers are wanted and neither can be derived from the other by eye, which is
- * why callers get the cases and can still count the process inside them.
- *
- * **Order is the order they were picked**, not the order the line holds them. A `Set`
- * keeps insertion order, so walking `selectedIds` walks the clerk's own morning: the
- * envelope just ticked lands at the end of the tray, where the eye that ticked it
- * already is. Grouping by first appearance means a case ticked at envelope three stays
- * at position three even when its second process is ticked at envelope nine.
+ * process. Grouping here lets the table stay one row per process while the tray counts in
+ * the unit the clerk counts in. **Order is the order they were picked** — a `Set` keeps
+ * insertion order, so the envelope just ticked lands at the end of the tray.
  *
  * Ids that name nothing in `rows` are dropped rather than counted — a row that has since
- * advanced out of this stage is no longer selected, and the tray must not claim it.
+ * moved is no longer selected, and the tray must not claim it.
  */
 export function groupSelectionByCase(
   rows: CourtProcess[],
@@ -1032,16 +1509,10 @@ export function groupSelectionByCase(
  * The one case a request names, or nothing.
  *
  * What Enter in the search box commits on. A cover is one per case, so a request that
- * lands on a single case names a single envelope and putting it on the pile is
- * unambiguous — every process that case has waiting goes on, because they all travel in
- * that one cover.
- *
- * **Two cases still matching is not a near miss, it is an unfinished number.** Picking
- * between them — the first row, the closest, the shortest — would put one court's
- * process into a batch bound for another's envelope on a keystroke the clerk did not
- * mean as a choice. So anything but exactly one case answers `null` and the clerk keeps
- * typing. Nothing matching answers `null` for the same reason: there is no envelope here
- * to pick.
+ * lands on a single case names a single envelope and every process of it in the pile
+ * goes on together. **Two cases still matching is an unfinished number**, not a near
+ * miss: guessing between them would put one case's process into another's envelope, so
+ * anything but exactly one case answers `null` and the clerk keeps typing.
  */
 export function singleCaseMatch(
   rows: CourtProcess[],
@@ -1055,7 +1526,7 @@ export function singleCaseMatch(
     : null;
 }
 
-/** Every id at this stage belonging to one case — what removing an envelope takes out. */
+/** Every id in `rows` belonging to one case — what removing an envelope takes out. */
 export function processIdsForCase(
   rows: CourtProcess[],
   caseNumber: string,
@@ -1065,43 +1536,111 @@ export function processIdsForCase(
     .map((process) => process.id);
 }
 
+/** The statuses that wait on the court — what the rail's badge counts. */
+const WAITING_ON_COURT: ProcessStatusId[] = [
+  "awaiting-cover",
+  "to-sign",
+  "to-post",
+  "send-failed",
+];
+
 /**
  * How much process is still waiting on this court — the number the rail carries beside
- * "Sign process".
- *
- * The three stages that have an act on them, not the length of the line: Sent and
- * Completed are records, and a badge that counted them would send the bench to a screen
- * with less work on it than the number promised. The same reasoning
- * `SIGN_ORDER_PENDING_COUNT` uses, over three stages instead of one.
+ * "Sign process": the first two tabs, whole. Service is the channel's, and a badge that
+ * counted it would send the bench to a screen with less work on it than it promised.
  */
-export const PROCESS_QUEUE_COUNT = PROCESS_LINE.filter((process) =>
-  ["pending-rpad-collection", "pending-sign", "signed"].includes(process.stage),
-).length;
+export function processQueueCount(rows: CourtProcess[]): number {
+  return rows.filter((process) => WAITING_ON_COURT.includes(process.status))
+    .length;
+}
+
+export const PROCESS_QUEUE_COUNT = processQueueCount(PROCESS_LINE);
+
+/** A tab's count: what is standing in it, or nothing where the tab is not counted. */
+/** A tab's count: the work standing in it. */
+export function tabCount(rows: CourtProcess[], tab: ProcessTab): number {
+  return rows.filter((process) => tab.countedStatuses.includes(process.status))
+    .length;
+}
+
+/** Whether the All pill counts — only where every status in the tab is work. */
+export function allCounted(tab: ProcessTab): boolean {
+  return tab.statuses.every((id) => tab.countedStatuses.includes(id));
+}
 
 export type ProcessFilters = {
   type: CourtProcessTypeId | "all";
   channel: ProcessChannelId | "all";
-  /** ISO day of the listing the process is returnable for, or `""` for any day. */
-  hearingDate: string;
   /** Free text over the case number only, token by token. */
   query: string;
+  /** What the channel reported: served, not served, or either. Service only. */
+  outcome: "all" | "served" | "unserved";
+  /** Why it was not served. Service only; choosing one implies not served. */
+  reason: NonServiceReason | "all";
 };
 
+export const OUTCOME_FILTERS: { id: "served" | "unserved"; label: string }[] = [
+  { id: "served", label: "Successful" },
+  { id: "unserved", label: "Failed" },
+];
+
 /**
- * What a tab opens on — everything it holds.
- *
- * Unlike the orders queue, no filter is pre-set to narrow the view: the tab has already
- * done that narrowing, and narrowing it twice would hide work behind a control the bench
- * did not touch. The one exception is the channel on the first tab, which is not a
- * narrowing but a fact about the stage — see `ProcessStage.onlyChannel`.
+ * What a tab opens on — everything it holds. The one pre-set is the channel on the tab
+ * defined by one, which is a fact about the tab rather than a narrowing.
  */
-export function defaultProcessFilters(stage: ProcessStage): ProcessFilters {
+export function defaultProcessFilters(tab: ProcessTab): ProcessFilters {
   return {
     type: "all",
-    channel: stage.onlyChannel ?? "all",
-    hearingDate: "",
+    channel: tab.onlyChannel ?? "all",
     query: "",
+    outcome: "all",
+    reason: "all",
   };
+}
+
+/**
+ * How the list is ordered. The hearing date was a filter that picked one day; what the
+ * bench actually asks of it is *which process is most urgent*, so it is an order instead
+ * (owner, 2026-10-06). Soonest hearing first is the default: a process has to be served
+ * before its listing, so the one returnable next is the one to move next.
+ */
+export type ProcessSort = "hearing-soonest" | "hearing-latest" | "recent";
+
+export const PROCESS_SORTS: { id: ProcessSort; label: string }[] = [
+  { id: "hearing-soonest", label: "Soonest hearing first" },
+  { id: "hearing-latest", label: "Latest hearing first" },
+  { id: "recent", label: "Recently updated first" },
+];
+
+export const DEFAULT_PROCESS_SORT: ProcessSort = "hearing-soonest";
+
+/** The last day anything happened to a row — what "Last updated" orders by. */
+export function lastActivityDay(process: CourtProcess): string {
+  return (
+    process.returnedOn ??
+    process.sentOn ??
+    process.signedOn ??
+    process.issuedOn ??
+    process.paidOn
+  );
+}
+
+/**
+ * Order rows, ties broken by case number so the order is stable. ISO days compare as
+ * strings. A new array; the line is not touched.
+ */
+export function sortProcesses(
+  rows: CourtProcess[],
+  sort: ProcessSort,
+): CourtProcess[] {
+  const key = (process: CourtProcess) =>
+    sort === "recent" ? lastActivityDay(process) : process.hearingDate;
+  const direction = sort === "hearing-soonest" ? 1 : -1;
+  return [...rows].sort(
+    (a, b) =>
+      direction * key(a).localeCompare(key(b)) ||
+      a.caseNumber.localeCompare(b.caseNumber),
+  );
 }
 
 export function filterProcesses(
@@ -1113,113 +1652,74 @@ export function filterProcesses(
     if (filters.channel !== "all" && process.channel !== filters.channel) {
       return false;
     }
-    if (filters.hearingDate && process.hearingDate !== filters.hearingDate) {
-      return false;
+    /* A row still out has no outcome, so either outcome filter leaves it behind. */
+    if (filters.outcome !== "all") {
+      if (process.outcome?.served !== (filters.outcome === "served")) return false;
     }
-    /* Case number only. The box used to take a cause title as well, because that is
-       what the Case name column prints; the search now matches the number and nothing
-       else, so a name typed back from that column finds nothing. */
+    if (filters.reason !== "all") {
+      const outcome = process.outcome;
+      if (!outcome || outcome.served || outcome.reason !== filters.reason) {
+        return false;
+      }
+    }
+    // Case number only — the box matches the number and nothing else.
     return matchesQuery(filters.query, process.caseNumber);
   });
 }
 
 /**
- * The same request, asked of another stage.
- *
- * A stage-defining channel is a fact about the stage, not something the bench asked for:
- * carrying "RPAD" out of Pending RPAD collection and into Signed would hide every police
- * round the bench is looking for. A channel the bench *did* choose travels, because that
- * one is a question. Everything else travels untouched.
+ * The same request, asked of another tab. A tab-defining channel is not something the
+ * bench asked for — carrying "RPAD" out of RPAD collection would hide every police round
+ * under Issuance — so it is dropped on the way; a channel the bench chose travels.
  */
 export function rebaseFilters(
   filters: ProcessFilters,
-  from: ProcessStage,
-  to: ProcessStage,
+  from: ProcessTab,
+  to: ProcessTab,
 ): ProcessFilters {
+  /* The outcome filters only exist where rows have come back; carried anywhere else they
+     would empty the tab with a control that is not on it. */
+  const kept = to.outcomeFilters
+    ? { ...filters }
+    : { ...filters, outcome: "all" as const, reason: "all" as const };
   if (from.onlyChannel === undefined || filters.channel !== from.onlyChannel) {
-    return { ...filters };
+    return kept;
   }
-  return { ...filters, channel: to.onlyChannel ?? "all" };
+  return { ...kept, channel: to.onlyChannel ?? "all" };
 }
 
 /**
  * Where else in the line this search would have found something.
  *
- * A queue that holds one stage can answer an unmatched search with "nothing matches" and
- * be telling the whole truth. A *line* cannot: the row the bench is hunting for has very
- * often simply moved on, and five tabs each independently saying "no" is how a working
- * search gets reported as broken. So when a stage comes up empty, it asks the other four
- * before it says nothing is there.
+ * A process moves, so the most ordinary search on this screen — a case number typed while
+ * standing where the row was last seen — finds nothing here and something one pill or one
+ * tab over. So an empty view names the statuses that do hold a match, with counts, before
+ * it says nothing is there. Every status outside the current view is asked, including the
+ * other pills of this tab.
  */
 export function processesElsewhere(
   rows: CourtProcess[],
   filters: ProcessFilters,
-  from: ProcessStageId,
-): { stage: ProcessStage; count: number }[] {
-  const here = processStage(from);
-  return PROCESS_STAGES.filter((stage) => stage.id !== from)
-    .map((stage) => ({
-      stage,
-      count: filterProcesses(
-        processesAt(rows, stage.id),
-        rebaseFilters(filters, here, stage),
-      ).length,
-    }))
+  from: { tab: ProcessTabId; view: ProcessView },
+): { tab: ProcessTab; status: ProcessStatus; count: number }[] {
+  const here = processTab(from.tab);
+  return PROCESS_STATUSES.filter((status) =>
+    status.tab === from.tab
+      ? from.view !== "all" && status.id !== from.view
+      : true,
+  )
+    .map((status) => {
+      const tab = processTab(status.tab);
+      return {
+        tab,
+        status,
+        count: filterProcesses(
+          processesAt(rows, status.id),
+          rebaseFilters(filters, here, tab),
+        ).length,
+      };
+    })
     .filter((entry) => entry.count > 0);
-}
-
-/** The day a row lands with when it reaches a stage. */
-const STAMP: Partial<Record<ProcessStageId, keyof CourtProcess>> = {
-  "pending-sign": "issuedOn",
-  signed: "signedOn",
-  sent: "sentOn",
-  completed: "completedOn",
-};
-
-/**
- * Move the chosen rows one stage along — the demo act behind every bar on this screen.
- *
- * A pure function over the line so the screen holds one list and no second copy of the
- * truth. It moves only what is still at `from`: an id naming a row that has since
- * advanced, or no row at all, is ignored rather than throwing — a line that has moved on
- * under a stale selection is a real case, not an error. A stage with no act moves
- * nothing.
- *
- * **It sends nothing.** See the module header: this changes a stage and stamps a date in
- * memory. Nothing is signed, printed, posted or served.
- */
-export function advanceProcesses(
-  rows: CourtProcess[],
-  ids: ReadonlySet<string>,
-  from: ProcessStageId,
-  on: string,
-): CourtProcess[] {
-  const act = processStage(from).act;
-  if (!act) return rows;
-  const stamp = STAMP[act.advancesTo];
-  return rows.map((process) =>
-    ids.has(process.id) && process.stage === from
-      ? { ...process, stage: act.advancesTo, ...(stamp ? { [stamp]: on } : {}) }
-      : process,
-  );
-}
-
-/**
- * Which of the chosen rows the act would actually move.
- *
- * The rows rather than a count of them, because the screen needs both: how many to say it
- * moved, and which ones — so the confirmation can still offer the papers after the act has
- * stamped them and they have left the tab (`SignProcessScreen`). The same guard
- * `advanceProcesses` applies, so the two can never disagree about what a run touched.
- */
-export function processesAdvancing(
-  rows: CourtProcess[],
-  ids: ReadonlySet<string>,
-  from: ProcessStageId,
-): CourtProcess[] {
-  return rows.filter(
-    (process) => ids.has(process.id) && process.stage === from,
-  );
 }
 
 /** "31 Aug 2026" — the same column register every other court-side list uses. */
@@ -1272,12 +1772,13 @@ export type ProcessDocument = {
 /**
  * Who each instrument is addressed to.
  *
- * A warrant commands an officer to arrest; everything else commands the accused to
+ * A warrant, proclamation or attachment is addressed to the police, who execute it
+ * (§6.3 of `handovers/process-handover.md`); everything else commands the accused to
  * appear. `docs/product/domain/actors.md` puts process execution with the police for a
- * §138 case, which is who a warrant is written to.
+ * §138 case.
  */
 function addresseeFor(process: CourtProcess): string {
-  if (process.type === "warrant") {
+  if (processType(process.type).executed) {
     return "To the officer in charge of the police station";
   }
   return `To ${process.parties.accused}, the accused`;
@@ -1320,6 +1821,11 @@ function paragraphsFor(process: CourtProcess): string[] {
       return [
         `Whereas a warrant issued by this court for the arrest of ${accused} has been returned unexecuted, and this court has reason to believe that the said ${accused} is absconding or concealing themselves so that the warrant cannot be executed,`,
         `a proclamation is published requiring the said ${accused} to appear before this court on ${returnable}. It shall be read publicly, affixed at the accused's last known place of residence and at this courthouse, and the officer publishing it shall report compliance to this court.`,
+      ];
+    case "attachment":
+      return [
+        `Whereas a proclamation has been issued requiring ${accused}, the accused in this case, to appear before this court, and the said ${accused} has not appeared, on the complaint of ${complainant},`,
+        `you are directed to attach the movable property belonging to the said ${accused} within the local limits of your jurisdiction, to hold it subject to the further orders of this court, and to report the manner of execution to this court on ${returnable}.`,
       ];
   }
 }
@@ -1405,7 +1911,3 @@ export function downloadProcessBundle(rows: CourtProcess[]): void {
   URL.revokeObjectURL(url);
 }
 
-/** Sentence case, so a noun only rises to a capital when it opens the line. */
-function capitalise(phrase: string): string {
-  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
-}

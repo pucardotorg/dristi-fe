@@ -79,6 +79,12 @@ export function joinDot(...parts: Array<string | null | undefined | false>): str
   return parts.filter(Boolean).join(" · ");
 }
 
+/** "Accused 1 and Rajesh Kumar" — names read as a sentence, not as a list. */
+export function nameList(labels: string[]): string {
+  if (labels.length < 2) return labels[0] ?? "";
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+}
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }

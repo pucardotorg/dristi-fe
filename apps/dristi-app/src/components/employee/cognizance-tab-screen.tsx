@@ -7,7 +7,10 @@ import {
   CognizanceEmpty,
   CognizanceFiltersRow,
   CognizanceItemList,
+  cognizanceSorts,
+  type CognizanceSort,
 } from "@/components/employee/cognizance-screen";
+import { sortRows } from "@/lib/employee/court-sort";
 import { CognizanceTable } from "@/components/employee/cognizance-table";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
@@ -43,12 +46,19 @@ export function CognizanceTabScreen({ tab }: { tab: CognizanceTab }) {
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
 
-  const rows = filterCognizanceCases(casesOnTab(COGNIZANCE_QUEUE, tab), filters);
+  const [sort, setSort] = React.useState<CognizanceSort>("oldest");
+
+  const rows = sortRows(
+    filterCognizanceCases(casesOnTab(COGNIZANCE_QUEUE, tab), filters),
+    cognizanceSorts(tab),
+    sort,
+  );
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = filters.query !== "";
+  const isFiltered =
+    filters.query !== "" || (filters.notice ?? "all") !== "all";
   const total = cognizanceTabCount(tab);
   const label = COGNIZANCE_TABS.find((entry) => entry.id === tab)!.label;
 
@@ -84,6 +94,12 @@ export function CognizanceTabScreen({ tab }: { tab: CognizanceTab }) {
           filters={filters}
           onChange={changeFilters}
           onClear={clearFilters}
+          tab={tab}
+          sort={sort}
+          onSortChange={(next) => {
+            setSort(next);
+            setPage(1);
+          }}
         />
 
         <QueueAnnouncer

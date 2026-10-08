@@ -162,7 +162,7 @@ function buildDraft(): FilingDraft {
   two.sameAsPrev = "no";
   two.ifsc = "KLGB0040213";
   two.bankName = "Kerala Gramin Bank";
-  two.bankBranch = "Kollam"; // Defect 3 — not the branch on the leaf.
+  two.bankBranch = "Main"; // Defect 3 — not the branch on the leaf.
   two.presentDate = "2026-06-09";
   two.returnDate = "2026-06-11";
   two.returnReason = "funds-insufficient";

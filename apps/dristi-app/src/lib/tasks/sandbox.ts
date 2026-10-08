@@ -82,7 +82,7 @@ function hearing(days: number): string {
 }
 
 /* ─────────────────────────── scale fixture ───────────────────────────
- * The Kollam bench, and the fill that stands in for the court complex's docket.
+ * The bench, and the fill that stands in for the court complex's docket.
  * Anjali's own scale matters (SCALE_CASES) sit in the first few of these courts and
  * reach HER board; the far larger OTHER_CASES set below (other advocates, across
  * every court) is what makes the cause list read like the court's published list —
@@ -91,26 +91,26 @@ function hearing(days: number): string {
  * the board. Demo scaffolding: remove the OTHER_CASES/SCALE blocks to return to the
  * small hand-authored day. */
 const SCALE_COURTS = [
-  "24×7 ON Court, Kollam",
-  "CJM Court, Kollam",
-  "ACJM Court, Kollam",
-  "JMFC Court 1, Kollam",
-  "JMFC Court 2, Kollam",
-  "JMFC Court 3, Kollam",
-  "JMFC Court 4, Kollam",
-  "JMFC Court 5, Kollam",
-  "JMFC Court 6, Kollam",
-  "Sessions Court, Kollam",
-  "Addl. Sessions I, Kollam",
-  "Addl. Sessions II, Kollam",
-  "Sub Court 1, Kollam",
-  "Sub Court 2, Kollam",
-  "Munsiff Court 1, Kollam",
-  "Munsiff Court 2, Kollam",
-  "Munsiff Court 3, Kollam",
-  "Family Court, Kollam",
-  "MACT, Kollam",
-  "NI Act Court, Kollam",
+  "24×7 ON Court",
+  "CJM Court",
+  "ACJM Court",
+  "JMFC Court 1",
+  "JMFC Court 2",
+  "JMFC Court 3",
+  "JMFC Court 4",
+  "JMFC Court 5",
+  "JMFC Court 6",
+  "Sessions Court",
+  "Addl. Sessions I",
+  "Addl. Sessions II",
+  "Sub Court 1",
+  "Sub Court 2",
+  "Munsiff Court 1",
+  "Munsiff Court 2",
+  "Munsiff Court 3",
+  "Family Court",
+  "MACT",
+  "NI Act Court",
 ];
 
 const SCALE_NAMES = [
@@ -129,7 +129,7 @@ const SCALE_ORGS = [
   "Royal Cashews", "Metro Hardwares", "Backwater Foods", "Pearl Marine",
   "Western Ghats Timber", "Shoreline Fisheries", "Cardamom County Estates",
   "Vembanad Traders", "Southern Spices", "Ashirvad Chits", "Meridian Motors",
-  "Palm Grove Resorts", "Kollam Cashew Co.", "Neptune Marine", "Orient Rubbers",
+  "Palm Grove Resorts", "Lakeside Cashew Co.", "Neptune Marine", "Orient Rubbers",
   "Silverline Finance",
 ];
 const SCALE_STAGES = [
@@ -347,10 +347,10 @@ function shortDate(iso: string): string {
 const RETURN_WINDOW_NOTE =
   "Assumed 5 days from the return to cure the defects — the Registry's window is not yet confirmed";
 
-const ON = "24×7 ON Court, Kollam";
-const JMFC1 = "JMFC Court 1, Kollam";
-const JMFC2 = "JMFC Court 2, Kollam";
-const CJM = "CJM Court, Kollam";
+const ON = "24×7 ON Court";
+const JMFC1 = "JMFC Court 1";
+const JMFC2 = "JMFC Court 2";
+const CJM = "CJM Court";
 
 // Vakalatnamas: the first signatory is the main advocate. Anjali (the default identity)
 // is a signatory on some cases, only on the case on others, and absent from a few.
@@ -364,7 +364,7 @@ export const CASES: Case[] = [
   { id: "c-144", stNumber: "ST 144/2025", cnr: "KLKL02-000144-2025", parties: "K. Radhakrishnan v. Chandy & Sons", court: JMFC1, stage: "Arguments", nextHearingAt: hearing(20), signatories: ["p-an", "p-dv"], advocates: ["p-an", "p-dv", "p-sp"] },
   { id: "c-71", stNumber: "ST 71/2025", cnr: "KLKL03-000071-2025", parties: "Joseph Mathew v. Star Traders", court: JMFC2, stage: "Evidence of the complainant", nextHearingAt: hearing(7), signatories: ["p-dv"], advocates: ["p-dv", "p-ri"] },
   { id: "c-381", stNumber: "ST 381/2025", cnr: "KLKL03-000381-2025", parties: "Rukhiya Beevi v. N. Pillai", court: JMFC2, stage: "Cognizance", nextHearingAt: hearing(30), signatories: ["p-an"], advocates: ["p-an"] },
-  { id: "c-52", stNumber: "ST 52/2025", cnr: "KLKL04-000052-2025", parties: "Shaji P. v. Kollam Cashew Co.", court: CJM, stage: "Evidence of the complainant", nextHearingAt: hearing(3), signatories: ["p-dv", "p-an"], advocates: ["p-dv", "p-an", "p-sp"] },
+  { id: "c-52", stNumber: "ST 52/2025", cnr: "KLKL04-000052-2025", parties: "Shaji P. v. Lakeside Cashew Co.", court: CJM, stage: "Evidence of the complainant", nextHearingAt: hearing(3), signatories: ["p-dv", "p-an"], advocates: ["p-dv", "p-an", "p-sp"] },
   { id: "c-221", stNumber: "ST 221/2025", cnr: "KLKL01-000221-2025", parties: "Ramesh P. v. Coastal Traders", court: ON, stage: "Evidence of the complainant", nextHearingAt: hearing(18), signatories: ["p-rm"], advocates: ["p-rm", "p-an", "p-sp"] },
   { id: "c-377", stNumber: "ST 377/2025", cnr: "KLKL01-000377-2025", parties: "Sujatha R. v. M. Haneefa", court: ON, stage: "Evidence of the complainant", nextHearingAt: hearing(25), signatories: ["p-rm"], advocates: ["p-rm", "p-ri"] },
   { id: "c-633", stNumber: "ST 633/2025", cnr: "KLKL01-000633-2025", parties: "Sheeba Rasheed v. Muhammed Ashraf", court: ON, stage: "Evidence of the complainant", nextHearingAt: hearing(4), signatories: ["p-rm"], advocates: ["p-rm", "p-an", "p-sp"] },

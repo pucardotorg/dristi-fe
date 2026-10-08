@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { KIND_LABELS, KIND_ORDER } from "@/lib/tasks/selectors";
 import type { PillKind } from "@/lib/tasks/types";
-import { cn } from "@/lib/utils";
+import { PILL_COUNT, PILL_ITEM, PILL_ROW } from "@/components/chrome/pill-plate";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 /**
@@ -58,7 +58,7 @@ export function KindPills({
       aria-label="Kinds of work"
       /* The row scrolls sideways on a phone; the padding keeps a focus ring off the
          clipping edge and gives the widened touch target room. */
-      className="-m-1 w-full max-w-full flex-nowrap overflow-x-auto p-1"
+      className={PILL_ROW}
     >
       <Pill value="all" label="Everything" count={total} loading={loading} />
       {KIND_ORDER.map((kind) => (
@@ -95,20 +95,11 @@ function Pill({
       value={value}
       disabled={disabled || loading}
       aria-label={count === null ? label : `${label}, ${count}`}
-      className={cn(
-        /* h-9 of visible pill, widened to the 40px touch floor by a transparent ring —
-           the same trick the row verbs use, so a pill is as tappable as a button. */
-        "relative rounded-full border border-border px-3 after:absolute after:-inset-0.5",
-        /* Chosen: the brand tint — the owner's ruling (2026-09-16), after a neutral
-           fill read as disabled beside the quiet pills and a near-black one read as a
-           button. `brand-muted` is the tint pair, not the rationed `primary` the row
-           verbs wear, so a chosen filter says "brand" without impersonating an action. */
-        "data-[state=on]:border-brand-accent data-[state=on]:bg-brand-muted data-[state=on]:font-semibold data-[state=on]:text-brand-muted-foreground",
-        "data-[state=on]:hover:bg-brand-muted-hover data-[state=on]:hover:text-brand-muted-foreground"
-      )}
+      /* The shared pill — see `chrome/pill-plate.ts` for the treatment and its rulings. */
+      className={PILL_ITEM}
     >
       <span>{label}</span>
-      <span aria-hidden className="tabular-nums text-muted-foreground group-data-[state=on]/toggle:text-brand-muted-foreground">
+      <span aria-hidden className={PILL_COUNT}>
         {loading || count === null ? "–" : count}
       </span>
     </ToggleGroupItem>

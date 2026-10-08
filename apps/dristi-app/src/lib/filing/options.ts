@@ -5,6 +5,8 @@
  * lookups (IFSC, PIN) live in lookups.ts; there are no mock registries here.
  */
 
+import type { PaperFallbackReason } from "./types";
+
 export type Option = { value: string; label: string };
 
 export const CASE_TYPE = {
@@ -19,9 +21,8 @@ export const CASE_TYPE = {
 } as const;
 
 export const COURT = {
-  name: "24×7 ON Court, Kollam",
+  name: "24×7 ON Court",
   brand: "24x7 ON Courts",
-  place: "Kollam, Kerala",
 } as const;
 
 /* ───────────────────────────── Geography ───────────────────────────── */
@@ -194,6 +195,24 @@ export const FINAL_RELIEF_TEMPLATE = [
  */
 export const DELIVERY_CHANNEL = "E-post";
 
+/* ───────────────────────────── Signing ───────────────────────────── */
+
+/**
+ * What stopped e-signing — the common failures the owner named (2026-10-06), in plain
+ * words rather than legal ones. Every signing window that offers paper asks this; a
+ * window with one signer has nobody else to wait on, so it passes a subset rather than
+ * keeping a second list.
+ */
+export const PAPER_FALLBACK_REASONS: readonly {
+  id: PaperFallbackReason;
+  label: string;
+}[] = [
+  { id: "otp-not-received", label: "OTP not received" },
+  { id: "party-did-not-respond", label: "A party did not respond" },
+  { id: "server-not-responding", label: "Server not responding" },
+  { id: "other", label: "Something else" },
+];
+
 /**
  * The processes collectable upfront, and the court's rule for each (handover §19.3).
  *
@@ -211,6 +230,8 @@ export type ProcessOption = {
   label: string;
   /** What this process is, in the words the filer needs to choose by. */
   note: string;
+  /** The same, cut to what it is for — the bill, where the choosing is already done. */
+  billNote: string;
   /** Rounds the court insists on, for each accused — the choice never falls below this. */
   minRounds: number;
   /** The most rounds collectable upfront. */
@@ -229,6 +250,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "summons",
     label: "Summons",
     note: "The court's call to the accused to appear. One round is required, delivered to every address you choose.",
+    billNote: "The court's call to the accused to appear.",
     minRounds: 1,
     maxRounds: 4,
     perAddress: true,
@@ -238,6 +260,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "warrants",
     label: "Warrants",
     note: "Issued if the accused does not appear after summons.",
+    billNote: "Issued only if the accused does not appear after summons.",
     minRounds: 0,
     maxRounds: 4,
     perAddress: false,
@@ -247,6 +270,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "notice",
     label: "Notice",
     note: "Issued on the application to condone the delay in filing.",
+    billNote: "Issued on the application to condone the delay in filing.",
     minRounds: 0,
     maxRounds: 1,
     perAddress: false,
@@ -343,9 +367,9 @@ export const DELIVERY_MIN_ROUNDS = 1;
  * typed from memory, and it stays open — an address outside it is still accepted.
  */
 export const POLICE_STATIONS: string[] = [
-  "Kollam East Police Station",
-  "Kollam West Police Station",
-  "Kollam Beach Police Station",
+  "Town East Police Station",
+  "Town West Police Station",
+  "Town Beach Police Station",
   "Kilikolloor Police Station",
   "Sakthikulangara Police Station",
   "Chinnakada Police Station",

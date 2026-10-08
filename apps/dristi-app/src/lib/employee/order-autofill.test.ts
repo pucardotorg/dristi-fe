@@ -47,7 +47,7 @@ const noApplications = hearingById("h-249")!;
 const withdrawalListing = hearingById("h-258")!;
 
 const facts: OrderTemplateFacts = {
-  court: "JMFC Court 1, Kollam",
+  court: "JMFC Court 1",
   caseName: "Sunil Varghese v. Anand Traders",
   caseNumber: "ST/412/2025",
   currentDate: "14 September 2026",

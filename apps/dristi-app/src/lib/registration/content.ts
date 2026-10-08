@@ -91,7 +91,13 @@ export const contactStep = {
  */
 export const passwordStep = {
   title: t("Create a password", "ഒരു പാസ്‌വേഡ് ഉണ്ടാക്കുക"),
-  body: t("You will sign in with your mobile number and this password.", "നിങ്ങളുടെ മൊബൈൽ നമ്പറും ഈ പാസ്‌വേഡും ഉപയോഗിച്ചാണ് സൈൻ ഇൻ ചെയ്യുക."),
+  /* Optional (owner, Oct 8). Sign-in already offers a one-time code, so a skipped
+     password costs nothing; Profile → Password sets one later. */
+  body: t(
+    "Optional. Without a password, you sign in with a one-time code sent to your mobile. You can set one later from your profile.",
+    "ഇത് നിർബന്ധമല്ല. പാസ്‌വേഡ് ഇല്ലെങ്കിൽ, നിങ്ങളുടെ മൊബൈലിലേക്ക് അയയ്ക്കുന്ന ഒറ്റത്തവണ കോഡ് ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യാം. പിന്നീട് പ്രൊഫൈലിൽ നിന്ന് പാസ്‌വേഡ് സജ്ജമാക്കാം.",
+  ),
+  skip: t("Skip for now", "ഇപ്പോൾ ഒഴിവാക്കുക"),
   password: t("Password", "പാസ്‌വേഡ്"),
   passwordPlaceholder: t("Enter a password", "ഒരു പാസ്‌വേഡ് നൽകുക"),
   confirm: t("Confirm password", "പാസ്‌വേഡ് ആവർത്തിക്കുക"),

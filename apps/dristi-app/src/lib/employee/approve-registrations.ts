@@ -1344,37 +1344,241 @@ function comesAfter(a: RegistrationRequest, b: RegistrationRequest): boolean {
  */
 export const REGISTRATIONS_QUEUE_COUNT = REGISTRATIONS_QUEUE.length;
 
+export type AccountTypeFilter = "all" | RegistrantKind;
+export type RequestTypeFilter = "all" | RequestKind;
+/** What the register said — `matches` is a register that answered and agreed. */
+export type RegisterFilter = "all" | "matches" | RegisterAnswer;
+/** The wait, in the same bands the days-waiting cell colours by (`registrationWaitTone`). */
+export type WaitFilter = "all" | WaitTone;
+
 export type RegistrationsFilters = {
   /**
-   * Free text over the full name, the Bar registration ID and the application number.
+   * Free text over the full name and the registration number — the two identifiers on
+   * the row. The application number is not searched: it is not shown anywhere on the
+   * court side any more (owner, 2026-10-07: "more of a backend thing"), and a box that
+   * finds a row by a value the row does not show is a box nobody can predict.
    *
-   * Three fields and not one, because the officer holds a different one depending on how
-   * the request reached them: a name if the advocate walked in, the application number if
-   * they telephoned and read it off their own waiting screen, the Bar registration ID if
-   * the question came from the bar. The reference screen offered *Application Number*
-   * alone — the identifier an officer is least likely to have — so the reach is widened
-   * and the visible label says "Search requests", which is what the control actually does.
-   *
-   * Not searched: mobile and email. Both are contact details rather than identifiers, and
-   * a queue that finds a person by their telephone number is a directory.
+   * Not searched either: mobile and email. Both are contact details rather than
+   * identifiers, and a queue that finds a person by their telephone number is a directory.
    */
   query: string;
+  accountType: AccountTypeFilter;
+  /** Pending only: a decided request is no longer read by what kind of request it was. */
+  requestType: RequestTypeFilter;
+  /** Pending only, and advocates only — clerks have no register (`REG-13a`). */
+  register: RegisterFilter;
+  /** Pending only. */
+  wait: WaitFilter;
 };
 
 export const EMPTY_REGISTRATIONS_FILTERS: RegistrationsFilters = {
   query: "",
+  accountType: "all",
+  requestType: "all",
+  register: "all",
+  wait: "all",
 };
 
+export const ACCOUNT_TYPE_OPTIONS: { value: RegistrantKind; label: string }[] = [
+  { value: "advocate", label: "Advocate" },
+  { value: "clerk", label: "Clerk" },
+];
+
+export const REQUEST_TYPE_OPTIONS: { value: RequestKind; label: string }[] = [
+  { value: "first", label: "New registration" },
+  { value: "edited", label: "Profile update" },
+  { value: "resubmission", label: "Resubmitted after rejection" },
+];
+
+export const REGISTER_OPTIONS: { value: Exclude<RegisterFilter, "all">; label: string }[] = [
+  { value: "matches", label: "Matches the register" },
+  { value: "differs", label: "Differs from the register" },
+  { value: "no-entry", label: "No entry in the register" },
+  { value: "not-checked", label: "Register not reached" },
+];
+
+export const WAIT_OPTIONS: { value: WaitTone; label: string }[] = [
+  { value: "destructive", label: "14 days or more" },
+  { value: "warning", label: "7 to 13 days" },
+  { value: "plain", label: "Under 7 days" },
+];
+
+function registerState(request: RegistrationRequest): RegisterFilter | null {
+  if (request.lookup.state === "none") return null;
+  return registerAnswer(request) ?? "matches";
+}
+
+/** The waiting queue, narrowed by every filter the Pending tab offers. */
 export function filterRegistrations(
   rows: RegistrationRequest[],
   filters: RegistrationsFilters,
 ): RegistrationRequest[] {
-  return rows.filter((request) =>
-    matchesQuery(
-      filters.query,
-      request.fullName,
-      request.registrationNumber,
-      request.applicationNumber,
-    ),
+  return rows.filter(
+    (request) =>
+      matchesQuery(filters.query, request.fullName, request.registrationNumber) &&
+      (filters.accountType === "all" ||
+        request.registrantKind === filters.accountType) &&
+      (filters.requestType === "all" ||
+        request.requestKind === filters.requestType) &&
+      (filters.register === "all" || registerState(request) === filters.register) &&
+      (filters.wait === "all" ||
+        registrationWaitTone(request.daysWaiting) === filters.wait),
   );
 }
+
+/* ─────────────────────────────── the order ────────────────────────────────── */
+
+export type PendingSort = "longest" | "shortest" | "name";
+
+export const PENDING_SORTS: { id: PendingSort; label: string }[] = [
+  { id: "longest", label: "Longest waiting first" },
+  { id: "shortest", label: "Shortest waiting first" },
+  { id: "name", label: "Name, A to Z" },
+];
+
+const byName = (a: { fullName: string }, b: { fullName: string }) =>
+  a.fullName.localeCompare(b.fullName, "en-IN");
+
+/** The queue in the order asked for; the queue's own order breaks every tie. */
+export function sortPending(
+  rows: RegistrationRequest[],
+  sort: PendingSort,
+): RegistrationRequest[] {
+  const queue = sortByLongestWait(rows);
+  if (sort === "longest") return queue;
+  if (sort === "shortest") {
+    return [...queue].sort((a, b) => a.daysWaiting - b.daysWaiting);
+  }
+  return [...queue].sort(byName);
+}
+
+/* ────────────────────────────── the decided ───────────────────────────────── */
+
+export type RegistrationOutcome = "approved" | "rejected";
+
+/**
+ * A request this court has already decided — what the Approved and Rejected tabs list
+ * (owner, 2026-10-07). Read, not worked: nothing on either tab can be decided again.
+ *
+ * A rejected request stays here until the registrant resubmits; then it is a new request
+ * in Pending (`REG-23`), carrying this rejection as a round.
+ */
+export type DecidedRegistration = {
+  request: RegistrationRequest;
+  outcome: RegistrationOutcome;
+  /** Days before the demo's today; 0 is a decision taken on this screen. */
+  daysAgo: number;
+  /** `REG-22` — rejected only. */
+  reason?: string;
+};
+
+/** The ISO day a decision was taken. */
+export function decisionDay(decided: DecidedRegistration): string {
+  return dayBefore(DEMO_TODAY, decided.daysAgo);
+}
+
+export type DecidedSort = "recent" | "oldest" | "name";
+
+export const DECIDED_SORTS: { id: DecidedSort; label: string }[] = [
+  { id: "recent", label: "Most recent first" },
+  { id: "oldest", label: "Oldest first" },
+  { id: "name", label: "Name, A to Z" },
+];
+
+export function filterDecided(
+  rows: DecidedRegistration[],
+  filters: Pick<RegistrationsFilters, "query" | "accountType">,
+): DecidedRegistration[] {
+  return rows.filter(
+    ({ request }) =>
+      matchesQuery(filters.query, request.fullName, request.registrationNumber) &&
+      (filters.accountType === "all" ||
+        request.registrantKind === filters.accountType),
+  );
+}
+
+export function sortDecided(
+  rows: DecidedRegistration[],
+  sort: DecidedSort,
+): DecidedRegistration[] {
+  const recent = [...rows].sort(
+    (a, b) => a.daysAgo - b.daysAgo || byName(a.request, b.request),
+  );
+  if (sort === "recent") return recent;
+  if (sort === "oldest") return recent.reverse();
+  return [...rows].sort((a, b) => byName(a.request, b.request));
+}
+
+function decidedAdvocate(
+  serial: number,
+  fullName: string,
+  registrationNumber: string,
+  rest: Partial<RegistrationRequest> = {},
+): RegistrationRequest {
+  return {
+    id: `adv-${serial}`,
+    applicationNumber: `KL-ADV-${String(serial).padStart(6, "0")}-2026`,
+    fullName,
+    registrationNumber,
+    mobile: `98470${String(serial).padStart(5, "0")}`,
+    photo: { src: CARD, filename: `bar-id-${registrationNumber.toLowerCase().replace(/\//g, "-")}.jpg` },
+    daysWaiting: 0,
+    registrantKind: "advocate",
+    requestKind: "first",
+    lookup: {
+      state: "found",
+      entry: { barNumber: registrationNumber, name: fullName, bar: KERALA },
+    },
+    ...rest,
+  };
+}
+
+function decidedClerk(
+  serial: number,
+  fullName: string,
+  registrationNumber: string,
+): RegistrationRequest {
+  return {
+    ...decidedAdvocate(serial, fullName, registrationNumber),
+    id: `clk-${serial}`,
+    applicationNumber: `KL-CLERK-${String(serial).padStart(6, "0")}-2026`,
+    registrantKind: "clerk",
+    lookup: { state: "none" },
+  };
+}
+
+/**
+ * Demo decisions, so both tabs have something to read on first load. A rejected row here
+ * is still waiting for its registrant to resubmit — the ones that already did are in
+ * `PENDING`, with the rejection as a round.
+ */
+export const DECIDED_REGISTRATIONS: DecidedRegistration[] = [
+  { outcome: "approved", daysAgo: 1, request: decidedAdvocate(101, "Arun Thomas Varghese", "KL/2871/2019") },
+  { outcome: "approved", daysAgo: 1, request: decidedClerk(171, "Bindu Raveendran", "CLK/1307/2015") },
+  { outcome: "approved", daysAgo: 3, request: decidedAdvocate(97, "Deepa Krishnan", "KL/1964/2012") },
+  { outcome: "approved", daysAgo: 6, request: decidedAdvocate(92, "ജോസഫ് മാത്യു", "KL/0542/2001", { fullNameLang: "ml" }) },
+  { outcome: "approved", daysAgo: 9, request: decidedAdvocate(88, "Nikhil Prakash", "KL/3907/2023") },
+  { outcome: "approved", daysAgo: 15, request: decidedClerk(160, "Manoj Kumar S.", "CLK/0954/2019") },
+  { outcome: "approved", daysAgo: 22, request: decidedAdvocate(79, "Shahana Basheer", "KL/2210/2016") },
+  {
+    outcome: "rejected",
+    daysAgo: 2,
+    request: decidedAdvocate(99, "Vishnu Mohan", "KL/4012/2024"),
+    reason:
+      "The photo of your Bar ID card is cut off at the bottom, so the enrolment number cannot be read. Please upload the whole card.",
+  },
+  {
+    outcome: "rejected",
+    daysAgo: 5,
+    request: decidedClerk(166, "Latha Gopinath", "CLK/2071/2020"),
+    reason:
+      "The name on your clerk ID card is Latha G. Nair. Please type the name exactly as it appears on the card.",
+  },
+  {
+    outcome: "rejected",
+    daysAgo: 12,
+    request: decidedAdvocate(84, "Rahul Dev Menon", "KL/3155/2020"),
+    reason:
+      "The Bar Council register has no entry for KL/3155/2020. Please check the number on your card and submit again.",
+  },
+];

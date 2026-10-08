@@ -33,8 +33,8 @@ export type GeneratedApplication = {
 };
 
 /**
- * The register's dummy pack writes this court long-form — "JMFC-I, Kollam"
- * appears as "Judicial First Class Magistrate Court-I, Kollam" in
+ * The register's dummy pack writes this court long-form — "JMFC-I"
+ * appears as "Judicial First Class Magistrate Court-I" in
  * applications-dummy.json — so the expansion is the product's own
  * vocabulary, not an invented one. Unmatched courts pass through as-is.
  */

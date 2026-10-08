@@ -29,11 +29,14 @@ export const ADVOCATE_PROFILE_NAME = "Adv. Anjali Nair";
 export const ADVOCATE_JOIN_CASE: JoinCase = DEMO_JOIN_CASE;
 
 /** The complainant side as joinable parties (JoinCase only carries a display string). */
-export const COMPLAINANT_PARTIES: CaseParty[] = [
-  { id: "comp-1", name: "South Indian Bank Ltd." },
-];
+/** Sandbox vakalatnama fee — the same figure the pending-tasks sandbox uses. The real
+ *  amount comes from the payment service; this is not a fee schedule. */
+export const VAKALATNAMA_FEE_PAISE = 25 * 100;
 
-/** Advocates already on record per side — drives the replacement questions. */
+export const COMPLAINANT_PARTIES: CaseParty[] = DEMO_JOIN_CASE.complainants;
+
+/** Advocates already on record per side — drives "has another advocate already
+ *  uploaded and paid for this vakalatnama?", which is asked only once one is on the case. */
 export const SIDE_ADVOCATES: Record<"complainant" | "accused", string[]> = {
   complainant: ["Adv. Meera Pillai"],
   accused: [],
@@ -75,7 +78,7 @@ export const VAKALATNAMAS: Vakalatnama[] = [
     id: "vk-1",
     name: "South Indian Bank cheque matter",
     parties: "Rajan Krishnan Nair and Suresh Babu P",
-    caseRef: "CC 847 / 2026",
+    caseRef: "CC 847/2026",
     generatedOn: "12-08-2026",
     advocates: ["Adv. Anjali Nair", "Adv. Anil George"],
   },
@@ -593,9 +596,10 @@ export const advDialog = {
   accountLabel: t("Join this case as", "ഈ കേസിൽ ചേരുന്നത്"),
   accountAdvocate: t("Advocate", "അഭിഭാഷകൻ"),
   accountLitigant: t("Litigant", "കക്ഷി"),
+  accountPoa: t("PoA holder", "പവർ ഓഫ് അറ്റോർണി ഉടമ"),
   accountNote: t(
-    "If you choose Litigant, we'll switch to your litigant profile before you continue. You can switch profiles at any time from the profile menu.",
-    "കക്ഷി തിരഞ്ഞെടുക്കുകയാണെങ്കിൽ, തുടരുന്നതിന് മുൻപ് നിങ്ങളുടെ കക്ഷി പ്രൊഫൈലിലേക്ക് മാറും. പ്രൊഫൈൽ മെനുവിൽ നിന്ന് എപ്പോൾ വേണമെങ്കിലും പ്രൊഫൈൽ മാറ്റാം.",
+    "If you choose Litigant or PoA holder, we'll switch to your litigant profile before you continue. You can switch profiles at any time from the profile menu.",
+    "കക്ഷി അല്ലെങ്കിൽ പവർ ഓഫ് അറ്റോർണി ഉടമ തിരഞ്ഞെടുക്കുകയാണെങ്കിൽ, തുടരുന്നതിന് മുൻപ് നിങ്ങളുടെ കക്ഷി പ്രൊഫൈലിലേക്ക് മാറും. പ്രൊഫൈൽ മെനുവിൽ നിന്ന് എപ്പോൾ വേണമെങ്കിലും പ്രൊഫൈൽ മാറ്റാം.",
   ),
   accountSwitchTitle: t("Switching to your litigant profile", "നിങ്ങളുടെ കക്ഷി പ്രൊഫൈലിലേക്ക് മാറുന്നു"),
   accountSwitchBody: t(
@@ -603,20 +607,6 @@ export const advDialog = {
     "നിങ്ങളുടെ കക്ഷി ഹോമിൽ നിന്ന് ഈ കേസ് തുടരും.",
   ),
   accountSwitchStatus: t("Switching profile…", "പ്രൊഫൈൽ മാറ്റുന്നു…"),
-
-  /* secret code */
-  codeBody: t(
-    "Enter the six-digit code for this case.",
-    "ഈ കേസിന്റെ ആറക്ക കോഡ് നൽകുക.",
-  ),
-  codeLabel: t("Access code", "ആക്‌സസ് കോഡ്"),
-  codeCaseLead: t("You are joining", "നിങ്ങൾ ചേരുന്ന കേസ്"),
-  codeNote: t(
-    "The code is printed on the summons. Parties who have already joined the case can also share it with you.",
-    "കോഡ് സമൻസിൽ അച്ചടിച്ചിട്ടുണ്ട്. കേസിൽ ഇതിനകം ചേർന്ന കക്ഷികൾക്കും ഇത് നിങ്ങളുമായി പങ്കിടാം.",
-  ),
-  codeError: t("Enter the six-digit access code.", "ആറക്ക ആക്‌സസ് കോഡ് നൽകുക."),
-  codeVerify: t("Verify access code", "ആക്‌സസ് കോഡ് പരിശോധിക്കുക"),
 
   /* who you represent */
   roleBody: t(
@@ -641,44 +631,8 @@ export const advDialog = {
   whichPlaceholder: t("Choose litigant(s)", "കക്ഷികളെ തിരഞ്ഞെടുക്കുക"),
   whichEmpty: t("No litigants found.", "കക്ഷികളെ കണ്ടെത്തിയില്ല."),
   whichError: t("Choose at least one litigant.", "കുറഞ്ഞത് ഒരു കക്ഷിയെ തിരഞ്ഞെടുക്കുക."),
-  replaceLegend: t(
-    "Are you replacing an existing advocate or a party in person?",
-    "നിലവിലുള്ള അഭിഭാഷകനെയോ സ്വയം ഹാജരാകുന്ന കക്ഷിയെയോ മാറ്റിയാണോ നിങ്ങൾ വരുന്നത്?",
-  ),
-  replaceHint: t(
-    "Choose yes if you are taking over from an advocate on record, or from a litigant who has been appearing in person.",
-    "രേഖയിലുള്ള അഭിഭാഷകനിൽ നിന്നോ സ്വയം ഹാജരായിരുന്ന കക്ഷിയിൽ നിന്നോ ചുമതല ഏറ്റെടുക്കുകയാണെങ്കിൽ അതെ തിരഞ്ഞെടുക്കുക.",
-  ),
   yes: t("Yes", "അതെ"),
   no: t("No", "അല്ല"),
-  replaceError: t("Choose yes or no.", "അതെ അല്ലെങ്കിൽ അല്ല തിരഞ്ഞെടുക്കുക."),
-  replacedWhoLabel: t(
-    "Which advocate are you replacing?",
-    "ഏത് അഭിഭാഷകനെയാണ് നിങ്ങൾ മാറ്റുന്നത്?",
-  ),
-  replacedWhoPlaceholder: t("Choose an advocate", "ഒരു അഭിഭാഷകനെ തിരഞ്ഞെടുക്കുക"),
-  replacedWhoError: t(
-    "Choose the advocate you are replacing.",
-    "നിങ്ങൾ മാറ്റുന്ന അഭിഭാഷകനെ തിരഞ്ഞെടുക്കുക.",
-  ),
-  approverLegend: t(
-    "Who should approve the replacement?",
-    "മാറ്റം ആരാണ് അംഗീകരിക്കേണ്ടത്?",
-  ),
-  approverJudge: t("Judge", "ജഡ്ജി"),
-  approverAdvocates: t("Existing advocate(s)", "നിലവിലുള്ള അഭിഭാഷകർ"),
-  approverError: t("Choose an approver.", "അംഗീകരിക്കേണ്ട ആളെ തിരഞ്ഞെടുക്കുക."),
-  approverNoAdvocates: t(
-    "No advocate is on record for this side, so the judge approves the change.",
-    "ഈ ഭാഗത്തിന് രേഖയിൽ അഭിഭാഷകനില്ല; അതിനാൽ ജഡ്ജിയാണ് മാറ്റം അംഗീകരിക്കുന്നത്.",
-  ),
-  reasonLabel: t("Reason for replacement", "മാറ്റത്തിനുള്ള കാരണം"),
-  reasonError: t("Give the reason for the replacement.", "മാറ്റത്തിനുള്ള കാരണം നൽകുക."),
-  supportLabel: t("Supporting document", "സഹായ രേഖ"),
-  supportHelp: t(
-    "Optional. A no-objection or consent letter helps the approver decide. JPG, JPEG, PNG or PDF up to 10 MB.",
-    "നിർബന്ധമല്ല. എതിർപ്പില്ലാ പത്രമോ സമ്മതപത്രമോ തീരുമാനത്തിന് സഹായിക്കും. 10 MB വരെ JPG, JPEG, PNG അല്ലെങ്കിൽ PDF.",
-  ),
 
   /* enter litigant contact details (only for litigants not yet on the case) */
   verifyTitle: t("Enter litigant contact details", "കക്ഷിയുടെ ബന്ധപ്പെടാനുള്ള വിവരങ്ങൾ നൽകുക"),
@@ -689,6 +643,10 @@ export const advDialog = {
   contactAlreadyNote: t(
     "{names} already joined this case, so we have their number.",
     "{names} ഇതിനകം ഈ കേസിൽ ചേർന്നു, അതിനാൽ അവരുടെ നമ്പർ ഞങ്ങളുടെ പക്കലുണ്ട്.",
+  ),
+  contactConfirmNote: t(
+    "We'll text each number. The case is linked to a litigant's account once they sign in and confirm it's them.",
+    "ഓരോ നമ്പറിലേക്കും SMS അയക്കും. കക്ഷി സൈൻ ഇൻ ചെയ്ത് അത് അവരാണെന്ന് സ്ഥിരീകരിച്ചാൽ കേസ് അവരുടെ അക്കൗണ്ടുമായി ബന്ധിപ്പിക്കും.",
   ),
   contactMobileError: t(
     "Enter a valid 10-digit mobile number.",
@@ -707,8 +665,8 @@ export const advDialog = {
   ),
   vkAnotherError: t("Choose yes or no.", "അതെ അല്ലെങ്കിൽ അല്ല തിരഞ്ഞെടുക്കുക."),
   vkFeeNote: t(
-    "The vakalatnama fee will appear in your pending tasks after you join.",
-    "ചേർന്നതിന് ശേഷം വക്കാലത്ത് ഫീസ് നിങ്ങളുടെ ബാക്കിയുള്ള ജോലികളിൽ വരും.",
+    "You pay the vakalatnama fee in the next step. You get access to the case once it is paid.",
+    "അടുത്ത ഘട്ടത്തിൽ വക്കാലത്ത് ഫീസ് അടയ്ക്കണം. ഫീസ് അടച്ചാൽ കേസിലേക്ക് ആക്‌സസ് ലഭിക്കും.",
   ),
   vkCountLabel: t(
     "How many advocates are part of this vakalatnama?",
@@ -739,8 +697,6 @@ export const advDialog = {
     "Add {n} advocate(s) to match the number above.",
     "മുകളിലെ എണ്ണത്തിന് അനുസൃതമായി {n} അഭിഭാഷകരെ ചേർക്കുക.",
   ),
-  tabUpload: t("Upload a file", "ഫയൽ അപ്‌ലോഡ് ചെയ്യുക"),
-  tabSaved: t("Generated vakalatnamas", "തയ്യാറാക്കിയ വക്കാലത്തുകൾ"),
   vkSearchLabel: t(
     "Search your generated vakalatnamas",
     "തയ്യാറാക്കിയ വക്കാലത്തുകൾ തിരയുക",
@@ -753,20 +709,14 @@ export const advDialog = {
     "No vakalatnamas match your search.",
     "നിങ്ങളുടെ തിരയലുമായി പൊരുത്തപ്പെടുന്ന വക്കാലത്തുകളില്ല.",
   ),
-  vkGeneratePrompt: t("Don't have a vakalatnama yet?", "ഇനിയും വക്കാലത്ത് ഇല്ലേ?"),
-  vkGenerateAction: t("Generate one in the portal", "പോർട്ടലിൽ തയ്യാറാക്കുക"),
-  vkGeneratePrototype: t(
-    "The vakalatnama generator will open here. This flow will be added next.",
-    "വക്കാലത്ത് ജനറേറ്റർ ഇവിടെ തുറക്കും. ഈ പ്രവാഹം അടുത്തതായി ചേർക്കും.",
-  ),
   vkDocLabel: t("Vakalatnama", "വക്കാലത്ത്"),
   vkDocHelp: t(
     "Upload a JPG, JPEG, PNG or PDF up to 10 MB.",
     "10 MB വരെ വലുപ്പമുള്ള JPG, JPEG, PNG അല്ലെങ്കിൽ PDF അപ്‌ലോഡ് ചെയ്യുക.",
   ),
   vkAttachError: t(
-    "Upload or choose a vakalatnama before continuing.",
-    "തുടരുന്നതിന് മുൻപ് വക്കാലത്ത് അപ്‌ലോഡ് ചെയ്യുക അല്ലെങ്കിൽ തിരഞ്ഞെടുക്കുക.",
+    "Upload the vakalatnama before continuing.",
+    "തുടരുന്നതിന് മുൻപ് വക്കാലത്ത് അപ്‌ലോഡ് ചെയ്യുക.",
   ),
   preview: t("Preview", "പ്രിവ്യൂ"),
   changeFile: t("Change file", "ഫയൽ മാറ്റുക"),
@@ -790,26 +740,40 @@ export const advDialog = {
   partiesLabel: t("Litigants", "കക്ഷികൾ"),
   advocatesCount: t("{count} advocates", "{count} അഭിഭാഷകർ"),
 
+  /* payment — inside the flow; access waits for it (JOIN-54) */
+  payTitle: t("Pay the vakalatnama fee", "വക്കാലത്ത് ഫീസ് അടയ്ക്കുക"),
+  payBody: t(
+    "You get access to the case once the fee is paid.",
+    "ഫീസ് അടച്ചാൽ കേസിലേക്ക് ആക്‌സസ് ലഭിക്കും.",
+  ),
+  payFeeHead: t("Fee", "ഫീസ്"),
+  payFeeName: t("Vakalatnama fee", "വക്കാലത്ത് ഫീസ്"),
+  payCase: t("Case", "കേസ്"),
+  payAmount: t("Amount", "തുക"),
+  payOutcomeLabel: t("Sandbox gateway result", "സാൻഡ്‌ബോക്സ് ഗേറ്റ്‌വേ ഫലം"),
+  payOutcomeSuccess: t("Success", "വിജയം"),
+  payOutcomeFailed: t("Failed", "പരാജയപ്പെട്ടു"),
+  paySandboxNote: t("Sandbox payment — no money moves.", "സാൻഡ്‌ബോക്സ് പേയ്‌മെന്റ് — പണം കൈമാറുന്നില്ല."),
+  payFailed: t(
+    "The payment did not go through. Nothing was paid; try again.",
+    "പേയ്‌മെന്റ് നടന്നില്ല. ഒന്നും അടച്ചിട്ടില്ല; വീണ്ടും ശ്രമിക്കുക.",
+  ),
+  payNow: t("Pay {amount}", "{amount} അടയ്ക്കുക"),
+  payLater: t("Pay later", "പിന്നീട് അടയ്ക്കാം"),
+
   /* outcomes */
+  unpaidTitle: t("Pay the fee to get access", "ആക്‌സസ് ലഭിക്കാൻ ഫീസ് അടയ്ക്കുക"),
+  unpaidBody: t(
+    "Your vakalatnama is uploaded. Paying the vakalatnama fee is now in your pending tasks — you get access to the case once it is paid.",
+    "നിങ്ങളുടെ വക്കാലത്ത് അപ്‌ലോഡ് ചെയ്തു. വക്കാലത്ത് ഫീസ് അടയ്ക്കൽ ഇപ്പോൾ നിങ്ങളുടെ ബാക്കിയുള്ള ജോലികളിലുണ്ട് — ഫീസ് അടച്ചാൽ കേസിലേക്ക് ആക്‌സസ് ലഭിക്കും.",
+  ),
   joinedTitle: t("You have joined this case", "നിങ്ങൾ ഈ കേസിൽ ചേർന്നു"),
   joinedBody: t(
     "You can now act for the litigant(s) in this case.",
     "ഇനി ഈ കേസിൽ കക്ഷിക്ക് (കക്ഷികൾക്ക്) വേണ്ടി പ്രവർത്തിക്കാം.",
   ),
-  requestTitle: t(
-    "Your request to join has been sent",
-    "ചേരാനുള്ള നിങ്ങളുടെ അപേക്ഷ അയച്ചു",
-  ),
-  requestReplacementBody: t(
-    "The {approver} must approve the replacement before you get access. You will be told by SMS when a decision is made.",
-    "ആക്‌സസ് ലഭിക്കും മുൻപ് {approver} മാറ്റം അംഗീകരിക്കണം. തീരുമാനമാകുമ്പോൾ SMS വഴി അറിയിക്കും.",
-  ),
-  requestComplainantBody: t(
-    "An advocate already on the case must approve your request. You will be told by SMS when a decision is made.",
-    "കേസിൽ ഇതിനകം ഉള്ള ഒരു അഭിഭാഷകൻ അപേക്ഷ അംഗീകരിക്കണം. തീരുമാനമാകുമ്പോൾ SMS വഴി അറിയിക്കും.",
-  ),
-  approverTheJudge: t("judge", "ജഡ്ജി"),
-  approverTheAdvocates: t("existing advocate(s)", "നിലവിലുള്ള അഭിഭാഷകർ"),
+  /* The settled band on the joined case (Oct 6). Malayalam drafted — needs review. */
+  joinedBand: t("Joined · representing {names}", "ചേർന്നു · {names}-നെ പ്രതിനിധീകരിക്കുന്നു"),
   viewCaseFile: t("View case file", "കേസ് ഫയൽ കാണുക"),
   prototypeCaseFile: t(
     "This action will open the case file.",

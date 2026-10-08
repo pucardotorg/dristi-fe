@@ -87,6 +87,8 @@ export function complainantSummary(c: Complainant | undefined) {
   return {
     name: orNot(institution ? c?.entName : c?.name),
     type: institution ? "Institution" : "Individual",
+    /** Institutions only; empty for an individual, who is never asked. */
+    cinPan: institution ? orNot(c?.entCinPan) : "",
     mobile: orNot(institution ? c?.entPhone : c?.mobile),
     email: orNot(institution ? c?.entEmail : c?.email),
     presentAddress: orNot(addressToString(present)),

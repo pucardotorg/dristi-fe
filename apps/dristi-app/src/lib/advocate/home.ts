@@ -251,7 +251,7 @@ export function courtRooms(
 }
 
 export type CourtLabels = {
-  /** The trailing run every court name shares — "Kollam" — or null. */
+  /** The trailing run every court name shares — "Sample District" — or null. */
   establishment: string | null;
   /** The court name with that shared run removed. Identity when there is none. */
   shortOf: (court: string) => string;
@@ -260,15 +260,15 @@ export type CourtLabels = {
 /**
  * The part of the court names that is the same on all of them, said once.
  *
- * Four courts reading "…, Kollam" spend forty characters on one fact, and the
+ * Four courts reading "…, Sample District" spend forty characters on one fact, and the
  * fact belongs above the stack rather than on every heading. This computes it
- * from the data instead of matching a literal: an English `.replace(", Kollam")`
+ * from the data instead of matching a literal: an English `.replace(", Sample District")`
  * silently no-ops in a Malayalam or Gujarati deployment, and how a court is named
  * is a state-layer concern (`product-foundation.md` §2), not a view's edit.
  *
  * The rule is the longest common *trailing* run of `", "`-separated segments that
  * still leaves every court at least one leading segment of its own — so a court
- * called only "Kollam" stops the run rather than being erased by it. No run, one
+ * called only "Sample District" stops the run rather than being erased by it. No run, one
  * court, or unrelated names all fall through to the full label, which is always
  * correct. The `", "` split is itself a punctuation assumption; it is safe rather
  * than durable, and the durable fix is structured court data (brief §15.11 Q7).
@@ -280,7 +280,7 @@ export function courtLabelsOf(courts: string[]): CourtLabels {
 
   const parts = names.map((name) => name.split(", "));
   // Every court keeps a leading segment, so the run is always shorter than the
-  // shortest name — that guard is what makes a bare "Kollam" fall through.
+  // shortest name — that guard is what makes a bare "Sample District" fall through.
   const limit = Math.min(...parts.map((p) => p.length)) - 1;
 
   let run = 0;
