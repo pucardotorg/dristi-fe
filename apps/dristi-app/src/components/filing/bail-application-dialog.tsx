@@ -88,6 +88,8 @@ import {
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
+import { DocumentRowsSection } from "@/components/cases/application-type-fields";
+import type { DocumentRowDraft } from "@/lib/cases/application-draft";
 
 /**
  * Raise an application → bail. Staged dialog, same shell as the join flows:
@@ -260,6 +262,8 @@ function suretyComplete(surety: SuretyDraft) {
 function ApplicationDraft({
   accessCase,
   grounds,
+  prayer,
+  documents,
   locale,
   expanded = false,
   onExpand,
@@ -267,6 +271,8 @@ function ApplicationDraft({
   accessCase: AccessCase;
   /** Rich text, so the generated draft keeps the filer's emphasis and lists. */
   grounds: RichTextValue;
+  prayer: string;
+  documents: DocumentRowDraft[];
   locale: Locale;
   expanded?: boolean;
   onExpand?: () => void;
@@ -315,6 +321,30 @@ function ApplicationDraft({
           value={grounds}
           className="text-body-compact text-pretty text-muted-foreground"
         />
+        {documents.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <p className="text-body-compact font-medium">
+              {pick(bailDialog.documentsHeading, locale)}
+            </p>
+            <ol className="list-decimal pl-6 text-body-compact text-pretty text-muted-foreground">
+              {documents.map((doc) => (
+                <li key={doc.id}>
+                  {[doc.title.trim(), doc.type.trim()].filter(Boolean).join(" · ")}
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+        {prayer.trim() ? (
+          <div className="flex flex-col gap-1">
+            <p className="text-body-compact font-medium">
+              {pick(bailDialog.prayerLabel, locale)}
+            </p>
+            <p className="text-body-compact text-pretty text-muted-foreground">
+              {prayer.trim()}
+            </p>
+          </div>
+        ) : null}
       </article>
     </div>
   );
@@ -346,6 +376,16 @@ export function BailApplicationDialog({
   const [groundsRich, setGroundsRich] = React.useState<RichTextValue>(EMPTY_RICH_TEXT);
   const grounds = groundsRich.text;
   const [comments, setComments] = React.useState("");
+  /* The PRD's prayer, offered in the court's usual words and marked as
+     filled in for the advocate to check; and its documents list. */
+  const [typedPrayer, setTypedPrayer] = React.useState("");
+  const [prayerPrefilled, setPrayerPrefilled] = React.useState(true);
+  /* Until the advocate types, the offered wording follows the language. */
+  const prayer = prayerPrefilled ? pick(bailDialog.prayerDefault, locale) : typedPrayer;
+  const [documents, setDocuments] = React.useState<DocumentRowDraft[]>([]);
+  const [documentErrors, setDocumentErrors] = React.useState<
+    Record<string, { type?: string; title?: string; files?: string }>
+  >({});
   const [detailsTouched, setDetailsTouched] = React.useState(false);
 
   // The magistrate usually asks for two sureties, so the yes-branch starts
@@ -388,6 +428,10 @@ export function BailApplicationDialog({
     setFatherPrefilled(false);
     setGroundsRich(EMPTY_RICH_TEXT);
     setComments("");
+    setTypedPrayer("");
+    setPrayerPrefilled(true);
+    setDocuments([]);
+    setDocumentErrors({});
     setDetailsTouched(false);
     setSuretyChoice("yes");
     setSureties([blankSurety(), blankSurety()]);
@@ -417,6 +461,8 @@ export function BailApplicationDialog({
       petitionerId !== "" ||
       grounds.trim() !== "" ||
       comments.trim() !== "" ||
+      !prayerPrefilled ||
+      documents.length > 0 ||
       (father.trim() !== "" && !fatherPrefilled));
 
   function closeNow() {
@@ -463,7 +509,25 @@ export function BailApplicationDialog({
   function submitDetails(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setDetailsTouched(true);
-    if (!petitionerId || !father.trim() || !grounds.trim()) return;
+    /* A document row, once added, needs all three parts. */
+    const rowErrors: typeof documentErrors = {};
+    for (const row of documents) {
+      const errors = {
+        type: row.type.trim() ? undefined : pick(bailDialog.documentTypeError, locale),
+        title: row.title.trim() ? undefined : pick(bailDialog.documentTitleError, locale),
+        files: row.files.length ? undefined : pick(bailDialog.documentFilesError, locale),
+      };
+      if (errors.type || errors.title || errors.files) rowErrors[row.id] = errors;
+    }
+    setDocumentErrors(rowErrors);
+    if (
+      !petitionerId ||
+      !father.trim() ||
+      !grounds.trim() ||
+      !prayer.trim() ||
+      Object.keys(rowErrors).length > 0
+    )
+      return;
     setDetailsTouched(false);
     setStage("sureties");
   }
@@ -634,6 +698,68 @@ export function BailApplicationDialog({
                         : null}
                     </FieldError>
                   </Field>
+
+                  <Field data-invalid={detailsTouched && !prayer.trim()}>
+                    <FieldLabel htmlFor="bail-prayer">
+                      {pick(bailDialog.prayerLabel, locale)}
+                    </FieldLabel>
+                    <Textarea
+                      id="bail-prayer"
+                      value={prayer}
+                      rows={2}
+                      prefilled={prayerPrefilled}
+                      aria-invalid={detailsTouched && !prayer.trim()}
+                      onChange={(event) => {
+                        setTypedPrayer(event.target.value);
+                        setPrayerPrefilled(false);
+                        setDetailsTouched(false);
+                      }}
+                    />
+                    <FieldDescription>{pick(bailDialog.prayerHint, locale)}</FieldDescription>
+                    <FieldError>
+                      {detailsTouched && !prayer.trim()
+                        ? pick(bailDialog.prayerError, locale)
+                        : null}
+                    </FieldError>
+                  </Field>
+
+                  <DocumentRowsSection
+                    heading={pick(bailDialog.documentsHeading, locale)}
+                    optional
+                    addLabel={pick(bailDialog.documentsAdd, locale)}
+                    rowLabel={pick(bailDialog.documentRow, locale)}
+                    rows={documents}
+                    rowErrors={documentErrors}
+                    onRowsChange={setDocuments}
+                    onRowChange={(id, patch) => {
+                      setDocuments((rows) =>
+                        rows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+                      );
+                      setDocumentErrors((errors) => {
+                        if (!errors[id]) return errors;
+                        const next = { ...errors[id] };
+                        for (const key of Object.keys(patch) as (keyof typeof next)[]) {
+                          next[key] = undefined;
+                        }
+                        return { ...errors, [id]: next };
+                      });
+                    }}
+                    onRowError={(id, field, error) =>
+                      setDocumentErrors((errors) => ({
+                        ...errors,
+                        [id]: { ...errors[id], [field]: error },
+                      }))
+                    }
+                    labels={{
+                      type: pick(bailDialog.documentType, locale),
+                      title: pick(bailDialog.documentTitle, locale),
+                      files: pick(bailDialog.documentFiles, locale),
+                      filesHint: pick(bailDialog.documentFilesHint, locale),
+                      remove: pick(bailDialog.documentRemove, locale),
+                      optional: pick(bailDialog.optional, locale),
+                      none: () => pick(bailDialog.documentsNone, locale),
+                    }}
+                  />
 
                   <Field>
                     <FieldLabel htmlFor="bail-comments">
@@ -1001,6 +1127,8 @@ export function BailApplicationDialog({
                 <ApplicationDraft
                   accessCase={accessCase}
                   grounds={groundsRich}
+                  prayer={prayer}
+                  documents={documents}
                   locale={locale}
                   onExpand={() => setReviewFullscreen(true)}
                 />
@@ -1022,6 +1150,8 @@ export function BailApplicationDialog({
                     <ApplicationDraft
                       accessCase={accessCase}
                       grounds={groundsRich}
+                      prayer={prayer}
+                      documents={documents}
                       locale={locale}
                       expanded
                     />

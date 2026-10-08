@@ -741,16 +741,18 @@ function CondonationFields(props: FieldsProps) {
       </SectionCard>
 
       <DocumentRowsSection
-        listKey="supportingDocuments"
         heading="Supporting documents"
         description="Attach at least one document supporting the reason for delay."
         addLabel="Add another"
         rowLabel="Supporting document"
         rows={draft.supportingDocuments}
-        errors={errors}
+        rowErrors={errors.documentRows}
         groupError={errors.fields.supportingDocuments}
-        actions={actions}
         onRowsChange={(rows) => actions.update("supportingDocuments", rows)}
+        onRowChange={(id, patch) =>
+          actions.updateRow("supportingDocuments", id, patch)
+        }
+        onRowError={actions.setRowError}
       />
     </div>
   );
@@ -794,15 +796,15 @@ function OthersFields(props: FieldsProps) {
       {/* Each document with its type and title, as the PRD's Generic asks
           and as Condonation and Production already do. */}
       <DocumentRowsSection
-        listKey="otherDocuments"
         heading="Supporting documents"
         optional
         addLabel="Add a document"
         rowLabel="Supporting document"
         rows={draft.otherDocuments}
-        errors={errors}
-        actions={actions}
+        rowErrors={errors.documentRows}
         onRowsChange={(rows) => actions.update("otherDocuments", rows)}
+        onRowChange={(id, patch) => actions.updateRow("otherDocuments", id, patch)}
+        onRowError={actions.setRowError}
       />
     </div>
   );
@@ -824,15 +826,15 @@ function ProductionFields(props: FieldsProps) {
       </SectionCard>
 
       <DocumentRowsSection
-        listKey="submissionDocuments"
         heading="Submission documents"
         optional
         addLabel="Add another document"
         rowLabel="Submission document"
         rows={draft.submissionDocuments}
-        errors={errors}
-        actions={actions}
+        rowErrors={errors.documentRows}
         onRowsChange={(rows) => actions.update("submissionDocuments", rows)}
+        onRowChange={(id, patch) => actions.updateRow("submissionDocuments", id, patch)}
+        onRowError={actions.setRowError}
       />
 
       <SectionCard title="Reason">
@@ -1023,15 +1025,15 @@ function ObjectionFields(props: FieldsProps) {
       />
 
       <DocumentRowsSection
-        listKey="objectionDocuments"
         heading="Documents relied on"
         optional
         addLabel="Add a document"
         rowLabel="Document"
         rows={draft.objectionDocuments}
-        errors={errors}
-        actions={actions}
+        rowErrors={errors.documentRows}
         onRowsChange={(rows) => actions.update("objectionDocuments", rows)}
+        onRowChange={(id, patch) => actions.updateRow("objectionDocuments", id, patch)}
+        onRowError={actions.setRowError}
       />
     </div>
   );
@@ -1039,20 +1041,25 @@ function ObjectionFields(props: FieldsProps) {
 
 /* ----------------------------------------------- repeatable rows ---------- */
 
-function DocumentRowsSection({
-  listKey,
+/**
+ * A list of documents, each a type, a title and its files, added one at a
+ * time. Shared by the application forms and the bail dialog, so every
+ * documents list in a filing looks and behaves the same.
+ */
+export function DocumentRowsSection({
   heading,
   description,
   optional = false,
   addLabel,
   rowLabel,
   rows,
-  errors,
+  rowErrors: errorsByRow,
   groupError,
-  actions,
   onRowsChange,
+  onRowChange,
+  onRowError,
+  labels = DOCUMENT_ROW_LABELS,
 }: {
-  listKey: ListKey;
   heading: string;
   /** Left out where the heading says it all. */
   description?: string;
@@ -1061,10 +1068,13 @@ function DocumentRowsSection({
   addLabel: string;
   rowLabel: string;
   rows: DocumentRowDraft[];
-  errors: ApplicationErrors;
+  rowErrors: Record<string, { type?: string; title?: string; files?: string }>;
   groupError?: string;
-  actions: FieldActions;
   onRowsChange: (rows: DocumentRowDraft[]) => void;
+  onRowChange: (id: string, patch: Partial<Omit<DocumentRowDraft, "id">>) => void;
+  onRowError: (id: string, field: "files", error: string | undefined) => void;
+  /** The field words, for a dialog that speaks the viewer's language. */
+  labels?: typeof DOCUMENT_ROW_LABELS;
 }) {
   const headingId = useId();
 
@@ -1079,7 +1089,9 @@ function DocumentRowsSection({
             {optional ? (
               <>
                 {" "}
-                <OptionalTag />
+                <span className="font-normal text-muted-foreground">
+                  ({labels.optional})
+                </span>
               </>
             ) : null}
           </h3>
@@ -1109,7 +1121,7 @@ function DocumentRowsSection({
       {rows.length ? (
         <div className="flex flex-col gap-6">
           {rows.map((row, index) => {
-            const rowErrors = errors.documentRows[row.id] ?? {};
+            const rowErrors = errorsByRow[row.id] ?? {};
             return (
               <fieldset
                 key={row.id}
@@ -1124,7 +1136,7 @@ function DocumentRowsSection({
                     variant="ghost"
                     size="icon"
                     className="text-destructive-ink hover:text-destructive-ink"
-                    aria-label={`Remove ${rowLabel.toLowerCase()} ${index + 1}`}
+                    aria-label={`${labels.remove} ${rowLabel.toLowerCase()} ${index + 1}`}
                     onClick={() =>
                       onRowsChange(rows.filter((item) => item.id !== row.id))
                     }
@@ -1135,28 +1147,24 @@ function DocumentRowsSection({
 
                 <div className="grid gap-6 md:grid-cols-2">
                   <Field data-invalid={Boolean(rowErrors.type)}>
-                    <FieldLabel>Document type</FieldLabel>
+                    <FieldLabel>{labels.type}</FieldLabel>
                     <Input
                       value={row.type}
                       aria-invalid={Boolean(rowErrors.type)}
                       onChange={(event) =>
-                        actions.updateRow(listKey, row.id, {
-                          type: event.target.value,
-                        })
+                        onRowChange(row.id, { type: event.target.value })
                       }
                     />
                     <FieldError>{rowErrors.type}</FieldError>
                   </Field>
 
                   <Field data-invalid={Boolean(rowErrors.title)}>
-                    <FieldLabel>Document title</FieldLabel>
+                    <FieldLabel>{labels.title}</FieldLabel>
                     <Input
                       value={row.title}
                       aria-invalid={Boolean(rowErrors.title)}
                       onChange={(event) =>
-                        actions.updateRow(listKey, row.id, {
-                          title: event.target.value,
-                        })
+                        onRowChange(row.id, { title: event.target.value })
                       }
                     />
                     <FieldError>{rowErrors.title}</FieldError>
@@ -1165,16 +1173,12 @@ function DocumentRowsSection({
 
                 <FileField
                   required
-                  label="Files"
-                  description="Choose one or more files for this document."
+                  label={labels.files}
+                  description={labels.filesHint}
                   files={row.files}
                   error={rowErrors.files}
-                  onFilesChange={(files) =>
-                    actions.updateRow(listKey, row.id, { files })
-                  }
-                  onErrorChange={(error) =>
-                    actions.setRowError(row.id, "files", error)
-                  }
+                  onFilesChange={(files) => onRowChange(row.id, { files })}
+                  onErrorChange={(error) => onRowError(row.id, "files", error)}
                 />
               </fieldset>
             );
@@ -1182,9 +1186,19 @@ function DocumentRowsSection({
         </div>
       ) : (
         <p className="text-body-compact text-muted-foreground">
-          No {rowLabel.toLowerCase()}s added.
+          {labels.none(rowLabel)}
         </p>
       )}
     </section>
   );
 }
+
+export const DOCUMENT_ROW_LABELS = {
+  type: "Document type",
+  title: "Document title",
+  files: "Files",
+  filesHint: "Choose one or more files for this document.",
+  remove: "Remove",
+  optional: "optional",
+  none: (rowLabel: string) => `No ${rowLabel.toLowerCase()}s added.`,
+};
