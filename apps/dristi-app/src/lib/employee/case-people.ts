@@ -58,7 +58,7 @@ export type CaseMatter = {
   stage?: CourtCaseStage;
 };
 
-const KOLLAM = { city: "Kollam", district: "Kollam", state: "Kerala" };
+const LOCAL_DISTRICT = { city: "Sample District", district: "Sample District", state: "Kerala" };
 
 function address(
   door: string,
@@ -66,7 +66,7 @@ function address(
   locality: string,
   pin: string,
 ): StructuredAddress {
-  return { door, building, locality, pin, ...KOLLAM };
+  return { door, building, locality, pin, ...LOCAL_DISTRICT };
 }
 
 /**
@@ -77,7 +77,7 @@ function address(
 export function demoAddress(name: string): StructuredAddress {
   let hash = 5;
   for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997;
-  const surname = name.trim().split(/\s+/).at(-1) ?? "Kollam";
+  const surname = name.trim().split(/\s+/).at(-1) ?? "Sample";
   return address(String((hash % 48) + 1), `${surname} House`, "Chinnakada", "691001");
 }
 
@@ -157,7 +157,7 @@ const PACK: Partial<Record<string, CasePerson[]>> = {
       side: "complainant",
       examined: false,
       addresses: [address("", "Federal Bank, Chinnakada branch", "Chinnakada", "691001")],
-      email: "kollam.chinnakada@example.in",
+      email: "chinnakada.office@example.in",
     }),
   ],
   /* Evidence stage, accused represented: two witnesses still to be examined, so the
@@ -258,18 +258,18 @@ export function casePeopleFor(matter: CaseMatter): CasePeople {
  * (`AUT-04`).
  */
 export const POLICE_STATIONS = [
-  "Kollam East",
-  "Kollam West",
+  "Town East",
+  "Town West",
   "Kilikollur",
   "Kundara",
   "Shakthikulangara",
 ] as const;
 
 const STATION_BY_LOCALITY: Partial<Record<string, (typeof POLICE_STATIONS)[number]>> = {
-  Chinnakada: "Kollam East",
-  Thevally: "Kollam West",
-  Pallimukku: "Kollam East",
-  Mundakkal: "Kollam West",
+  Chinnakada: "Town East",
+  Thevally: "Town West",
+  Pallimukku: "Town East",
+  Mundakkal: "Town West",
   Kadappakada: "Kilikollur",
   Kundara: "Kundara",
 };

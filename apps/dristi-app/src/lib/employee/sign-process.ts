@@ -1087,7 +1087,7 @@ export const PROCESS_LINE: CourtProcess[] = [
     id: "pr-1346",
     caseNumber: "ST/1346/2026",
     parties: {
-      complainant: "Kollam Beach Road Auto Works",
+      complainant: "Beach Road Auto Works",
       accused: "Manoj Chandran",
     },
     type: "warrant",

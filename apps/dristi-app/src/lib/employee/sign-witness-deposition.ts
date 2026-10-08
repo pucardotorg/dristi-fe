@@ -40,7 +40,7 @@
  * sheet from a stage the case has not reached. No number here appears in today's cause
  * list, the scheduling queue, the register queue, either review queue, or the signing
  * queues above it. The *parties* are a different matter: this court's queues share one
- * Kollam cast, so the same firm or the same bar appears across them, and two §138 cases
+ * local cast, so the same firm or the same bar appears across them, and two §138 cases
  * between the same parties is the ordinary case rather than a fixture mistake — the
  * filing form asks about exactly that. What no row does is put one person in two
  * incompatible roles.
@@ -123,14 +123,14 @@ export type WitnessDeposition = {
 const COURT = CURRENT_STAFF.court;
 
 /** Where the evidence is recorded. The court's own seat — not a per-row fact. */
-const PLACE = "Kollam";
+const PLACE = "Sample District";
 
 /**
  * The depositions this bench has not yet signed.
  *
  * Ordered newest first — evidence is signed from the most recent sitting backwards, and
  * that is the order the reference showed. Names follow the fixtures the rest of the
- * court side uses: Kollam parties and the same bar practising in this court.
+ * court side uses: local parties and the same bar practising in this court.
  */
 export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
   {
@@ -148,7 +148,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 48,
       occupation: "Proprietor, Sajeev Motors",
-      residence: "Thevally, Kollam",
+      residence: "Thevally",
     },
     depositionOn: "2026-08-21",
     cross: "deferred",
@@ -200,14 +200,14 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 53,
       occupation: "Managing partner, Ashramam Hardware and Sanitary Wares",
-      residence: "Ashramam, Kollam",
+      residence: "Ashramam",
     },
     depositionOn: "2026-08-12",
     cross: "completed",
     cheque: {
       number: "884210",
       amount: "4,75,000",
-      bank: "South Indian Bank, Kollam branch",
+      bank: "South Indian Bank, main branch",
       dishonouredOn: "2025-11-14",
     },
   },
@@ -226,7 +226,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "accused",
       age: 39,
       occupation: "Tailor",
-      residence: "Kadappakada, Kollam",
+      residence: "Kadappakada",
     },
     depositionOn: "2026-08-06",
     cross: "completed",
@@ -252,7 +252,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 45,
       occupation: "Cashew trader",
-      residence: "Mundakkal, Kollam",
+      residence: "Mundakkal",
     },
     depositionOn: "2026-07-30",
     cross: "declined",
@@ -278,14 +278,14 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "attesting-witness",
       age: 62,
       occupation: "Retired schoolteacher",
-      residence: "Kilikolloor, Kollam",
+      residence: "Kilikolloor",
     },
     depositionOn: "2026-07-23",
     cross: "completed",
     cheque: {
       number: "770233",
       amount: "8,40,000",
-      bank: "HDFC Bank, Kollam branch",
+      bank: "HDFC Bank, main branch",
       dishonouredOn: "2025-07-02",
     },
   },
@@ -307,7 +307,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "accountant",
       age: 36,
       occupation: "Accountant",
-      residence: "Punalur, Kollam",
+      residence: "Punalur",
     },
     depositionOn: "2026-07-16",
     cross: "completed",
@@ -330,7 +330,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 57,
       occupation: "Contractor",
-      residence: "Eravipuram, Kollam",
+      residence: "Eravipuram",
     },
     depositionOn: "2026-07-09",
     cross: "deferred",
@@ -356,7 +356,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 34,
       occupation: "Wholesale grocer",
-      residence: "Paravur, Kollam",
+      residence: "Paravur",
     },
     depositionOn: "2026-06-25",
     cross: "completed",
@@ -382,14 +382,14 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "bank-official",
       age: 44,
       occupation: "Senior manager, Indian Bank",
-      residence: "Kollam",
+      residence: "Sample District",
     },
     depositionOn: "2026-06-18",
     cross: "completed",
     cheque: {
       number: "445901",
       amount: "6,80,000",
-      bank: "Indian Bank, Kollam branch",
+      bank: "Indian Bank, main branch",
       dishonouredOn: "2025-02-17",
     },
   },
@@ -405,7 +405,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 50,
       occupation: "Fish merchant",
-      residence: "Thevally, Kollam",
+      residence: "Thevally",
     },
     depositionOn: "2026-06-11",
     cross: "declined",
@@ -431,7 +431,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "accused",
       age: 61,
       occupation: "Managing partner, Punalur Paper Depot",
-      residence: "Punalur, Kollam",
+      residence: "Punalur",
     },
     depositionOn: "2026-06-04",
     cross: "completed",
@@ -457,7 +457,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 55,
       occupation: "Dairy supplier",
-      residence: "Asramam, Kollam",
+      residence: "Asramam",
     },
     depositionOn: "2026-05-28",
     cross: "completed",
@@ -480,7 +480,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "attesting-witness",
       age: 47,
       occupation: "Lorry owner",
-      residence: "Kottiyam, Kollam",
+      residence: "Kottiyam",
     },
     depositionOn: "2026-05-21",
     cross: "deferred",
@@ -503,7 +503,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 43,
       occupation: "Proprietor, Nair Traders",
-      residence: "Chavara, Kollam",
+      residence: "Chavara",
     },
     depositionOn: "2026-05-14",
     cross: "completed",
@@ -529,7 +529,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "accountant",
       age: 38,
       occupation: "Accountant, Ochira Furniture Mart",
-      residence: "Ochira, Kollam",
+      residence: "Ochira",
     },
     depositionOn: "2026-05-07",
     cross: "completed",
@@ -552,7 +552,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 36,
       occupation: "Fish exporter",
-      residence: "Mayyanad, Kollam",
+      residence: "Mayyanad",
     },
     depositionOn: "2026-04-30",
     cross: "completed",
@@ -575,7 +575,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "bank-official",
       age: 40,
       occupation: "Assistant manager, Federal Bank",
-      residence: "Kundara, Kollam",
+      residence: "Kundara",
     },
     depositionOn: "2026-04-23",
     cross: "declined",
@@ -604,7 +604,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 42,
       occupation: "Proprietor, Rajan Marine Supplies",
-      residence: "Neendakara, Kollam",
+      residence: "Neendakara",
     },
     depositionOn: "2026-04-16",
     cross: "completed",
@@ -618,7 +618,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
   {
     id: "wd-966-dw1",
     caseNumber: "ST/966/2026",
-    parties: { complainant: "Haridasan", accused: "Kollam Coir Exports" },
+    parties: { complainant: "Haridasan", accused: "Lakeside Coir Exports" },
     counsel: [
       { name: "Adv. Rekha Pillai", side: "complainant" },
       { name: "Adv. Arun Prakash", side: "accused" },
@@ -629,15 +629,15 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       index: 1,
       kind: "accused",
       age: 58,
-      occupation: "Director, Kollam Coir Exports",
-      residence: "Kollam",
+      occupation: "Director, Lakeside Coir Exports",
+      residence: "Sample District",
     },
     depositionOn: "2026-04-09",
     cross: "deferred",
     cheque: {
       number: "607841",
       amount: "1,70,000",
-      bank: "Canara Bank, Kollam branch",
+      bank: "Canara Bank, main branch",
       dishonouredOn: "2024-04-26",
     },
   },
@@ -653,7 +653,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 49,
       occupation: "Handloom weaver",
-      residence: "Oachira, Kollam",
+      residence: "Oachira",
     },
     depositionOn: "2026-04-02",
     cross: "completed",
@@ -676,7 +676,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "attesting-witness",
       age: 66,
       occupation: "Retired bank clerk",
-      residence: "Sasthamkotta, Kollam",
+      residence: "Sasthamkotta",
     },
     depositionOn: "2026-03-26",
     cross: "completed",
@@ -699,7 +699,7 @@ export const WITNESS_DEPOSITION_QUEUE: WitnessDeposition[] = [
       kind: "complainant",
       age: 52,
       occupation: "Timber merchant",
-      residence: "Anchal, Kollam",
+      residence: "Anchal",
     },
     depositionOn: "2026-03-19",
     cross: "completed",

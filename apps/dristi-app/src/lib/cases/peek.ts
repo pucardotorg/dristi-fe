@@ -380,7 +380,7 @@ const PEEK_EXTRAS: Partial<Record<string, CasePeekExtras>> = {
     cheque: {
       number: "781426",
       dated: "2026-04-16",
-      bank: "Kollam District Commercial Bank",
+      bank: "District Commercial Bank",
       dishonourOn: "2026-04-20",
       returnReason: "Funds insufficient",
       demandNoticeSentOn: "2026-04-25",

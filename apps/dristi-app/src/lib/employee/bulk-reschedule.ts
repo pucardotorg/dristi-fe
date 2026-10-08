@@ -206,7 +206,7 @@ const UPCOMING: UpcomingListing[] = [
   {
     id: "r-274",
     caseNumber: "ST/274/2026",
-    title: "Latha Vijayan v. Kollam Marine Foods",
+    title: "Latha Vijayan v. Harbour Marine Foods",
     stage: "plea",
     purpose: "plea",
     offset: 8,
@@ -284,7 +284,7 @@ const BOARD_SITTINGS = 40;
  * nobody can point at twice.
  */
 const FILLER_PARTIES: { complainant: string; respondent: string }[] = [
-  { complainant: "Vijayan Pillai", respondent: "Kollam Coir Traders" },
+  { complainant: "Vijayan Pillai", respondent: "Lakeside Coir Traders" },
   { complainant: "Leela Mohan", respondent: "Ashtamudi Marine Exports" },
   { complainant: "Sabu Chacko", respondent: "Thevally Steel Syndicate" },
   { complainant: "Girija Damodaran", respondent: "Punalur Paper Agencies" },
@@ -586,7 +586,7 @@ export function earliestNewListing(
  * this branch, so the paper does not pretend to order one.
  */
 export type RescheduleOrder = {
-  /** "Before the JMFC Court 1, Kollam". */
+  /** "Before the JMFC Court 1". */
   court: string;
   title: string;
   /** The operative words. */

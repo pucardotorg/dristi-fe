@@ -51,7 +51,7 @@ export default function LandingPage() {
           <BrandLockup onDark className="h-12" />
           <div className="flex max-w-2xl flex-col gap-4">
             <h1 className="text-title-l font-semibold tracking-tight text-balance sm:text-display-s">
-              The district courts of Kerala, online.
+              The district courts, online.
             </h1>
             <p className="text-body text-brand-canvas-muted-foreground">
               Bring a cheque-bounce case to court, follow it through every hearing, and

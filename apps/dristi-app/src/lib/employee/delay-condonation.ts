@@ -98,7 +98,7 @@ export type DelayCondonationCase = {
  * Ordered Registration first so the opening page matches the reference
  * (every visible row there was at Registration), then the later stages the
  * filter also offers. Names follow the fixtures the rest of the court side
- * uses: Kollam parties and the same bar, but not the same matters as
+ * uses: local parties and the same bar, but not the same matters as
  * `CAUSE_LIST`, `SCHEDULING_QUEUE`, `REGISTER_QUEUE` or `RESCHEDULING_QUEUE`.
  */
 export const DELAY_CONDONATION_QUEUE: DelayCondonationCase[] = [
@@ -197,7 +197,7 @@ export const DELAY_CONDONATION_QUEUE: DelayCondonationCase[] = [
     delayDays: 35,
     delayIn: "filing the complaint",
     reason:
-      "The complainant was in employment outside the country and could reach Kollam to sign the complaint only the following month.",
+      "The complainant was in employment outside the country and could return to sign the complaint only the following month.",
   },
   {
     id: "dc-1258",

@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/tooltip";
 
 /** The court identity at the page origin. */
-export const COURT = { brand: "DRISTI", place: "Kollam, Kerala" };
+export const COURT = { brand: "DRISTI" };
 
 /**
  * Re-exported so existing imports keep working. The value itself lives in

@@ -68,7 +68,7 @@ export type ReschedulingRequest = {
  *
  * Ordered newest application first — that is the scan the application-date
  * column exists for, and the order a review queue is read. Names follow the
- * fixtures the rest of the court side uses: Kollam parties and the same bar,
+ * fixtures the rest of the court side uses: local parties and the same bar,
  * but not the same matters as `CAUSE_LIST`, `SCHEDULING_QUEUE` or
  * `REGISTER_QUEUE`.
  */
@@ -229,7 +229,7 @@ export const RESCHEDULING_QUEUE: ReschedulingRequest[] = [
     filedFor: "complainant",
     createdBy: "Clerk to Adv. Anitha George",
     reason:
-      "The complainant cannot travel to Kollam on the listed date and proposes the following week.",
+      "The complainant cannot travel to the court on the listed date and proposes the following week.",
   },
   {
     id: "rr-304",

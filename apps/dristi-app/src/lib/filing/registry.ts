@@ -85,9 +85,9 @@ const ON_COURT: Record<string, OnCourtRecord> = {
     age: "47",
     address: {
       line1: "14/337, Cantonment Road, Vadakkevila",
-      city: "Kollam",
+      city: "Sample District",
       pin: "691010",
-      district: "Kollam",
+      district: "Sample District",
       state: "Kerala",
     },
   },
@@ -97,9 +97,9 @@ const ON_COURT: Record<string, OnCourtRecord> = {
     age: "39",
     address: {
       line1: "Sreyas, TC 22/1180, Beach Road",
-      city: "Kollam",
+      city: "Sample District",
       pin: "691001",
-      district: "Kollam",
+      district: "Sample District",
       state: "Kerala",
     },
   },

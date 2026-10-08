@@ -65,13 +65,13 @@ export const DEMO_JOIN_CASE: JoinCase = {
   filingNumber: "KL-002405-2026",
   caseType: "NIA S138",
   filingDate: "31-07-2026",
-  court: "Court of the Judicial First Class Magistrate I, Kollam",
+  court: "Court of the Judicial First Class Magistrate I",
   courtroom: "Court No. 3",
   hearingDate: "Friday, 18 September 2026, 10:30 AM",
   chequeAmount: "₹1,85,000",
   complainant: "South Indian Bank Ltd.",
   complainantAdvocate: "Adv. Meera Pillai",
-  complainantAdvocatePhone: "0474 2761 480",
+  complainantAdvocatePhone: "0000 000 000",
   accusedAdvocate: "Not available",
   accused: [
     { id: "acc-1", name: "Rajan Krishnan Nair" },
@@ -258,12 +258,12 @@ export const joinDialog = {
     "{name} ആയാണ് നിങ്ങൾ ചേരുന്നത്. കേസ് രേഖയിൽ ആ പേരുമായി നിങ്ങളുടെ അക്കൗണ്ട് ബന്ധിപ്പിക്കും.",
   ),
   alreadyJoined: t(
-    "{name} has already joined this case. If this is you, sign in with the account used earlier, or call the court on 0474 2919099.",
-    "{name} ഇതിനകം ഈ കേസിൽ ചേർന്നിട്ടുണ്ട്. ഇത് നിങ്ങളാണെങ്കിൽ, നേരത്തെ ഉപയോഗിച്ച അക്കൗണ്ടിൽ സൈൻ ഇൻ ചെയ്യുക, അല്ലെങ്കിൽ 0474 2919099 എന്ന നമ്പറിൽ കോടതിയെ വിളിക്കുക.",
+    "{name} has already joined this case. If this is you, sign in with the account used earlier, or call the court on 0000 000000.",
+    "{name} ഇതിനകം ഈ കേസിൽ ചേർന്നിട്ടുണ്ട്. ഇത് നിങ്ങളാണെങ്കിൽ, നേരത്തെ ഉപയോഗിച്ച അക്കൗണ്ടിൽ സൈൻ ഇൻ ചെയ്യുക, അല്ലെങ്കിൽ 0000 000000 എന്ന നമ്പറിൽ കോടതിയെ വിളിക്കുക.",
   ),
   poaAlreadyTaken: t(
-    "Another power of attorney holder is already managing this case for {name}. Only one power of attorney holder can act at a time — call the court on 0474 2919099 if this needs to change.",
-    "{name}-ന് വേണ്ടി മറ്റൊരു പവർ ഓഫ് അറ്റോർണി ഉടമ ഇതിനകം ഈ കേസ് കൈകാര്യം ചെയ്യുന്നു. ഒരു സമയം ഒരു പവർ ഓഫ് അറ്റോർണി ഉടമയ്ക്ക് മാത്രമേ പ്രവർത്തിക്കാനാകൂ — ഇത് മാറ്റണമെങ്കിൽ 0474 2919099 എന്ന നമ്പറിൽ കോടതിയെ വിളിക്കുക.",
+    "Another power of attorney holder is already managing this case for {name}. Only one power of attorney holder can act at a time — call the court on 0000 000000 if this needs to change.",
+    "{name}-ന് വേണ്ടി മറ്റൊരു പവർ ഓഫ് അറ്റോർണി ഉടമ ഇതിനകം ഈ കേസ് കൈകാര്യം ചെയ്യുന്നു. ഒരു സമയം ഒരു പവർ ഓഫ് അറ്റോർണി ഉടമയ്ക്ക് മാത്രമേ പ്രവർത്തിക്കാനാകൂ — ഇത് മാറ്റണമെങ്കിൽ 0000 000000 എന്ന നമ്പറിൽ കോടതിയെ വിളിക്കുക.",
   ),
   appearLegend: t(
     "How will you appear in court?",

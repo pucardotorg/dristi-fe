@@ -27,7 +27,7 @@ export function parseFilters(params: URLSearchParams): Filters {
     view: oneOf(params.get("view"), VIEWS, DEFAULT_FILTERS.view),
     kinds: manyOf<PillKind>(params.get("kind"), KIND_ORDER),
     dues: manyOf(params.get("due"), DUES),
-    // Court names carry commas ("JMFC Court 1, Kollam"), so they repeat the key instead.
+    // Court names may carry commas, so they repeat the key instead.
     courts: [...new Set(params.getAll("court").filter(Boolean))],
     advocates: manyOf(params.get("adv")),
     query: params.get("q") ?? "",

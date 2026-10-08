@@ -55,6 +55,7 @@ import { SIGN_FORM_QUEUE_COUNT } from "./sign-forms";
 import { SIGN_ORDER_PENDING_COUNT } from "./sign-orders";
 import { PROCESS_QUEUE_COUNT } from "./sign-process";
 import { WITNESS_DEPOSITION_QUEUE_COUNT } from "./sign-witness-deposition";
+import type { CourtRole } from "./content";
 
 /**
  * What the bench navigates between, as data.
@@ -477,6 +478,37 @@ function cognizanceChildren(): CourtNavItem[] {
       count: cognizanceTabCount("with-delay"),
     },
   ];
+}
+
+/**
+ * The rows a seat sees, by id, where a seat sees fewer than all of them (owner,
+ * 2026-10-08: the scrutiny officer keeps Dashboard, Scrutinise submitted cases, Approve
+ * registrations and Configurations). A seat with no entry sees every row.
+ *
+ * **A view rule, not a permission** — the same footing as `seatHasBenchControls`. The
+ * other screens stay reachable by URL; this decides what the rail offers.
+ */
+const SEAT_ROWS: Partial<Record<CourtRole, ReadonlySet<string>>> = {
+  "scrutiny-officer": new Set(["dashboard", "scrutiny", "approve-registrations", "configurations"]),
+};
+
+/** Whether this seat's rail is cut down to a named set of rows. */
+export function seatHasNarrowRail(role: CourtRole): boolean {
+  return SEAT_ROWS[role] !== undefined;
+}
+
+/** A list of rows, less the ones this seat does not see. */
+export function courtNavItemsForSeat(items: CourtNavItem[], role: CourtRole): CourtNavItem[] {
+  const keep = SEAT_ROWS[role];
+  return keep ? items.filter((item) => keep.has(item.id)) : items;
+}
+
+/** Groups, less the rows this seat does not see — and less any group left empty. */
+export function courtNavGroupsForSeat(groups: CourtNavGroup[], role: CourtRole): CourtNavGroup[] {
+  if (!SEAT_ROWS[role]) return groups;
+  return groups
+    .map((group) => ({ ...group, items: courtNavItemsForSeat(group.items, role) }))
+    .filter((group) => group.items.length > 0);
 }
 
 /**
