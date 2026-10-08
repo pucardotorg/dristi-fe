@@ -15,9 +15,11 @@ import {
 import {
   ComposedDocumentViewer,
   PdfViewer,
+  isImageSrc,
   isPdfSrc,
   parsePdfSrc,
 } from "@/components/cases/pdf-viewer";
+import { ReplaceFileButton } from "@/components/cases/uploaded-doc-field";
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,6 +69,7 @@ export function ApplicationRecordDialog({
   onOpenLinked,
   onAct,
   onEdit,
+  onReplaceFile,
   onObject,
 }: {
   caseId: string;
@@ -80,6 +83,8 @@ export function ApplicationRecordDialog({
   onAct?: (application: ApplicationRecord) => void;
   /** Reopen it in its form before signing: the signer reads it here first. */
   onEdit?: (application: ApplicationRecord) => void;
+  /** A memo or affidavit has no form: before signing, its file is swapped. */
+  onReplaceFile?: (application: ApplicationRecord, file: File) => void;
   /** File an objection to it, over the page the record was opened on. */
   onObject?: (applicationId: string) => void;
 }) {
@@ -95,13 +100,15 @@ export function ApplicationRecordDialog({
       >
         {shown ? (
           <RecordBody
-            key={shown.id}
+            /* A replaced file is a new record to read: start on it. */
+            key={`${shown.id}${shown.documents[0]?.src ?? ""}`}
             caseId={caseId}
             record={record}
             application={shown}
             onOpenLinked={onOpenLinked}
             onAct={onAct}
             onEdit={onEdit}
+            onReplaceFile={onReplaceFile}
             onObject={onObject}
           />
         ) : null}
@@ -117,6 +124,7 @@ function RecordBody({
   onOpenLinked,
   onAct,
   onEdit,
+  onReplaceFile,
   onObject,
 }: {
   caseId: string;
@@ -125,6 +133,7 @@ function RecordBody({
   onOpenLinked?: (id: string) => void;
   onAct?: (application: ApplicationRecord) => void;
   onEdit?: (application: ApplicationRecord) => void;
+  onReplaceFile?: (application: ApplicationRecord, file: File) => void;
   onObject?: (applicationId: string) => void;
 }) {
   /* An application draft reopens over this page (onAct); only a document
@@ -150,8 +159,11 @@ function RecordBody({
     composed && application.documents.length === 0
       ? [{ label: composed.label }]
       : application.documents;
-  const open = viewable.find((doc) => doc.src === openSrc);
+  /* A replaced file comes in under a new src: show it, not the old one. */
+  const open = viewable.find((doc) => doc.src === openSrc) ?? viewable[0];
   const pdf = open?.src && isPdfSrc(open.src) ? parsePdfSrc(open.src) : null;
+  const image =
+    open?.src && !pdf && isImageSrc(open.src) ? parsePdfSrc(open.src).url : null;
 
   return (
     <>
@@ -446,6 +458,15 @@ function RecordBody({
               signedBy={composed.signedBy}
             />
           </ComposedDocumentViewer>
+        ) : image && open ? (
+          <ComposedDocumentViewer
+            key={open.src}
+            title={open.label}
+            className="min-h-64 min-w-0 flex-1 rounded-none"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- a local file's object URL */}
+            <img src={image} alt={open.label} className="block w-full" />
+          </ComposedDocumentViewer>
         ) : pdf && open ? (
           <PdfViewer
             key={open.src}
@@ -521,6 +542,25 @@ function RecordBody({
             <Button asChild className="w-full sm:w-auto">
               <Link href={draftHref}>Continue draft</Link>
             </Button>
+          ) : application.step === "sign" &&
+            application.source.kind === "document" &&
+            onAct &&
+            onReplaceFile ? (
+            /* A memo or affidavit is its file: read it, swap it if it is the
+               wrong one, then sign (owner, Oct 8). */
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <ReplaceFileButton
+                className="w-full sm:w-auto"
+                onFile={(file) => onReplaceFile(application, file)}
+              />
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                onClick={() => onAct(application)}
+              >
+                Add signature
+              </Button>
+            </div>
           ) : application.step === "sign" &&
             application.source.kind === "application" &&
             onAct &&

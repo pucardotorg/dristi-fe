@@ -122,6 +122,7 @@ import {
   useFilingsRegister,
 } from "@/components/cases/case-applications";
 import { SignReviewDialog } from "@/components/cases/sign-review-dialog";
+import { localFileSrc } from "@/components/cases/pdf-viewer";
 import {
   groupActions,
   type ApplicationRecord,
@@ -217,7 +218,7 @@ function DocumentsError() {
 function DocumentsReady({
   record,
   file,
-  filings,
+  filings: filed,
 }: {
   record: CaseRecord;
   file: DocumentsFile;
@@ -236,6 +237,23 @@ function DocumentsReady({
   const [visible, setVisible] = useState(SHOW_MORE_STEP);
   const [recordOpen, setRecordOpen] = useState<CaseDocument | null>(null);
 
+  /* A memo or affidavit not yet signed can take a new file (owner, Oct 8).
+     Held for this visit, like every demo step. */
+  const [replaced, setReplaced] = useState<Record<string, { label: string; src: string }>>({});
+  const filings = useMemo(
+    () =>
+      filed.map((item) =>
+        replaced[item.id] ? { ...item, documents: [replaced[item.id]] } : item
+      ),
+    [filed, replaced]
+  );
+  function replaceFile(item: ApplicationRecord, picked: File) {
+    setReplaced((all) => ({
+      ...all,
+      [item.id]: { label: picked.name, src: localFileSrc(picked) },
+    }));
+  }
+
   /* The filed memos and affidavits are rows like any other; theirs open the
      filing itself, with its step (PM, Oct 8). */
   const documents = useMemo(
@@ -253,6 +271,14 @@ function DocumentsReady({
   const [signing, setSigning] = useState<ApplicationRecord[]>([]);
   const [paying, setPaying] = useState<ApplicationRecord[]>([]);
   const actions = groupActions(filings);
+  /* The review reads the batch as it is now, replaced files and all. */
+  const reviewingNow = useMemo(
+    () =>
+      reviewing.map(
+        (item) => filings.find((entry) => entry.id === item.id) ?? item
+      ),
+    [reviewing, filings]
+  );
   const openFiling = filings.find((item) => item.id === filingOpen) ?? null;
 
   function openRecord(document: CaseDocument) {
@@ -550,10 +576,11 @@ function DocumentsReady({
           if (item.step === "sign") setSigning([item]);
           else act([item]);
         }}
+        onReplaceFile={replaceFile}
       />
       <SignReviewDialog
         record={record}
-        applications={reviewing}
+        applications={reviewingNow}
         onOpenChange={(open) => {
           if (!open) setReviewing([]);
         }}
@@ -561,7 +588,7 @@ function DocumentsReady({
           setReviewing([]);
           setSigning(items);
         }}
-        onEdit={() => {}}
+        onReplaceFile={replaceFile}
       />
       <SignAndPayDialogs
         caseId={record.id}

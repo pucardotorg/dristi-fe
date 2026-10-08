@@ -8,9 +8,11 @@ import { GeneratedApplicationDocument } from "@/components/cases/generated-appli
 import {
   ComposedDocumentViewer,
   PdfViewer,
+  isImageSrc,
   isPdfSrc,
   parsePdfSrc,
 } from "@/components/cases/pdf-viewer";
+import { ReplaceFileButton } from "@/components/cases/uploaded-doc-field";
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,13 +47,16 @@ export function SignReviewDialog({
   onOpenChange,
   onSign,
   onEdit,
+  onReplaceFile,
 }: {
   record: CaseRecord;
   /** Empty when closed. */
   applications: ApplicationRecord[];
   onOpenChange: (open: boolean) => void;
   onSign: (applications: ApplicationRecord[]) => void;
-  onEdit: (application: ApplicationRecord) => void;
+  onEdit?: (application: ApplicationRecord) => void;
+  /** For memos and affidavits, which have a file rather than a form. */
+  onReplaceFile?: (application: ApplicationRecord, file: File) => void;
 }) {
   /* What was open stays drawn while the dialog animates out; emptied, it
      flashed a blank panel. */
@@ -70,6 +75,7 @@ export function SignReviewDialog({
             applications={shown}
             onSign={onSign}
             onEdit={onEdit}
+            onReplaceFile={onReplaceFile}
           />
         ) : null}
       </FlowDialogContent>
@@ -82,11 +88,13 @@ function ReviewBody({
   applications,
   onSign,
   onEdit,
+  onReplaceFile,
 }: {
   record: CaseRecord;
   applications: ApplicationRecord[];
   onSign: (applications: ApplicationRecord[]) => void;
-  onEdit: (application: ApplicationRecord) => void;
+  onEdit?: (application: ApplicationRecord) => void;
+  onReplaceFile?: (application: ApplicationRecord, file: File) => void;
 }) {
   const count = applications.length;
   const [openId, setOpenId] = useState(applications[0].id);
@@ -100,9 +108,13 @@ function ReviewBody({
      its own file shows, as in its record. Nor has it a form to reopen. */
   const file = composed
     ? undefined
-    : open.documents.find((doc) => doc.src && isPdfSrc(doc.src));
-  const pdf = file?.src ? parsePdfSrc(file.src) : null;
-  const editable = open.source.kind === "application";
+    : open.documents.find(
+        (doc) => doc.src && (isPdfSrc(doc.src) || isImageSrc(doc.src))
+      );
+  const pdf = file?.src && isPdfSrc(file.src) ? parsePdfSrc(file.src) : null;
+  const image = file?.src && !pdf ? parsePdfSrc(file.src).url : null;
+  const editable = open.source.kind === "application" && onEdit;
+  const replaceable = open.source.kind === "document" && onReplaceFile;
 
   return (
     <>
@@ -178,9 +190,18 @@ function ReviewBody({
                 signedBy={composed.signedBy}
               />
             </ComposedDocumentViewer>
+          ) : image && file ? (
+            <ComposedDocumentViewer
+              key={file.src}
+              title={file.label}
+              className="min-h-64 min-w-0 flex-1 rounded-none"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- a local file's object URL */}
+              <img src={image} alt={file.label} className="block w-full" />
+            </ComposedDocumentViewer>
           ) : pdf && file ? (
             <PdfViewer
-              key={open.id}
+              key={file.src}
               src={pdf.url}
               title={file.label}
               pages={pdf.page ? { from: pdf.page, to: pdf.page } : undefined}
@@ -224,6 +245,11 @@ function ReviewBody({
             >
               Edit<span className="sr-only"> {open.name}</span>
             </Button>
+          ) : replaceable ? (
+            <ReplaceFileButton
+              className="w-full sm:w-auto"
+              onFile={(picked) => onReplaceFile(open, picked)}
+            />
           ) : null}
           <Button
             type="button"

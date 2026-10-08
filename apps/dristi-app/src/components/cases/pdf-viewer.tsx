@@ -39,6 +39,19 @@ export function isPdfSrc(src: string): boolean {
   return /\.pdf(?:$|[?#])/i.test(src);
 }
 
+/** A picture rather than a PDF: a replaced file can be either. */
+export function isImageSrc(src: string): boolean {
+  return /\.(?:png|jpe?g)(?:$|[?#])/i.test(src);
+}
+
+/**
+ * A file chosen in this visit, as a src the viewers can read: its object
+ * URL, with its own name after the hash so PDF and picture tell apart.
+ */
+export function localFileSrc(file: File): string {
+  return `${URL.createObjectURL(file)}#${encodeURIComponent(file.name)}`;
+}
+
 function clampZoom(value: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 }

@@ -198,3 +198,45 @@ export function UploadedDocField({
     </>
   );
 }
+
+/**
+ * Choose a new file for something already filed but not yet signed (a memo,
+ * an affidavit). The upload row's own picker and limits, as a button.
+ */
+export function ReplaceFileButton({
+  onFile,
+  label = "Replace file",
+  className,
+}: {
+  onFile: (file: File) => void;
+  label?: string;
+  className?: string;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+        accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+        onChange={(event) => {
+          const next = event.target.files?.[0];
+          if (next && next.size <= MAX_FILE_SIZE) onFile(next);
+          event.target.value = "";
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className={className}
+        onClick={() => inputRef.current?.click()}
+      >
+        {label}
+      </Button>
+    </>
+  );
+}
+
