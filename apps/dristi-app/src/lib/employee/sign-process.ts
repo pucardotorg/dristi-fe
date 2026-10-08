@@ -45,7 +45,7 @@
 import { CURRENT_STAFF } from "./content";
 import { matchesQuery } from "./filter-state";
 import { causeTitle, formatListingDate, parseIsoDay } from "./hearings";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Which instrument the row is — the "Process type" column.
@@ -1882,7 +1882,7 @@ export function downloadProcessDocument(process: CourtProcess): void {
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = processDocumentFilename(process);
+  anchor.download = processDocumentFilename(voicedForDownload(process));
   anchor.click();
   URL.revokeObjectURL(url);
 }

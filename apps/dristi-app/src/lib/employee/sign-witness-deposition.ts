@@ -55,7 +55,7 @@ import {
   type CourtCounsel,
 } from "./hearings";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Who is in the box.
@@ -1031,7 +1031,7 @@ export function downloadWitnessDepositionDocument(
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = witnessDepositionDocumentFilename(deposition);
+  anchor.download = witnessDepositionDocumentFilename(voicedForDownload(deposition));
   anchor.click();
   URL.revokeObjectURL(url);
 }

@@ -14,7 +14,7 @@
  */
 import { type ApplicationDraft } from "./application-draft";
 import { counselFor, formatCaseDate, type CaseRecord } from "./types";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 export type GeneratedApplication = {
   /** "Before the …" heading line. */
@@ -377,7 +377,7 @@ export function downloadGeneratedApplication(
   );
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = generatedApplicationFilename(record);
+  anchor.download = generatedApplicationFilename(voicedForDownload(record));
   anchor.click();
   URL.revokeObjectURL(url);
 }

@@ -25,7 +25,7 @@ test("Punjab and Haryana number with NACT and their own CNR prefixes", () => {
   assert.equal(localizeCaseNumber("CMP/58/2025", "haryana"), "NACT/58/2025");
   assert.equal(localizeCaseNumber("ST 6/2025", "punjab"), "NACT/6/2025");
   assert.equal(localizeCaseNumber("KLKM520000232025", "haryana"), "HRPK030000232025");
-  assert.equal(localizeCaseNumber("KLKM520000232025", "punjab"), "PBXX030000232025");
+  assert.equal(localizeCaseNumber("KLKM520000232025", "punjab"), "PBLD030000232025");
 });
 
 test("court names take the state's placeholder, in either case", () => {
@@ -72,7 +72,8 @@ test("a number typed the way a state shows it finds the Kerala record underneath
   assert.equal(caseSearchKey("  NACT/241/2026 "), "241/2026");
   assert.equal(caseSearchKey("eCR EN/58/2025"), "58/2025");
   assert.equal(caseSearchKey("eCC/6"), "6");
-  assert.equal(caseSearchKey("GJ-000049-2025"), "kl-000049-2025");
+  assert.equal(caseSearchKey("GJ-000049-2025"), "-000049-2025");
+  assert.ok("klkl01-000512-2025".includes(caseSearchKey("GJAH01-000512-2025")));
   assert.equal(caseSearchKey("HRPK030000232025"), "0000232025");
   // Kerala queries and names are only lower-cased.
   assert.equal(caseSearchKey("ST/6/2025"), "st/6/2025");
@@ -107,7 +108,7 @@ test("Kerala's sample places, PIN codes and Bar numbers move to the state", () =
 test("the scrutiny queue's Ahmedabad filings stay in Gujarat and move elsewhere", () => {
   const address = "335, Sardar Complex, Nikol, Ahmedabad, Gujarat — 380008";
   assert.equal(localizeCourtText(address, "gujarat"), address);
-  assert.equal(localizeCourtText(address, "haryana"), "335, Sardar Complex, Nikol, Panchkula, Haryana — 130008");
+  assert.equal(localizeCourtText(address, "haryana"), "335, Sardar Complex, Ramgarh, Panchkula, Haryana — 130008");
 });
 
 test("names in Malayalam script, Bar applications and lone PIN fields follow the state", () => {
@@ -117,7 +118,7 @@ test("names in Malayalam script, Bar applications and lone PIN fields follow the
 });
 
 test("CNRs from any Kerala establishment take the state's prefix", () => {
-  assert.equal(localizeCaseNumber("KLKM010016292025", "punjab"), "PBXX030016292025");
+  assert.equal(localizeCaseNumber("KLKM010016292025", "punjab"), "PBLD030016292025");
 });
 
 test("house names and the scrutiny queue's Gujarat Bar numbers follow the state", () => {
@@ -132,4 +133,42 @@ test("every Kerala locality in the data has a stand-in, the same one each time",
   assert.equal(localizeCourtText("Thevally", "gujarat"), localizeCourtText("Thevally", "gujarat"));
   assert.equal(localizeCourtText("Bar Council of Kerala", "haryana"), "Bar Council of Punjab and Haryana");
   assert.equal(localizeCourtText("Bar Council of Kerala", "gujarat"), "Bar Council of Gujarat");
+});
+
+test("any identifier opening with Kerala's code takes the state's", () => {
+  assert.equal(localizeCourtText("KLKL01-000512-2025", "gujarat"), "GJAH01-000512-2025");
+  assert.equal(localizeCourtText("KL-KLEK-000123-2025", "haryana"), "HR-HRGG-000123-2025");
+  assert.equal(localizeCourtText("KL-DUMMY-000049-2025-AR1", "punjab"), "PB-DUMMY-000049-2025-AR1");
+  assert.equal(localizeCourtText("KL/NOT/2014/0231", "gujarat"), "GJ/NOT/2014/0231");
+  assert.equal(localizeCourtText("KLGB0040213", "punjab"), "PBGB0040213");
+  assert.equal(localizeCourtText("KLKL01-000512-2025", "kerala"), "KLKL01-000512-2025");
+});
+
+test("Malayali names become the state's, a part for a part and the same each time", () => {
+  const g = localizeCourtText("Gopinathan Nair v. Malabar Traders", "gujarat");
+  assert.doesNotMatch(g, /Gopinathan|Nair|Malabar/);
+  assert.equal(localizeCourtText("Gopinathan Nair", "gujarat"), localizeCourtText("Gopinathan Nair", "gujarat"));
+  assert.match(localizeCourtText("Sainaba Beevi", "punjab"), / Kaur$/);
+  // Names shared across India stay.
+  assert.equal(localizeCourtText("Suresh Kumar v. Thomas George", "haryana"), "Suresh Kumar v. Thomas George");
+  const once = localizeCourtText("Krishnan Kutty", "haryana");
+  assert.equal(localizeCourtText(once, "haryana"), once);
+});
+
+test("a Malayali patronymic after a given name becomes a surname, and communities stay", () => {
+  const ravi = localizeCourtText("Ravi Sudhakaran", "gujarat");
+  assert.match(ravi, /^Ravi (Patel|Shah|Desai|Mehta|Joshi|Trivedi|Parikh|Modi|Bhatt|Pandya|Chauhan|Solanki|Parmar|Rathod|Vyas|Thakkar|Doshi|Kothari|Raval|Panchal)$/);
+  const both = localizeCourtText("Gopinathan Nair", "haryana");
+  assert.doesNotMatch(both, /Gopinathan|Nair/);
+  assert.match(localizeCourtText("Adv. Krishnan", "punjab"), /^Adv\. (Gurpreet|Harpreet|Jaspreet|Manpreet|Amrinder|Balwinder|Kuldeep|Navjot|Harjeet|Rajinder|Sukhwinder|Paramjit|Inderjit|Baljit|Gurdeep|Mandeep|Ravinder|Sarabjit|Jagdeep|Harbhajan)$/);
+  assert.match(localizeCourtText("Riyas", "gujarat"), /^(Irfan|Imran|Javed|Yusuf|Salim|Altaf|Arif|Juned)$/);
+  assert.equal(localizeCourtText("Quilon", "punjab"), "Ludhiana");
+  assert.equal(localizeCourtText("Vismaya Traders", "gujarat"), "Vandana Traders");
+});
+
+test("the scrutiny queue's Gujarati people and Ahmedabad localities stay in Gujarat only", () => {
+  assert.equal(localizeCourtText("Nirmala Ben v. Girish Thakkar, Nikol", "gujarat"), "Nirmala Ben v. Girish Thakkar, Nikol");
+  const hr = localizeCourtText("Nirmala Ben v. Girish Thakkar, Nikol", "haryana");
+  assert.doesNotMatch(hr, /Ben|Thakkar|Nikol/);
+  assert.match(hr, /^Nirmala Devi v\. Girish /);
 });

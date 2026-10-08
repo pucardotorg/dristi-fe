@@ -81,9 +81,10 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     state: "Punjab",
     example: "NACT/566/2026",
     numbering: { kind: "nact" },
-    // PLACEHOLDER — the sheet gives only Haryana's Panchkula prefix. "XX" marks the
-    // district code no document has supplied yet.
-    cnrPrefix: "PBXX03",
+    // The sheet gives only Haryana's Panchkula prefix. Punjab's follows the same
+    // state + district convention (KLKM, GJAH, HRPK) for the demo district, Ludhiana;
+    // the establishment code mirrors Panchkula's until Punjab supplies its own.
+    cnrPrefix: "PBLD03",
     placeholderBrand: true,
     signWithOath: false,
     fees: PUNJAB_HARYANA_FEES,

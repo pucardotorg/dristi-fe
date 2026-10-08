@@ -121,13 +121,15 @@ export function ApplicationTypeFields(props: FieldsProps) {
  */
 function PrefilledField({
   label,
-  value,
+  value: stored,
   description,
 }: {
   label: string;
   value: string;
   description?: string;
 }) {
+  // Read-only, so it can show the record in the selected court's terms (Settings → Court).
+  const value = useCourtText()(stored);
   return (
     <Field>
       <FieldLabel>{label}</FieldLabel>

@@ -6,7 +6,7 @@
  * carries the court the screen was showing. Off the browser it answers Kerala.
  */
 
-import { localizeCourtText } from "./localize";
+import { localizeCourtText, localizeDeep } from "./localize";
 import { COURT_COOKIE, DEFAULT_COURT, isCourtId, type CourtId } from "./profiles";
 
 export function browserCourt(): CourtId {
@@ -22,4 +22,9 @@ export function browserCourt(): CourtId {
 /** A downloaded document's text, in the selected court's names and numbers. */
 export function localizeForDownload(text: string): string {
   return localizeCourtText(text, browserCourt());
+}
+
+/** A record as the selected court shows it, for what a download names itself after. */
+export function voicedForDownload<T>(record: T): T {
+  return localizeDeep(record, browserCourt());
 }

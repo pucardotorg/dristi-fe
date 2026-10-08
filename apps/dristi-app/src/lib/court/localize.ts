@@ -29,13 +29,33 @@
 import {
   BAR_PREFIX,
   COURT_LANGUAGE,
+  districtCode,
+  STATE_CODE,
   KERALA_PLACE_PATTERN,
   PIN_PREFIX,
   PLACES,
   HOUSE_NAMES,
   SCRIPT_NAMES,
 } from "./places";
+import { MALAYALI_NAME_PATTERN, voiceName } from "./names";
 import { courtProfile, type CourtId, type CourtProfile } from "./profiles";
+
+/** Words that stand before a name without being one. */
+const TITLES = new Set(["Adv", "Advocate", "Mr", "Mrs", "Ms", "Dr", "Sri", "Smt", "Shri", "Before", "In", "Item"]);
+
+/**
+ * Malayali names, for the selected state (`names.ts`). A name part after another name
+ * stands where a surname goes; the name before it is re-voiced too, since the pattern
+ * takes it along to tell the two apart.
+ */
+function voiceNames(text: string, court: CourtId): string {
+  return text.replace(MALAYALI_NAME_PATTERN, (_match, before: string | undefined, name: string) => {
+    if (!before) return voiceName(court, name, false);
+    const word = before.trim().replace(/\.$/, "");
+    const lead = TITLES.has(word) ? before : before.replace(word, voiceName(court, word, false));
+    return lead + voiceName(court, name, !TITLES.has(word));
+  });
+}
 
 /**
  * Gujarat classifies a case at scrutiny into one of three types. The fixtures carry no
@@ -91,6 +111,8 @@ const PLACE_RULES: Rule[] = [
   // and moved to the state's demo district everywhere else.
   [/\bAhmedabad\b/g, (p) => (p.id === "gujarat" ? "Ahmedabad" : (PLACES[p.id]?.Kollam ?? "Ahmedabad"))],
   [/\bGujarat\b/g, (p) => (p.id === "gujarat" ? "Gujarat" : p.state)],
+  // A few disposed cases are Panchkula's already: right for Haryana, moved elsewhere.
+  [/\bPanchkula\b/g, (p) => (p.id === "haryana" ? "Panchkula" : (PLACES[p.id]?.Kollam ?? "Panchkula"))],
   [/\bKERALA\b/g, (p) => p.state.toUpperCase()],
   [/\bMalayalam\b/g, (p) => COURT_LANGUAGE[p.id] ?? "Malayalam"],
   [
@@ -117,6 +139,7 @@ const PLACE_RULES: Rule[] = [
     new RegExp(`\\b(${Object.keys(HOUSE_NAMES).join("|")})\\b`, "g"),
     (p, house) => HOUSE_NAMES[house]?.[p.id] ?? house,
   ],
+
 ];
 
 const NUMBER_RULES: Rule[] = [
@@ -144,6 +167,17 @@ const NUMBER_RULES: Rule[] = [
   [/\bKLKM\d{2}(\d{10})\b/g, (p, rest) => `${p.cnrPrefix}${rest}`],
   // Other platform numbers carry the tenant too: an advocate's registration application.
   [/\bKL-([A-Z]+-\d+-\d{4})\b/g, (p, rest) => `${p.cnrPrefix.slice(0, 2)}-${rest}`],
+  // Every other identifier that opens with Kerala's code — application, order and
+  // notary numbers, district-coded case numbers (KLKL01-…, KL-KLEK-…), the Gramin
+  // Bank's IFSC (KLGB…). First the district code, then the state code before it.
+  [/\bKL([A-Z]{2})(?=[0-9-])/g, (p, district) => `${STATE_CODE[p.id] ?? "KL"}${districtCode(p.id, district)}`],
+  [/\bKL(?=[-/][A-Z0-9])/g, (p) => STATE_CODE[p.id] ?? "KL"],
+  // A few long-pending numbers in the data are Panchkula's already (HR-PKL-…): right
+  // for Haryana, the state's demo district everywhere else.
+  [
+    /\bHR-PKL(?=-\d)/g,
+    (p) => (p.id === "haryana" ? "HR-PKL" : `${STATE_CODE[p.id] ?? "HR"}-${p.id === "gujarat" ? "AHM" : "LDH"}`),
+  ],
   // The scrutiny queue's filing numbers are Ahmedabad's (`F/AHM/2026/00319`) — right for
   // Gujarat as they stand, and the platform's NACT filing number for Punjab and Haryana.
   [
@@ -178,7 +212,7 @@ export function localizeCourtText(text: string, court: CourtId): string {
   const profile = courtProfile(court);
   if (profile.numbering.kind === "kerala") return text;
   return apply(
-    apply(apply(text, NAME_RULES, profile), PLACE_RULES, profile),
+    voiceNames(apply(apply(text, NAME_RULES, profile), PLACE_RULES, profile), court),
     NUMBER_RULES,
     profile,
   );
@@ -237,6 +271,9 @@ export function caseSearchKey(query: string): string {
     .trim()
     .toLowerCase()
     .replace(/\b(?:e\s*cr\s*(?:en|ma)|e\s*cc|nact)\s*\//g, "")
-    .replace(/\b(?:gj|pb|hr)-(?=\d)/g, "kl-")
-    .replace(/\b(?:gjah01|hrpk03|pbxx03)/g, "");
+    // A state code, with or without its district (GJ-…, GJAH01…, HRPK03…, PB/…), is
+    // dropped: what follows it is what the stored Kerala number contains too.
+    // A whole CNR keeps only its sequence and year: the court code differs too.
+    .replace(/\b(?:gj|pb|hr)[a-z]{2}\d{2}(?=\d{10}\b)/g, "")
+    .replace(/\b(?:gj|pb|hr)(?:[a-z]{2})?(?=[-/]?\d)/g, "");
 }

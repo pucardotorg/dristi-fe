@@ -82,27 +82,32 @@ the existing screens. No screen, step or field is added.
 
 ## Verification and open work
 
-- **Review, 2026-10-08.** Every route on both sides captured with Playwright against
-  :3001 on this branch: Gujarat explored through tabs, menus and dialogs (about 800
-  states), Punjab and Haryana screen by screen (100 each). Each capture was checked for
-  Kerala places (127, from `places.ts`), house names, "Kerala", "Malayalam", Malayalam
-  script, Kerala case, filing and CNR numbers, Bar numbers, PINs, "24×7 ON Court", Kerala
-  fee heads and, in Punjab, "Sign and oath". Checks covered visible text, aria-labels,
-  titles, placeholders, form values and the tab title.
-  - Before the fix: 481 of 998 captures still showed Kerala. This is an undercount: that
-    pass did not yet know Kollam's villages or house names.
-  - After the fix: 0 of 984, with no console or hydration errors.
-  - Annotated before/after review: https://claude.ai/artifact/J2xNRip6MxeHXbPmYnfz8J
-- **Kerala.** Unchanged: smoke-checked on Settings, hearings, a case, registrations and
-  cognizance, with no errors.
-- **Automated.** `lib/court/*.test.ts` (19) pass. App suite: 1129 pass, 3 fail. The 3
-  failures are the oath tests, which also fail on `origin/main`. DS gates pass except the
-  pre-existing `companion-rail.tsx` spacing finding.
+- **Second owner review, 2026-10-08.** The owner found the advocate cause list still
+  showing Kerala: `KLKL01-…` case numbers and Malayali names. The earlier "0 left" was
+  only against my own pattern list, which did not know these.
+  - Fix: one rule for every identifier that opens with Kerala's `KL` code, and
+    `names.ts` for about 185 Malayali name parts. Community is kept (a Muslim name maps
+    to a Muslim name, a Christian surname to a Christian surname), and a name in
+    surname position becomes a surname.
+  - Also: Quilon and more Kollam villages, download filenames, Punjab CNR `PBLD03`, and
+    the layer now sweeping until hydration settles.
+- **Verification now has two parts.**
+  - A detector generated from `places.ts` and `names.ts`.
+  - A comparison of every screen in Kerala against the same screen in each state,
+    listing every capitalised word or identifier that did not change, read by hand.
+    What remains on that list is UI wording, pan-Indian names, Tamil names, national
+    brands, and the scrutiny queue's Gujarati data in Gujarat (correct there).
+- **Final run:** Gujarat 0 of 771 captures (explored), Punjab 0 of 147, Haryana 0 of
+  100, with no console or hydration errors. Kerala has no errors and still shows its
+  own data.
+- **Review document:** https://claude.ai/artifact/J2xNRip6MxeHXbPmYnfz8J
+- **Automated.** `lib/court/*.test.ts` (23) pass. App suite: 1133 pass, 3 fail. The 3
+  failures are the oath tests, which also fail on `origin/main`. DS gates pass except
+  the pre-existing `companion-rail.tsx` spacing finding.
+- **Second language.** The second language is Hindi (`SECOND_LANGUAGE`), which falls
+  back to English; the Malayalam strings in content files never render.
 - **Open.**
   - Real logos and court names.
-  - Punjab's CNR district code.
   - Talwana unit.
-  - People's names stay Malayali (owner to decide).
-  - Malayalam second-language copy needs state translations.
-  - Download filenames still carry Kerala numbers.
-  - Sample geography is town-by-town, not district-consistent.
+  - Punjab's real establishment code.
+  - Sample names and places come from stable lists, not real district geography.

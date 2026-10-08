@@ -43,7 +43,7 @@ import {
 } from "./hearings";
 import { CASE_STAGES, type CaseStage } from "./schedule";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 export type DelayCondonationStage = "registration" | CaseStage;
 
@@ -791,7 +791,7 @@ export function downloadDelayCondonationDocument(
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = delayCondonationDocumentFilename(matter);
+  anchor.download = delayCondonationDocumentFilename(voicedForDownload(matter));
   anchor.click();
   URL.revokeObjectURL(url);
 }

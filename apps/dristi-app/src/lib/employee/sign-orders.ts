@@ -47,7 +47,7 @@
 import { CURRENT_STAFF } from "./content";
 import { causeTitle, formatListingDate, parseIsoDay } from "./hearings";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Which decision the order carries — the reference's "Title" column.
@@ -614,7 +614,7 @@ export function downloadSignOrderDocument(order: SignOrder): void {
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = signOrderDocumentFilename(order);
+  anchor.download = signOrderDocumentFilename(voicedForDownload(order));
   anchor.click();
   URL.revokeObjectURL(url);
 }

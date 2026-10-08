@@ -60,8 +60,13 @@ function owned(node: Node): boolean {
   return Object.keys(node).some((key) => key.startsWith("__reactFiber$"));
 }
 
-/** Later passes, for the parts of a page that hydrate after the first one. */
-const SWEEPS_MS = [60, 250, 700, 1500, 3000];
+/**
+ * Later passes, for the parts of a page that hydrate after the first one: every
+ * `SWEEP_MS` until nothing is left waiting on React, for at most `SWEEP_FOR_MS`. A busy
+ * page can take seconds to hydrate, and a fixed schedule ran out before it did.
+ */
+const SWEEP_MS = 150;
+const SWEEP_FOR_MS = 10000;
 
 export function CourtTextLayer() {
   const { court } = useCourt();
@@ -141,9 +146,12 @@ export function CourtTextLayer() {
     };
 
     sweep(false);
-    const timers = SWEEPS_MS.map((ms, i) =>
-      window.setTimeout(() => sweep(i === SWEEPS_MS.length - 1), ms),
-    );
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const last = Date.now() - started >= SWEEP_FOR_MS;
+      sweep(last);
+      if (waiting === 0 || last) window.clearInterval(timer);
+    }, SWEEP_MS);
 
     const page = new MutationObserver((records) => {
       for (const record of records) {
@@ -162,7 +170,7 @@ export function CourtTextLayer() {
     const head = new MutationObserver(title);
     head.observe(document.head, { subtree: true, childList: true, characterData: true });
     return () => {
-      timers.forEach((t) => window.clearTimeout(t));
+      window.clearInterval(timer);
       page.disconnect();
       head.disconnect();
     };

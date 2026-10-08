@@ -41,7 +41,7 @@ import {
   type CourtCounsel,
 } from "./hearings";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Which process the form belongs to — the reference's "Process type" column.
@@ -831,7 +831,7 @@ export function downloadSignFormDocument(form: SignForm): void {
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = signFormDocumentFilename(form);
+  anchor.download = signFormDocumentFilename(voicedForDownload(form));
   anchor.click();
   URL.revokeObjectURL(url);
 }

@@ -53,7 +53,7 @@ import {
   type CourtCounsel,
   type CourtHearingPurposeId,
 } from "./hearings";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /** The court whose register this is. One bench, one diary. */
 const COURT = CURRENT_STAFF.court;
@@ -548,7 +548,7 @@ export function downloadADiaryDocument(entry: ADiaryEntry): void {
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = aDiaryDocumentFilename(entry);
+  anchor.download = aDiaryDocumentFilename(voicedForDownload(entry));
   anchor.click();
   URL.revokeObjectURL(url);
 }

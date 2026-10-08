@@ -37,7 +37,7 @@ import {
   type CourtHearingPurposeId,
 } from "./hearings";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 export type ReschedulingRequest = {
   id: string;
@@ -512,7 +512,7 @@ export function downloadReschedulingDocument(
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = reschedulingDocumentFilename(request);
+  anchor.download = reschedulingDocumentFilename(voicedForDownload(request));
   anchor.click();
   URL.revokeObjectURL(url);
 }

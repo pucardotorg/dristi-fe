@@ -103,7 +103,16 @@ const KERALA_LOCALITIES = [
   "Thrikkadavoor", "Thodiyoor", "Thevalappuram", "Puthoor", "Puthur", "Piravanthoor",
   "Kulasekharapuram", "Kottukal", "Kottamkara", "Karimpinpuzha", "Kanjirappally",
   "Kalayapuram", "Kadappakkada", "Ithikkara", "Elampalloor", "Edamulakkal", "Chithara",
-  "Chirakkara", "Kallingal",
+  "Chirakkara", "Kallingal", "Sasthamkotta", "Ashramam", "Ochira", "Mevaram",
+  "Polayathode", "Ashtamudi", "Alappad", "Valakom", "Veliyam", "Ezhukone", "Poruvazhy",
+] as const;
+
+/**
+ * The scrutiny queue's Ahmedabad localities — right in Gujarat, and moved to the state's
+ * demo district like Kerala's everywhere else.
+ */
+const AHMEDABAD_LOCALITIES = [
+  "Nikol", "Ghatlodia", "Bopal", "Chandkheda", "Naroda", "Vastrapur", "Satellite",
 ] as const;
 
 const LOCALITY_POOL: Partial<Record<CourtId, string[]>> = {
@@ -136,6 +145,9 @@ function fromPool(name: string, pool: string[]): string {
   return pool[hash % pool.length];
 }
 
+/** Kollam's older name, which some of the data still uses. */
+const ALIASES: Record<string, string> = { Quilon: "Kollam" };
+
 export const PLACES: Partial<Record<CourtId, Places>> = Object.fromEntries(
   (
     [
@@ -147,17 +159,28 @@ export const PLACES: Partial<Record<CourtId, Places>> = Object.fromEntries(
     court,
     {
       ...Object.fromEntries(KERALA_LOCALITIES.map((l) => [l, fromPool(l, LOCALITY_POOL[court]!)])),
+      ...(court === "gujarat"
+        ? {}
+        : Object.fromEntries(AHMEDABAD_LOCALITIES.map((l) => [l, fromPool(l, LOCALITY_POOL[court]!)]))),
       ...named,
+      ...Object.fromEntries(Object.entries(ALIASES).map(([alias, of]) => [alias, named[of]])),
     },
   ]),
 );
 
 /** Every Kerala place the fixtures use, for the localiser and for the review's detector. */
-export const ALL_KERALA_PLACES: string[] = [...KERALA_PLACES, ...KERALA_LOCALITIES];
+export const ALL_KERALA_PLACES: string[] = [
+  ...KERALA_PLACES,
+  ...KERALA_LOCALITIES,
+  ...Object.keys(ALIASES),
+];
+
+/** Every place the localiser moves, Kerala's and the scrutiny queue's Ahmedabad ones. */
+const MOVED_PLACES: string[] = [...ALL_KERALA_PLACES, ...AHMEDABAD_LOCALITIES];
 
 /** One pattern for every Kerala place, longest names first so "Kochi" never eats a longer one. */
 export const KERALA_PLACE_PATTERN = new RegExp(
-  `\\b(${[...ALL_KERALA_PLACES].sort((a, b) => b.length - a.length).join("|")})\\b`,
+  `\\b(${[...MOVED_PLACES].sort((a, b) => b.length - a.length).join("|")})\\b`,
   "g",
 );
 
@@ -215,4 +238,28 @@ export const HOUSE_NAMES: Record<string, Partial<Record<CourtId, string>>> = {
   Nedumkandathil: { gujarat: "Narmada Niwas", punjab: "Satnam Villa", haryana: "Shiv Kripa" },
   Muttathil: { gujarat: "Ambika Sadan", punjab: "Jot Niwas", haryana: "Prem Niwas" },
   Kizhakkethil: { gujarat: "Om Villa", punjab: "Waheguru Niwas", haryana: "Shanti Kunj" },
+  Kadavil: { gujarat: "Nandanvan", punjab: "Kartar Niwas", haryana: "Ram Niwas" },
+  Anugraha: { gujarat: "Krupa", punjab: "Kirpa", haryana: "Kripa" },
 };
+
+/** The state's two-letter code, where an identifier carries Kerala's "KL". */
+export const STATE_CODE: Partial<Record<CourtId, string>> = {
+  gujarat: "GJ",
+  punjab: "PB",
+  haryana: "HR",
+};
+
+/**
+ * Kerala's district codes inside identifiers (KLKL01-…, KL-KLEK-…) and the Kerala
+ * Gramin Bank's IFSC prefix (KLGB…), as the state's: the demo district by default.
+ */
+const DISTRICT_CODE: Partial<Record<CourtId, Record<string, string>>> = {
+  gujarat: { KL: "AH", KM: "AH", EK: "SR", TV: "GN", GB: "GB" },
+  punjab: { KL: "LD", KM: "LD", EK: "JL", TV: "MH", GB: "GB" },
+  haryana: { KL: "PK", KM: "PK", EK: "GG", TV: "AM", GB: "GB" },
+};
+
+export function districtCode(court: CourtId, kerala: string): string {
+  const codes = DISTRICT_CODE[court];
+  return codes?.[kerala] ?? codes?.KL ?? kerala;
+}

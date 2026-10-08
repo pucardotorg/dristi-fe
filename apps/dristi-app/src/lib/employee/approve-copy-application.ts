@@ -52,7 +52,7 @@ import {
   type CourtCounsel,
 } from "./hearings";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Which record on the file the copy is asked for.
@@ -1330,7 +1330,7 @@ export function downloadCopyApplicationDocument(
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = copyApplicationDocumentFilename(application);
+  anchor.download = copyApplicationDocumentFilename(voicedForDownload(application));
   anchor.click();
   URL.revokeObjectURL(url);
 }

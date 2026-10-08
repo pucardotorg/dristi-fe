@@ -47,7 +47,7 @@
 import { CURRENT_STAFF } from "./content";
 import { causeTitle, formatListingDate, isoDay, parseIsoDay } from "./hearings";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Whether the signature is on it yet.
@@ -673,7 +673,7 @@ export function downloadSignBailBondDocument(bond: SignBailBond): void {
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = signBailBondDocumentFilename(bond);
+  anchor.download = signBailBondDocumentFilename(voicedForDownload(bond));
   anchor.click();
   URL.revokeObjectURL(url);
 }

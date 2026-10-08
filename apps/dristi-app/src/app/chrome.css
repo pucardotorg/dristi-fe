@@ -60,7 +60,7 @@
    so a script that never runs leaves the page in Kerala's words, never blank. */
 html[data-court-pending] body {
   visibility: hidden;
-  animation: court-reveal 0s linear 2s forwards;
+  animation: court-reveal 0s linear 3s forwards;
 }
 @keyframes court-reveal {
   to {

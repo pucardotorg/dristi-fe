@@ -42,7 +42,7 @@ import {
   type CourtCounsel,
 } from "./hearings";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Where a case has reached, across the whole §138 journey — the widest stage list on the
@@ -1064,7 +1064,7 @@ export function downloadOtherApplicationDocument(
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = otherApplicationDocumentFilename(application);
+  anchor.download = otherApplicationDocumentFilename(voicedForDownload(application));
   anchor.click();
   URL.revokeObjectURL(url);
 }

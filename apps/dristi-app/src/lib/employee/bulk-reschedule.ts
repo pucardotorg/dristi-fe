@@ -36,7 +36,7 @@ import {
   type CourtHearingPurposeId,
 } from "./hearings";
 import { caseSearchKey } from "@/lib/court/localize";
-import { localizeForDownload } from "@/lib/court/browser";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 export type ReschedulableHearing = {
   id: string;
@@ -676,7 +676,7 @@ export function downloadRescheduleOrder(order: RescheduleOrder): void {
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = rescheduleOrderFilename(order);
+  anchor.download = rescheduleOrderFilename(voicedForDownload(order));
   anchor.click();
   URL.revokeObjectURL(url);
 }
