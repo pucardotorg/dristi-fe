@@ -1,20 +1,30 @@
 "use client";
 
 import { useMemo } from "react";
+import { DownloadIcon, XIcon } from "lucide-react";
 
-import { FlowDialogContent } from "@/components/chrome/flow-dialog";
-
-import { DocumentPreview } from "@/components/cases/document-preview";
+import {
+  Fact,
+  FactGroup,
+} from "@/components/cases/application-record-dialog";
 import { ReviewRow } from "@/components/cases/filing-form-shared";
+import { ComposedDocumentViewer } from "@/components/cases/pdf-viewer";
+import { FlowDialogContent } from "@/components/chrome/flow-dialog";
+import { Identifier } from "@/components/chrome/identifier";
 import { Button } from "@/components/ui/button";
 import { DescriptionList } from "@/components/ui/description-list";
 import {
   Dialog,
+  DialogClose,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   buildGeneratedApplication,
   downloadGeneratedApplication,
@@ -23,17 +33,15 @@ import {
 import { type ApplicationDraft } from "@/lib/cases/application-draft";
 import { submissionTypeLabel } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
-import { Identifier } from "@/components/chrome/identifier";
 
 /**
- * What Generate application produces — the court-form document, shown before
- * signing, mirroring the legacy portal's generated-application modal.
+ * What Generate application produces, read before signing. The application
+ * record's frame (PM and owner, Oct 8: the same pattern as opening an
+ * application from the tab): the facts on the left, the application itself
+ * as large as the dialog allows on the right, the one step in the sunken
+ * footer band. Halves stack when the dialog is narrow.
  *
- * One CTA only: Add signature. The legacy Back button is dropped on the
- * product's ask — the dialog's close affordances already return to the
- * review step. The dialog is its own visual region under a scrim, so the
- * teal primary here does not compete with the page (Laws: ration teal per
- * region).
+ * One CTA only: Add signature. The dialog's close returns to the form.
  */
 export function GeneratedApplicationDialog({
   open,
@@ -64,12 +72,14 @@ export function GeneratedApplicationDialog({
   const generatedOn = formatCaseDate(new Date().toISOString());
 
   if (!document || !draft.type) return null;
+  const objection = draft.type === "objection";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <FlowDialogContent
         ownBack
-        className="grid-rows-[auto_auto_1fr_auto] max-h-[85dvh] sm:max-w-3xl"
+        showCloseButton={false}
+        className="flex h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
         // Radix's own restore lands on document.body here, so put focus back
         // on the button that opened the dialog explicitly.
         onCloseAutoFocus={(event) => {
@@ -77,57 +87,78 @@ export function GeneratedApplicationDialog({
           onReturnFocus();
         }}
       >
-        <DialogHeader>
-          <DialogTitle className="text-title-s font-semibold">
-            {draft.type === "objection" ? "Generated objection" : "Generated application"}
-          </DialogTitle>
-          <DialogDescription className="text-body-compact">
-            Check the generated document before adding a signature.
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Meta strip — a nested well inside the dialog, so surface-sunken
-            without a border (elevation: the box-in-box ban). */}
-        <div className="rounded-lg bg-surface-sunken p-4">
-          <DescriptionList>
-            <ReviewRow term={draft.type === "objection" ? "Filing" : "Application type"}>
-              {submissionTypeLabel(draft.type)}
-            </ReviewRow>
-            <ReviewRow term="Case">
-              <Identifier value={record.caseNumber} label="case number" />
-            </ReviewRow>
-            <ReviewRow term="Generated on">{generatedOn}</ReviewRow>
-            <ReviewRow term="Filed for">{document.filedFor}</ReviewRow>
-          </DescriptionList>
+        <div className="flex shrink-0 items-center gap-2 border-b border-hairline py-3 pr-3 pl-6">
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-body-compact font-semibold text-pretty sm:truncate">
+              {objection ? "Generated objection" : "Generated application"}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Check the generated document before adding a signature.
+            </DialogDescription>
+          </div>
+          {/* The plain-text copy: there is no rendered PDF behind it. */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Download"
+                  onClick={() => downloadGeneratedApplication(draft, record, side)}
+                >
+                  <DownloadIcon aria-hidden />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Download</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <DialogClose asChild>
+            <Button type="button" variant="ghost" size="icon-sm">
+              <XIcon aria-hidden />
+              <span className="sr-only">Close</span>
+            </Button>
+          </DialogClose>
         </div>
 
-        {/*
-          Download hands over the plain-text copy — there is no rendered PDF
-          behind this document, and DocumentPreview omits the action entirely
-          rather than offer one when a surface has nothing to give.
-        */}
-        <DocumentPreview
-          title={document.title}
-          source={{
-            kind: "composed",
-            content: (
+        <div className="@container/record flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col @3xl/record:flex-row">
+            <div className="flex max-h-72 shrink-0 flex-col overflow-y-auto border-b border-hairline p-4 @3xl/record:max-h-none @3xl/record:w-80 @3xl/record:border-r @3xl/record:border-b-0">
+              <div className="flex flex-col divide-y divide-hairline">
+                <FactGroup>
+                  <Fact label={objection ? "Filing" : "Application type"}>
+                    {submissionTypeLabel(draft.type)}
+                  </Fact>
+                </FactGroup>
+                <FactGroup columns={2}>
+                  <Fact label="Case">
+                    <Identifier value={record.caseNumber} label="case number" />
+                  </Fact>
+                  <Fact label="Generated on">
+                    <span className="tabular-nums">{generatedOn}</span>
+                  </Fact>
+                  <Fact label="Filed for">{document.filedFor}</Fact>
+                </FactGroup>
+              </div>
+            </div>
+
+            <ComposedDocumentViewer
+              title={document.title}
+              className="min-h-64 min-w-0 flex-1 rounded-none"
+            >
               <GeneratedApplicationDocument
                 document={document}
                 generatedOn={generatedOn}
               />
-            ),
-          }}
-          download={{
-            onDownload: () => downloadGeneratedApplication(draft, record, side),
-          }}
-          height="fill"
-        />
+            </ComposedDocumentViewer>
+          </div>
+        </div>
 
-        <DialogFooter>
-          <Button type="button" onClick={onAddSignature}>
+        <footer className="flex shrink-0 flex-col border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:justify-end">
+          <Button type="button" className="w-full sm:w-auto" onClick={onAddSignature}>
             {signLabel}
           </Button>
-        </DialogFooter>
+        </footer>
       </FlowDialogContent>
     </Dialog>
   );

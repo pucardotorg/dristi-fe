@@ -1,9 +1,14 @@
 "use client";
 
 import { useId, useMemo } from "react";
-import { ArrowRightIcon } from "lucide-react";
+import { ArrowRightIcon, SearchIcon, XIcon } from "lucide-react";
 
-import { RegisterSearch } from "@/components/cases/register-controls";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 
 import { PANEL_CLASS } from "@/components/shell/panel";
 import { Badge } from "@/components/ui/badge";
@@ -161,13 +166,35 @@ export function ApplicationTypeSearch({
   query: string;
   onQueryChange: (query: string) => void;
 }) {
+  /* Centred, wide and a step taller than a register's search (owner, Oct 8,
+     as it was before Sept 21): with eighteen types, searching is how most
+     filers will start, so it leads the page like a search engine's box. */
   return (
-    <RegisterSearch
-      label="Search application types"
-      value={query}
-      onChange={onQueryChange}
-      className="sm:w-full"
-    />
+    <InputGroup className="h-11">
+      <InputGroupAddon>
+        <SearchIcon aria-hidden />
+      </InputGroupAddon>
+      <InputGroupInput
+        type="search"
+        aria-label="Search application types"
+        placeholder="Search application types"
+        autoComplete="off"
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        className="text-body"
+      />
+      {query ? (
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton
+            size="icon-sm"
+            aria-label="Clear the search"
+            onClick={() => onQueryChange("")}
+          >
+            <XIcon aria-hidden />
+          </InputGroupButton>
+        </InputGroupAddon>
+      ) : null}
+    </InputGroup>
   );
 }
 

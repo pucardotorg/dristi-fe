@@ -571,11 +571,12 @@ export function RaiseApplicationForm({
                 </p>
               </div>
             </div>
-            <div className="w-full @2xl:w-80 @2xl:shrink-0">
-              <ApplicationTypeSearch query={query} onQueryChange={setQuery} />
-            </div>
           </div>
         </header>
+
+        <div className="mx-auto w-full max-w-2xl">
+          <ApplicationTypeSearch query={query} onQueryChange={setQuery} />
+        </div>
 
         <ApplicationTypePicker
           value=""

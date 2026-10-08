@@ -286,6 +286,7 @@ const FLOW_FOOTER = "bg-surface-sunken";
 export function PartySignatureDialog({
   open,
   onClose,
+  onBack,
   onComplete,
   confirmation,
   submitLabel = "Submit application",
@@ -296,6 +297,9 @@ export function PartySignatureDialog({
   open: boolean;
   /** Dismiss the sign dialog only — the review stays open behind it. */
   onClose: () => void;
+  /** The first step's Back, where the review did not stay open behind it:
+   *  return to it. Defaults to closing. */
+  onBack?: () => void;
   /** Signed and submitted — closes the sign dialog AND the review beneath. */
   onComplete: () => void;
   /** The success screen's copy — the flow's own "sent" message. */
@@ -535,7 +539,7 @@ export function PartySignatureDialog({
               />
             </div>
             <footer className={cn(FLOW_FOOTER, "flex shrink-0 items-center border-t border-hairline px-6 py-4")}>
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onBack ?? onClose}>
                 Back
               </Button>
             </footer>

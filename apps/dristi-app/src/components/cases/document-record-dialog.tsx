@@ -168,7 +168,11 @@ function DocumentBody({
               <FactGroup>
                 <Fact label="Filing ID">
                   {document.filingId ? (
-                    <span className="font-mono">{document.filingId}</span>
+                    /* Copyable like every other identifier here (owner,
+                       Oct 8), and only as wide as itself. */
+                    <span className="flex">
+                      <Identifier value={document.filingId} label="filing ID" />
+                    </span>
                   ) : (
                     <Muted>Allotted when submitted</Muted>
                   )}
@@ -216,7 +220,7 @@ function DocumentBody({
                 <FactGroup>
                   {document.linkedApplication ? (
                     <Fact label="Filed with">
-                      <span className="flex flex-col gap-0.5">
+                      <span className="flex flex-col items-start gap-0.5">
                         <Identifier
                           value={document.linkedApplication.id}
                           label="application id"
@@ -229,7 +233,7 @@ function DocumentBody({
                   ) : null}
                   {document.linkedHearing ? (
                     <Fact label="Hearing">
-                      <span className="flex flex-col gap-0.5">
+                      <span className="flex flex-col items-start gap-0.5">
                         <Identifier
                           value={document.linkedHearing.id}
                           label="hearing id"
@@ -299,9 +303,11 @@ function Comments({ fieldId }: { fieldId: string }) {
     <section className="flex flex-col gap-2 border-t border-hairline pt-3">
       {/* The visible heading is the field's label: never placeholder-only. */}
       <div className="flex flex-col gap-0.5">
+        {/* A section of its own, not one more fact: titled in the ink and
+            weight of a heading, not a fact's muted label (owner, Oct 8). */}
         <FieldLabel
           htmlFor={fieldId}
-          className="text-caption font-medium text-muted-foreground"
+          className="text-body-compact font-semibold text-foreground"
         >
           Comments
         </FieldLabel>

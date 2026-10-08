@@ -312,6 +312,23 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         </div>
       </div>
 
+      {/* The register's count, as Documents has it (owner, Oct 8): as far
+          from the filters as from the table. */}
+      {rows.length > 0 ? (
+        <p
+          aria-live="polite"
+          className="text-caption font-medium tabular-nums text-muted-foreground"
+        >
+          {filtered
+            ? rows.length === 1
+              ? "1 application matches the filters"
+              : `${rows.length} applications match the filters`
+            : rows.length === 1
+              ? "1 application"
+              : `${rows.length} applications`}
+        </p>
+      ) : null}
+
       {rows.length === 0 ? (
         <Empty className="border border-dashed border-border">
           <EmptyHeader>
@@ -394,6 +411,10 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         onSigningChange={setSigning}
         paying={paying}
         onPayingChange={setPaying}
+        onBack={(batch) => {
+          if (batch.length === 1) setRecordOpen(batch[0].id);
+          else setReviewing(batch);
+        }}
       />
       {formFor ? (
         <RaiseApplicationForm
@@ -467,6 +488,7 @@ export function SignAndPayDialogs({
   onSigningChange,
   paying,
   onPayingChange,
+  onBack,
 }: {
   caseId: string;
   /** The rows the batch is drawn from, to look each one up when it moves. */
@@ -475,6 +497,9 @@ export function SignAndPayDialogs({
   onSigningChange: (next: ApplicationRecord[]) => void;
   paying: ApplicationRecord[];
   onPayingChange: (next: ApplicationRecord[]) => void;
+  /** Back from the signing step: reopen what was being read (owner, Oct 8:
+   *  Back closed everything). */
+  onBack?: (batch: ApplicationRecord[]) => void;
 }) {
   /* What is being signed, kept past the close: the dialog's wording
      otherwise flips to "Application signed" as it animates out. */
@@ -500,6 +525,15 @@ export function SignAndPayDialogs({
       <PartySignatureDialog
         open={signing.length > 0}
         onClose={() => onSigningChange([])}
+        onBack={
+          onBack
+            ? () => {
+                const batch = signing;
+                onSigningChange([]);
+                onBack(batch);
+              }
+            : undefined
+        }
         onComplete={() => {
           move(
             signing.map((item) => item.id),

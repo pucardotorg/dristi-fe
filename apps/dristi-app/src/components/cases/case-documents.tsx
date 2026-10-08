@@ -108,6 +108,7 @@ import {
   REGISTER_CARDS_ONLY,
   REGISTER_CARDS_QUERY,
   REGISTER_FILTER_ROW,
+  REGISTER_ROW_SEARCH,
   REGISTER_SWITCH,
   REGISTER_TABLE_ONLY,
   SHOW_MORE_STEP,
@@ -406,7 +407,7 @@ function DocumentsReady({
 
   return (
     <>
-      <DocumentsPanel switcher={switcher} search={search}>
+      <DocumentsPanel switcher={switcher}>
         {kind === "documents" && actions.length > 0 ? (
           <NeedsAction
             caseId={record.id}
@@ -415,7 +416,15 @@ function DocumentsReady({
             onOpen={setFilingOpen}
           />
         ) : null}
-        <div className={REGISTER_FILTER_ROW}>
+        {/* As on Applications: the controls sit on the table they narrow, a
+            step clear of Needs attention, the search at the row's far end
+            (owner, Oct 8). */}
+        <div
+          className={cn(
+            REGISTER_FILTER_ROW,
+            kind === "documents" && actions.length > 0 && "mt-4"
+          )}
+        >
           {showTypeFilter ? (
             <RegisterFilter
               label="Type"
@@ -446,6 +455,7 @@ function DocumentsReady({
               Clear filters
             </Button>
           ) : null}
+          <div className={REGISTER_ROW_SEARCH}>{search}</div>
         </div>
 
         {selection.total === 0 ? (
@@ -456,7 +466,8 @@ function DocumentsReady({
           />
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2 pt-2">
+            {/* The count sits as far from the filters as from the table. */}
+            <div className="flex flex-wrap items-center gap-2">
               <p
                 aria-live="polite"
                 className="text-caption font-medium tabular-nums text-muted-foreground"
@@ -597,6 +608,10 @@ function DocumentsReady({
         onSigningChange={setSigning}
         paying={paying}
         onPayingChange={setPaying}
+        onBack={(batch) => {
+          if (batch.length === 1) setFilingOpen(batch[0].id);
+          else setReviewing(batch);
+        }}
       />
     </>
   );
