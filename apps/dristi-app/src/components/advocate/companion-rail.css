@@ -1,0 +1,29 @@
+/* The fixed trigger footprint stays hit-testable as its tab moves left, so
+   hovering the outer edge cannot repeatedly open and close the glimpse. */
+.pending-rail-tab, .pending-rail-peek {
+  transition: transform var(--rail-peek-duration) var(--rail-peek-easing);
+}
+.pending-rail-peek { transform: translateX(100%); }
+
+@media (hover: hover) and (pointer: fine) {
+  .pending-tasks-rail[data-closed="true"]:has(.pending-rail-trigger:hover) .pending-rail-tab {
+    transform: translateX(calc(var(--spacing) * -4));
+  }
+  .pending-tasks-rail[data-closed="true"]:has(.pending-rail-trigger:hover) .pending-rail-peek {
+    transform: translateX(0);
+  }
+}
+
+/* Keyboard focus gives the same spatial cue instantly. Enter/Space still
+   opens the full panel using the existing native button. */
+.pending-tasks-rail[data-closed="true"]:has(.pending-rail-trigger :focus-visible) .pending-rail-tab {
+  transform: translateX(calc(var(--spacing) * -4));
+  transition-duration: 0ms;
+}
+.pending-tasks-rail[data-closed="true"]:has(.pending-rail-trigger :focus-visible) .pending-rail-peek {
+  transform: translateX(0);
+  transition-duration: 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pending-rail-tab, .pending-rail-peek { transition-duration: 0ms; }
+}

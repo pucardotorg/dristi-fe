@@ -16,7 +16,11 @@ import type { Case } from "@/lib/tasks/types";
 import type { World } from "@/lib/tasks/selectors";
 import { canView } from "@/lib/tasks/permissions";
 import {
+  accessOf,
   advocateRosterOn,
+  filterSlotHearings,
+  NO_SLOT_FILTER,
+  peopleOptionsOf,
   boardOf,
   caseRecordFor,
   causeListOn,
@@ -441,7 +445,7 @@ describe("weekOf anchor", () => {
 });
 
 describe("railGroups", () => {
-  it("buckets into exactly today (overdue folded in), next 3 days, and the week", () => {
+  it("buckets into exactly today (overdue folded in) and the next 3 days", () => {
     const w = world(
       [kase],
       [
@@ -460,7 +464,6 @@ describe("railGroups", () => {
       [
         ["today", ["t-over", "t-today"]],
         ["soon", ["t-tomorrow", "t-day3"]],
-        ["week", ["t-day5"]],
       ]
     );
   });
@@ -774,5 +777,84 @@ describe("daySlotsOn", () => {
     // A past day is over, so no sitting throbs even where the clock's hour falls.
     const past = daySlotsOn(scene(), dayKeyOf(at(-1, 12)), NOW_MS, config);
     assert.ok(past.every((s) => !s.live));
+  });
+});
+
+describe("sitting filters", () => {
+  const day = dayKeyOf(at(0, 12));
+  // Senior (the viewer) holds the Vakalatnama on "own" with R. Manoj; on
+  // "office" only S. Prakash holds it and the viewer is on the case through
+  // office access.
+  const scene = () =>
+    world([
+      listed("own", 0, 22),
+      {
+        ...listed("office", 0, 23, "Court B"),
+        signatories: [junior.id],
+        advocates: [junior.id, senior.id],
+      },
+    ]);
+  const hearingsOf = (w: World) => daySlotsOn(w, day, NOW_MS, V1_LAUNCH)[0].hearings;
+  const ids = (hs: { kase: Case }[]) => hs.map((h) => h.kase.id).sort();
+
+  it("keeps everything by default, and only the viewer's Vakalatnama under My hearings", () => {
+    const w = scene();
+    assert.deepEqual(ids(filterSlotHearings(w, hearingsOf(w), NO_SLOT_FILTER)), ["office", "own"]);
+    assert.deepEqual(
+      ids(filterSlotHearings(w, hearingsOf(w), { ...NO_SLOT_FILTER, scope: "mine" })),
+      ["own"]
+    );
+  });
+
+  it("shows only office-access matters under Office access", () => {
+    const w = scene();
+    assert.deepEqual(
+      ids(filterSlotHearings(w, hearingsOf(w), { ...NO_SLOT_FILTER, scope: "office" })),
+      ["office"]
+    );
+  });
+
+  it("keeps the viewer's own hearings when every colleague is unticked", () => {
+    const w = scene();
+    // Unticking S. Prakash drops the matter only he holds; "own" stays because
+    // the viewer is on its Vakalatnama, and the viewer can never be unticked.
+    const hidden = filterSlotHearings(w, hearingsOf(w), { ...NO_SLOT_FILTER, hidden: [junior.id] });
+    assert.deepEqual(ids(hidden), ["own"]);
+  });
+
+  it("matches a ticked person on the Vakalatnama only, never on office access", () => {
+    const w = scene();
+    // S. Prakash is on "own" as an advocate but not its Vakalatnama: no match.
+    const byPrakash = filterSlotHearings(w, hearingsOf(w), { ...NO_SLOT_FILTER, people: [junior.id] });
+    assert.deepEqual(ids(byPrakash), ["office"]);
+    const byManoj = filterSlotHearings(w, hearingsOf(w), { ...NO_SLOT_FILTER, people: [senior2.id] });
+    assert.deepEqual(ids(byManoj), ["own"]);
+  });
+
+  it("narrows only the sitting the filter belongs to", () => {
+    const w = scene();
+    const slots = daySlotsOn(w, day, NOW_MS, V1_LAUNCH, {
+      "sitting-0": { ...NO_SLOT_FILTER, courts: ["Court B"] },
+    });
+    assert.equal(slots[0].board.summary.total, 1);
+    // The unfiltered matters stay on the slot for the filters' own options.
+    assert.equal(slots[0].hearings.length, 2);
+  });
+
+  it("offers everyone else on the Vakalatnamas in scope, alphabetically, without the viewer", () => {
+    const w = scene();
+    const all = peopleOptionsOf(w, hearingsOf(w), "all").map((o) => o.person.name);
+    assert.deepEqual(all, ["R. Manoj", "S. Prakash"]);
+    const mine = peopleOptionsOf(w, hearingsOf(w), "mine").map((o) => o.person.name);
+    assert.deepEqual(mine, ["R. Manoj"]);
+  });
+
+  it("says how the viewer reaches a matter and who holds its Vakalatnama", () => {
+    const w = scene();
+    const [office, own] = ["office", "own"].map((id) => w.cases.find((c) => c.id === id)!);
+    assert.equal(accessOf(w, own).office, false);
+    assert.deepEqual(accessOf(w, own).vakalatnama.map((p) => p.name), ["Anjali Nair", "R. Manoj"]);
+    assert.equal(accessOf(w, office).office, true);
+    assert.deepEqual(accessOf(w, office).vakalatnama.map((p) => p.name), ["S. Prakash"]);
   });
 });

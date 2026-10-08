@@ -207,7 +207,7 @@ export const advHome = {
   /** Per-court: the court's full official day cause list, all matters. */
   viewCauseList: t("View cause list", "കോസ് ലിസ്റ്റ് കാണുക"),
   /** Signals it joins one of the advocate's OWN hearings, not a generic courtroom. */
-  joinCourtroom: t("Join your hearing", "നിങ്ങളുടെ വിചാരണയിൽ ചേരുക"),
+  joinCourtroom: t("Join a hearing", "ഒരു വിചാരണയിൽ ചേരുക"),
   /** The "Join your hearing" picker: only the advocate's own hearings being called now. */
   joinDialogTitle: t("Join your hearing", "നിങ്ങളുടെ വിചാരണയിൽ ചേരുക"),
   joinDialogBody: t(
@@ -249,7 +249,11 @@ export const advHome = {
   /* Week strip */
   prevWeek: t("Previous week", "കഴിഞ്ഞ ആഴ്ച"),
   nextWeek: t("Next week", "അടുത്ത ആഴ്ച"),
+  prevDay: t("Previous day", "മുൻ ദിവസം"),
+  nextDay: t("Next day", "അടുത്ത ദിവസം"),
   pickDate: t("Pick a date", "തീയതി തിരഞ്ഞെടുക്കുക"),
+  previewDates: t("Preview nearby dates", "അടുത്തുള്ള തീയതികൾ കാണുക"),
+  previewDateHelp: t("Move across the date to preview. Click to select. With a keyboard, use Left and Right, then Enter or Space. Escape cancels.", "തീയതിക്ക് മുകളിലൂടെ നീങ്ങി നോക്കുക. തിരഞ്ഞെടുക്കാൻ ക്ലിക്ക് ചെയ്യുക. കീബോർഡിൽ ഇടത്, വലത് അമ്പുകൾ ഉപയോഗിച്ച ശേഷം Enter അല്ലെങ്കിൽ Space അമർത്തുക. Escape റദ്ദാക്കും."),
 
   /* Whose matters — the board's advocate switcher. Names, not a permission
      model: "view access" is the system's vocabulary, an advocate says a name. */
@@ -277,11 +281,11 @@ export const advHome = {
 
   /* Companion rail */
   railTitle: t("Pending tasks", "ബാക്കിയുള്ള ജോലികൾ"),
-  /** The panel lists the coming week; the strip's badge counts every open task.
-      The two can never agree, so the header says which one this is. */
+  /** The panel lists today and the next three days; the strip's badge counts every
+      open task. The two can never agree, so the header says which one this is. */
   railScope: t(
-    "Due in the next 7 days",
-    "അടുത്ത 7 ദിവസത്തിനുള്ളിൽ അവസാനിക്കുന്നവ",
+    "Due in the next 3 days",
+    "അടുത്ത 3 ദിവസത്തിനുള്ളിൽ അവസാനിക്കുന്നവ",
   ),
   prepTitle: t(
     "Important upcoming hearings",
@@ -309,7 +313,6 @@ export const advHome = {
   viewCase: t("View case", "കേസ് കാണുക"),
   groupToday: t("Due today", "ഇന്ന് അവസാനം"),
   groupSoon: t("Next 3 days", "അടുത്ത 3 ദിവസം"),
-  groupWeek: t("Later this week", "ഈ ആഴ്ച പിന്നീട്"),
   railResize: t("Resize the pending tasks rail", "പാനലിന്റെ വീതി ക്രമീകരിക്കുക"),
   railOpen: t("Open pending tasks, {n} need action", "ബാക്കിയുള്ള ജോലികൾ തുറക്കുക, {n} എണ്ണം"),
   railCollapse: t("Collapse pending tasks", "ജോലികളുടെ പാനൽ ചുരുക്കുക"),
@@ -388,18 +391,17 @@ export const advHome = {
   colHearingType: t("Hearing type", "ഹിയറിംഗ് തരം"),
   colStatus: t("Status", "സ്ഥിതി"),
   statusCompleted: t("Completed", "പൂർത്തിയായി"),
-  statusOngoing: t("Ongoing", "നടക്കുന്നു"),
+  statusOngoing: t("Live now", "ഇപ്പോൾ നടക്കുന്നു"),
   statusListed: t("Listed", "ലിസ്റ്റ് ചെയ്തു"),
   /* A concluded hearing reached but not taken up. On the home board only the
      passed-over concluded matters carry this tag (completed ones need none, since
      concluded means completed); the cause list makes it a fourth status. */
   statusPassedOver: t("Passed over", "മാറ്റിവെച്ചു"),
-  statusPassedOverOn: t("Passed over on {date}", "{date}-ന് മാറ്റിവെച്ചു"),
   approxNote: t(
     "Times are approximate unless the court has fixed a slot.",
     "കോടതി സമയം നിശ്ചയിച്ചിട്ടില്ലെങ്കിൽ സമയം ഏകദേശമാണ്.",
   ),
-  ongoingTag: t("Ongoing hearings", "നടക്കുന്ന വിചാരണകൾ"),
+  ongoingTag: t("Live now", "ഇപ്പോൾ നടക്കുന്നു"),
   conflictTag: t("Conflicting hearings", "ഒരേസമയത്തെ വിചാരണകൾ"),
   /* The hearing and court nouns are filled already pluralised ({hw}/{cw}), so the
      line reads right at one or many ("1 hearing across 1 court"). */
@@ -421,8 +423,13 @@ export const advHome = {
   /* Slot tabs — the sitting's live tab throbs; this names the state for readers
      who cannot see the dot. */
   slotLive: t("in session", "സെഷനിൽ"),
+  /** The sittings tab row: its accessible name, and the overflow menu's label. */
+  sittingsLabel: t("Sittings", "സിറ്റിങ്ങുകൾ"),
+  moreSittings: t("More", "കൂടുതൽ"),
+  /** Tooltip on a slot tab's pulsing dot. */
+  slotLiveTip: t("This sitting is in session now", "ഈ സിറ്റിങ് ഇപ്പോൾ നടക്കുന്നു"),
   /* Zones */
-  zoneUpcoming: t("Upcoming", "വരാനുള്ളവ"),
+  zoneUpcoming: t("Scheduled next", "അടുത്തതായി"),
   nextHintOne: t("Next: {time} · 1 hearing", "അടുത്തത്: {time} · 1 ഹിയറിംഗ്"),
   nextHintMany: t("Next: {time} · {n} hearings", "അടുത്തത്: {time} · {n} ഹിയറിംഗുകൾ"),
   concludedWord: t("concluded", "കഴിഞ്ഞു"),
@@ -437,7 +444,97 @@ export const advHome = {
     "Nothing is being called right now",
     "ഇപ്പോൾ ഒന്നും വിളിക്കുന്നില്ല",
   ),
-  noUpcoming: t("No upcoming hearings", "വരാനുള്ള ഹിയറിംഗുകളില്ല"),
+  noUpcoming: t("Nothing scheduled next", "അടുത്തതായി ഒന്നുമില്ല"),
+  /* Day header (desktop): the big date and the board's title. */
+  hearingsForDay: t("Your hearings for the day", "ഈ ദിവസത്തെ നിങ്ങളുടെ ഹിയറിംഗുകൾ"),
+  /* Timeline rail: each phase names itself and its count; the sitting's two
+     ends bracket it. "Live now" and "Scheduled next" replaced Ongoing and
+     Upcoming, which readers took for each other. */
+  zoneConcluded: t("Concluded", "കഴിഞ്ഞവ"),
+  zoneLive: t("Live now", "ഇപ്പോൾ നടക്കുന്നു"),
+  phaseCount: t("{n} {hw}", "{n} {hw}"),
+  liveAcross: t("Live now across {c} {cw}", "{c} {cw}-ൽ ഇപ്പോൾ നടക്കുന്നു"),
+  moreScheduledOne: t("1 more scheduled hearing", "1 ഹിയറിംഗ് കൂടി"),
+  moreScheduledMany: t("{n} more scheduled hearings", "{n} ഹിയറിംഗുകൾ കൂടി"),
+  showFewer: t("Show fewer", "കുറച്ച് കാണിക്കുക"),
+  /* People filter, one per slot tab. */
+  peopleFilter: t("People", "ആളുകൾ"),
+  scopeMine: t("My hearings", "എന്റെ ഹിയറിംഗുകൾ"),
+  scopeMineHint: t("Cases where you are on the Vakalatnama", "നിങ്ങൾ വക്കാലത്തിലുള്ള കേസുകൾ"),
+  scopeAll: t("All I can access", "എനിക്ക് കാണാവുന്നവയെല്ലാം"),
+  scopeAllHint: t("Adds cases you see through office access", "ഓഫീസ് ആക്സസ് വഴി കാണുന്ന കേസുകളും"),
+  peopleHeading: t("On the Vakalatnama", "വക്കാലത്തിൽ ഉള്ളവർ"),
+  peopleNone: t("No one else on these Vakalatnamas", "ഈ വക്കാലത്തുകളിൽ മറ്റാരുമില്ല"),
+  clearFilters: t("Clear filters", "ഫിൽട്ടറുകൾ നീക്കുക"),
+  /** Footer of the People menu: untick every name. */
+  clearPeople: t("Clear selection", "തിരഞ്ഞെടുപ്പ് നീക്കുക"),
+  /** The People button once names are ticked: "People · 2". */
+  peopleCount: t("People · {n}", "ആളുകൾ · {n}"),
+  /** The single people menu (option C). */
+  peopleMe: t("Me", "ഞാൻ"),
+  /** The access menu: three views of the sitting, one at a time. */
+  accessMine: t("On my Vakalatnama", "എന്റെ വക്കാലത്തിലുള്ളവ"),
+  accessMineTip: t("Hearings where you are on the Vakalatnama", "നിങ്ങൾ വക്കാലത്തിലുള്ള വിചാരണകൾ"),
+  accessOfficeOnly: t("Office access", "ഓഫീസ് ആക്സസ്"),
+  accessOfficeTip: t("Hearings through office access, not your Vakalatnama", "ഓഫീസ് ആക്സസ് വഴി, നിങ്ങളുടെ വക്കാലത്ത് വഴിയല്ല"),
+  accessAll: t("All hearings", "എല്ലാ വിചാരണകളും"),
+  accessAllTip: t("Everything you can see, both kinds", "നിങ്ങൾക്ക് കാണാവുന്നതെല്ലാം, രണ്ടു തരവും"),
+  /** Advanced filters: the menu entry, the button when people are narrowed, and the sheet. */
+  advancedFilters: t("Custom filters", "ഇഷ്ടാനുസൃത ഫിൽട്ടറുകൾ"),
+  /** Under the filters while any are hiding hearings in the sitting. */
+  hiddenOne: t("1 hearing hidden", "1 വിചാരണ മറച്ചു"),
+  hiddenMany: t("{n} hearings hidden", "{n} വിചാരണകൾ മറച്ചു"),
+  showAllHearings: t("Show all hearings", "എല്ലാ വിചാരണകളും കാണിക്കുക"),
+  /** The access button while people are left out: says how many, not just "custom". */
+  excludedOne: t("1 person excluded", "1 വ്യക്തിയെ ഒഴിവാക്കി"),
+  excludedMany: t("{n} people excluded", "{n} പേരെ ഒഴിവാക്കി"),
+  /** The same on a phone, where the button is half the row. */
+  excludedShort: t("{n} excluded", "{n} ഒഴിവാക്കി"),
+  customFilter: t("Custom filters", "ഇഷ്ടാനുസൃത ഫിൽട്ടറുകൾ"),
+  customBadge: t("On", "ഓൺ"),
+  filtersTitle: t("Filter hearings", "വിചാരണകൾ ഫിൽട്ടർ ചെയ്യുക"),
+  filtersFor: t("For the {sitting} sitting", "{sitting} സിറ്റിങ്ങിന്"),
+  filtersAccess: t("By access", "ആക്സസ് അനുസരിച്ച്"),
+  filtersPeopleHeading: t("By people", "ആളുകൾ അനുസരിച്ച്"),
+  filtersPeople: t("Colleagues", "സഹപ്രവർത്തകർ"),
+  peopleMeAlwaysShort: t("always included", "എപ്പോഴും ഉൾപ്പെടും"),
+  peopleClearAll: t("Unselect everyone", "എല്ലാവരെയും ഒഴിവാക്കുക"),
+  filtersReset: t("Reset", "പുനഃസജ്ജമാക്കുക"),
+  findName: t("Find a name", "പേര് തിരയുക"),
+  noNames: t("No names match.", "പൊരുത്തപ്പെടുന്ന പേരുകളില്ല."),
+  filtersApply: t("Show hearings", "വിചാരണകൾ കാണിക്കുക"),
+  /** The access menu's people sub-menu, and the button's suffix when narrowed. */
+  peopleSub: t("People", "ആളുകൾ"),
+  peopleEveryoneShort: t("Everyone", "എല്ലാവരും"),
+  peopleOnlyMeShort: t("Only me", "ഞാൻ മാത്രം"),
+  peopleMePlusShort: t("Me + {n}", "ഞാൻ + {n}"),
+  /** The people menu's button. */
+  peopleEveryone: t("Everyone's hearings", "എല്ലാവരുടെയും വിചാരണകൾ"),
+  peopleOnlyMe: t("Only my hearings", "എന്റെ വിചാരണകൾ മാത്രം"),
+  peopleMineOne: t("My hearings + 1 person", "എന്റെ വിചാരണകൾ + 1 ആൾ"),
+  peopleMineMany: t("My hearings + {n} people", "എന്റെ വിചാരണകൾ + {n} പേർ"),
+  /** The people menu's last row: tick every colleague. */
+  peopleSelectAll: t("Select everyone", "എല്ലാവരെയും തിരഞ്ഞെടുക്കുക"),
+  peopleMeAlways: t("Your hearings always show", "നിങ്ങളുടെ വിചാരണകൾ എപ്പോഴും കാണിക്കും"),
+  /** Accessible name of the whose-cases switch. */
+  scopeSwitch: t("Whose hearings", "ആരുടെ വിചാരണകൾ"),
+  emptyFilteredTitle: t("No hearings match these filters", "ഈ ഫിൽട്ടറുകൾക്ക് ചേരുന്ന ഹിയറിംഗുകളില്ല"),
+  emptyFilteredBody: t(
+    "Change the people or courts to see more.",
+    "കൂടുതൽ കാണാൻ ആളുകളെയോ കോടതികളെയോ മാറ്റുക.",
+  ),
+  /* Access button on each hearing and its popover. */
+  accessVakalatnama: t("On Vakalatnama", "വക്കാലത്തിൽ"),
+  accessOffice: t("Office access", "ഓഫീസ് ആക്സസ്"),
+  accessYou: t("You", "നിങ്ങൾ"),
+  accessMineLabel: t(
+    "You're on the Vakalatnama. See who else is.",
+    "നിങ്ങൾ വക്കാലത്തിലുണ്ട്. മറ്റാരൊക്കെയെന്ന് കാണുക.",
+  ),
+  accessOfficeLabel: t(
+    "You have office access. See who's on the Vakalatnama.",
+    "നിങ്ങൾക്ക് ഓഫീസ് ആക്സസ് ഉണ്ട്. വക്കാലത്തിൽ ആരൊക്കെയെന്ന് കാണുക.",
+  ),
   emptyCourtsTitle: t(
     "No hearings in the selected courts",
     "തിരഞ്ഞെടുത്ത കോടതികളിൽ ഹിയറിംഗുകളില്ല",

@@ -113,7 +113,7 @@ function StatusChip({
   }
   // A matter carried over from an earlier day is simply listed today; the day it
   // was passed over rides on the chip's tooltip.
-  return <Badge variant="outline" className="border-border" title={passedOverOn ? passedOverLabel(passedOverOn, locale) : undefined}>{pick(advHome.statusListed, locale)}</Badge>;
+  return <Badge variant="outline" className="border-border" title={passedOverOn ? passedOverLabel(locale) : undefined}>{pick(advHome.statusListed, locale)}</Badge>;
 }
 
 /** The status-group heading copy, keyed by the four-way cause-list status. */
