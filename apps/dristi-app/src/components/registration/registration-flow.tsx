@@ -405,7 +405,7 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
             <Heading title={pick(verification.title, locale)} body={pick(verification.body, locale)} />
             <Field data-invalid={touched && !regNumber.trim()}>
               <FieldLabel>{pick(verification.numberLabel, locale)} <span className="text-destructive">*</span></FieldLabel>
-              <Input value={regNumber} placeholder={pick(verification.numberPlaceholder, locale)} onChange={(event) => { setRegNumber(event.target.value); setTouched(false); }} />
+              <Input value={regNumber} onChange={(event) => { setRegNumber(event.target.value); setTouched(false); }} />
               <FieldError>{touched && !regNumber.trim() ? pick(verification.numberError, locale) : null}</FieldError>
             </Field>
             <Field data-invalid={touched && !idFile}>

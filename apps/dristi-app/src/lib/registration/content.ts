@@ -132,7 +132,6 @@ export const verificationSteps = {
     title: t("Advocate verification", "അഭിഭാഷക പരിശോധന"),
     body: t("To ensure the authenticity of your profile, share these details for the court to verify.", "നിങ്ങളുടെ പ്രൊഫൈലിന്റെ ആധികാരികത ഉറപ്പാക്കാൻ, കോടതിക്ക് പരിശോധിക്കാനായി ഈ വിവരങ്ങൾ നൽകുക."),
     numberLabel: t("Bar registration number", "ബാർ രജിസ്ട്രേഷൻ നമ്പർ"),
-    numberPlaceholder: t("For example K/1234/2020", "ഉദാഹരണം K/1234/2020"),
     numberError: t("Enter your Bar registration number.", "നിങ്ങളുടെ ബാർ രജിസ്ട്രേഷൻ നമ്പർ നൽകുക."),
     uploadLabel: t("Bar Council ID", "ബാർ കൗൺസിൽ ID"),
     uploadHint: t("Ensure the registration number is clearly visible.", "രജിസ്ട്രേഷൻ നമ്പർ വ്യക്തമായി കാണാമെന്ന് ഉറപ്പാക്കുക."),
