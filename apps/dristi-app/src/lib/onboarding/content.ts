@@ -18,11 +18,14 @@
  * Copy: sentence case (DS Law). Reconciled against Summons_v14.
  */
 
-export type Locale = "en" | "ml";
+import { LANGUAGE_NAME, SECOND_LANGUAGE } from "@/lib/locale-config";
 
+export type Locale = "en" | "ml" | "hi";
+
+/** English, and the deployment's second language (`lib/locale-config.ts`). */
 export const LOCALES: { value: Locale; label: string }[] = [
-  { value: "en", label: "English" },
-  { value: "ml", label: "മലയാളം" },
+  { value: "en", label: LANGUAGE_NAME.en },
+  { value: SECOND_LANGUAGE, label: LANGUAGE_NAME[SECOND_LANGUAGE] },
 ];
 
 export type CaseSummary = {
@@ -47,8 +50,9 @@ export const STEP_ORDER: StepId[] = [
   "join",
 ];
 
-type Copy = Record<Locale, string>;
-const t = (en: string, ml: string): Copy => ({ en, ml });
+/** English and Malayalam always; Hindi where a translation exists, else English is shown. */
+export type Copy = { en: string; ml: string; hi?: string };
+const t = (en: string, ml: string, hi?: string): Copy => (hi ? { en, ml, hi } : { en, ml });
 
 export const stepTitles: Record<StepId, Copy> = {
   papers: t("Your papers", "നിങ്ങളുടെ രേഖകൾ"),
@@ -503,6 +507,7 @@ export const videos: Record<StepId, { title: Copy; youtubeId?: string }> = {
   join: { title: t("How do I join my case?", "കേസിൽ എങ്ങനെ ചേരും?") },
 };
 
-export function pick(copy: Copy, locale: Locale) {
-  return copy[locale];
+/** The string in this locale — English where no translation exists yet (Hindi, today). */
+export function pick(copy: Copy, locale: Locale): string {
+  return copy[locale] ?? copy.en;
 }

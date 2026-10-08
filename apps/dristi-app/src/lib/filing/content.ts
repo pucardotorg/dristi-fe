@@ -1,4 +1,4 @@
-import type { Locale } from "@/lib/onboarding/content";
+import type { Copy } from "@/lib/onboarding/content";
 
 export { fill as fillCopy } from "@/lib/join/content";
 
@@ -24,7 +24,6 @@ export { fill as fillCopy } from "@/lib/join/content";
  * usually asks for two, so the "yes" branch starts with two surety forms.
  */
 
-type Copy = Record<Locale, string>;
 const t = (en: string, ml: string): Copy => ({ en, ml });
 
 /* ------------------------------------------------------------------- demo data */

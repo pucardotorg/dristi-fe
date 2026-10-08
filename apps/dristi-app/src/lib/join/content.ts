@@ -1,4 +1,4 @@
-import type { Locale } from "@/lib/onboarding/content";
+import type { Copy, Locale } from "@/lib/onboarding/content";
 
 /**
  * Post-login join-a-case — content model.
@@ -13,7 +13,6 @@ import type { Locale } from "@/lib/onboarding/content";
  * who you are joining as, which party you are, and how you will appear.
  */
 
-type Copy = Record<Locale, string>;
 const t = (en: string, ml: string): Copy => ({ en, ml });
 
 /* ------------------------------------------------------------------ case model */
@@ -526,6 +525,7 @@ export const caseDetails = {
 export function fill(copy: Copy, locale: Locale, values: Record<string, string>) {
   return Object.entries(values).reduce(
     (text, [key, value]) => text.replaceAll(`{${key}}`, value),
-    copy[locale],
+    // English where no translation exists yet (Hindi, today).
+    copy[locale] ?? copy.en,
   );
 }
