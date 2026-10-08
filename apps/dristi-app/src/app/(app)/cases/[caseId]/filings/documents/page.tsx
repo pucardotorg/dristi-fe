@@ -4,13 +4,13 @@ import { notFound } from "next/navigation";
 import { CaseBreadcrumbs } from "@/components/cases/case-breadcrumbs";
 import { SubmitDocumentsForm } from "@/components/cases/submit-documents-form";
 import { PAGE_GROUND, PAGE_GUTTER } from "@/components/shell/page-frame";
-import { CASES } from "@/lib/cases/fixtures";
+import { findCaseRecord } from "@/lib/cases/party-cases";
 import { partiesLabel } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 import { serverCourtText } from "@/lib/court/server";
 
 function findCase(caseId: string) {
-  return CASES.find((record) => record.id === caseId);
+  return findCaseRecord(caseId);
 }
 
 export async function generateMetadata({

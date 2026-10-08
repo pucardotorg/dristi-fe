@@ -1,11 +1,10 @@
 "use client";
 
-import { useId, useState } from "react";
-import { PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { useId } from "react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 
 import { FileField } from "@/components/cases/filing-form-shared";
 import { RichTextField } from "@/components/cases/rich-text-field";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -28,7 +27,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  MAX_AVAILABILITY_DATES,
+  RESCHEDULE_REASONS,
+  WITHDRAWAL_REASONS,
   emptyDocumentRow,
   emptySurety,
   transferCourtOptions,
@@ -38,6 +38,7 @@ import {
   type SuretyDraft,
   type YesNo,
 } from "@/lib/cases/application-draft";
+import { applicationsFile, submissionTypeLabel } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
 import { useCourtText } from "@/components/court/court-provider";
 
@@ -45,7 +46,11 @@ import { useCourtText } from "@/components/court/court-provider";
 export const RICH_TEXT_CLASSES =
   "[&_ol]:list-decimal [&_ol]:ps-6 [&_ul]:list-disc [&_ul]:ps-6";
 
-type ListKey = "supportingDocuments" | "submissionDocuments";
+type ListKey =
+  | "supportingDocuments"
+  | "submissionDocuments"
+  | "objectionDocuments"
+  | "otherDocuments";
 
 export type FieldActions = {
   update: <Key extends keyof ApplicationDraft>(
@@ -75,6 +80,12 @@ type FieldsProps = {
   errors: ApplicationErrors;
   record: CaseRecord;
   actions: FieldActions;
+  /**
+   * The litigant this is raised for (PRD "Application Raised On Behalf
+   * Of"): the filer's own side. Every form used to say Complainant, which
+   * was wrong for anyone filing for the accused.
+   */
+  filedFor?: string;
 };
 
 /**
@@ -324,21 +335,17 @@ function ReferenceAndDate({ draft, errors, actions }: FieldsProps) {
 function AdvancementFields(props: FieldsProps) {
   const { draft, errors, record, actions } = props;
   const listedOn = record.nextHearing?.on;
-  const full = draft.availabilityDates.length >= MAX_AVAILABILITY_DATES;
-  // DatePicker holds its own value when uncontrolled, so it is remounted after
-  // every pick — including a rejected duplicate — and returns to its placeholder.
-  // The chips below are the list of record; the trigger is only an entry point.
-  const [pickToken, setPickToken] = useState(0);
+  const postponing = draft.type === "postpone";
 
   return (
     <div className="flex flex-col gap-6">
       <SectionCard title="Hearing">
         <PrefilledField
-          label="Complainant"
-          value={record.parties.complainant}
+          label="On behalf of"
+          value={props.filedFor ?? record.parties.complainant}
         />
         <PrefilledField
-          label="Original hearing date"
+          label="Initial hearing date"
           value={
             listedOn
               ? `${formatCaseDate(listedOn)}${
@@ -352,78 +359,42 @@ function AdvancementFields(props: FieldsProps) {
         />
       </SectionCard>
 
-      <SectionCard title="Proposed dates">
-        <Field data-invalid={Boolean(errors.fields.availabilityDates)}>
-          <FieldLabel>Dates the party can attend</FieldLabel>
-          <div className="flex flex-col gap-3">
-            <DatePicker
-              key={pickToken}
-              onValueChange={(value) => {
-                setPickToken((token) => token + 1);
-                if (!value || full) return;
-                const day = value.toDateString();
-                const duplicate = draft.availabilityDates.some(
-                  (date) => date.toDateString() === day,
-                );
-                if (duplicate) return;
-                actions.update("availabilityDates", [
-                  ...draft.availabilityDates,
-                  value,
-                ]);
-              }}
-              disabled={full}
-              placeholder="Add a date"
-              className="w-full sm:w-60"
-            />
+      <SectionCard title="Request">
+        <SelectField
+          id="reschedule-reason"
+          label="Reason for rescheduling"
+          value={draft.rescheduleReason}
+          options={RESCHEDULE_REASONS}
+          placeholder="Choose a reason"
+          error={errors.fields.rescheduleReason}
+          onChange={(value) => actions.update("rescheduleReason", value)}
+        />
 
-            {draft.availabilityDates.length ? (
-              <ul className="flex flex-wrap gap-2">
-                {draft.availabilityDates.map((date) => (
-                  <li key={date.toISOString()}>
-                    <Badge variant="secondary" className="gap-1 pe-1">
-                      {formatCaseDate(date.toISOString())}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${formatCaseDate(date.toISOString())}`}
-                        className="relative flex size-4 cursor-pointer items-center justify-center rounded-full outline-none after:absolute after:-inset-2 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3"
-                        onClick={() =>
-                          actions.update(
-                            "availabilityDates",
-                            draft.availabilityDates.filter(
-                              (item) => item.getTime() !== date.getTime(),
-                            ),
-                          )
-                        }
-                      >
-                        <XIcon aria-hidden />
-                      </button>
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-          <FieldDescription>
-            Choose up to {MAX_AVAILABILITY_DATES} dates.{" "}
-            {draft.availabilityDates.length} of {MAX_AVAILABILITY_DATES} added.
-          </FieldDescription>
-          <FieldError>{errors.fields.availabilityDates}</FieldError>
-        </Field>
+        {/* One date, as the PRD asks: the day from which the hearing can be
+            held. For a postponement that is the first day that suits; for an
+            advance, the earliest. */}
+        <DateField
+          label="Date from which the hearing can be held"
+          value={draft.rescheduleFrom}
+          error={errors.fields.rescheduleFrom}
+          placeholder={postponing ? "Pick a later date" : "Pick an earlier date"}
+          onChange={(value) => actions.update("rescheduleFrom", value)}
+        />
 
         <YesNoField
-          label="Have the other parties agreed to these dates?"
+          label="Have the other parties agreed to this date?"
           value={draft.partiesAgreed}
           onChange={(value) => actions.update("partiesAgreed", value)}
         />
       </SectionCard>
 
-      <SectionCard title="Reason and documents">
+      <SectionCard title="Details and documents">
         <Field>
           <FieldLabel>
-            Reason for request <OptionalTag />
+            Details <OptionalTag />
           </FieldLabel>
           <Textarea
-            rows={5}
+            rows={4}
             value={draft.requestReason}
             onChange={(event) =>
               actions.update("requestReason", event.target.value)
@@ -443,6 +414,44 @@ function AdvancementFields(props: FieldsProps) {
         />
       </SectionCard>
     </div>
+  );
+}
+
+/** A single pick from a short fixed list, on the DS Select, labelled like every field. */
+function SelectField({
+  id,
+  label,
+  value,
+  options,
+  placeholder,
+  error,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  options: readonly string[];
+  placeholder: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Field data-invalid={Boolean(error)}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Select value={value || undefined} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full" aria-invalid={Boolean(error)}>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldError>{error}</FieldError>
+    </Field>
   );
 }
 
@@ -704,8 +713,8 @@ function CondonationFields(props: FieldsProps) {
     <div className="flex flex-col gap-6">
       <SectionCard title="Delay">
         <PrefilledField
-          label="Complainant"
-          value={record.parties.complainant}
+          label="On behalf of"
+          value={props.filedFor ?? record.parties.complainant}
         />
 
         <Field data-invalid={Boolean(errors.fields.delayDays)}>
@@ -759,8 +768,8 @@ function OthersFields(props: FieldsProps) {
     <div className="flex flex-col gap-6">
       <SectionCard title="Application information">
         <PrefilledField
-          label="Complainant"
-          value={record.parties.complainant}
+          label="On behalf of"
+          value={props.filedFor ?? record.parties.complainant}
         />
 
         <Field data-invalid={Boolean(errors.fields.title)}>
@@ -783,55 +792,25 @@ function OthersFields(props: FieldsProps) {
           onChange={(value) => actions.update("details", value)}
         />
 
-        <FileField
-          label="Document"
-          description="Attach anything this application relies on."
-          files={draft.supportingFiles}
-          error={errors.fields.supportingFiles}
-          onFilesChange={(files) => actions.update("supportingFiles", files)}
-          onErrorChange={(error) =>
-            actions.setFieldError("supportingFiles", error)
-          }
-        />
       </SectionCard>
+
+      {/* Each document with its type and title, as the PRD's Generic asks
+          and as Condonation and Production already do. */}
+      <DocumentRowsSection
+        listKey="otherDocuments"
+        heading="Supporting documents"
+        optional
+        addLabel="Add a document"
+        rowLabel="Supporting document"
+        rows={draft.otherDocuments}
+        errors={errors}
+        actions={actions}
+        onRowsChange={(rows) => actions.update("otherDocuments", rows)}
+      />
     </div>
   );
 }
 
-/* ------------------------------------------------------ objection --------- */
-
-/**
- * The lifecycle document leaves an objection's own fields unspecified. Until they are,
- * it asks for the least an objection can be: what is objected to and why, and anything
- * it relies on. The application it answers is fixed by the File objection task.
- */
-function ObjectionFields(props: FieldsProps) {
-  const { draft, errors, actions } = props;
-
-  return (
-    <div className="flex flex-col gap-6">
-      <SectionCard title="Objection">
-        <RichField
-          label="Grounds of objection"
-          value={draft.details}
-          error={errors.fields.details}
-          onChange={(value) => actions.update("details", value)}
-        />
-
-        <FileField
-          label="Document"
-          description="Attach anything this objection relies on."
-          files={draft.supportingFiles}
-          error={errors.fields.supportingFiles}
-          onFilesChange={(files) => actions.update("supportingFiles", files)}
-          onErrorChange={(error) =>
-            actions.setFieldError("supportingFiles", error)
-          }
-        />
-      </SectionCard>
-    </div>
-  );
-}
 
 /* ------------------------------------------------- 5 · production --------- */
 
@@ -842,8 +821,8 @@ function ProductionFields(props: FieldsProps) {
     <div className="flex flex-col gap-6">
       <SectionCard title="Application">
         <PrefilledField
-          label="Complainant"
-          value={record.parties.complainant}
+          label="On behalf of"
+          value={props.filedFor ?? record.parties.complainant}
         />
         <ReferenceAndDate {...props} />
       </SectionCard>
@@ -886,8 +865,8 @@ function SettlementFields(props: FieldsProps) {
     <div className="flex flex-col gap-6">
       <SectionCard title="Application">
         <PrefilledField
-          label="Complainant"
-          value={record.parties.complainant}
+          label="On behalf of"
+          value={props.filedFor ?? record.parties.complainant}
         />
         <ReferenceAndDate {...props} />
         <RichField
@@ -911,8 +890,8 @@ function TransferFields(props: FieldsProps) {
     <div className="flex flex-col gap-6">
       <SectionCard title="Application">
         <PrefilledField
-          label="Complainant"
-          value={record.parties.complainant}
+          label="On behalf of"
+          value={props.filedFor ?? record.parties.complainant}
         />
         <ReferenceAndDate {...props} />
       </SectionCard>
@@ -976,17 +955,25 @@ function WithdrawalFields(props: FieldsProps) {
     <div className="flex flex-col gap-6">
       <SectionCard title="Application">
         <PrefilledField
-          label="Complainant"
-          value={record.parties.complainant}
+          label="On behalf of"
+          value={props.filedFor ?? record.parties.complainant}
         />
         <ReferenceAndDate {...props} />
       </SectionCard>
 
       <SectionCard title="Withdrawal">
-        <RichField
+        <SelectField
+          id="withdrawal-reason"
           label="Reason for withdrawal"
+          value={draft.withdrawalReasonCode}
+          options={WITHDRAWAL_REASONS}
+          placeholder="Choose a reason"
+          error={errors.fields.withdrawalReasonCode}
+          onChange={(value) => actions.update("withdrawalReasonCode", value)}
+        />
+        <RichField
+          label="Details (optional)"
           value={draft.withdrawalReason}
-          error={errors.fields.withdrawalReason}
           onChange={(value) => actions.update("withdrawalReason", value)}
         />
         <RichField
@@ -995,6 +982,62 @@ function WithdrawalFields(props: FieldsProps) {
           onChange={(value) => actions.update("comments", value)}
         />
       </SectionCard>
+    </div>
+  );
+}
+
+/* ------------------------------------------------ 9 · objection ---------- */
+
+/**
+ * Raised from the File objection task, against one application of the other
+ * side (ALC-12, ALC-24). What it objects to is fixed, so it is shown locked
+ * rather than chosen. The PRD lists no fields for Objection yet: grounds and
+ * any documents relied on are the working guess.
+ */
+function ObjectionFields(props: FieldsProps) {
+  const { draft, errors, record, actions } = props;
+  const target = applicationsFile(record).submissions.find(
+    (item) => item.id === draft.objectionToId
+  );
+  const targetLabel = target
+    ? [
+        submissionTypeLabel(target.type),
+        target.applicationNumber ?? target.temporaryId,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PrefilledField
+        label="Objection to"
+        value={targetLabel}
+        description={
+          target?.decisionOn
+            ? `The court decides it on ${formatCaseDate(target.decisionOn)}.`
+            : undefined
+        }
+      />
+
+      <RichField
+        label="Grounds of objection"
+        value={draft.objectionGrounds}
+        error={errors.fields.objectionGrounds}
+        onChange={(value) => actions.update("objectionGrounds", value)}
+      />
+
+      <DocumentRowsSection
+        listKey="objectionDocuments"
+        heading="Documents relied on"
+        optional
+        addLabel="Add a document"
+        rowLabel="Document"
+        rows={draft.objectionDocuments}
+        errors={errors}
+        actions={actions}
+        onRowsChange={(rows) => actions.update("objectionDocuments", rows)}
+      />
     </div>
   );
 }
@@ -1029,11 +1072,24 @@ function DocumentRowsSection({
   onRowsChange: (rows: DocumentRowDraft[]) => void;
 }) {
   const headingId = useId();
+  const addButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={rows.length ? "self-end" : undefined}
+      onClick={() => onRowsChange([...rows, emptyDocumentRow()])}
+    >
+      <PlusIcon data-icon="inline-start" aria-hidden />
+      {addLabel}
+    </Button>
+  );
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby={headingId}>
-      {/* Heading and its add button share one row, so the dialog's width is
-          used and the button is there before the first row exists. */}
+      {/* Empty, the add button shares the heading's row, so it is there
+          before the first row exists. Once there are rows it follows the
+          last one, still at the right edge (owner, Oct 8). */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h3 id={headingId} className="text-body-compact font-medium">
@@ -1051,15 +1107,7 @@ function DocumentRowsSection({
             </p>
           ) : null}
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onRowsChange([...rows, emptyDocumentRow()])}
-        >
-          <PlusIcon data-icon="inline-start" aria-hidden />
-          {addLabel}
-        </Button>
+        {rows.length ? null : addButton}
       </div>
 
       {groupError ? (
@@ -1147,6 +1195,7 @@ function DocumentRowsSection({
           No {rowLabel.toLowerCase()}s added.
         </p>
       )}
+      {rows.length ? addButton : null}
     </section>
   );
 }

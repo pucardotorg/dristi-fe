@@ -53,15 +53,30 @@ export type DocumentRowDraft = {
 
 export type ApplicationDraft = {
   type: ApplicationTypeId | "";
+  /**
+   * The side it is raised for, set from who is filing (never typed). Names
+   * the litigant on the form and in the generated document; empty falls
+   * back to the old rule (bail for the accused, the rest for the
+   * complainant).
+   */
+  filedForSide: "" | "complainant" | "accused";
 
   /** Shared by Production, Settlement, Transfer and Withdrawal. */
   referenceOrderId: string;
   applicationDate: Date | undefined;
   comments: RichTextValue;
 
-  /** Advancement/reschedule. */
+  /**
+   * Advance (prepone) and Postpone: one form for both (PRD). The reason is a
+   * pick from a list and the date is one day from which the hearing can be
+   * held. `availabilityDates` is the earlier form's up-to-five dates, kept so
+   * nothing typed into an old draft is lost, and no longer asked for.
+   */
   availabilityDates: Date[];
+  rescheduleReason: string;
+  rescheduleFrom: Date | undefined;
   partiesAgreed: YesNo;
+  /** The filer's own words on the reason; optional beside the pick. */
   requestReason: string;
   supportingFiles: File[];
 
@@ -77,9 +92,10 @@ export type ApplicationDraft = {
   additionalInformation: RichTextValue;
   supportingDocuments: DocumentRowDraft[];
 
-  /** Others. */
+  /** Others. Each document carries its type and title (PRD "Generic"). */
   title: string;
   details: RichTextValue;
+  otherDocuments: DocumentRowDraft[];
 
   /** Production of documents. */
   submissionDocuments: DocumentRowDraft[];
@@ -89,8 +105,19 @@ export type ApplicationDraft = {
   requestedCourt: string;
   transferGrounds: string;
 
-  /** Withdrawal. */
+  /** Withdrawal: a reason picked from a list (PRD), then the filer's own words. */
+  withdrawalReasonCode: string;
   withdrawalReason: RichTextValue;
+
+  /**
+   * Objection (Application Lifecycle PRD, ALC-12). The PRD specifies no
+   * fields yet; these are the least an objection needs: what it objects to
+   * (fixed by the File objection task, never chosen here), the grounds, and
+   * anything relied on. WORKING GUESS, flagged for the PM.
+   */
+  objectionToId: string;
+  objectionGrounds: RichTextValue;
+  objectionDocuments: DocumentRowDraft[];
 };
 
 type ScalarErrors = Partial<Record<keyof ApplicationDraft, string>>;
@@ -110,10 +137,13 @@ export const EMPTY_APPLICATION_ERRORS: ApplicationErrors = {
 
 export const EMPTY_APPLICATION_DRAFT: ApplicationDraft = {
   type: "",
+  filedForSide: "",
   referenceOrderId: "",
   applicationDate: undefined,
   comments: EMPTY_RICH_TEXT,
   availabilityDates: [],
+  rescheduleReason: "",
+  rescheduleFrom: undefined,
   partiesAgreed: "yes",
   requestReason: "",
   supportingFiles: [],
@@ -127,11 +157,16 @@ export const EMPTY_APPLICATION_DRAFT: ApplicationDraft = {
   supportingDocuments: [],
   title: "",
   details: EMPTY_RICH_TEXT,
+  otherDocuments: [],
   submissionDocuments: [],
   applicationReason: EMPTY_RICH_TEXT,
   requestedCourt: "",
   transferGrounds: "",
+  withdrawalReasonCode: "",
   withdrawalReason: EMPTY_RICH_TEXT,
+  objectionToId: "",
+  objectionGrounds: EMPTY_RICH_TEXT,
+  objectionDocuments: [],
 };
 
 export function emptySurety(): SuretyDraft {
@@ -151,6 +186,30 @@ export function emptySurety(): SuretyDraft {
     otherDocuments: [],
   };
 }
+
+/**
+ * Why a hearing should move. The PRD asks for a single-select reason and
+ * gives no list: WORKING GUESS, flagged for the PM. The same list serves
+ * both directions, as the PRD's fields do.
+ */
+export const RESCHEDULE_REASONS = [
+  "A party or witness cannot attend",
+  "Counsel is engaged in another court",
+  "Illness",
+  "The parties are negotiating a settlement",
+  "Other",
+] as const;
+
+/**
+ * Why the complainant withdraws the case. Single select per the PRD, which
+ * gives no list: WORKING GUESS, flagged for the PM.
+ */
+export const WITHDRAWAL_REASONS = [
+  "The accused has paid the amount",
+  "The parties have settled",
+  "The complainant does not wish to proceed",
+  "Other",
+] as const;
 
 export function emptyDocumentRow(): DocumentRowDraft {
   return { id: `doc-${crypto.randomUUID()}`, type: "", title: "", files: [] };
@@ -181,8 +240,13 @@ export function transferCourtOptions(currentCourt: string): string[] {
  * Grounds, Withdrawal in Reason — so the mapping is per type rather than one
  * shared "notes" box that none of the eight forms actually has.
  */
-/** Others' title rule, shared so seeding cannot disagree with validation. */
-const TITLE_PATTERN = /^[\p{L}\p{N} ]+$/u;
+/**
+ * Generic's title rule, shared so seeding cannot disagree with validation.
+ * The PRD's "alphanumeric text" means plain typed text (it says the same of
+ * every reason box), not letters and digits only: titles cite "PW-1" and
+ * "S.138" (PM, Oct 8). Letters, numbers, punctuation and spaces.
+ */
+const TITLE_PATTERN = /^[\p{L}\p{M}\p{N}\p{P}\p{Zs}]+$/u;
 
 export function applicationDraftFrom(submission: Submission): ApplicationDraft {
   // A document submission has no application form to resume into, and the
@@ -195,7 +259,11 @@ export function applicationDraftFrom(submission: Submission): ApplicationDraft {
   }
 
   const type = submission.type;
-  const draft: ApplicationDraft = { ...EMPTY_APPLICATION_DRAFT, type };
+  const draft: ApplicationDraft = {
+    ...EMPTY_APPLICATION_DRAFT,
+    type,
+    objectionToId: submission.objectionToId ?? "",
+  };
   const ask = submission.request?.trim() ?? "";
   if (!ask) return draft;
 
@@ -223,6 +291,9 @@ export function applicationDraftFrom(submission: Submission): ApplicationDraft {
       break;
     case "withdrawal":
       draft.withdrawalReason = rich;
+      break;
+    case "objection":
+      draft.objectionGrounds = rich;
       break;
     case "application-others": {
       draft.details = rich;
@@ -259,9 +330,13 @@ function richTextFromPlain(value: string): string {
 }
 
 export function isApplicationDirty(draft: ApplicationDraft): boolean {
-  const { type, partiesAgreed, addSureties, ...rest } = draft;
+  const { type, partiesAgreed, addSureties, objectionToId, filedForSide, ...rest } =
+    draft;
   void partiesAgreed;
   void addSureties;
+  void filedForSide;
+  // Set by the File objection task, not typed: opening the form is not work.
+  void objectionToId;
   return Boolean(
     type ||
       Object.values(rest).some((value) => {
@@ -367,11 +442,14 @@ export function validateApplication(
   switch (draft.type) {
     case "advancement-reschedule":
     case "postpone": {
-      // Not marked mandatory on the portal, but an advancement application
-      // with no proposed date asks the court for nothing.
-      if (draft.availabilityDates.length === 0) {
-        errors.fields.availabilityDates =
-          "Choose at least one date the party can attend.";
+      if (!draft.rescheduleReason) {
+        errors.fields.rescheduleReason = "Choose the reason for rescheduling.";
+      }
+      // Not marked mandatory in the PRD, but a request to move a hearing
+      // with no date asks the court for nothing.
+      if (!draft.rescheduleFrom) {
+        errors.fields.rescheduleFrom =
+          "Choose the date from which the hearing can be held.";
       }
       break;
     }
@@ -415,18 +493,12 @@ export function validateApplication(
       if (!title) {
         errors.fields.title = "Enter an application title.";
       } else if (!TITLE_PATTERN.test(title)) {
-        errors.fields.title = "Use letters, numbers and spaces only.";
+        errors.fields.title = "Use letters, numbers and punctuation only.";
       }
       if (!rich(draft.details)) {
         errors.fields.details = "Enter the application details.";
       }
-      break;
-    }
-
-    case "objection": {
-      if (!draft.details.text.trim()) {
-        errors.fields.details = "Enter the grounds of objection.";
-      }
+      validateDocumentRows(draft.otherDocuments, errors);
       break;
     }
 
@@ -466,12 +538,51 @@ export function validateApplication(
       if (!draft.applicationDate) {
         errors.fields.applicationDate = "Choose the date of application.";
       }
-      if (!rich(draft.withdrawalReason)) {
-        errors.fields.withdrawalReason = "Enter the reason for withdrawal.";
+      if (!draft.withdrawalReasonCode) {
+        errors.fields.withdrawalReasonCode = "Choose the reason for withdrawal.";
       }
+      break;
+    }
+
+    case "objection": {
+      if (!rich(draft.objectionGrounds)) {
+        errors.fields.objectionGrounds = "Enter the grounds of objection.";
+      }
+      validateDocumentRows(draft.objectionDocuments, errors);
       break;
     }
   }
 
   return errors;
+}
+
+/**
+ * The ask in the filer's words, for saving a draft: the one field of each
+ * type that `applicationDraftFrom` restores. The inverse of that mapping, so
+ * a saved draft reopens with what was written.
+ */
+export function draftRequestText(draft: ApplicationDraft): string {
+  switch (draft.type) {
+    case "advancement-reschedule":
+    case "postpone":
+      return draft.requestReason.trim();
+    case "bail":
+      return draft.bailGrounds.text.trim();
+    case "condonation-of-delay":
+      return draft.delayReason.text.trim();
+    case "production-of-documents":
+      return draft.applicationReason.text.trim();
+    case "settlement":
+      return draft.comments.text.trim();
+    case "transfer":
+      return draft.transferGrounds.trim();
+    case "withdrawal":
+      return draft.withdrawalReason.text.trim();
+    case "objection":
+      return draft.objectionGrounds.text.trim();
+    case "application-others":
+      return draft.details.text.trim();
+    default:
+      return "";
+  }
 }

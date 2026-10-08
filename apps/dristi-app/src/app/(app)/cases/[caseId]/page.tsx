@@ -32,7 +32,8 @@ import {
   complaintTree,
   parseComplaintPart,
 } from "@/lib/cases/complaint";
-import { CASES, FIXTURE_TODAY } from "@/lib/cases/fixtures";
+import { FIXTURE_TODAY } from "@/lib/cases/fixtures";
+import { findCaseRecord } from "@/lib/cases/party-cases";
 import { partiesLabel } from "@/lib/cases/types";
 import { parseSelectedId } from "@/lib/cases/parties";
 import {
@@ -43,7 +44,7 @@ import {
 import { serverCourtText } from "@/lib/court/server";
 
 function findCase(caseId: string) {
-  return CASES.find((record) => record.id === caseId);
+  return findCaseRecord(caseId);
 }
 
 export async function generateMetadata(
