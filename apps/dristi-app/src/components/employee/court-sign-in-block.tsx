@@ -27,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { setCourtSession } from "@/lib/employee/session";
 import {
   accountFor,
@@ -165,15 +164,6 @@ export function CourtSignInBlock() {
           </p>
         </div>
 
-        <div className="relative flex flex-col gap-4">
-          {/* The plate stays charcoal in both modes, so the global `hairline` token is
-              not suitable here: it becomes a black tint in light mode. The plate's own
-              seam is the rule this surface owns. */}
-          <Separator className="bg-(--rail-seam)" />
-          <p className="text-caption text-(--rail-muted)">
-            A Government of India digital courts initiative.
-          </p>
-        </div>
       </aside>
 
       {/* Form column. */}

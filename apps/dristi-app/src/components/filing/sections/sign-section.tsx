@@ -37,6 +37,7 @@ import {
   VideoIcon,
 } from "lucide-react";
 
+import { ADVOCATE_OATH } from "@/lib/filing/config";
 import { getRepository, newCaseFileNumber, newPaymentRef } from "@/lib/filing/data";
 import { forgetFile } from "@/lib/filing/files";
 import { money, toLongDate } from "@/lib/filing/format";
@@ -306,7 +307,7 @@ function SignatureSummary({
         oaths={oaths}
       />
       <SignatureList
-        title="Advocate signature and oath"
+        title={ADVOCATE_OATH ? "Advocate signature and oath" : "Advocate signature"}
         rows={advocates}
         requested={requested}
         notified={notified}
@@ -330,13 +331,24 @@ function FeeGroup({
   caption,
   lines,
   total,
+  summary = false,
 }: {
   title: React.ReactNode;
   caption?: string;
   lines: BilledLine[];
   total: number;
+  /** One line — the group's name and its total, no breakdown. */
+  summary?: boolean;
 }) {
   if (!lines.length) return null;
+  if (summary) {
+    return (
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-sunken p-4">
+        <h3 className="text-body-compact font-semibold text-foreground">{title}</h3>
+        <span className="text-body-compact font-semibold tabular-nums">{money(total)}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex shrink-0 flex-col gap-3 rounded-lg bg-surface-sunken p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -455,7 +467,7 @@ export function SignSection() {
   const anySigned = everyone.some((s) => s.status === "signed");
   const pending = everyone.filter((s) => s.status === "pending").length;
   /** Advocates who have signed and not yet sworn. */
-  const oathsOwed = advocates.filter((s) => s.status === "signed" && !s.oathTaken);
+  const oathsOwed = advocates.filter((s) => s.status === "signed" && s.oathTaken === false);
   const yourOathOwed = oathsOwed.some((s) => s.you);
   /** Other people with something still to do, by link. */
   const othersOutstanding = everyone.filter((s) => !s.you && isOutstanding(s));
@@ -473,8 +485,8 @@ export function SignSection() {
     : onPaper
       ? `${opens} once the signed copy is in.`
       : requested
-        ? `${opens} once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in${advocates.length > 0 ? ", with the advocate's oath" : ""}.`
-        : `${opens} once every signature${advocates.length > 0 ? " and the advocate's oath is" : " is"} in.`;
+        ? `${opens} once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in${ADVOCATE_OATH && advocates.length > 0 ? ", with the advocate's oath" : ""}.`
+        : `${opens} once every signature${ADVOCATE_OATH && advocates.length > 0 ? " and the advocate's oath is" : " is"} in.`;
 
   /**
    * Every signature on this screen belongs to *this* version of the complaint. Going back
@@ -562,42 +574,28 @@ export function SignSection() {
    * - it only asks while nothing has been decided (`requestedAt === null`, still digital)
    *   and there is somebody to ask about, so a signed or paper-bound complaint is never
    *   interrupted;
-   * - closing it is remembered for this draft for the rest of the session, so a reader
-   *   who wanted to read the complaint first is not asked again on every return;
+   * - it asks once per visit to this step: closing it lets the reader read the complaint
+   *   undisturbed, and arriving again asks again until a mode is chosen (owner,
+   *   2026-10-08 — remembering a close for the whole session read as the popup vanishing);
    * - and the window itself sends nothing until a card is pressed, so dismissing it
    *   costs nothing.
    *
    * The short delay is the point of it: the screen paints, the reader sees where they
    * are, and then the question arrives over it.
    */
-  const askedKey = `dristi:sign-intro:${draft.id}`;
   const shouldAsk =
     !filed && !requested && !onPaper && everyone.length > 0 && !allSigned;
+  /** Asked already on this visit — a close is not undone by a re-render. */
+  const askedThisVisit = React.useRef(false);
   React.useEffect(() => {
-    if (!shouldAsk) return;
-    try {
-      if (sessionStorage.getItem(askedKey)) return;
-    } catch {
-      /* private mode — ask, and let the close below fail just as quietly */
-    }
+    if (!shouldAsk || askedThisVisit.current) return;
     const timer = window.setTimeout(() => {
+      askedThisVisit.current = true;
       setFlowStart("choose");
       setFlowOpen(true);
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [shouldAsk, askedKey]);
-
-  /** Closing the window is an answer of its own: do not ask again this session. */
-  const setFlowOpenRemembering = (next: boolean) => {
-    if (!next) {
-      try {
-        sessionStorage.setItem(askedKey, "1");
-      } catch {
-        /* private mode; the worst case is being asked again on the next visit */
-      }
-    }
-    setFlowOpen(next);
-  };
+  }, [shouldAsk]);
 
   /** Ask again, for everyone still waiting. The link itself does not change. */
   const remindAll = () => {
@@ -879,7 +877,7 @@ export function SignSection() {
       <SectionNotice variant="success" announce="polite">
         {onPaper ? "The uploaded copy carries every signature" : "Every party has signed"}
         {/* No advocate on the complaint means no oath — so say nothing about one. */}
-        {advocates.length > 0 ? ", and every advocate has taken the oath." : "."}{" "}
+        {ADVOCATE_OATH && advocates.length > 0 ? ", and every advocate has taken the oath." : "."}{" "}
         {returned ? "You can send the corrections to scrutiny now." : "You can pay the court fee now."}
       </SectionNotice>
       {onPaper ? (
@@ -1156,7 +1154,7 @@ export function SignSection() {
       <SignFlowDialog
         open={flowOpen}
         start={flowStart}
-        onOpenChange={setFlowOpenRemembering}
+        onOpenChange={setFlowOpen}
         onPrint={printFile}
       />
 
@@ -1418,20 +1416,20 @@ export function SignSection() {
               total={bill.courtTotal}
             />
 
-            {/* Why warrants are on the bill before anyone has failed to appear. The lines
-                below already say what and how many, so the caption does not repeat them. */}
+            {/* One line, not itemised (owner, 2026-10-08): what was chosen per process is
+                on Change process & address, below, for anyone who wants the detail. */}
             <FeeGroup
               title="Process fees"
-              caption="Paid upfront, so each is issued without a second payment."
               lines={bill.process}
               total={bill.processTotal}
+              summary
             />
 
             <FeeGroup
               title={`Delivery of summons · ${DELIVERY_CHANNEL}`}
-              caption="Charged by the post office, not the court."
               lines={bill.delivery}
               total={bill.deliveryTotal}
+              summary
             />
           </div>
 
