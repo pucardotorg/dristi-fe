@@ -183,7 +183,7 @@ function TaskBody({
     );
   }
 
-  /* Written in the selected court's numbers (Settings → Court), since the order is
+  /* Written in the selected court's numbers (`CourtSwitch`), since the order is
      drafted from it as it reads here. */
   function orderText(kind: "dismiss" | "accept" | "reject"): string {
     if (kind === "dismiss") return courtText(dismissalText(application, filedOn));

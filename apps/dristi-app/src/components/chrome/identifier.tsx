@@ -101,7 +101,7 @@ export function Identifier({
   const [copied, setCopied] = React.useState(false);
   const timer = React.useRef<number | null>(null);
   /* Case numbers, CNRs and filing numbers are stored in Kerala's terms and shown in the
-     selected state's (Settings → Court). This is where most of them pass, so this is
+     selected state's (`CourtSwitch`). This is where most of them pass, so this is
      where they are re-numbered; what is copied is what is shown. */
   const value = useCaseNumber()(stored);
 

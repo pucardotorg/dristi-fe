@@ -1,18 +1,20 @@
 # Court switch
 Updated: 2026-10-08
-Status: implemented on `feature/court-switch`, review fixes verified by full re-capture (see Verification)
+Status: implemented on `feature/court-switch`; switch moved to an icon on Settings and brands renamed (render check pending, see Verification)
 
 ## Current outcome
 
-Settings → Court picks which state's court the whole app runs as: **Kerala** (the
-designed baseline, unchanged), **Gujarat**, **Punjab** or **Haryana**. The choice re-voices
-the existing screens. No screen, step or field is added.
+A court icon beside the Settings title in the top bar (on `/settings` only) picks which state's court the whole
+app runs as: **Kerala** (the designed baseline, unchanged), **Gujarat**, **Punjab** or **Haryana**.
+The choice re-voices the existing screens. No screen, step or field is added.
 
-- **Where it is set.** A Court section at the foot of `/settings`
-  ([court-setting.tsx](../../../apps/dristi-app/src/components/court/court-setting.tsx)), and a
-  Court group in the court side's settings menu
-  ([employee-nav.tsx](../../../apps/dristi-app/src/components/employee/employee-nav.tsx)). Both
-  use one provider
+- **Where it is set.** A court icon next to "Settings" in the top bar opens a menu of
+  the four states
+  ([court-switch.tsx](../../../apps/dristi-app/src/components/court/court-switch.tsx),
+  placed by [top-bar.tsx](../../../apps/dristi-app/src/components/shell/top-bar.tsx)). The
+  court side keeps its Court group in its settings menu
+  ([employee-nav.tsx](../../../apps/dristi-app/src/components/employee/employee-nav.tsx)),
+  since the court side has no settings page. Both use one provider
   ([court-provider.tsx](../../../apps/dristi-app/src/components/court/court-provider.tsx)) and
   store the choice in the `dristi-court` cookie. The root layout reads the cookie, so the
   first paint is already in the chosen state.
@@ -20,8 +22,10 @@ the existing screens. No screen, step or field is added.
   [profiles.ts](../../../apps/dristi-app/src/lib/court/profiles.ts),
   [fees.ts](../../../apps/dristi-app/src/lib/court/fees.ts) and
   [localize.ts](../../../apps/dristi-app/src/lib/court/localize.ts):
-  - **Logo and name.** A dashed placeholder mark plus the state's name ("Gujarat"). Court
-    names become "Gujarat Court", and a bench becomes "JMFC Court 1, Gujarat".
+  - **Logo and name.** Punjab and Haryana keep 24×7 ON Courts, as in Kerala. Gujarat's
+    product is **Saras**: a dashed placeholder mark with an "S", and "Saras" beside it at
+    the top of the rail. "ON Courts" in text becomes "Saras". The court itself is still
+    "Gujarat Court" until Gujarat names it. A bench becomes "JMFC Court 1, <state>".
   - **Case numbers.**
     - Gujarat: CMP → `eCC`, `eCR EN` or `eCR MA` (the type is picked from the sequence),
       ST → `eCC`, filing number `GJ-…`, CNR `GJAH01…`.
@@ -57,6 +61,10 @@ the existing screens. No screen, step or field is added.
 | 2026-10-08 | Owner review: "too many places where things are not updated." A full capture review found Kerala still on 385 of 798 Gujarat captures and 51 of 100 in Punjab and Haryana: places, "Kerala", Bar numbers, PINs, Malayalam-script names, numbers in prose. | Owner, review | Fixed, see below |
 | 2026-10-08 | Kerala's sample geography moves with the court: each Kerala town maps to a real town in the state (Kollam → Ahmedabad / Ludhiana / Panchkula), as do PINs, Bar Council prefixes, "Kerala" and "Malayalam". People's names stay. | Implementation choice under the owner's "Gujarat instead of Kollam" | Built |
 | 2026-10-08 | For any state but Kerala, a render layer (`court-text-layer.tsx`) re-voices all shown text and labels; switching courts reloads the page. Replaces chasing render sites one at a time. Inputs, editors and Settings' court cards are left alone. | Implementation choice after the review | Built |
+| 2026-10-08 | Keep the switch subtle: a court icon that opens the choice, not a Settings section of cards. | Owner | Built, render check pending |
+| 2026-10-08 | The icon belongs on the Settings page, not the left rail (a first build put it in the rail). A corner of the page was tried, then moved beside the Settings title in the top bar. | Owner |  Built, render check pending |
+| 2026-10-08 | Gujarat's product is called Saras; the rail's header says "Saras". | Owner | Built. Only the product name changes; the court stays "Gujarat Court". |
+| 2026-10-08 | Punjab and Haryana are ON Courts: same marks and names as Kerala. | Owner | Built |
 
 ## Changes and tradeoffs
 

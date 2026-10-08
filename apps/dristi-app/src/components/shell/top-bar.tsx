@@ -24,6 +24,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { caseOf, tasksInView } from "@/lib/tasks/selectors";
 import { compareUrgency, daysUntil, isOverdue } from "@/lib/tasks/urgency";
 import { useChrome, type Crumb } from "@/components/shell/chrome";
+import { CourtSwitch } from "@/components/court/court-switch";
 import { useLocale } from "@/components/shell/locale";
 import { useProfile } from "@/components/shell/profile";
 import {
@@ -59,7 +60,7 @@ function useTrail() {
    */
   const root = crumbRoot ?? areaOf(pathname);
   /* Screens publish their crumbs in the fixtures' Kerala terms — a case number, a step
-     name. The trail shows them as the selected court does (Settings → Court). */
+     name. The trail shows them as the selected court does (`CourtSwitch`). */
   const courtText = useCourtText();
   return {
     crumbs: crumbs.map((crumb) => ({ ...crumb, label: courtText(crumb.label) })),
@@ -147,11 +148,14 @@ function ChromeBreadcrumb({
   open,
   onToggle,
   onFitsChange,
+  after,
 }: {
   open: boolean;
   onToggle: () => void;
   /** Reports whether the whole trail fits the bar, so the opened row can stand down. */
   onFitsChange: (fits: boolean) => void;
+  /** A quiet control that belongs to the page the trail names, set just after it. */
+  after?: React.ReactNode;
 }) {
   const { crumbs, root } = useTrail();
   const slotRef = React.useRef<HTMLDivElement>(null);
@@ -216,7 +220,7 @@ function ChromeBreadcrumb({
       >
         <TrailList className="w-max" />
       </div>
-      <Breadcrumb className="min-w-0 flex-1">
+      <Breadcrumb className={cn("min-w-0", !after && "flex-1")}>
         <TrailList
           skip={skip}
           lead={
@@ -245,6 +249,7 @@ function ChromeBreadcrumb({
           }
         />
       </Breadcrumb>
+      {after ? <div className="ml-2 flex shrink-0 items-center">{after}</div> : null}
     </div>
   );
 }
@@ -405,6 +410,13 @@ export function TopBar() {
         open={trailOpen}
         onToggle={() => setTrailFor(trailOpen ? null : pathname)}
         onFitsChange={setTrailFits}
+        /* Which state's court the app runs as: a demo switch, kept to one icon beside
+           the Settings title rather than a section of the page (owner, 2026-10-08). */
+        after={
+          pathname === "/settings" ? (
+            <CourtSwitch className="text-muted-foreground" />
+          ) : undefined
+        }
       />
       <LanguageToggle />
       {/* The person is named once, at the foot of the rail. A second avatar here said

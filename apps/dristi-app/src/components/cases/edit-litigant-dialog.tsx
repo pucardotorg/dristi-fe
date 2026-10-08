@@ -217,7 +217,7 @@ function EditLitigantDialog({
   /* The record's pre-fill. Mobile is display only — the number is how this
      party signs in, so it never rides a correction application. */
   const recordMobile = litigant.mobile ?? demoMobile(litigant.name);
-  // The record's address is prefilled in the selected court's places (Settings → Court).
+  // The record's address is prefilled in the selected court's places (`CourtSwitch`).
   const recordAddress = useCourtLocalized(litigant.address ?? demoAddress(litigant.name));
   const recordId =
     litigant.idProof === undefined ? demoIdProof(litigant.name) : litigant.idProof;

@@ -172,7 +172,7 @@ export function CognizanceOrderScreen({
 }) {
   const arrival = useArrival();
   // The order is written from this record — its parties' names and places too — so it
-  // is read in the selected court's terms (Settings → Court).
+  // is read in the selected court's terms (`CourtSwitch`).
   const { court } = useCourt();
   const matter = localizeDeep(cognizanceCaseById(caseId), court);
 
@@ -200,7 +200,7 @@ function OrderBody({
   matter: CognizanceCase;
   act: CognizanceAct;
 }) {
-  // Order text is filled in the selected court's names and numbers (Settings → Court).
+  // Order text is filled in the selected court's names and numbers (`CourtSwitch`).
   const { court } = useCourt();
   const courtText = useCourtText();
   const today = useCourtToday();

@@ -71,17 +71,30 @@ function gujaratRegistrationType(sequence: number): string {
 
 type Rule = [RegExp, (profile: CourtProfile, ...groups: string[]) => string];
 
+/**
+ * The product, "24×7 ON Courts", and the court it runs, "24×7 ON Court". Punjab and
+ * Haryana run as ON Courts, so both stay as they are. Gujarat's product is Saras; its
+ * court keeps the state's placeholder name until Gujarat gives one (owner, 2026-10-08).
+ */
+function productName(p: CourtProfile, short = false): string {
+  return p.brandName ?? (short ? "ON Courts" : "24×7 ON Courts");
+}
+
+function courtName(p: CourtProfile, short = false): string {
+  return p.brandName ? `${p.state} Court` : short ? "ON Court" : "24×7 ON Court";
+}
+
 const NAME_RULES: Rule[] = [
   // The scrutiny packet's heading and its prose twin name the seat as well; another
   // state's court is not in Ahmedabad by default.
-  [/24[×x]7 ON COURT AT AHMEDABAD/g, (p) => `${p.state.toUpperCase()} COURT`],
-  [/24[×x]7 ON Court, Ahmedabad/g, (p) => `${p.state} Court`],
-  [/24[×x]7 ON Courts/g, (p) => `${p.state} Courts`],
-  [/24[×x]7 ON Court/g, (p) => `${p.state} Court`],
-  [/24[×x]7 ON COURTS/g, (p) => `${p.state.toUpperCase()} COURTS`],
-  [/24[×x]7 ON COURT/g, (p) => `${p.state.toUpperCase()} COURT`],
-  [/\bON Courts\b/g, (p) => `${p.state} Courts`],
-  [/\bON Court\b/g, (p) => `${p.state} Court`],
+  [/24[×x]7 ON COURT AT AHMEDABAD/g, (p) => courtName(p).toUpperCase()],
+  [/24[×x]7 ON Court, Ahmedabad/g, (p) => courtName(p)],
+  [/24[×x]7 ON Courts/g, (p) => productName(p)],
+  [/24[×x]7 ON Court/g, (p) => courtName(p)],
+  [/24[×x]7 ON COURTS/g, (p) => productName(p).toUpperCase()],
+  [/24[×x]7 ON COURT/g, (p) => courtName(p).toUpperCase()],
+  [/\bON Courts\b/g, (p) => productName(p, true)],
+  [/\bON Court\b/g, (p) => courtName(p, true)],
   // Punjab's filing is signed, not sworn: its step is "Sign" (owner, 2026-10-08).
   [/\bSign and oath\b/g, (p) => (p.signWithOath ? "Sign and oath" : "Sign")],
   // The complaint's own label for its registration number, before one is allotted.

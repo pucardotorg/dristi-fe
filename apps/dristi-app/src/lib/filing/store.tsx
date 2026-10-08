@@ -106,7 +106,7 @@ export function FilingProvider({
         if (cancelled) return;
         if (d) {
           // Sample and prefilled drafts are written in Kerala's terms; a draft opens in
-          // the selected court's (Settings → Court). Nothing is written back until the
+          // the selected court's (`CourtSwitch`). Nothing is written back until the
           // filer edits, so the stored draft is unchanged by opening it.
           const voiced = localizeDeep(d, court);
           draftRef.current = voiced;

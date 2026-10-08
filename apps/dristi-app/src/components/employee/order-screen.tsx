@@ -422,7 +422,7 @@ const WELL_CLASS = "rounded-lg border border-hairline bg-surface-sunken p-4";
 
 export function OrderScreen({ hearingId }: { hearingId: string }) {
   // The order is written from this listing — its parties' names and places too — so it
-  // is read in the selected court's terms (Settings → Court).
+  // is read in the selected court's terms (`CourtSwitch`).
   const { court } = useCourt();
   const hearing = localizeDeep(hearingById(hearingId), court);
   if (!hearing) return <OrderMissing />;
@@ -461,7 +461,7 @@ function OrderMissing() {
 }
 
 function OrderReady({ hearing }: { hearing: CourtHearing }) {
-  // Order text is filled in the selected court's names and numbers (Settings → Court).
+  // Order text is filled in the selected court's names and numbers (`CourtSwitch`).
   const { court } = useCourt();
   const courtText = useCourtText();
   const router = useRouter();

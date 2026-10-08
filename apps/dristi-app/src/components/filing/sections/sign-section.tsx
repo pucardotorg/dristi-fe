@@ -447,7 +447,7 @@ export function SignSection() {
   const onPaper = sign.mode === "upload";
 
   /** The bill, derived from this draft — see `feeBill` for what makes it specific. */
-  // The selected state's schedule (Settings → Court); Kerala's is the default.
+  // The selected state's schedule (`CourtSwitch`); Kerala's is the default.
   const courtFees = useCourt().profile.fees;
   const bill = React.useMemo(() => feeBill(draft, courtFees), [draft, courtFees]);
   /** What each accused is having served — defaults applied, floors held (`PAY-10/11/15`). */

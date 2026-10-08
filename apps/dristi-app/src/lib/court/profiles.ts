@@ -1,11 +1,11 @@
 /**
- * Which state's court the app runs as — the deployment switch in Settings.
+ * Which state's court the app runs as — the deployment switch in the rail (`CourtSwitch`).
  *
  * DRISTI is one shared core deployed per state (`docs/product/national-vs-state.md`).
  * Kerala is what every screen was designed against, so its profile changes nothing: the
  * fixtures, documents and fees already speak Kerala. The other three re-voice the same
  * screens with what the stakeholders' documents say differs (owner, 2026-10-08): the
- * court's name and logo, the case numbers, the fees, and — for Punjab only — that the
+ * product's name and logo, the case numbers, the fees, and — for Punjab only — that the
  * filing step is signing alone, with no oath.
  *
  * The interface does not change between them. Nothing here adds a step, a field or a
@@ -14,8 +14,9 @@
  *
  * Sources: "Case Numbering System" sheets for Kerala, Gujarat and Punjab & Haryana, and
  * "Payment Logic" (schedule 1 Kerala, 2 Gujarat, 3 Punjab and Haryana), shared in the
- * owner's chat on 2026-10-08. Logos and court names are placeholders until the states
- * send theirs: the state's name stands in for both.
+ * owner's chat on 2026-10-08. Punjab and Haryana run as 24×7 ON Courts, like Kerala;
+ * Gujarat's product is Saras, with a placeholder logo until it sends its own (owner,
+ * 2026-10-08).
  */
 
 import type { FeeSchedule } from "./fees";
@@ -39,16 +40,17 @@ export type CourtProfile = {
   id: CourtId;
   /** The state, as the placeholder name and in document headings. */
   state: string;
-  /** Under the option in Settings: the case number a reader will recognise it by. */
-  example: string;
   numbering: NumberingScheme;
   /**
    * The six characters a CNR opens with: state, district, establishment. The sixteen
    * characters after them are the sequence and year, carried over unchanged.
    */
   cnrPrefix: string;
-  /** `false` keeps the product's 24×7 ON Courts marks; `true` shows the placeholder. */
-  placeholderBrand: boolean;
+  /**
+   * The product's name where it is not 24×7 ON Courts. `null` keeps the ON Courts marks
+   * and name; a name is shown beside a placeholder logo, and replaces "ON Courts" in text.
+   */
+  brandName: string | null;
   /** Whether the filing's signing step carries an oath — Punjab's does not. */
   signWithOath: boolean;
   fees: FeeSchedule;
@@ -58,51 +60,47 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
   kerala: {
     id: "kerala",
     state: "Kerala",
-    example: "ST/6/2025",
     numbering: { kind: "kerala" },
     cnrPrefix: "KLKM52",
-    placeholderBrand: false,
+    brandName: null,
     signWithOath: true,
     fees: KERALA_FEES,
   },
   gujarat: {
     id: "gujarat",
     state: "Gujarat",
-    example: "eCC/3/2026",
     numbering: { kind: "gujarat" },
     // GJAH + 2-digit court ID, per the Gujarat sheet's example (GJAH010001252026).
     cnrPrefix: "GJAH01",
-    placeholderBrand: true,
+    brandName: "Saras",
     signWithOath: true,
     fees: GUJARAT_FEES,
   },
   punjab: {
     id: "punjab",
     state: "Punjab",
-    example: "NACT/566/2026",
     numbering: { kind: "nact" },
     // The sheet gives only Haryana's Panchkula prefix. Punjab's follows the same
     // state + district convention (KLKM, GJAH, HRPK) for the demo district, Ludhiana;
     // the establishment code mirrors Panchkula's until Punjab supplies its own.
     cnrPrefix: "PBLD03",
-    placeholderBrand: true,
+    brandName: null,
     signWithOath: false,
     fees: PUNJAB_HARYANA_FEES,
   },
   haryana: {
     id: "haryana",
     state: "Haryana",
-    example: "NACT/566/2026",
     numbering: { kind: "nact" },
     // Panchkula Special NI Act Court, per the Punjab & Haryana sheet.
     cnrPrefix: "HRPK03",
-    placeholderBrand: true,
+    brandName: null,
     signWithOath: true,
     fees: PUNJAB_HARYANA_FEES,
   },
 };
 
-/** In the order Settings offers them: the designed baseline first. */
+/** In the order the court switch offers them: the designed baseline first. */
 export const COURT_IDS: CourtId[] = ["kerala", "gujarat", "punjab", "haryana"];
 
 export const DEFAULT_COURT: CourtId = "kerala";

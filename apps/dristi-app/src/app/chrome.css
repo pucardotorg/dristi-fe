@@ -55,7 +55,7 @@
   animation-fill-mode: forwards;
 }
 
-/* Settings → Court: another state's court stays hidden until its text layer has made
+/* The court switch: another state's court stays hidden until its text layer has made
    its first pass (`components/court/court-text-layer.tsx`). The reveal is time-boxed,
    so a script that never runs leaves the page in Kerala's words, never blank. */
 html[data-court-pending] body {

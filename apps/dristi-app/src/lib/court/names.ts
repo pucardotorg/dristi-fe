@@ -20,7 +20,17 @@
 
 import type { CourtId } from "./profiles";
 
-type Kind = "surname" | "christian" | "man" | "woman" | "muslimMan" | "muslimWoman" | "suffix" | "trade";
+type Kind =
+  | "surname"
+  | "christian"
+  | "christianMan"
+  | "christianWoman"
+  | "man"
+  | "woman"
+  | "muslimMan"
+  | "muslimWoman"
+  | "suffix"
+  | "trade";
 
 const KERALA: Record<Kind, string[]> = {
   surname: [
@@ -31,6 +41,7 @@ const KERALA: Record<Kind, string[]> = {
   christian: [
     "Varghese", "Vargheese", "Kurian", "Kurien", "Kuriakose", "Chacko", "Varkey", "Chandy",
     "Thankachan", "Avirah",
+   "Cruz",
   ],
   man: [
     "Krishnan", "Chandran", "Raghavan", "Sasidharan", "Ravindran", "Raveendran", "Kesavan",
@@ -46,6 +57,8 @@ const KERALA: Record<Kind, string[]> = {
   
     "Sreedhar", "Sajeev", "Sujith", "Sarath", "Krishnakumar", "Sudheesh", "Kunjumon",
     "Prabhakaran", "Bhaskaran", "Ramachandran",
+  
+    "Shibu", "Byju", "Thejas", "Prakashan", "Hariharan", "Kochu",
   ],
   woman: [
     "Latha", "Bindu", "Shailaja", "Sreeja", "Bijini", "Salini", "Leena", "Leela",
@@ -55,24 +68,37 @@ const KERALA: Record<Kind, string[]> = {
   
     "Jayalakshmi", "Sheeja", "Sarala", "Padmini", "Sarasamma", "Sosamma", "Thulasi",
     "Sujatha",
+  
+    "Vijayamma", "Deepthi", "Suma", "Preetha", "Sabitha", "Lathika", "Nila", "Sreekala",
+    "Bhagyalakshmi",
   ],
   muslimMan: [
     "Riyas", "Noushad", "Ashique", "Shihabudeen", "Aboobacker", "Sainudheen", "Rafeeq",
     "Basheer", "Sadath", "Haneefa", "Latheef", "Sidhique", "Nazar", "Muhammed",
   
     "Zakariya", "Fazil", "Nazeer",
+  
+    "Nasar", "Shanavas", "Nowfal", "Sait",
   ],
   muslimWoman: [
     "Sainaba", "Zainaba", "Rukhiya", "Fousiya", "Suhara", "Jameela", "Ramla", "Ameena",
     "Shameem",
   
     "Nazeema", "Nazrin", "Meharunnisa", "Saleena", "Sabeena", "Nabeesa", "Shabna",
+  
+    "Ayisha", "Tahera", "Shahana", "Beegum", "Jaseela", "Mariyam", "Latheefa",
   ],
+  christianMan: ["Jomon"],
+  christianWoman: ["Annamma", "Leelamma", "Ponnamma", "Roselyn"],
   suffix: ["Beevi", "Amma", "Ammal"],
   trade: ["Malabar", "Travancore", "Vismaya", "Chaithanya", "Kairali", "Sree", "Highrange"],
 };
 
-type Pools = Record<Exclude<Kind, "suffix" | "trade">, string[]> & {
+/** Christian given names in use across India, for Kerala's Christian given names. */
+const CHRISTIAN_MEN = ["Samuel", "Daniel", "Emmanuel", "Stephen", "Paul", "Anthony"];
+const CHRISTIAN_WOMEN = ["Mary", "Rebecca", "Ruth", "Esther", "Grace", "Agnes"];
+
+type Pools = Record<Exclude<Kind, "suffix" | "trade" | "christianMan" | "christianWoman">, string[]> & {
   suffix: string;
   trade: Record<string, string>;
 };
@@ -188,6 +214,10 @@ export function voiceName(court: CourtId, name: string, asSurname: boolean): str
       return pools.suffix;
     case "trade":
       return pools.trade[name] ?? name;
+    case "christianMan":
+      return pick(name, asSurname ? pools.christian : CHRISTIAN_MEN);
+    case "christianWoman":
+      return pick(name, asSurname ? pools.christian : CHRISTIAN_WOMEN);
     case "man":
     case "woman":
       return pick(name, asSurname ? pools.surname : pools[kind]);

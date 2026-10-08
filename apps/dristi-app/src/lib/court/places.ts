@@ -105,6 +105,7 @@ const KERALA_LOCALITIES = [
   "Kalayapuram", "Kadappakkada", "Ithikkara", "Elampalloor", "Edamulakkal", "Chithara",
   "Chirakkara", "Kallingal", "Sasthamkotta", "Ashramam", "Ochira", "Mevaram",
   "Polayathode", "Ashtamudi", "Alappad", "Valakom", "Veliyam", "Ezhukone", "Poruvazhy",
+  "Clappana", "Vayalar", "Vettikkavala", "Shakthikulangara",
 ] as const;
 
 /**

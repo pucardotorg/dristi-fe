@@ -909,9 +909,9 @@ function initialsOf(name: string): string {
  * independently of each other.
  *
  * **Court** — which state's court the whole app runs as (`lib/court/profiles.ts`). The
- * same choice as the advocate's Settings → Court, through the same provider: a deployment
- * fact rather than a preference, but the court side has no settings page to hold it, and
- * a demo moves between the two halves without signing out.
+ * same choice as the court icon on the advocate's Settings page (`CourtSwitch`), through
+ * the same provider: the court side has no settings page to hold it, and a demo moves
+ * between the two halves without signing out.
  *
  * All four sections are radio groups rather than plain items: each is one mutually
  * exclusive answer, and the menu has to show which one is live without being opened

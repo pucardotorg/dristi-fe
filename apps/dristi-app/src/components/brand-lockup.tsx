@@ -1,13 +1,12 @@
 "use client";
 
-import { LandmarkIcon } from "lucide-react";
-
 import { useCourt } from "@/components/court/court-provider";
 import { cn } from "@/lib/utils";
 
 /**
- * The 24×7 ON Courts brand marks — or, when Settings runs the app as another state's
- * court, that state's placeholder (`PlaceholderMark`).
+ * The 24×7 ON Courts brand marks — or, when the court switch runs the app as a state
+ * with a product of its own (Gujarat's Saras), that product's placeholder
+ * (`PlaceholderMark`).
  *
  * These are product brand assets, not design-system primitives — the SVGs live in
  * `public/brand`. Two files per mark so the artwork itself carries the right ink in
@@ -55,41 +54,60 @@ function Mark({
 }
 
 /**
- * Another state's mark, until that state sends its own (owner, 2026-10-08): a dashed
- * square standing where the logo will go, and the state's name as the wordmark.
+ * A product other than ON Courts — Gujarat's Saras — until it sends its own logo (owner,
+ * 2026-10-08): a dashed square holding the name's initial where the logo will go, and the
+ * name as the wordmark.
  *
  * Drawn in `currentColor` throughout, so it takes the ink of whatever plate it sits on —
  * the charcoal rail, the brand canvas, a light header — with no `onDark` artwork of its
  * own to keep in step. The dashed edge is what says "placeholder": a filled tile would
  * read as a finished logo, and a stakeholder screenshot must not mistake it for one.
  */
-function PlaceholderGlyph() {
+function PlaceholderGlyph({ name }: { name: string }) {
   return (
     <span className="flex aspect-square h-full shrink-0 items-center justify-center rounded-md border-2 border-dashed border-current">
-      <LandmarkIcon className="size-3/5" aria-hidden />
+      {/* An SVG initial, so it scales with the square from the rail's 24px to the
+          sign-in canvas's 56px the way the lockup's own artwork does. */}
+      <svg viewBox="0 0 20 20" aria-hidden className="size-full">
+        <text
+          x="10"
+          y="14.5"
+          textAnchor="middle"
+          fontSize="13"
+          fontWeight="600"
+          fill="currentColor"
+        >
+          {name.charAt(0)}
+        </text>
+      </svg>
     </span>
   );
 }
 
 function PlaceholderMark({
-  state,
+  name,
   wordmark,
+  wordmarkClassName,
   className,
 }: {
-  state: string;
+  name: string;
   wordmark: boolean;
+  wordmarkClassName?: string;
   className?: string;
 }) {
   return (
     <span
       role="img"
-      aria-label={`${state} Courts`}
+      aria-label={name}
       className={cn("inline-flex items-center gap-2", className)}
     >
-      <PlaceholderGlyph />
+      <PlaceholderGlyph name={name} />
       {wordmark ? (
-        <span aria-hidden className="text-title-s font-semibold whitespace-nowrap">
-          {state}
+        <span
+          aria-hidden
+          className={cn("text-title-s font-semibold whitespace-nowrap", wordmarkClassName)}
+        >
+          {name}
         </span>
       ) : null}
     </span>
@@ -104,22 +122,39 @@ export function BrandLockup({
   onDark?: boolean;
 }) {
   const { profile } = useCourt();
-  if (profile.placeholderBrand) {
-    return <PlaceholderMark state={profile.state} wordmark className={className} />;
+  if (profile.brandName) {
+    return <PlaceholderMark name={profile.brandName} wordmark className={className} />;
   }
   return <Mark base="/brand/on-courts-logo" onDark={onDark} className={className} />;
 }
 
+/**
+ * The mark alone. `named` adds a placeholder product's name beside it — ON Courts' own
+ * wordmark stacks under its mark and cannot be read at rail size, but a placeholder's is
+ * one line of text and can. `wordmarkClassName` lets the rail drop that name when it
+ * folds to a strip.
+ */
 export function BrandGlyph({
   className,
   onDark = false,
+  named = false,
+  wordmarkClassName,
 }: {
   className?: string;
   onDark?: boolean;
+  named?: boolean;
+  wordmarkClassName?: string;
 }) {
   const { profile } = useCourt();
-  if (profile.placeholderBrand) {
-    return <PlaceholderMark state={profile.state} wordmark={false} className={className} />;
+  if (profile.brandName) {
+    return (
+      <PlaceholderMark
+        name={profile.brandName}
+        wordmark={named}
+        wordmarkClassName={wordmarkClassName}
+        className={className}
+      />
+    );
   }
   return <Mark base="/brand/on-courts-glyph" onDark={onDark} className={className} />;
 }

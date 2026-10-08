@@ -128,7 +128,7 @@ function PrefilledField({
   value: string;
   description?: string;
 }) {
-  // Read-only, so it can show the record in the selected court's terms (Settings → Court).
+  // Read-only, so it can show the record in the selected court's terms (`CourtSwitch`).
   const value = useCourtText()(stored);
   return (
     <Field>
