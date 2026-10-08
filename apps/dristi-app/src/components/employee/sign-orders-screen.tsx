@@ -8,7 +8,6 @@ import { CounselCell } from "@/components/employee/counsel-cell";
 import { DraftOrdersTable } from "@/components/employee/draft-orders-table";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { SignBulkConfirmDialog } from "@/components/employee/sign-bulk-confirm-dialog";
 import { SignOrderDialog } from "@/components/employee/sign-order-dialog";
 import { SignOrdersTable } from "@/components/employee/sign-orders-table";
@@ -23,7 +22,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DatePicker } from "@/components/ui/date-picker";
 import {
   Empty,
   EmptyContent,
@@ -32,14 +30,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   draftOrderHref,
@@ -52,6 +42,7 @@ import {
   courtHearingStatusLabel,
   courtHearingStatusVariant,
   hearingsForDay,
+  formatListingDate,
   isoDay,
   parseIsoDay,
   withHearingSession,
@@ -63,6 +54,7 @@ import {
   DEFAULT_SIGN_ORDER_FILTERS,
   SIGN_ORDER_QUEUE,
   SIGN_ORDER_STATUSES,
+  SIGN_ORDER_TYPES,
   filterSignOrders,
   formatSignOrderDate,
   signOrderStatusLabel,
@@ -75,6 +67,47 @@ import {
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
+import {
+  caseSorts,
+  daySorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+import {
+  applyColumnFilters,
+  columnFilterFields,
+  emptyColumnFilters,
+  hasColumnFilters,
+  type ColumnFilter,
+} from "@/lib/employee/court-column-filters";
+
+const SIGN_ORDER_COLUMN_FILTERS: ColumnFilter<SignOrder>[] = [
+  {
+    id: "sign-orders-type",
+    label: "Order type",
+    allLabel: "All order types",
+    options: SIGN_ORDER_TYPES.map((type) => ({ value: type.id, label: type.label })),
+    test: (row, value) => row.type === value,
+  },
+];
+
+type SignOrderSort = "oldest" | "newest" | "name";
+
+/** Oldest first, by the day each order was added — what has waited longest to be signed. */
+const SIGN_ORDER_SORTS: CourtSortSpec<SignOrder, SignOrderSort>[] = [
+  ...daySorts<SignOrder, SignOrderSort>(
+    (row) => row.addedOn,
+    { id: "oldest", label: "Oldest first", latest: false },
+    { id: "newest", label: "Newest first" },
+  ),
+  caseSorts<SignOrder>()[2] as CourtSortSpec<SignOrder, SignOrderSort>,
+];
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -178,7 +211,16 @@ export function SignOrdersScreen() {
   const pending = orders.filter(
     (order) => order.status === "pending-signature",
   );
-  const rows = filterSignOrders(orders, filters);
+  const [columns, setColumns] = React.useState(() =>
+    emptyColumnFilters(SIGN_ORDER_COLUMN_FILTERS),
+  );
+  const [sort, setSort] = React.useState<SignOrderSort>("oldest");
+
+  const rows = sortRows(
+    applyColumnFilters(filterSignOrders(orders, filters), SIGN_ORDER_COLUMN_FILTERS, columns),
+    SIGN_ORDER_SORTS,
+    sort,
+  );
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -187,7 +229,8 @@ export function SignOrdersScreen() {
   const isFiltered =
     filters.status !== DEFAULT_SIGN_ORDER_FILTERS.status ||
     filters.addedOn !== "" ||
-    filters.query !== "";
+    filters.query !== "" ||
+    hasColumnFilters(columns);
 
   /* What the bar will actually sign: the selection, minus anything that has since been
      signed or filtered out of existence. A stale id is dropped rather than counted. */
@@ -202,6 +245,7 @@ export function SignOrdersScreen() {
   }
 
   function clearFilters() {
+    setColumns(emptyColumnFilters(SIGN_ORDER_COLUMN_FILTERS));
     changeFilters(DEFAULT_SIGN_ORDER_FILTERS);
   }
 
@@ -296,6 +340,21 @@ export function SignOrdersScreen() {
           searchRef={searchRef}
           onChange={changeFilters}
           onClear={clearFilters}
+          fields={columnFilterFields(SIGN_ORDER_COLUMN_FILTERS, columns, (id, value) => {
+            setColumns((current) => ({ ...current, [id]: value }));
+            setPage(1);
+          })}
+          trailing={
+            <CourtSortSelect
+              id="sign-orders-sort"
+              value={sort}
+              options={sortOptions(SIGN_ORDER_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
         />
 
         <Tabs
@@ -470,104 +529,66 @@ export function SignOrdersScreen() {
 }
 
 /**
- * Status, date and free text, then search — the reference's three controls, in the
- * reference's order, laid out the way the sibling queues lay out theirs.
- *
- * Every control carries a visible label. The reference labels the search box with the
- * things it searches, which is a hint rather than a name; ACCESSIBILITY §12 wants a
- * permanent label, so "Search cases" is the deviation, and the smallest one available.
- * The placeholder keeps the reference's own words.
- *
- * "Search" is `secondary` here, not the teal one. The Ration Teal Law allows one strong
- * action per view and this screen spends it on the act it exists for — the signature in
- * the bar below. `HearingsFilters` makes the same trade for the same reason.
+ * The court-side filter row (`CourtFilters`): the search, then status, order type and the
+ * day it was added in the Filters sheet, with chips for what is applied, and the order on
+ * the end of the row. Status opens on Pending signature, as the reference draws it, so its
+ * chip shows from the start — the list *is* narrowed, and the chip says so.
  */
 function SignOrderFiltersForm({
   filters,
   searchRef,
   onChange,
   onClear,
+  fields,
+  trailing,
 }: {
   filters: SignOrderFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
   onChange: (filters: SignOrderFilters) => void;
   onClear: () => void;
+  /** The screen's column filters, after Status. */
+  fields: CourtFilterField[];
+  /** The list's sort control (`CourtSortSelect`). */
+  trailing: React.ReactNode;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="sign-orders-status" className="w-fit text-body-compact">
-          Status
-        </Label>
-        <Select
-          value={filters.status}
-          onValueChange={(value) =>
-            onChange({
-              ...filters,
-              status: value as SignOrderFilters["status"],
-            })
-          }
-        >
-          <SelectTrigger id="sign-orders-status" className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SIGN_ORDER_STATUSES.map((status) => (
-              <SelectItem key={status.id} value={status.id}>
-                {status.label}
-              </SelectItem>
-            ))}
-            <SelectItem value="all">All statuses</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* `DatePicker` owns its trigger and takes no `id`, so the visible label names a
-          group around it rather than pointing `htmlFor` at a control that does not
-          exist. The trigger still announces the date it holds.
-
-          The `key` is not decoration. `DatePicker` treats `value === undefined` as "I am
-          uncontrolled" and falls back to its own last selection, so a filter cleared
-          back to "any day" would keep showing the date it used to hold. Remounting on
-          the value is the only fix that does not edit the primitive — upstream DS bug,
-          logged in the build report. */}
-      <div className="flex min-w-0 flex-col gap-2">
-        <span id="sign-orders-date-label" className="w-fit text-body-compact font-medium">
-          Date added
-        </span>
-        <div role="group" aria-labelledby="sign-orders-date-label">
-          <DatePicker
-            key={filters.addedOn || "any-day"}
-            value={filters.addedOn ? parseIsoDay(filters.addedOn) : undefined}
-            placeholder="Any day"
-            onValueChange={(next) =>
-              onChange({ ...filters, addedOn: next ? isoDay(next) : "" })
-            }
-            className="w-full sm:w-52"
-          />
-        </div>
-      </div>
-
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-72"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name or number"
-      />
-
-      {/* The only button left on the row. It stays because it undoes more than the
-          search box's own `×` does — it returns every control here to the view the
-          screen opens on — and it is labelled for that rather than for the text it
-          also happens to clear. */}
-      <Button type="button" variant="ghost" onClick={onClear}>
-        Clear filters
-      </Button>
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name or number",
+      }}
+      searchRef={searchRef}
+      fields={[
+        {
+          id: "sign-orders-status",
+          label: "Status",
+          value: filters.status,
+          all: "all",
+          allLabel: "All statuses",
+          options: SIGN_ORDER_STATUSES.map((status) => ({
+            value: status.id,
+            label: status.label,
+          })),
+          onApply: (value) =>
+            onChange({ ...filters, status: value as SignOrderFilters["status"] }),
+        },
+        ...fields,
+      ]}
+      date={{
+        label: "Date added",
+        value: filters.addedOn ? parseIsoDay(filters.addedOn) : undefined,
+        active: filters.addedOn !== "",
+        chipLabel: filters.addedOn ? formatListingDate(filters.addedOn) : "",
+        draftActive: (value) => !!value,
+        cleared: undefined,
+        onApply: (value) =>
+          onChange({ ...filters, addedOn: value ? isoDay(value) : "" }),
+      }}
+      trailing={trailing}
+      onClearAll={onClear}
+    />
   );
 }
 

@@ -19,7 +19,8 @@ import {
 
 import { joinDot } from "@/lib/filing/format";
 import { CASE_TYPE, COURT } from "@/lib/filing/options";
-import { sectionComplete } from "@/lib/filing/selectors";
+import { useProfile } from "@/lib/filing/profile";
+import { sectionComplete, signatories } from "@/lib/filing/selectors";
 import { neighbours, type StepId } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
 import type { FilingDraft } from "@/lib/filing/types";
@@ -222,6 +223,7 @@ function buildPanels(draft: FilingDraft): Record<PanelKey, EditPanel> {
       fields: entered([
         { label: "Name", value: complainant.name },
         { label: "Type", value: complainant.type },
+        { label: "CIN or PAN", value: complainant.cinPan },
         { label: "Mobile", value: complainant.mobile },
         { label: "Email", value: complainant.email },
         { label: "Present address", value: complainant.presentAddress },
@@ -382,6 +384,9 @@ export function PreviewSection() {
   // Completeness per section, from the same rule the sidebar counts with.
   const done = (key: PanelKey) => sectionComplete(draft, panels[key].step);
   const readyToSign = sectionComplete(draft, "preview");
+  // Signing as an advocate means taking the oath in the same step, so the way there says so.
+  const { profile } = useProfile();
+  const yourOathAhead = signatories(draft, profile).advocates.some((s) => s.you);
   const outstanding = (Object.keys(panels) as PanelKey[]).filter((k) => !done(k)).length;
 
   /** The browser's print dialog — which is also how a PDF is saved. */
@@ -406,8 +411,8 @@ export function PreviewSection() {
         <Tabs value={view} onValueChange={setView} className="gap-6">
           <div className="flex flex-col items-start justify-between gap-2 border-b border-hairline sm:flex-row sm:items-end">
             <TabsList variant="line" aria-label="Preview format" className="order-2 p-0 group-data-horizontal/tabs:h-10 sm:order-none">
-              <TabsTrigger value="synopsis" className="h-10 px-3 group-data-horizontal/tabs:after:-bottom-px">Synopsis</TabsTrigger>
-              <TabsTrigger value="document" className="h-10 px-3 group-data-horizontal/tabs:after:-bottom-px">Court document</TabsTrigger>
+              <TabsTrigger value="synopsis" className="h-10 px-3 group-data-horizontal/tabs:after:-bottom-px">Complaint</TabsTrigger>
+              <TabsTrigger value="document" className="h-10 px-3 group-data-horizontal/tabs:after:-bottom-px">Complaint PDF</TabsTrigger>
             </TabsList>
             <Button type="button" variant="outline" onClick={printFile} className="sm:mb-2">
               <PrinterIcon data-icon="inline-start" aria-hidden />
@@ -444,6 +449,9 @@ export function PreviewSection() {
                 rows={[
                   { term: "Name", value: complainant.name },
                   { term: "Type", value: complainant.type },
+                  ...(complainant.cinPan
+                    ? [{ term: "CIN or PAN", value: complainant.cinPan }]
+                    : []),
                   { term: "Mobile", value: complainant.mobile },
                   { term: "Email", value: complainant.email },
                   { term: "Present address", value: complainant.presentAddress },
@@ -712,7 +720,7 @@ export function PreviewSection() {
       <FilingFooter
         backHref={prev ? hrefFor(prev) : undefined}
         continueHref={next ? hrefFor(next) : undefined}
-        continueLabel="Continue to sign"
+        continueLabel={yourOathAhead ? "Continue to sign and oath" : "Continue to sign"}
         showSaveState={false}
         status={
           readyToSign ? (

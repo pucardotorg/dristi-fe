@@ -20,7 +20,7 @@ export { fill as fillCopy } from "@/lib/join/content";
  * · One consolidated note about surety phone/email use instead of legacy's
  *   per-field warning block.
  *
- * In Kollam practice bail is ordinarily granted on sureties and the magistrate
+ * In this court's practice bail is ordinarily granted on sureties and the magistrate
  * usually asks for two, so the "yes" branch starts with two surety forms.
  */
 
@@ -28,7 +28,7 @@ const t = (en: string, ml: string): Copy => ({ en, ml });
 
 /* ------------------------------------------------------------------- demo data */
 
-/** Application fee for a bail application, in rupees (Kollam schedule). */
+/** Application fee for a bail application, in rupees (this court's schedule). */
 export const BAIL_FEE = "₹50";
 
 /** Demo submission identity shown on the success stage. */
@@ -98,14 +98,14 @@ export const BOND_SURETIES: BondSurety[] = [
     father: "Velayudhan",
     phone: "9148498792",
     email: "sunil.kumar@example.in",
-    address: "Kadappakada, Kollam · 691 008, Kerala",
+    address: "Kadappakada · 691 008, Kerala",
   },
   {
     name: "Latha Devi R.",
     father: "Raghavan",
     phone: "9847654321",
     email: "",
-    address: "Asramam, Kollam · 691 002, Kerala",
+    address: "Asramam · 691 002, Kerala",
   },
 ];
 
@@ -116,7 +116,7 @@ export const BOND_THIRD_SURETY: BondSurety = {
   father: "Kesavan",
   phone: "9645011223",
   email: "",
-  address: "Chinnakada, Kollam · 691 001, Kerala",
+  address: "Chinnakada · 691 001, Kerala",
 };
 
 /** The litigant the bond is for (petitioner on the approved application). */
@@ -240,8 +240,8 @@ export const bailDialog = {
   suretiesNone: t("None added", "ചേർത്തിട്ടില്ല"),
   suretiesCount: t("{count} added", "{count} പേരെ ചേർത്തു"),
   draftCourtLine: t(
-    "Before the Special Court of Judicial Magistrate of the First Class for the trial of cases under section 138 of the NI Act, 1881 at Kollam (“24×7 ON Court”)",
-    "NI ആക്ട് 1881 വകുപ്പ് 138 പ്രകാരമുള്ള കേസുകളുടെ വിചാരണയ്ക്കായുള്ള കൊല്ലം ഒന്നാം ക്ലാസ് ജുഡീഷ്യൽ മജിസ്‌ട്രേറ്റിന്റെ പ്രത്യേക കോടതി മുൻപാകെ (“24×7 ON കോടതി”)",
+    "Before the Special Court of Judicial Magistrate of the First Class for the trial of cases under section 138 of the NI Act, 1881 (“24×7 ON Court”)",
+    "NI ആക്ട് 1881 വകുപ്പ് 138 പ്രകാരമുള്ള കേസുകളുടെ വിചാരണയ്ക്കായുള്ള ഒന്നാം ക്ലാസ് ജുഡീഷ്യൽ മജിസ്‌ട്രേറ്റിന്റെ പ്രത്യേക കോടതി മുൻപാകെ (“24×7 ON കോടതി”)",
   ),
   draftCaseLine: t("Case No: {caseNumber}", "കേസ് നമ്പർ: {caseNumber}"),
   draftMatterLine: t("In the matter of: {title}", "വിഷയം: {title}"),

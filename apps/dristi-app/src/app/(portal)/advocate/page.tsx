@@ -8,6 +8,7 @@ import { AdvocateJoinCaseDialog } from "@/components/advocate/join-case-dialog";
 import { useLocale } from "@/components/shell/locale";
 import { useProfile } from "@/components/shell/profile";
 import { ADVOCATE_JOIN_CASE } from "@/lib/advocate/content";
+import { homeConfigFor } from "@/lib/advocate/config";
 
 /**
  * The advocate home — greets the signed-in account (not a fixed fixture name).
@@ -17,7 +18,8 @@ import { ADVOCATE_JOIN_CASE } from "@/lib/advocate/content";
  * "Join a case" dialog opens on its own, on the served case — mirroring the litigant
  * `/home`. Everywhere else the modal stays one tap away from the Join-a-case rail; the
  * token only decides whether it opens unprompted. `nocase=1` is the served-but-not-in-CIS
- * path: token present, no case behind it, so nothing auto-opens.
+ * path: token present, no case behind it, so nothing auto-opens. `slots=2` or `slots=3`
+ * previews a day split into sittings (demo only).
  */
 function AdvocatePage() {
   const { locale } = useLocale();
@@ -46,7 +48,14 @@ function AdvocatePage() {
 
   return (
     <>
-      <AdvocateHome locale={locale} profileFirstName={firstName} />
+      <AdvocateHome
+        locale={locale}
+        profileFirstName={firstName}
+        config={homeConfigFor(searchParams.get("slots"))}
+        // Demo only: `?filter=a` shows the scope switch beside a names menu; the
+        // default is the single People menu.
+        filterVariant={searchParams.get("filter") === "a" ? "switch" : "menu"}
+      />
       {summonsCase ? (
         <AdvocateJoinCaseDialog
           open={dialogOpen}
@@ -58,12 +67,12 @@ function AdvocatePage() {
             /* The dialog's done-stage reports the outcome; Your Cases will surface a
                joined case once that screen is built on this shell. */
           }}
-          onJoinAsLitigant={() => {
+          onJoinAsLitigant={(kind) => {
             setDialogOpen(false);
-            // Discovering mid-journey that you are a party hands off to the litigant
-            // home's own join flow, as the same profile switch the rail's foot offers.
+            // Discovering mid-journey that you are a party (or their PoA holder) hands
+            // off to the litigant flow with this case already found (JOIN-20).
             switchProfile();
-            router.push("/home?join=manual");
+            router.push(`/home?join=handoff&as=${kind}`);
           }}
         />
       ) : null}

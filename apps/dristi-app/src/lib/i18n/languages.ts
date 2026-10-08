@@ -1,3 +1,4 @@
+import { SECOND_LANGUAGE } from "@/lib/locale-config";
 /**
  * The languages DRISTI can speak, and the pair the top bar offers.
  *
@@ -60,8 +61,9 @@ export const LANGUAGES: Language[] = [
   { code: "or", english: "Odia", native: "ଓଡ଼ିଆ", sample: "ଆପଣଙ୍କ ମାମଲା ଓ ଶୁଣାଣି, ଗୋଟିଏ ସ୍ଥାନରେ।", intl: "or-IN" },
 ];
 
-/** The state's own language, the toggle's second half until the person picks another. */
-export const STATE_SECOND_LOCALE: SecondLocale = "ml";
+/** The deployment's second language (`lib/locale-config.ts`, owner Oct 8): the
+ *  toggle's second half until the person picks another in Settings. */
+export const STATE_SECOND_LOCALE: SecondLocale = SECOND_LANGUAGE;
 
 /** Languages with more than a handful of lines written, for the demo (owner, Sept 30). */
 export const DEMO_TRANSLATED: Locale[] = ["en", "ml", "hi", "ta", "bn"];

@@ -43,7 +43,7 @@ import { Identifier } from "@/components/chrome/identifier";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
 
 /**
- * The day the bench is sitting on is the reader's, not the server's — a court in Kollam
+ * The day the bench is sitting on is the reader's, not the server's — a court in Kerala
  * should not be shown yesterday's register because the process serving it woke up
  * somewhere else. The server renders its own guess and the browser replaces it on
  * hydration, so there is no mismatch to suppress and no blank first paint. Lifted from

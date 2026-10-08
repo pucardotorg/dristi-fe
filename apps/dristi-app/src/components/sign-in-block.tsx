@@ -322,14 +322,9 @@ export function SignInBlock({
             `flex-1` + centred keeps the promise vertically centred in the panel with
             the mark pinned at the top. */}
         <div className="flex flex-1 flex-col justify-center gap-10">
-          <div className="flex flex-col gap-4">
-            <h2 className="text-display-s text-balance font-semibold">
-              {pick(brand.headline, locale)}
-            </h2>
-            <p className="text-body text-brand-canvas-muted-foreground">
-              {pick(brand.subline, locale)}
-            </p>
-          </div>
+          <h2 className="text-display-s text-balance font-semibold">
+            {pick(brand.headline, locale)}
+          </h2>
 
           {/* This panel stays dark in both modes, so the global `hairline` token is not
               suitable: it becomes a black tint in light mode. The canvas's own muted

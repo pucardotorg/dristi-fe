@@ -122,13 +122,18 @@ function RecordBody({
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <div className="flex shrink-0 flex-col gap-4 overflow-y-auto border-hairline p-4 max-md:max-h-72 max-md:border-b md:w-80 md:border-r">
           <dl className="flex flex-col gap-3">
-            <Fact label="Application ID">
-              {application.applicationId ? (
-                <span className="font-mono">{application.applicationId}</span>
+            <Fact label="Application number">
+              {application.applicationNumber ? (
+                <span className="font-mono">{application.applicationNumber}</span>
               ) : (
-                <Muted>Not allotted yet</Muted>
+                <Muted>Allotted when the court takes it on file</Muted>
               )}
             </Fact>
+            {application.temporaryId ? (
+              <Fact label="Temporary identifier">
+                <span className="font-mono">{application.temporaryId}</span>
+              </Fact>
+            ) : null}
             <Fact label="Created on">
               <span className="tabular-nums">{application.created}</span>
             </Fact>
@@ -139,10 +144,47 @@ function RecordBody({
                 <Muted>Not submitted yet</Muted>
               )}
             </Fact>
-            <Fact label="Filed by">{application.filedBy}</Fact>
+            {application.onboarded ? (
+              <Fact label="Taken on file">
+                <span className="tabular-nums">{application.onboarded}</span>
+              </Fact>
+            ) : null}
+            <Fact label="Raised by">{application.filedBy}</Fact>
+            {application.onBehalfOf ? (
+              <Fact label="On behalf of">{application.onBehalfOf}</Fact>
+            ) : null}
             <Fact label="Side">{applicationSideLabel(application.side)}</Fact>
+            {application.decisionOn ? (
+              <Fact label="Court decides it on">
+                <span className="tabular-nums">{application.decisionOn}</span>
+              </Fact>
+            ) : null}
+            {application.objectionTo ? (
+              <Fact label="Objection to">{application.objectionTo.label}</Fact>
+            ) : null}
+            {application.objectionsInvited !== undefined ? (
+              <Fact label="Objection">
+                {application.objection ? (
+                  <span>Filed · {application.objection.label}</span>
+                ) : application.objectionsInvited ? (
+                  <Muted>
+                    Invited from the other side, due by the end of{" "}
+                    {application.objectionDueBy}
+                  </Muted>
+                ) : (
+                  <Muted>Not invited</Muted>
+                )}
+              </Fact>
+            ) : null}
             <Fact label="Linked order">
-              {application.linkedOrder ? (
+              {application.linkedOrder && application.linkedOrder.text ? (
+                <span className="flex flex-col gap-1">
+                  <span>{application.linkedOrder.label}</span>
+                  <span className="font-normal text-muted-foreground">
+                    {application.linkedOrder.text}
+                  </span>
+                </span>
+              ) : application.linkedOrder ? (
                 <Button
                   variant="link"
                   asChild
@@ -156,6 +198,9 @@ function RecordBody({
                 <Muted>No order yet</Muted>
               )}
             </Fact>
+            {application.workflowResult ? (
+              <Fact label="On acceptance">{application.workflowResult}</Fact>
+            ) : null}
           </dl>
 
           <div className="flex flex-col gap-1.5">

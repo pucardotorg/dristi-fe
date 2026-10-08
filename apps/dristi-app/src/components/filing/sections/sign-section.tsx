@@ -9,9 +9,11 @@
  * the way the rest of the flow had taught you.
  *
  * Committing to a mode is its own step, not a click on the rail: the rail carries one
- * "Continue to sign" button, which opens a dialog naming both paths and what each one
- * does to the *other* signatories — before either is clickable, not after. Nothing here
- * is a private action; every party on the complaint signs the one way that was chosen.
+ * "Continue to signing" button ("Sign and take your oath" when you sign as an advocate,
+ * since the oath follows the signature in the same window), which opens a dialog naming
+ * both paths and what each one does to the *other* signatories — before either is
+ * clickable, not after. Nothing here is a private action; every party on the complaint
+ * signs the one way that was chosen.
  *
  * The paying half of the flow lives here too: fees → process and address → payment →
  * the case file number. The document itself is the shared court sheet Preview renders.
@@ -36,6 +38,7 @@ import {
   UploadIcon,
 } from "lucide-react";
 
+import { ADVOCATE_OATH } from "@/lib/filing/config";
 import { getRepository, newCaseFileNumber, newPaymentRef } from "@/lib/filing/data";
 import { forgetFile } from "@/lib/filing/files";
 import { money, toLongDate } from "@/lib/filing/format";
@@ -49,6 +52,7 @@ import {
 import { useProfile } from "@/lib/filing/profile";
 import {
   feeBill,
+  isOutstanding,
   processPlan,
   signatories,
   type AccusedPlan,
@@ -56,7 +60,9 @@ import {
 } from "@/lib/filing/selectors";
 import { FILINGS_HOME, neighbours } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
-import type { SignInstrument, Signatory } from "@/lib/filing/types";
+import { useTasks } from "@/lib/tasks/store";
+import { refile } from "@/lib/tasks/transitions";
+import type { AdvocateOath, SignInstrument, Signatory } from "@/lib/filing/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,6 +94,7 @@ import { FilingPageHeader } from "@/components/filing/filing-page-header";
 import { FilingMain, useSourceRailSlot } from "@/components/filing/filing-shell";
 import { PANEL_CLASS } from "@/components/filing/form-card";
 import { useLeaveGuard } from "@/components/filing/leave-guard";
+import { useTaskActions } from "@/components/tasks/use-task-actions";
 import {
   SignFlowDialog,
   type SignFlowStart,
@@ -137,6 +144,7 @@ function SignatureList({
   rows,
   requested,
   notified,
+  oaths,
 }: {
   title: string;
   rows: Signatory[];
@@ -144,6 +152,8 @@ function SignatureList({
   requested: boolean;
   /** Signatory id → when their link was last sent. */
   notified: Record<string, string>;
+  /** Advocate signatory id → their oath. */
+  oaths: Record<string, AdvocateOath>;
 }) {
   if (!rows.length) return null;
   return (
@@ -180,14 +190,31 @@ function SignatureList({
                   <p className="text-body-compact text-muted-foreground">
                     {INSTRUMENT[s.signedWith ?? "aadhaar"]}
                   </p>
-                ) : requested && !s.you ? (
+                ) : null}
+                {/* An advocate signs and then takes the oath — the row says which. */}
+                {s.status === "signed" && s.oathTaken !== undefined ? (
+                  <p className="text-body-compact text-muted-foreground">
+                    {s.oathTaken
+                      ? oaths[s.id]?.video
+                        ? "Oath recorded"
+                        : "Oath marked done (sandbox)"
+                      : s.you
+                        ? "Your oath is still to be taken"
+                        : `Oath link sent${sent ? ` ${sent}` : ""}`}
+                  </p>
+                ) : null}
+                {s.status !== "signed" && requested && !s.you ? (
                   <p className="text-body-compact text-muted-foreground tabular-nums">
                     Link sent{sent ? ` ${sent}` : ""}
                   </p>
                 ) : null}
               </div>
               <span className="mt-px shrink-0">
-                {s.status === "signed" ? (
+                {/* Short on purpose: the rail is narrow, and the line under the name
+                    already says where the oath is. */}
+                {s.status === "signed" && s.oathTaken === false ? (
+                  <Badge variant="secondary">Oath due</Badge>
+                ) : s.status === "signed" ? (
                   <Badge variant="success">
                     <CheckIcon aria-hidden />
                     Signed
@@ -219,9 +246,11 @@ function stateChip(
   onPaper: boolean
 ): { variant: "secondary" | "info" | "success"; label: string } {
   const signed = all.filter((s) => s.status === "signed").length;
-  if (all.length > 0 && signed === all.length) {
+  if (all.length > 0 && !all.some(isOutstanding)) {
     return { variant: "success", label: `${signed} of ${all.length} signed` };
   }
+  // Every signature is in and an advocate's oath is not — not done, and not "signing".
+  if (all.length > 0 && signed === all.length) return { variant: "info", label: "Oath pending" };
   if (onPaper) return { variant: "secondary", label: "Physical document" };
   if (!requested) return { variant: "secondary", label: "Not sent" };
   return { variant: "info", label: `${signed} of ${all.length} signed` };
@@ -235,12 +264,14 @@ function SignatureSummary({
   requested,
   onPaper,
   notified,
+  oaths,
 }: {
   complainants: Signatory[];
   advocates: Signatory[];
   requested: boolean;
   onPaper: boolean;
   notified: Record<string, string>;
+  oaths: Record<string, AdvocateOath>;
 }) {
   const all = [...complainants, ...advocates];
   const chip = stateChip(all, requested, onPaper);
@@ -274,12 +305,14 @@ function SignatureSummary({
         rows={complainants}
         requested={requested}
         notified={notified}
+        oaths={oaths}
       />
       <SignatureList
-        title="Advocate signature"
+        title={ADVOCATE_OATH ? "Advocate signature and oath" : "Advocate signature"}
         rows={advocates}
         requested={requested}
         notified={notified}
+        oaths={oaths}
       />
     </div>
   );
@@ -299,13 +332,24 @@ function FeeGroup({
   caption,
   lines,
   total,
+  summary = false,
 }: {
   title: React.ReactNode;
   caption?: string;
   lines: BilledLine[];
   total: number;
+  /** One line — the group's name and its total, no breakdown. */
+  summary?: boolean;
 }) {
   if (!lines.length) return null;
+  if (summary) {
+    return (
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-sunken p-4">
+        <h3 className="text-body-compact font-semibold text-foreground">{title}</h3>
+        <span className="text-body-compact font-semibold tabular-nums">{money(total)}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex shrink-0 flex-col gap-3 rounded-lg bg-surface-sunken p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -318,13 +362,19 @@ function FeeGroup({
       <dl className="flex flex-col divide-y divide-hairline">
         {lines.map((line) => (
           <div key={line.key} className="flex items-baseline justify-between gap-4 py-2">
-            <dt className="min-w-0 text-body-compact text-muted-foreground">
-              {line.label}
-              {line.unitNote ? (
-                <span className="tabular-nums">
-                  {" "}
-                  · {money(line.rate)} × {line.unitNote}
-                </span>
+            <dt className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-body-compact text-foreground">
+                {line.label}
+                {line.unitNote ? (
+                  <span className="text-muted-foreground tabular-nums">
+                    {" "}
+                    · {money(line.rate)} × {line.unitNote}
+                  </span>
+                ) : null}
+              </span>
+              {/* What the charge is for — only where a source says so. */}
+              {line.note ? (
+                <span className="text-caption text-muted-foreground">{line.note}</span>
               ) : null}
             </dt>
             <dd className="shrink-0 text-body-compact font-medium tabular-nums">
@@ -352,8 +402,6 @@ export function SignSection() {
   const [flowStart, setFlowStart] = React.useState<SignFlowStart>("choose");
   /** Where the person asked to go while this version is out for signature. */
   const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
-  /** The "switch to paper" question, which recalls requests other people already have. */
-  const [switchOpen, setSwitchOpen] = React.useState(false);
   /** The other way round, asked only when there is an uploaded copy to discard. */
   const [digitalSwitchOpen, setDigitalSwitchOpen] = React.useState(false);
   /** A reminder just went out — said once, then it goes quiet again. */
@@ -374,6 +422,20 @@ export function SignSection() {
 
   const filed = draft.status === "filed";
   const sign = draft.sign;
+
+  /*
+   * A filing scrutiny returned. After the corrections it comes back through this same
+   * step, signed exactly as at e-filing (handover `SIG-07`), and is sent back to
+   * scrutiny from here — no second court fee, so the footer's act is the send.
+   */
+  const returned = !!draft.scrutinyReturn;
+  const resubmitted = !!draft.scrutinyReturn?.resubmittedAt;
+  const { tasks } = useTasks();
+  const { act, busy, online } = useTaskActions();
+  const returnTask = returned
+    ? tasks.find((t) => t.kind === "returned" && t.draftId === draft.id)
+    : undefined;
+  const [sendOpen, setSendOpen] = React.useState(false);
   /**
    * The one question the whole step turns on: has this complaint been sent for
    * signature? Until it has, nothing has left the building and everything here is still
@@ -386,20 +448,6 @@ export function SignSection() {
   const bill = React.useMemo(() => feeBill(draft), [draft]);
   /** What each accused is having served — defaults applied, floors held (`PAY-10/11/15`). */
   const plans = React.useMemo(() => processPlan(draft), [draft]);
-  /** What the process group is for, in one sentence: rounds, per accused, and where. */
-  const processCaption = React.useMemo(() => {
-    const each = plans.map((plan) => {
-      const rounds = PROCESS_OPTIONS.filter((o) => (plan.rounds[o.key] ?? 0) > 0)
-        .map((o) => `${plan.rounds[o.key]} × ${o.label.toLowerCase()}`)
-        .join(", ");
-      const where =
-        plan.selected.length === 1 ? "1 address" : `${plan.selected.length} addresses`;
-      return plans.length > 1
-        ? `${plan.label}: ${rounds} at ${where}`
-        : `${rounds}, served at ${where}`;
-    });
-    return `${each.join(" · ")}.`;
-  }, [plans]);
 
   // Who signs is derived from the parties, never stored: editing a party changes this list.
   const { complainants, advocates } = React.useMemo(
@@ -415,20 +463,33 @@ export function SignSection() {
   const yous = everyone.filter((s) => s.you);
   const youSigned = yous.length > 0 && yous.every((s) => s.status === "signed");
   const allSigned = everyone.length > 0 && everyone.every((s) => s.status === "signed");
+  /** Signatures *and* advocates' oaths — what the court fee actually waits on. */
+  const complete = everyone.length > 0 && !everyone.some(isOutstanding);
   const anySigned = everyone.some((s) => s.status === "signed");
   const pending = everyone.filter((s) => s.status === "pending").length;
+  /** Advocates who have signed and not yet sworn. */
+  const oathsOwed = advocates.filter((s) => s.status === "signed" && s.oathTaken === false);
+  const yourOathOwed = oathsOwed.some((s) => s.you);
+  /** You sign as an advocate, so your oath follows your signature — one act, one CTA. */
+  const yourOathAhead = yous.some((s) => s.oathTaken === false);
+  /** Other people with something still to do, by link. */
+  const othersOutstanding = everyone.filter((s) => !s.you && isOutstanding(s));
   /** Everyone the requests go out to — the signatories who are not at this keyboard. */
   const otherSigners = Math.max(0, everyone.length - yous.length);
   const others =
     otherSigners === 1 ? "The other party" : `The other ${otherSigners} parties`;
   const have = otherSigners === 1 ? "has" : "have";
 
+  /** What the footer's act waits on — the court fee, or the send back to scrutiny. */
+  const opens = returned ? "Sending back opens" : "The court fee opens";
   /** Why the court fee is not open yet — said on the button that is shut, not beside it. */
-  const payGate = onPaper
-    ? "The court fee opens once the signed copy is in."
-    : requested
-      ? `The court fee opens once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in.`
-      : "The court fee opens once every signature is in.";
+  const payGate = allSigned
+    ? `${opens} once ${oathsOwed.length === 1 ? "the advocate's oath is" : "every advocate's oath is"} in.`
+    : onPaper
+      ? `${opens} once the signed copy is in.`
+      : requested
+        ? `${opens} once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in${ADVOCATE_OATH && advocates.length > 0 ? ", with the advocate's oath" : ""}.`
+        : `${opens} once every signature${ADVOCATE_OATH && advocates.length > 0 ? " and the advocate's oath is" : " is"} in.`;
 
   /**
    * Every signature on this screen belongs to *this* version of the complaint. Going back
@@ -456,7 +517,10 @@ export function SignSection() {
    */
   const discardSignatures = () => {
     const copy = sign.signedCopy;
+    // An oath affirms *this* complaint, so it goes where the signatures go.
+    const oathFiles = Object.values(sign.oaths).flatMap((o) => (o.video ? [o.video.file.id] : []));
     update((d) => {
+      d.sign.oaths = {};
       d.sign.signed = {};
       d.sign.requestedAt = null;
       d.sign.notified = {};
@@ -468,6 +532,10 @@ export function SignSection() {
     if (copy) {
       forgetFile(copy.id);
       void getRepository().deleteFile(copy.id);
+    }
+    for (const id of oathFiles) {
+      forgetFile(id);
+      void getRepository().deleteFile(id);
     }
   };
 
@@ -489,9 +557,13 @@ export function SignSection() {
 
   const closeModal = () => setModal(null);
 
-  /** Open the signing window where the complaint actually is. */
+  /**
+   * Open the signing window where the complaint actually is. Nobody reaches the upload
+   * without having said they cannot e-sign, so a paper draft with no confirmation on it
+   * (one from before the question existed) opens on the question first.
+   */
   const openFlow = (at: SignFlowStart) => {
-    setFlowStart(at);
+    setFlowStart(at === "paper" && !sign.paperFallback ? "fallback" : at);
     setFlowOpen(true);
   };
 
@@ -505,72 +577,40 @@ export function SignSection() {
    * - it only asks while nothing has been decided (`requestedAt === null`, still digital)
    *   and there is somebody to ask about, so a signed or paper-bound complaint is never
    *   interrupted;
-   * - closing it is remembered for this draft for the rest of the session, so a reader
-   *   who wanted to read the complaint first is not asked again on every return;
+   * - it asks once per visit to this step: closing it lets the reader read the complaint
+   *   undisturbed, and arriving again asks again until a mode is chosen (owner,
+   *   2026-10-08 — remembering a close for the whole session read as the popup vanishing);
    * - and the window itself sends nothing until a card is pressed, so dismissing it
    *   costs nothing.
    *
    * The short delay is the point of it: the screen paints, the reader sees where they
    * are, and then the question arrives over it.
    */
-  const askedKey = `dristi:sign-intro:${draft.id}`;
   const shouldAsk =
     !filed && !requested && !onPaper && everyone.length > 0 && !allSigned;
+  /** Asked already on this visit — a close is not undone by a re-render. */
+  const askedThisVisit = React.useRef(false);
   React.useEffect(() => {
-    if (!shouldAsk) return;
-    try {
-      if (sessionStorage.getItem(askedKey)) return;
-    } catch {
-      /* private mode — ask, and let the close below fail just as quietly */
-    }
+    if (!shouldAsk || askedThisVisit.current) return;
     const timer = window.setTimeout(() => {
+      askedThisVisit.current = true;
       setFlowStart("choose");
       setFlowOpen(true);
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [shouldAsk, askedKey]);
-
-  /** Closing the window is an answer of its own: do not ask again this session. */
-  const setFlowOpenRemembering = (next: boolean) => {
-    if (!next) {
-      try {
-        sessionStorage.setItem(askedKey, "1");
-      } catch {
-        /* private mode; the worst case is being asked again on the next visit */
-      }
-    }
-    setFlowOpen(next);
-  };
+  }, [shouldAsk]);
 
   /** Ask again, for everyone still waiting. The link itself does not change. */
   const remindAll = () => {
     const now = new Date().toISOString();
     update((d) => {
       for (const s of everyone) {
-        if (s.status !== "signed" && !s.you) d.sign.notified[s.id] = now;
+        if (isOutstanding(s) && !s.you) d.sign.notified[s.id] = now;
       }
     });
     setReminded(true);
     if (remindTimer.current) window.clearTimeout(remindTimer.current);
     remindTimer.current = window.setTimeout(() => setReminded(false), 2500);
-  };
-
-  /**
-   * Paper instead, after the requests are already out. Nobody signs in the system now, so
-   * every outstanding request is recalled and every signature collected goes with it —
-   * the uploaded copy has to carry all of them anyway. The window then opens on the
-   * upload, which is the next thing to do.
-   */
-  const switchToUpload = () => {
-    update((d) => {
-      d.sign.mode = "upload";
-      d.sign.requestedAt = null;
-      d.sign.notified = {};
-      d.sign.signed = {};
-      d.sign.confirmed = {};
-    });
-    setSwitchOpen(false);
-    openFlow("paper");
   };
 
   /**
@@ -581,6 +621,7 @@ export function SignSection() {
     const copy = sign.signedCopy;
     update((d) => {
       d.sign.mode = "digital";
+      d.sign.paperFallback = null;
       d.sign.signed = {};
       d.sign.confirmed = {};
       d.sign.signedCopy = null;
@@ -602,10 +643,17 @@ export function SignSection() {
     const at = new Date().toISOString();
     update((d) => {
       for (const s of everyone) {
-        if (!s.you && !d.sign.signed[s.id]) d.sign.signed[s.id] = { at, with: "aadhaar" };
+        if (s.you) continue;
+        if (!d.sign.signed[s.id]) d.sign.signed[s.id] = { at, with: "aadhaar" };
+        // No recording stands behind this one, and the roster says so.
+        if (s.oathTaken === false) d.sign.oaths[s.id] = { at, video: null };
       }
     });
   };
+
+  /** Sandbox: what one signatory sees when they open their link. */
+  const linkFor = (s: Signatory) =>
+    `/sign?draft=${encodeURIComponent(draft.id)}&as=${encodeURIComponent(s.id)}`;
 
   /**
    * Write one accused's choice. Only the difference from the court's defaults is
@@ -779,18 +827,63 @@ export function SignSection() {
    */
   const noSignatories = everyone.length === 0;
 
+  /*
+   * Sandbox — no link is actually sent, so each person's link can be opened here to walk
+   * their side, or everyone else can be marked done in one go.
+   */
+  const sandboxLinks =
+    othersOutstanding.length > 0 ? (
+      <div className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-3">
+        <p className="text-body-compact text-muted-foreground">
+          Sandbox — no link is actually sent. Open one to see what they see.
+        </p>
+        <ul className="flex flex-col gap-1">
+          {othersOutstanding.map((s) => (
+            <li key={s.id}>
+              <Button asChild variant="link" className="h-auto p-0 text-body-compact">
+                <a href={linkFor(s)} target="_blank" rel="noreferrer">
+                  Open {s.name}&rsquo;s link
+                </a>
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <Button type="button" variant="outline" size="sm" onClick={sandboxSignOthers}>
+          Mark the others as done
+        </Button>
+      </div>
+    ) : null;
+
+  /** Where things stand, in one sentence, while something is still owed. */
+  const waitingLine = !youSigned && yous.length > 0
+    ? yourOathAhead
+      ? "Your signature and oath are still needed."
+      : "Your signature is still needed."
+    : yourOathOwed
+      ? "Your signature is in. Take your oath to finish."
+      : yous.length === 0 && pending > 0
+        ? /*
+           * Nobody at this keyboard is a signatory — the clerk. An Aadhaar OTP or a DSC
+           * is personal and cannot be used on someone else's behalf, so there is no
+           * signing action here (owner's colleague, 2026-09-23).
+           */
+          `${others} ${have} the link; nobody here is a signatory.`
+        : pending > 0
+          ? `Waiting on ${pending === 1 ? "one more party" : `${pending} more parties`}.`
+          : `Waiting on ${oathsOwed.length === 1 ? "one advocate's oath" : `${oathsOwed.length} advocates' oaths`}.`;
+
   const signActions = noSignatories ? (
     <p className="text-body-compact text-muted-foreground">
       Add a complainant or an advocate before sending this for signature.
     </p>
-  ) : allSigned ? (
-    /* ── Every signature is in ── */
+  ) : complete ? (
+    /* ── Every signature and oath is in ── */
     <div className="flex flex-col gap-3">
       <SectionNotice variant="success" announce="polite">
-        {onPaper
-          ? "The uploaded copy carries every signature."
-          : "Every party has signed."}{" "}
-        You can pay the court fee now.
+        {onPaper ? "The uploaded copy carries every signature" : "Every party has signed"}
+        {/* No advocate on the complaint means no oath — so say nothing about one. */}
+        {ADVOCATE_OATH && advocates.length > 0 ? ", and every advocate has taken the oath." : "."}{" "}
+        {returned ? "You can send the corrections to scrutiny now." : "You can pay the court fee now."}
       </SectionNotice>
       {onPaper ? (
         <Button
@@ -804,7 +897,7 @@ export function SignSection() {
         </Button>
       ) : null}
     </div>
-  ) : onPaper ? (
+  ) : onPaper && !allSigned ? (
     /* ── A physical document ── */
     <div className="flex flex-col gap-3">
       <p className="text-body-compact text-muted-foreground">
@@ -816,7 +909,6 @@ export function SignSection() {
         className="w-full"
         onClick={() => openFlow("paper")}
       >
-        <UploadIcon data-icon="inline-start" aria-hidden />
         Upload signed copy
       </Button>
       {/* Either mode can be chosen from the other: a filer who picked paper and then
@@ -835,7 +927,7 @@ export function SignSection() {
         E-sign instead
       </Button>
     </div>
-  ) : !requested ? (
+  ) : !requested && !onPaper ? (
     /* ── Nobody has been asked yet ── */
     <Button
       type="button"
@@ -843,46 +935,38 @@ export function SignSection() {
       className="w-full"
       onClick={() => openFlow("choose")}
     >
-      <SignatureIcon data-icon="inline-start" aria-hidden />
-      Continue to signing
+      {yourOathAhead ? "Sign and take your oath" : "Continue to signing"}
     </Button>
   ) : (
-    /* ── Asked, and waiting ── */
+    /* ── Asked, and waiting — on a signature, or on an advocate's oath ── */
     <div className="flex flex-col gap-3">
-      <p className="text-body-compact text-muted-foreground">
-        {youSigned ? (
-          <>
-            Waiting on {pending === 1 ? "one more party" : `${pending} more parties`}.
-          </>
-        ) : yous.length > 0 ? (
-          <>Your signature is still needed.</>
-        ) : (
-          /*
-           * Nobody at this keyboard is a signatory — the clerk. An Aadhaar OTP or a DSC
-           * is personal and cannot be used on someone else's behalf, so there is no
-           * signing action here (owner's colleague, 2026-09-23).
-           */
-          <>{others} {have} the link; nobody here is a signatory.</>
-        )}
-      </p>
+      <p className="text-body-compact text-muted-foreground">{waitingLine}</p>
 
-      {yous.length > 0 && !youSigned ? (
+      {yous.length > 0 && !youSigned && !onPaper ? (
         <Button
           type="button"
           size="lg"
           className="w-full"
           onClick={() => openFlow("sign")}
         >
-          <SignatureIcon data-icon="inline-start" aria-hidden />
-          Add your e-signature
+          {yourOathAhead ? "E-sign and take your oath" : "Add your e-signature"}
+        </Button>
+      ) : yourOathOwed ? (
+        <Button
+          type="button"
+          size="lg"
+          className="w-full"
+          onClick={() => openFlow("oath")}
+        >
+          Take your oath
         </Button>
       ) : null}
 
       <div className="flex flex-col gap-2">
-        {otherSigners > 0 ? (
+        {othersOutstanding.length > 0 ? (
           <Button
             type="button"
-            variant={yous.length > 0 && !youSigned ? "ghost" : "outline"}
+            variant={(yous.length > 0 && !youSigned) || yourOathOwed ? "ghost" : "outline"}
             className="w-full"
             onClick={remindAll}
             disabled={reminded}
@@ -891,28 +975,22 @@ export function SignSection() {
             {reminded ? "Reminder sent" : "Send a reminder"}
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          className="w-full"
-          onClick={() => setSwitchOpen(true)}
-        >
-          <UploadIcon data-icon="inline-start" aria-hidden />
-          Upload a signed copy instead
-        </Button>
+        {!onPaper && !allSigned ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            /* Paper after the requests are out withdraws them. The window says so on
+               the same stage that asks why, rather than in a confirmation of its own. */
+            onClick={() => openFlow("fallback")}
+          >
+            <UploadIcon data-icon="inline-start" aria-hidden />
+            Upload a signed copy instead
+          </Button>
+        ) : null}
       </div>
 
-      {/* Sandbox — the other parties' links go nowhere, so this stands in for them. */}
-      {otherSigners > 0 && pending > (youSigned ? 0 : 1) ? (
-        <div className="flex flex-col gap-2 rounded-lg bg-surface-sunken p-3">
-          <p className="text-body-compact text-muted-foreground">
-            Sandbox — no link is actually sent.
-          </p>
-          <Button type="button" variant="outline" size="sm" onClick={sandboxSignOthers}>
-            Mark the other parties as signed
-          </Button>
-        </div>
-      ) : null}
+      {sandboxLinks}
     </div>
   );
 
@@ -931,13 +1009,36 @@ export function SignSection() {
         requested={requested}
         onPaper={onPaper}
         notified={sign.notified}
+        oaths={sign.oaths}
       />
       <div role="separator" className="h-px w-full bg-hairline" />
       {signActions}
     </section>
   );
 
-  const backHref = filed ? hrefFor("preview") : prev ? hrefFor(prev) : hrefFor("preview");
+  const fixHref = returnTask ? `/tasks/${encodeURIComponent(returnTask.id)}/fix` : null;
+  const backHref = filed
+    ? hrefFor("preview")
+    : fixHref
+      ? fixHref
+      : prev
+        ? hrefFor(prev)
+        : hrefFor("preview");
+
+  /** Send the re-signed corrections to scrutiny — the act `refile` records on the task. */
+  const sendBack = async () => {
+    setSendOpen(false);
+    if (!returnTask) {
+      toast.error("The scrutiny return for this filing could not be found.");
+      return;
+    }
+    const done = await act(returnTask.id, refile, "Corrections sent to scrutiny");
+    if (!done) return;
+    update((d) => {
+      d.scrutinyReturn = { resubmittedAt: new Date().toISOString() };
+    });
+    router.push(`/tasks?task=${encodeURIComponent(returnTask.id)}`);
+  };
 
   return (
     <>
@@ -945,11 +1046,21 @@ export function SignSection() {
 
       <FilingMain width="wide" sourceOpen={docked}>
         <FilingPageHeader
-          title={filed ? "Complaint filed" : "Sign the complaint"}
+          title={
+            filed
+              ? "Complaint filed"
+              : returned
+                ? "Sign the corrected complaint"
+                : "Sign the complaint"
+          }
           description={
             filed
               ? `Filed in the ${COURT.name} under S-138, Negotiable Instruments Act.`
-              : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${COURT.name}.`
+              : resubmitted
+                ? "The corrections have been sent back to scrutiny."
+                : returned
+                  ? "Scrutiny returned this complaint. Everyone signs the corrected version again, the same way as when it was filed, before it goes back."
+                  : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${COURT.name}.`
           }
         />
 
@@ -1007,7 +1118,7 @@ export function SignSection() {
           onBack={() => {
             if (!guardLeaving(backHref)) router.push(backHref);
           }}
-          continueLabel="Continue to pay fees"
+          continueLabel={returned ? "Send corrections to scrutiny" : "Continue to pay fees"}
           /*
            * Nothing to pay for until the sheet is signed, so the step's one real action
            * stays dead until it is — and then it is the focal teal, as on every other
@@ -1015,12 +1126,20 @@ export function SignSection() {
            * instead of as a sentence taking a row of the footer beside it (owner,
            * 2026-09-24); pressing it says the same thing, for a reader who cannot hover.
            */
-          continueBlocked={!allSigned}
-          continueHint={allSigned ? undefined : payGate}
+          continueBlocked={!complete || resubmitted || (returned && (!online || !!busy))}
+          continueHint={complete ? undefined : payGate}
           showSaveState={false}
           onContinue={() => {
-            if (!allSigned) {
+            if (resubmitted) {
+              toast("These corrections have already been sent to scrutiny.");
+              return;
+            }
+            if (!complete) {
               toast(payGate);
+              return;
+            }
+            if (returned) {
+              setSendOpen(true);
               return;
             }
             setModal("payment");
@@ -1036,7 +1155,7 @@ export function SignSection() {
       <SignFlowDialog
         open={flowOpen}
         start={flowStart}
-        onOpenChange={setFlowOpenRemembering}
+        onOpenChange={setFlowOpen}
         onPrint={printFile}
       />
 
@@ -1298,18 +1417,20 @@ export function SignSection() {
               total={bill.courtTotal}
             />
 
+            {/* One line, not itemised (owner, 2026-10-08): what was chosen per process is
+                on Change process & address, below, for anyone who wants the detail. */}
             <FeeGroup
               title="Process fees"
-              caption={processCaption}
               lines={bill.process}
               total={bill.processTotal}
+              summary
             />
 
             <FeeGroup
               title={`Delivery of summons · ${DELIVERY_CHANNEL}`}
-              caption="Charged for each address, every round of summons, by the post office and not by the court."
               lines={bill.delivery}
               total={bill.deliveryTotal}
+              summary
             />
           </div>
 
@@ -1463,32 +1584,16 @@ export function SignSection() {
         onConfirm={confirmLeave}
       />
 
-      {/*
-        ── Switching to paper after the requests are out ──
-        Tasks can be cancelled; a message that has already landed cannot. So this is the
-        one place in the step that asks twice, and it says what the other parties will be
-        left holding.
-      */}
+      {/* ── Sending re-signed corrections back to scrutiny ── */}
       <ConfirmDialog
-        open={switchOpen}
-        onOpenChange={setSwitchOpen}
-        title="Upload a physically signed copy instead?"
-        description={
-          otherSigners === 0
-            ? /* Nobody else was ever asked, so there is no request to withdraw — only
-                 the signature already made, if one was made. */
-              anySigned
-                ? "Your e-signature is voided. The PDF you upload has to carry your signature by hand instead."
-                : "You print the complaint, sign it by hand, and upload it as one PDF."
-            : `${others} ${have} been asked to e-sign. Switching withdraws ${
-                otherSigners === 1 ? "that request" : "those requests"
-              }${
-                anySigned ? " and voids the signatures already collected" : ""
-              } — the PDF you upload has to carry every signature by hand instead.`
-        }
-        confirmLabel="Upload a signed copy"
-        cancelLabel="Keep e-signing"
-        onConfirm={switchToUpload}
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        title="Send these corrections to scrutiny?"
+        description="The re-signed complaint goes back to the Registry. A re-submission cannot be recalled, and limitation runs from the Registry's receipt."
+        confirmLabel="Send to scrutiny"
+        cancelLabel="Not yet"
+        destructive={false}
+        onConfirm={() => void sendBack()}
       />
 
       {/* ── And back the other way ── */}

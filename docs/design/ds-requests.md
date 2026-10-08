@@ -24,6 +24,8 @@ Each entry says what is missing, why the product hit it, and what would close it
 | 9 | `Alert` is always `role="alert"` — no quiet standing notice | [e-filing.md](proposals/e-filing.md) | open — **owner auditing** |
 | 10 | `Sidebar`: no top offset, 32px nav, hover/selected share a token, hardcoded English chrome | [e-filing.md](proposals/e-filing.md) | open — **owner auditing** |
 | 11 | No selected-on-track pair: `accent-strong` is 1.08:1 on `track` | [e-filing.md](proposals/e-filing.md) | open — **owner auditing** |
+| 12 | `Banner` centres its icon on multi-line text | Join a Case polish (Oct 6) | open |
+| 13 | `ACCESSIBILITY.md` §12 does not say whether an icon-marked search box in a filter row needs a visible label | Sign process (Oct 6) | open |
 
 ---
 
@@ -524,3 +526,37 @@ for the 40px touch floor. That is a local height on a synced primitive.
 
 **Request:** add `size?: "sm" | "default"` to `Input` (and `InputGroup`) mirroring
 `SelectTrigger`, so a compact toolbar composes from the primitives alone.
+
+---
+
+## 12. `Banner` centres its icon on multi-line text
+
+`Banner` lays its icon and text out with `items-center`, so on any note that wraps the
+icon floats beside the middle of the paragraph instead of its first line. The owner
+flagged it on the Join a Case dialogs (Oct 6): "the icon should be top aligned with the
+copy". It affects every multi-line banner in the product, not one screen.
+
+**Interim:** the join dialogs pass `className="items-start"` through the Banner's own
+`className` prop (no change to its internals). Measured: icon centre within 1.5px of the
+first line's centre at the banner's 14px / `leading-snug` text.
+
+**Request:** make the root `items-start` and nudge the icon onto the first line's centre
+(as `Alert` does with `translate-y-0.5`), so a single-line banner is unchanged and a
+wrapped one reads from its first line. Once shipped, drop the interim class.
+
+## 13. Visible label on an icon-marked search box
+
+§12 says every field has "a visible label (or equivalent permanent text)" and "never
+placeholder-only". It doesn't say whether a search box carrying the DS magnifier icon,
+with its label kept for screen readers, meets that. WCAG 2.1 AA doesn't require a visible
+label there: the accessible name (SC 4.1.2) plus a persistent visual cue satisfies SC 3.3.2.
+
+The product already relies on that reading in two places: the advocate pending-tasks search
+(aria-label only) and, from Oct 6, the court sign process filter row (`CourtFilters`
+`labelHidden`, label `sr-only`). The owner chose it because a label over the box pushed the
+whole pill row down around it.
+
+**Request:** state the rule in §12. Either (a) an icon-marked search box, or a select whose
+value names its subject ("All process types"), may keep its label for screen readers only,
+or (b) it may not. Under (b), both screens need a visible label again.
+

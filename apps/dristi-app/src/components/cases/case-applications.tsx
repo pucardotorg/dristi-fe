@@ -54,7 +54,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  APPLICATION_TYPE_OPTIONS,
+  APPLICATION_STATUS_OPTIONS,
   HAS_BULK_SIGNING_TOOL,
   applicationsRegister,
   groupActions,
@@ -62,11 +62,30 @@ import {
   type ApplicationRecord,
 } from "@/lib/cases/application-record";
 import {
-  FILING_STATUSES,
+  APPLICATION_TYPES,
   nextStepCopy,
-  type FilingStatus,
+  resumeDraftHref,
 } from "@/lib/cases/applications";
 import { type CaseRecord } from "@/lib/cases/types";
+import { viewerRepresentation } from "@/lib/cases/viewer";
+import { SandboxSeatControl } from "@/components/applications/sandbox-seat-control";
+import {
+  applicationStatusLabel,
+  applicationStatusVariant,
+  pay,
+  sign,
+  type ApplicationStatus,
+  type FilerSeat,
+} from "@/lib/applications/lifecycle";
+import { seatPersonName } from "@/lib/applications/seat-names";
+import {
+  allotTemporaryId,
+  applyStep,
+  seatOnCase,
+  today,
+  useCaseApplications,
+  useSandboxSeat,
+} from "@/lib/applications/store";
 import { cn } from "@/lib/utils";
 import { RegisterTrayCard, useOneOpen } from "@/components/cases/register-card";
 import {
@@ -83,18 +102,53 @@ import { Identifier } from "@/components/chrome/identifier";
  * to do sits above the register as a quiet list, never as an alarm: the work
  * is routine, and the status badges already carry the colour.
  */
+const TYPE_OPTIONS = APPLICATION_TYPES.map((item) => ({
+  value: item.id as string,
+  label: item.label,
+})).sort((a, b) => a.label.localeCompare(b.label));
+
+/** Where a draft resumes: a live one by its store id, a seeded one by its pack id. */
+function draftHref(caseId: string, application: ApplicationRecord): string {
+  if (application.live) {
+    return `/cases/${caseId}/filings/application?draft=${encodeURIComponent(application.id)}`;
+  }
+  return application.source
+    ? (resumeDraftHref(caseId, application.source) ?? `/cases/${caseId}/filings/application`)
+    : `/cases/${caseId}/filings/application`;
+}
+
 export function CaseApplications({ record }: { record: CaseRecord }) {
-  /* Signing and paying move a filing on in memory only; this is a prototype. */
-  const [moved, setMoved] = useState<ReadonlyMap<string, FilingStatus>>(
+  const sandboxSeat = useSandboxSeat();
+  const seat: FilerSeat = seatOnCase(sandboxSeat, viewerRepresentation(record)[0]);
+  const live = useCaseApplications(record.id);
+  /* Applications raised in this browser move on in the applications store. The
+     seeded rows have no store record, so their steps are held for the visit. */
+  const [moved, setMoved] = useState<ReadonlyMap<string, ApplicationStatus>>(
     () => new Map()
   );
   const register = useMemo(() => {
     try {
-      return applicationsRegister(record, moved);
+      const base = applicationsRegister(record, live, seat);
+      return {
+        ...base,
+        applications: base.applications.map((row) => {
+          const status = moved.get(row.id);
+          return status && !row.live
+            ? {
+                ...row,
+                status,
+                statusLabel: applicationStatusLabel(status),
+                statusVariant: applicationStatusVariant(status),
+              }
+            : row;
+        }),
+      };
     } catch {
       return null;
     }
-  }, [record, moved]);
+    // `seat` is rebuilt each render from its two parts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [record, live, moved, seat.side, seat.role]);
   const [types, setTypes] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [filers, setFilers] = useState<string[]>([]);
@@ -139,11 +193,14 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
       (statuses.length === 0 || statuses.includes(item.status)) &&
       (filers.length === 0 || filers.includes(item.filedById)) &&
       (needle === "" ||
-        (item.applicationId ?? "").toLowerCase().includes(needle))
+        [item.applicationNumber, item.temporaryId].some((id) =>
+          (id ?? "").toLowerCase().includes(needle)
+        ))
   );
   /* Needs attention is the viewer's to-do list, not a view of the table, so
      no filter or search narrows it (owner, Sept 18). */
-  const actions = groupActions(register.applications);
+  const actions = groupActions(register.applications, seat);
+  const objectionTasks = register.objectionTasks;
   const filtered =
     types.length > 0 ||
     statuses.length > 0 ||
@@ -152,12 +209,32 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   const openApplication =
     register.applications.find((item) => item.id === recordOpen) ?? null;
 
-  function move(ids: string[], next: FilingStatus) {
+  function move(ids: string[], next: ApplicationStatus) {
     setMoved((current) => {
       const updated = new Map(current);
       for (const id of ids) updated.set(id, next);
       return updated;
     });
+  }
+
+  /** Signing: a live application takes the step in the store; a seeded one here. */
+  function signAll(applications: ApplicationRecord[]) {
+    const signer = seatPersonName(record, seat);
+    for (const item of applications) {
+      if (item.live) applyStep(item.id, (app) => sign(app, seat, signer, today()));
+      else move([item.id], "pending-payment");
+    }
+  }
+
+  /** Paying files it: Pending review, with its temporary identifier (`ALC-02`). */
+  function payAll(ids: string[]) {
+    for (const id of ids) {
+      const item = register?.applications.find((row) => row.id === id);
+      if (item?.live) {
+        const temporaryId = allotTemporaryId(record.caseNumber);
+        applyStep(id, (app) => pay(app, seat, temporaryId, today()));
+      } else move([id], "pending-review");
+    }
   }
 
   /** The step a filing is waiting on: a draft resumes in its form, the rest
@@ -173,6 +250,10 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
 
   return (
     <ApplicationsPanel>
+      <SandboxSeatControl />
+      {objectionTasks.length > 0 ? (
+        <ObjectionTasks caseId={record.id} tasks={objectionTasks} />
+      ) : null}
       {actions.length > 0 ? (
         <NeedsAction
           caseId={record.id}
@@ -195,16 +276,13 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           label="Type"
           values={types}
           onChange={setTypes}
-          options={APPLICATION_TYPE_OPTIONS}
+          options={TYPE_OPTIONS}
         />
         <RegisterFilter
           label="Status"
           values={statuses}
           onChange={setStatuses}
-          options={FILING_STATUSES.map((item) => ({
-            value: item.id,
-            label: item.label,
-          }))}
+          options={APPLICATION_STATUS_OPTIONS}
         />
         <RegisterFilter
           label="Filed by"
@@ -233,7 +311,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         {/* On a phone the search leads and the filters follow it (owner, Sept 21). */}
         <div className={REGISTER_ROW_SEARCH}>
           <RegisterSearch
-            label="Search by application ID"
+            label="Search by number"
             value={query}
             onChange={setQuery}
           />
@@ -285,10 +363,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         open={signing.length > 0}
         onClose={() => setSigning([])}
         onComplete={() => {
-          move(
-            signing.map((item) => item.id),
-            "pending-payment"
-          );
+          signAll(signing);
           setSigning([]);
         }}
         chooseTitle={
@@ -314,7 +389,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
         onOpenChange={(open) => {
           if (!open) setPaying([]);
         }}
-        onPaid={(ids) => move(ids, "completed")}
+        onPaid={payAll}
       />
     </ApplicationsPanel>
   );
@@ -458,7 +533,7 @@ function StepAction({
   if (!step) return null;
   return application.status === "draft" ? (
     <Button asChild>
-      <Link href={`/cases/${caseId}/filings/application`}>{step}</Link>
+      <Link href={draftHref(caseId, application)}>{step}</Link>
     </Button>
   ) : (
     <Button type="button" onClick={() => onAct([application])}>
@@ -627,7 +702,7 @@ function ActionRow({
       {step ? (
         application.status === "draft" ? (
           <Button variant="outline" size="sm" className="max-sm:h-10" asChild>
-            <Link href={`/cases/${caseId}/filings/application`}>
+            <Link href={draftHref(caseId, application)}>
               {step}
               <span className="sr-only">: {application.typeLabel}</span>
             </Link>
@@ -734,6 +809,60 @@ function ActionGroup({
   );
 }
 
+/**
+ * File objection (`ALC-12`, `ALC-13`): the court has invited this side to object to
+ * the other side's application, and by when. Said plainly, above the to-do list,
+ * because it is the one item here the court set the deadline for.
+ */
+function ObjectionTasks({
+  caseId,
+  tasks,
+}: {
+  caseId: string;
+  tasks: ApplicationRecord[];
+}) {
+  return (
+    <section
+      aria-labelledby="applications-objections"
+      className="flex flex-col gap-2 rounded-xl bg-surface-sunken p-3"
+    >
+      <h3
+        id="applications-objections"
+        className="px-1 text-body-compact font-semibold text-foreground"
+      >
+        Objection invited
+      </h3>
+      <ul className="flex flex-col gap-2">
+        {tasks.map((task) => (
+          <li
+            key={task.id}
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-card px-3 py-2.5 shadow-raised"
+          >
+            <div className="flex min-w-0 flex-1 flex-col gap-1 max-sm:basis-full">
+              <p className="text-body-compact font-medium text-foreground">
+                File your objection to the {task.typeLabel.toLowerCase()}{" "}
+                application
+                {task.applicationNumber ? ` ${task.applicationNumber}` : ""}
+              </p>
+              <p className="text-caption text-muted-foreground tabular-nums">
+                Due by the end of {task.objectionDueBy}. The court decides it on{" "}
+                {task.decisionOn}, with or without an objection.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="max-sm:h-10" asChild>
+              <Link
+                href={`/cases/${caseId}/filings/application?objectionTo=${encodeURIComponent(task.id)}`}
+              >
+                File objection
+              </Link>
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ApplicationsTable({
   rows,
   onOpen,
@@ -763,14 +892,23 @@ function ApplicationsTable({
             }
           >
             <p className="-mt-2 text-caption text-muted-foreground">
-              {item.applicationId ? (
+              {item.applicationNumber ? (
                 <Identifier
-                  value={item.applicationId}
-                  label="application id"
+                  value={item.applicationNumber}
+                  label="application number"
                   copyable={false}
                 />
+              ) : item.temporaryId ? (
+                <>
+                  <Identifier
+                    value={item.temporaryId}
+                    label="temporary identifier"
+                    copyable={false}
+                  />
+                  {" · Temporary"}
+                </>
               ) : (
-                "ID not allotted yet"
+                "No number yet"
               )}
             </p>
             <div className="flex flex-wrap items-center gap-2">
@@ -792,7 +930,7 @@ function ApplicationsTable({
       <TableHeader>
         <TableRow className={TABLE_HEAD_ROW}>
           <TableHead className={TABLE_HEAD}>Type</TableHead>
-          <TableHead className={TABLE_HEAD}>Application ID</TableHead>
+          <TableHead className={TABLE_HEAD}>Number</TableHead>
           <TableHead className={TABLE_HEAD}>Status</TableHead>
           <TableHead className={TABLE_HEAD}>Filed by</TableHead>
           <TableHead className={TABLE_HEAD}>Created on</TableHead>
@@ -822,10 +960,21 @@ function ApplicationsTable({
             <TableCell
               className={cn(TABLE_CELL, "text-caption text-muted-foreground")}
             >
-              {item.applicationId ? (
-                <Identifier value={item.applicationId} label="application id" />
+              {item.applicationNumber ? (
+                <Identifier
+                  value={item.applicationNumber}
+                  label="application number"
+                />
+              ) : item.temporaryId ? (
+                <span className="flex flex-col gap-0.5">
+                  <Identifier
+                    value={item.temporaryId}
+                    label="temporary identifier"
+                  />
+                  <span>Temporary</span>
+                </span>
               ) : (
-                <Dash label="Not allotted" />
+                <Dash label="No number yet" />
               )}
             </TableCell>
             <TableCell className={TABLE_CELL}>

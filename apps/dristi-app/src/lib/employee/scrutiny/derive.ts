@@ -54,7 +54,6 @@ export interface DerivedCase {
   sections: SectionDef[];
   bundle: BundleDoc[];
   docRow: Record<string, string>;
-  transcripts: Record<string, string>;
   checks: string[];
   history: HistoryEvent[];
   historySummary: string;
@@ -480,7 +479,6 @@ export function deriveScrutinyCase(filing: Filing): DerivedCase {
         id: "j-court",
         label: "Court",
         value: "24×7 ON Court, Ahmedabad",
-        aiok: "Consistent with the accused's address",
       },
       {
         id: "j-cause",
@@ -661,16 +659,6 @@ export function deriveScrutinyCase(filing: Filing): DerivedCase {
     ...(cheque ? { memo: "d-memo", notice: "d-notice" } : {}),
   };
 
-  const transcripts: Record<string, string> = {
-    "q-amt": skipsAmount
-      ? "The cheque reads a lower figure than the one filed — I have entered the amount as printed, please confirm it."
-      : "Please confirm the amount against the instrument before refiling.",
-    "c-name":
-      "Only the address side of the ID has been uploaded, so the name cannot be verified. Please upload the front side as well.",
-    "d-affidavit":
-      "A paragraph of the scanned affidavit is blurred and unreadable. Please re-scan and upload a clean copy.",
-  };
-
   const { history, historySummary, historyRound } = deriveHistory(filing, party);
 
   return {
@@ -678,7 +666,6 @@ export function deriveScrutinyCase(filing: Filing): DerivedCase {
     sections,
     bundle,
     docRow,
-    transcripts,
     checks: cheque ? CHECKS : CIVIL_CHECKS,
     history,
     historySummary,

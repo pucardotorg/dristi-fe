@@ -5,19 +5,40 @@
  * lookups (IFSC, PIN) live in lookups.ts; there are no mock registries here.
  */
 
+import type { PaperFallbackReason } from "./types";
+
 export type Option = { value: string; label: string };
 
 export const CASE_TYPE = {
   code: "s138",
   short: "S-138, NI Act",
-  title: "Cheque bounce (S-138, NI Act)",
+  /** The case-type column's label (owner, 2026-10-08). */
+  label: "S138 of NIA",
+  title: "Section 138 of Negotiable Instruments Act",
   offence: "Section 138, Negotiable Instruments Act, 1881",
+  /** "Complaint under …" — the screen-length form of the proceeding's title. */
+  proceedingTitleShort: "Complaint under S-138, NI Act",
+  /** "Complaint under …" — the full statutory form, for PDFs (the complaint document's heading). */
+  proceedingTitleLong: "Complaint under Section 138 of the Negotiable Instruments Act, 1881",
+} as const;
+
+/**
+ * Dishonour of an electronic funds transfer (Section 25, Payment and Settlement Systems
+ * Act, 2007). Listed on Start a new filing, but there is no filing flow for it yet — the
+ * row opens a placeholder page (owner, 2026-10-08).
+ */
+export const PSS_CASE_TYPE = {
+  code: "pss25",
+  short: "S-25, PSS Act",
+  /** The case-type column's label (owner, 2026-10-08). */
+  label: "S25 of PSA",
+  title: "Section 25 of Payment and Settlement Systems Act",
+  offence: "Section 25, Payment and Settlement Systems Act, 2007",
 } as const;
 
 export const COURT = {
-  name: "24×7 ON Court, Kollam",
+  name: "24×7 ON Court",
   brand: "24x7 ON Courts",
-  place: "Kollam, Kerala",
 } as const;
 
 /* ───────────────────────────── Geography ───────────────────────────── */
@@ -190,6 +211,28 @@ export const FINAL_RELIEF_TEMPLATE = [
  */
 export const DELIVERY_CHANNEL = "E-post";
 
+/* ───────────────────────────── Signing ───────────────────────────── */
+
+/**
+ * What stopped e-signing, in plain words rather than legal ones — one reason per way
+ * e-signing can fail here: each instrument (Aadhaar OTP, DSC), another signer, and the
+ * e-sign service itself (owner, 2026-10-07). A slow party is not on the list: paper
+ * still needs their signature by hand, so it is a party who *cannot* e-sign. Not yet
+ * confirmed against what filers actually hit. Every signing window that offers paper
+ * asks this; a window with one signer has nobody else, so it passes a subset rather
+ * than keeping a second list.
+ */
+export const PAPER_FALLBACK_REASONS: readonly {
+  id: PaperFallbackReason;
+  label: string;
+}[] = [
+  { id: "otp-not-received", label: "The OTP didn't arrive" },
+  { id: "dsc-not-working", label: "My DSC isn't working" },
+  { id: "party-cannot-esign", label: "Another party can't e-sign" },
+  { id: "server-not-responding", label: "The e-sign service isn't responding" },
+  { id: "other", label: "Something else" },
+];
+
 /**
  * The processes collectable upfront, and the court's rule for each (handover §19.3).
  *
@@ -207,6 +250,8 @@ export type ProcessOption = {
   label: string;
   /** What this process is, in the words the filer needs to choose by. */
   note: string;
+  /** The same, cut to what it is for — the bill, where the choosing is already done. */
+  billNote: string;
   /** Rounds the court insists on, for each accused — the choice never falls below this. */
   minRounds: number;
   /** The most rounds collectable upfront. */
@@ -225,6 +270,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "summons",
     label: "Summons",
     note: "The court's call to the accused to appear. One round is required, delivered to every address you choose.",
+    billNote: "The court's call to the accused to appear.",
     minRounds: 1,
     maxRounds: 4,
     perAddress: true,
@@ -234,6 +280,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "warrants",
     label: "Warrants",
     note: "Issued if the accused does not appear after summons.",
+    billNote: "Issued only if the accused does not appear after summons.",
     minRounds: 0,
     maxRounds: 4,
     perAddress: false,
@@ -243,6 +290,7 @@ export const PROCESS_OPTIONS: ProcessOption[] = [
     key: "notice",
     label: "Notice",
     note: "Issued on the application to condone the delay in filing.",
+    billNote: "Issued on the application to condone the delay in filing.",
     minRounds: 0,
     maxRounds: 1,
     perAddress: false,
@@ -339,9 +387,9 @@ export const DELIVERY_MIN_ROUNDS = 1;
  * typed from memory, and it stays open — an address outside it is still accepted.
  */
 export const POLICE_STATIONS: string[] = [
-  "Kollam East Police Station",
-  "Kollam West Police Station",
-  "Kollam Beach Police Station",
+  "Town East Police Station",
+  "Town West Police Station",
+  "Town Beach Police Station",
   "Kilikolloor Police Station",
   "Sakthikulangara Police Station",
   "Chinnakada Police Station",

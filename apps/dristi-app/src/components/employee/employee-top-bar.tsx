@@ -31,7 +31,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
  * switch, a notifications bell and a profile menu; none of the three belongs to the
  * bench. The bell would be a thirteenth live count on a screen whose rail already carries
  * twelve. The switch reads a locale provider that is the citizen shell's and does not
- * exist under `/employee` — what language a Kollam bench works in is a real product
+ * exist under `/employee` — what language a Kerala bench works in is a real product
  * question and not one this bar can answer by reaching across the area split. And the
  * person is already named, in full, at the foot of the rail.
  *

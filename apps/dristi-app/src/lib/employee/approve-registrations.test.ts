@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  DECIDED_REGISTRATIONS,
   EMPTY_REGISTRATIONS_FILTERS,
+  filterDecided,
+  sortDecided,
+  sortPending,
   REGISTRATIONS_QUEUE,
   REGISTRATIONS_QUEUE_COUNT,
   currentRound,
@@ -252,11 +256,11 @@ describe("filterRegistrations", () => {
       filterRegistrations(all, EMPTY_REGISTRATIONS_FILTERS).length,
       all.length,
     );
-    assert.equal(filterRegistrations(all, { query: "   " }).length, all.length);
+    assert.equal(filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "   " }).length, all.length);
   });
 
   it("finds a request by the name the officer was given", () => {
-    const rows = filterRegistrations(all, { query: "meera" });
+    const rows = filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "meera" });
     assert.deepEqual(
       rows.map((r) => r.applicationNumber),
       ["KL-ADV-000181-2026"],
@@ -264,23 +268,20 @@ describe("filterRegistrations", () => {
   });
 
   it("finds a request by the Bar registration ID the bar quoted", () => {
-    const rows = filterRegistrations(all, { query: "KAR/12453/2018" });
+    const rows = filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "KAR/12453/2018" });
     assert.deepEqual(
       rows.map((r) => r.applicationNumber),
       ["KL-ADV-000203-2026"],
     );
   });
 
-  it("finds a request by the application number the advocate read off their own screen", () => {
-    const rows = filterRegistrations(all, { query: "KL-ADV-000207-2026" });
-    assert.deepEqual(
-      rows.map((r) => r.fullName),
-      ["Joseph Mathew"],
-    );
+  it("does not search the application number, which the court side never shows", () => {
+    const rows = filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "KL-ADV-000207-2026" });
+    assert.equal(rows.length, 0);
   });
 
   it("finds a name written in Malayalam, typed in Malayalam", () => {
-    const rows = filterRegistrations(all, { query: "ഷൈലജ" });
+    const rows = filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "ഷൈലജ" });
     assert.deepEqual(
       rows.map((r) => r.applicationNumber),
       ["KL-ADV-000196-2026"],
@@ -289,24 +290,24 @@ describe("filterRegistrations", () => {
 
   it("wants every word, in any order and any amount of space", () => {
     assert.equal(
-      filterRegistrations(all, { query: "mathew   joseph" }).length,
+      filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "mathew   joseph" }).length,
       1,
     );
-    assert.equal(filterRegistrations(all, { query: "joseph vaidya" }).length, 0);
+    assert.equal(filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "joseph vaidya" }).length, 0);
   });
 
   it("does not reach the contact details — a queue is not a directory", () => {
-    assert.equal(filterRegistrations(all, { query: "9605178432" }).length, 0);
+    assert.equal(filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "9605178432" }).length, 0);
     assert.equal(
-      filterRegistrations(all, { query: "meera.suresh@example.com" }).length,
+      filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "meera.suresh@example.com" }).length,
       0,
     );
   });
 
   it("matches whatever the case the officer typed", () => {
     assert.equal(
-      filterRegistrations(all, { query: "kl/3312/2021" }).length,
-      filterRegistrations(all, { query: "KL/3312/2021" }).length,
+      filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "kl/3312/2021" }).length,
+      filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, query: "KL/3312/2021" }).length,
     );
   });
 });
@@ -810,6 +811,7 @@ describe("an advocate clerk's request", () => {
 
   it("is found by its clerk registration number", () => {
     const rows = filterRegistrations(REGISTRATIONS_QUEUE, {
+      ...EMPTY_REGISTRATIONS_FILTERS,
       query: "CLK/2143",
     });
     assert.deepEqual(
@@ -860,3 +862,76 @@ function row(
     ...over,
   };
 }
+
+describe("the Pending filters and order", () => {
+  const all = REGISTRATIONS_QUEUE;
+  const f = (next: Partial<typeof EMPTY_REGISTRATIONS_FILTERS>) =>
+    filterRegistrations(all, { ...EMPTY_REGISTRATIONS_FILTERS, ...next });
+
+  it("narrows by account type", () => {
+    const clerks = f({ accountType: "clerk" });
+    assert.ok(clerks.length > 0);
+    assert.ok(clerks.every((r) => r.registrantKind === "clerk"));
+  });
+
+  it("narrows by request type", () => {
+    const rows = f({ requestType: "resubmission" });
+    assert.ok(rows.length > 0);
+    assert.ok(rows.every((r) => r.requestKind === "resubmission"));
+  });
+
+  it("asks the register only of advocates, and matches means it agreed", () => {
+    const matches = f({ register: "matches" });
+    assert.ok(matches.every((r) => r.registrantKind === "advocate"));
+    assert.ok(matches.every((r) => registerAnswer(r) === null));
+    for (const answer of ["differs", "no-entry", "not-checked"] as const) {
+      assert.ok(f({ register: answer }).every((r) => registerAnswer(r) === answer));
+    }
+  });
+
+  it("bands the wait the way the column colours it", () => {
+    assert.ok(f({ wait: "destructive" }).every((r) => r.daysWaiting >= 14));
+    assert.ok(f({ wait: "plain" }).every((r) => r.daysWaiting < 7));
+    const banded =
+      f({ wait: "destructive" }).length + f({ wait: "warning" }).length + f({ wait: "plain" }).length;
+    assert.equal(banded, all.length);
+  });
+
+  it("orders by wait either way, or by name", () => {
+    const shortest = sortPending(all, "shortest");
+    assert.ok(shortest.every((r, i) => i === 0 || shortest[i - 1].daysWaiting <= r.daysWaiting));
+    assert.deepEqual(sortPending(all, "longest"), all);
+    const named = sortPending(all, "name").map((r) => r.fullName);
+    assert.deepEqual(named, [...named].sort((a, b) => a.localeCompare(b, "en-IN")));
+  });
+});
+
+describe("the decided record", () => {
+  it("has both outcomes, and every rejection carries its reason", () => {
+    const approved = DECIDED_REGISTRATIONS.filter((d) => d.outcome === "approved");
+    const rejected = DECIDED_REGISTRATIONS.filter((d) => d.outcome === "rejected");
+    assert.ok(approved.length > 0 && rejected.length > 0);
+    assert.ok(rejected.every((d) => (d.reason ?? "").trim().length > 20));
+    assert.ok(approved.every((d) => d.reason === undefined));
+  });
+
+  it("shares no person with the waiting queue", () => {
+    const pending = new Set(REGISTRATIONS_QUEUE.map((r) => r.registrationNumber));
+    for (const d of DECIDED_REGISTRATIONS) assert.ok(!pending.has(d.request.registrationNumber));
+  });
+
+  it("orders most recent first, and the reverse", () => {
+    const recent = sortDecided(DECIDED_REGISTRATIONS, "recent");
+    assert.ok(recent.every((d, i) => i === 0 || recent[i - 1].daysAgo <= d.daysAgo));
+    assert.deepEqual(sortDecided(DECIDED_REGISTRATIONS, "oldest"), [...recent].reverse());
+  });
+
+  it("is searched by name and registration number, and narrowed by account type", () => {
+    assert.equal(filterDecided(DECIDED_REGISTRATIONS, { query: "KL/3155", accountType: "all" }).length, 1);
+    assert.ok(
+      filterDecided(DECIDED_REGISTRATIONS, { query: "", accountType: "clerk" }).every(
+        (d) => d.request.registrantKind === "clerk",
+      ),
+    );
+  });
+});

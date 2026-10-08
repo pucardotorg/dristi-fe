@@ -182,7 +182,7 @@ export function JurisdictionSection() {
                               d.jurisdiction.otherCases[i].court = v;
                             })
                           }
-                          placeholder="e.g. JMFC-II, Kollam"
+                          placeholder="e.g. JMFC-II"
                         />
                       </FormField>
                       <FormField label="Case number" required>

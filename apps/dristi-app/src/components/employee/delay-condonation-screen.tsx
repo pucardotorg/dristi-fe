@@ -8,7 +8,7 @@ import { DelayCondonationDialog } from "@/components/employee/delay-condonation-
 import { DelayCondonationTable } from "@/components/employee/delay-condonation-table";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { CourtFilters } from "@/components/employee/court-filters";
+import { CourtFilters, CourtSortSelect } from "@/components/employee/court-filters";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
 import {
   rowOpener,
@@ -40,6 +40,32 @@ import {
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  caseSorts,
+  compareCaseNumbers,
+  daySorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+
+type DelayCondonationSort = "oldest-applied" | "newest-applied" | "delay" | "name";
+
+/** Oldest application first — a queue is worked from the one that has waited longest. */
+const DELAY_CONDONATION_SORTS: CourtSortSpec<DelayCondonationCase, DelayCondonationSort>[] = [
+  ...daySorts<DelayCondonationCase, DelayCondonationSort>(
+    (row) => row.appliedOn,
+    { id: "oldest-applied", label: "Oldest application first", latest: false },
+    { id: "newest-applied", label: "Newest application first" },
+  ),
+  {
+    id: "delay",
+    label: "Longest delay first",
+    compare: (a, b) =>
+      b.delayDays - a.delayDays || compareCaseNumbers(a.caseNumber, b.caseNumber),
+  },
+  caseSorts<DelayCondonationCase>()[2] as CourtSortSpec<DelayCondonationCase, DelayCondonationSort>,
+];
 
 /**
  * Delay condonation — applications asking this court to condone delay.
@@ -84,7 +110,9 @@ export function DelayCondonationScreen() {
   const remaining = DELAY_CONDONATION_QUEUE.filter(
     (matter) => !decidedIds.has(matter.id),
   );
-  const rows = filterDelayCondonationCases(remaining, filters);
+  const [sort, setSort] = React.useState<DelayCondonationSort>("oldest-applied");
+
+  const rows = sortRows(filterDelayCondonationCases(remaining, filters), DELAY_CONDONATION_SORTS, sort);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -137,6 +165,17 @@ export function DelayCondonationScreen() {
           searchRef={searchRef}
           onChange={changeFilters}
           onClear={clearFilters}
+          trailing={
+            <CourtSortSelect
+              id="delay-condonation-sort"
+              value={sort}
+              options={sortOptions(DELAY_CONDONATION_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
         />
 
         {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -215,11 +254,14 @@ function DelayCondonationFilters({
   searchRef,
   onChange,
   onClear,
+  trailing,
 }: {
   filters: DelayCondonationFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
   onChange: (filters: DelayCondonationFilters) => void;
   onClear: () => void;
+  /** The list's sort control (`CourtSortSelect`), at the end of the row. */
+  trailing?: React.ReactNode;
 }) {
   return (
     <CourtFilters
@@ -248,6 +290,7 @@ function DelayCondonationFilters({
             }),
         },
       ]}
+      trailing={trailing}
       onClearAll={onClear}
     />
   );
