@@ -1067,11 +1067,24 @@ function DocumentRowsSection({
   onRowsChange: (rows: DocumentRowDraft[]) => void;
 }) {
   const headingId = useId();
+  const addButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={rows.length ? "self-end" : undefined}
+      onClick={() => onRowsChange([...rows, emptyDocumentRow()])}
+    >
+      <PlusIcon data-icon="inline-start" aria-hidden />
+      {addLabel}
+    </Button>
+  );
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby={headingId}>
-      {/* Heading and its add button share one row, so the dialog's width is
-          used and the button is there before the first row exists. */}
+      {/* Empty, the add button shares the heading's row, so it is there
+          before the first row exists. Once there are rows it follows the
+          last one, still at the right edge (owner, Oct 8). */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h3 id={headingId} className="text-body-compact font-medium">
@@ -1089,15 +1102,7 @@ function DocumentRowsSection({
             </p>
           ) : null}
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onRowsChange([...rows, emptyDocumentRow()])}
-        >
-          <PlusIcon data-icon="inline-start" aria-hidden />
-          {addLabel}
-        </Button>
+        {rows.length ? null : addButton}
       </div>
 
       {groupError ? (
@@ -1185,6 +1190,7 @@ function DocumentRowsSection({
           No {rowLabel.toLowerCase()}s added.
         </p>
       )}
+      {rows.length ? addButton : null}
     </section>
   );
 }

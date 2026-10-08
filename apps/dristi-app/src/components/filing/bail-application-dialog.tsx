@@ -338,6 +338,18 @@ export function BailApplicationDialog({
     Record<number, BailDocumentErrors>
   >({});
   const [detailsTouched, setDetailsTouched] = React.useState(false);
+  const addDocumentButton = (
+    <Button
+      type="button"
+      variant="outline"
+      className={documents.length ? "self-end" : undefined}
+      data-icon="inline-start"
+      onClick={() => setDocuments((rows) => [...rows, blankDocument()])}
+    >
+      <PlusIcon aria-hidden />
+      {pick(documents.length ? bailDialog.documentsAddAnother : bailDialog.documentsAdd, locale)}
+    </Button>
+  );
 
   // The magistrate usually asks for two sureties, so the yes-branch starts
   // with two forms; both can be removed down to one, or more added.
@@ -682,12 +694,18 @@ export function BailApplicationDialog({
                     aria-labelledby="bail-documents-heading"
                     className="flex flex-col gap-4"
                   >
-                    <h3 id="bail-documents-heading" className="text-body-compact font-medium">
-                      {pick(bailDialog.documentsHeading, locale)}{" "}
-                      <span className="font-normal text-muted-foreground">
-                        ({pick(bailDialog.optional, locale)})
-                      </span>
-                    </h3>
+                    {/* Empty, the add button rides the heading's row; once a
+                        document is added it follows the list, still at the
+                        right edge (owner, Oct 8). */}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 id="bail-documents-heading" className="text-body-compact font-medium">
+                        {pick(bailDialog.documentsHeading, locale)}{" "}
+                        <span className="font-normal text-muted-foreground">
+                          ({pick(bailDialog.optional, locale)})
+                        </span>
+                      </h3>
+                      {documents.length ? null : addDocumentButton}
+                    </div>
                     {documents.map((doc, index) => {
                       const n = String(index + 1);
                       const errors = documentErrors[doc.id] ?? {};
@@ -768,19 +786,7 @@ export function BailApplicationDialog({
                         </fieldset>
                       );
                     })}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="self-start"
-                      data-icon="inline-start"
-                      onClick={() => setDocuments((rows) => [...rows, blankDocument()])}
-                    >
-                      <PlusIcon aria-hidden />
-                      {pick(
-                        documents.length ? bailDialog.documentsAddAnother : bailDialog.documentsAdd,
-                        locale,
-                      )}
-                    </Button>
+                    {documents.length ? addDocumentButton : null}
                   </section>
 
                   <Field>
@@ -1094,7 +1100,7 @@ export function BailApplicationDialog({
                   <Button
                     type="button"
                     variant="outline"
-                    className="self-start"
+                    className="self-end"
                     data-icon="inline-start"
                     onClick={() => setSureties((current) => [...current, blankSurety()])}
                   >
