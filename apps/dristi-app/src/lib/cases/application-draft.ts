@@ -240,8 +240,13 @@ export function transferCourtOptions(currentCourt: string): string[] {
  * Grounds, Withdrawal in Reason — so the mapping is per type rather than one
  * shared "notes" box that none of the eight forms actually has.
  */
-/** Others' title rule, shared so seeding cannot disagree with validation. */
-const TITLE_PATTERN = /^[\p{L}\p{N} ]+$/u;
+/**
+ * Generic's title rule, shared so seeding cannot disagree with validation.
+ * The PRD's "alphanumeric text" means plain typed text (it says the same of
+ * every reason box), not letters and digits only: titles cite "PW-1" and
+ * "S.138" (PM, Oct 8). Letters, numbers, punctuation and spaces.
+ */
+const TITLE_PATTERN = /^[\p{L}\p{M}\p{N}\p{P}\p{Zs}]+$/u;
 
 export function applicationDraftFrom(submission: Submission): ApplicationDraft {
   // A document submission has no application form to resume into, and the
@@ -488,7 +493,7 @@ export function validateApplication(
       if (!title) {
         errors.fields.title = "Enter an application title.";
       } else if (!TITLE_PATTERN.test(title)) {
-        errors.fields.title = "Use letters, numbers and spaces only.";
+        errors.fields.title = "Use letters, numbers and punctuation only.";
       }
       if (!rich(draft.details)) {
         errors.fields.details = "Enter the application details.";

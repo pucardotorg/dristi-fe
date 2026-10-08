@@ -11,6 +11,7 @@ import {
   type ViewerProfile,
 } from "./application-access";
 import { applicationsRegister } from "./application-record";
+import { EMPTY_APPLICATION_DRAFT, validateApplication } from "./application-draft";
 import {
   applicationsFile,
   quotedOthersTitle,
@@ -289,3 +290,17 @@ describe("memos and affidavits", () => {
     assert.equal(memo?.step, "sign");
   });
 });
+
+describe("a Generic application's title", () => {
+  it("takes the punctuation advocates cite with", () => {
+    for (const title of ["Cross-examination of PW-1", "Exemption under S.138", "Return of cheque (original)"]) {
+      const errors = validateApplication({
+        ...EMPTY_APPLICATION_DRAFT,
+        type: "application-others",
+        title,
+      });
+      assert.equal(errors.fields.title, undefined, title);
+    }
+  });
+});
+
