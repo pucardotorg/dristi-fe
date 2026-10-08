@@ -7,7 +7,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ItemChip } from "@/components/advocate/home-bits";
 import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 import { advHome, fillCopy } from "@/lib/advocate/content";
-import type { HearingAccess, TimelineHearing } from "@/lib/advocate/home";
+import type { HearingAccess, HearingQueue, TimelineHearing } from "@/lib/advocate/home";
+import { QUEUE_TAG, QueueFace, QueueTag, queueSentence } from "@/components/advocate/queue-tag";
 import { AccessButton } from "@/components/advocate/access-button";
 import { pick, type Locale } from "@/lib/onboarding/content";
 import { passedOverLabel } from "@/lib/advocate/passed-over";
@@ -17,12 +18,14 @@ import "./mobile-hearing.css";
 import { LocateHearingIcon } from "./locate-hearing-icon";
 
 /** A phone matter exposes its actions by tap, keeping the docket scannable. */
-export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpenTasks, onViewInCauseList, access, time }: {
+export function MobileHearingCard({ hearing, locale, queue, onOpenCase, onOpenTasks, onViewInCauseList, access, time }: {
   time?: React.ReactNode;
   /** How the viewer reaches the matter; its button joins the tray. Null hides it. */
   access?: HearingAccess | null;
   hearing: TimelineHearing;
   locale: Locale;
+  /** Today's queue position, for scheduled matters; null hides the tag. */
+  queue?: HearingQueue | null;
   selected: boolean;
   onOpenCase: (id: string) => void;
   onOpenTasks: ((id: string, taskIds: string[]) => void) | null;
@@ -39,10 +42,10 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="relative min-w-0" data-pointer-motion={pointerMotion}>
       <CollapsibleTrigger
-        aria-label={`${hearing.kase.parties}, ${pick(advHome.colItem, locale)} ${hearing.item}, ${hearing.kase.cnr || hearing.kase.stNumber}, ${hearing.kase.stage}, ${court.name} ${court.number ?? ""}${count ? `, ${pending}` : ""}${hearing.passedOver ? `, ${passedOverLabel(locale)}` : ""}`}
+        aria-label={`${hearing.kase.parties}, ${pick(advHome.colItem, locale)} ${hearing.item}, ${hearing.kase.cnr || hearing.kase.stNumber}, ${hearing.kase.stage}, ${court.name} ${court.number ?? ""}${count ? `, ${pending}` : ""}${hearing.passedOver ? `, ${passedOverLabel(locale)}` : ""}${queue ? `, ${queueSentence(queue, locale)}` : ""}`}
         onPointerDown={() => setPointerMotion(true)}
         onKeyDown={() => setPointerMotion(false)}
-        className={cn("group/hearing relative z-10 flex w-full min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-left transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", ongoing ? "border-brand-accent/40" : "border-hairline", selected && "ring-2 ring-ring")}
+        className={cn("group/hearing relative z-10 flex w-full min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-left transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", ongoing ? "border-brand-accent/40" : "border-hairline")}
       >
         <span className="flex w-full min-w-0 items-center gap-3">
           <ItemChip item={hearing.item} size="lg" />
@@ -56,6 +59,14 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
           {count > 0 ? (
             <span aria-hidden="true" className={cn("flex size-5 shrink-0 items-center justify-center self-start rounded-full border border-warning bg-warning-muted text-warning-muted-foreground md:size-6", access && "mt-1.5 md:mt-1")}>
               <TriangleAlert className="size-3 md:size-3.5" />
+            </span>
+          ) : null}
+          {/* Room for the queue tag, which sits over this spot with the access
+              button (a button cannot live inside the card's tap target): an
+              invisible copy holds its exact width. */}
+          {queue ? (
+            <span aria-hidden="true" className={cn(QUEUE_TAG, "invisible self-start")}>
+              <QueueFace queue={queue} locale={locale} />
             </span>
           ) : null}
           {/* Room for the access button, which sits over this spot at the far
@@ -88,7 +99,9 @@ export function MobileHearingCard({ hearing, locale, selected, onOpenCase, onOpe
           over the space the card keeps for it. */}
       {access ? (
         // At the card's far right, inside its 16px padding.
-        <div className="absolute top-4 right-4 z-20">
+        <div className="absolute top-4 right-4 z-20 flex items-start gap-3">
+          {/* 32px drawn; the ::after keeps the 40px touch target. */}
+          {queue ? <QueueTag queue={queue} locale={locale} className="after:absolute after:-inset-1" /> : null}
           <AccessButton
             access={access}
             locale={locale}

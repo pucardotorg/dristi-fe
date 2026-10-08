@@ -526,6 +526,11 @@ export const advHome = {
   accessVakalatnama: t("On Vakalatnama", "വക്കാലത്തിൽ"),
   accessOffice: t("Office access", "ഓഫീസ് ആക്സസ്"),
   accessYou: t("You", "നിങ്ങൾ"),
+  /** The queue tag on today's scheduled hearings: matters still before yours in court. */
+  queueNext: t("Next", "അടുത്തത്"),
+  queueAheadOne: t("1 hearing before yours in this court.", "ഈ കോടതിയിൽ നിങ്ങളുടേതിന് മുമ്പ് 1 ഹിയറിങ്."),
+  queueAheadMany: t("{n} hearings before yours in this court.", "ഈ കോടതിയിൽ നിങ്ങളുടേതിന് മുമ്പ് {n} ഹിയറിങ്ങുകൾ."),
+  queueIsNext: t("Yours is next in this court.", "ഈ കോടതിയിൽ അടുത്തത് നിങ്ങളുടേതാണ്."),
   accessMineLabel: t(
     "You're on the Vakalatnama. See who else is.",
     "നിങ്ങൾ വക്കാലത്തിലുണ്ട്. മറ്റാരൊക്കെയെന്ന് കാണുക.",

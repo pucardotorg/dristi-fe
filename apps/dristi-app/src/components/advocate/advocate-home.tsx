@@ -28,6 +28,7 @@ import {
   daySlotsOn,
   nextHearingDayAfter,
   peopleOptionsOf,
+  queueOf,
   weekOf,
   type PeopleScope,
   NO_SLOT_FILTER,
@@ -361,6 +362,14 @@ function HomeBody({
     [world, filterVariant]
   );
   const accessFor = React.useCallback((kase: Case) => accessOf(world, kase), [world]);
+  // Today's scheduled matters carry how many are still before them in court.
+  const queueFor = React.useCallback(
+    (hearing: TimelineHearing) =>
+      boardDay === todayKey && hearing.status === "upcoming"
+        ? queueOf(world, hearing.court, boardDay, hearing.item, now)
+        : null,
+    [world, boardDay, todayKey, now]
+  );
 
   // The advocate's hearings being called now, across every sitting — what the
   // Join picker lists.
@@ -498,6 +507,7 @@ function HomeBody({
               peopleOptionsOf={peopleOf}
               filterVariant={filterVariant}
               accessOf={accessFor}
+              queueOf={queueFor}
               onViewCauseList={onViewCauseList}
               onJoinCourt={onJoinCourt}
               onRefresh={() => void reload()}

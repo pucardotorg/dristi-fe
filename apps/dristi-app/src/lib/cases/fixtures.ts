@@ -74,7 +74,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     assignedAdvocate: "Adv. Farooq Ali",
     latestUpdate: "Scrutiny note recorded",
     stage: "scrutiny",
-    substage: "Defects marked — court fee and condonation of delay",
+    substage: "Defects marked, court fee and condonation of delay",
     longPending: false,
     bookmarked: false,
   },
@@ -94,7 +94,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     previousHearingOn: "2026-07-23",
     stage: "evidence",
     substage:
-      "Recall application pending — complainant seeks to produce the bank's dishonour memo and the ledger extract for the disputed period",
+      "Recall application pending, complainant seeks to produce the bank's dishonour memo and the ledger extract for the disputed period",
     longPending: false,
     bookmarked: false,
   },
@@ -106,7 +106,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     filedOn: "2023-02-14",
     updatedOn: "2026-07-30",
     assignedAdvocate: "Adv. Jacob Thomas",
-    latestUpdate: "Hearing adjourned — accused absent",
+    latestUpdate: "Hearing adjourned, accused absent",
     /* Rolled forward off 6 August: a live case cannot hold a next date that
        has already passed, and the past one put "Before the hearing on 6
        August 2026" above a task that was five days past due. Six weeks off
@@ -117,7 +117,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     },
     previousHearingOn: "2026-07-14",
     stage: "evidence",
-    substage: "Accused absent — non-bailable warrant issued",
+    substage: "Accused absent, non-bailable warrant issued",
     longPending: true,
     bookmarked: true,
   },
@@ -236,7 +236,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     },
     previousHearingOn: "2026-07-11",
     stage: "evidence",
-    substage: "Part-heard — witness summons returned unserved twice",
+    substage: "Part-heard, witness summons returned unserved twice",
     longPending: true,
     bookmarked: false,
   },
@@ -306,7 +306,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     },
     previousHearingOn: "2026-07-02",
     stage: "appearance",
-    substage: "Accused untraced — proclamation ordered",
+    substage: "Accused untraced, proclamation ordered",
     longPending: true,
     bookmarked: false,
   },
@@ -377,7 +377,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     filedOn: "2023-05-24",
     updatedOn: "2026-07-22",
     assignedAdvocate: "Adv. Priya Nambiar",
-    latestUpdate: "Hearing adjourned — accused absent",
+    latestUpdate: "Hearing adjourned, accused absent",
     nextHearing: {
       on: "2026-08-13",
       purpose: "Interim application",
@@ -394,9 +394,9 @@ const FIXTURE_ROWS: FixtureRow[] = [
     court: "JMFC-III, Panchkula",
     filedOn: "2026-07-28",
     updatedOn: "2026-07-21",
-    latestUpdate: "Scrutiny cleared — file placed for registration",
+    latestUpdate: "Scrutiny cleared, file placed for registration",
     stage: "scrutiny",
-    substage: "Cleared scrutiny — awaiting registration",
+    substage: "Cleared scrutiny, awaiting registration",
     longPending: false,
     bookmarked: false,
   },
@@ -448,7 +448,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     filedOn: "2026-01-23",
     updatedOn: "2026-07-16",
     assignedAdvocate: "Adv. Suresh Menon",
-    latestUpdate: "Hearing adjourned — accused absent",
+    latestUpdate: "Hearing adjourned, accused absent",
     nextHearing: {
       on: "2026-07-23",
       purpose: "Framing of charge",
@@ -466,7 +466,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     filedOn: "2022-11-04",
     updatedOn: "2026-07-15",
     assignedAdvocate: "Adv. Anitha George",
-    latestUpdate: "Arguments concluded — reserved",
+    latestUpdate: "Arguments concluded, reserved",
     nextHearing: {
       on: "2026-07-23",
       purpose: "Judgment",
@@ -539,7 +539,7 @@ const FIXTURE_ROWS: FixtureRow[] = [
     filedOn: "2026-07-31",
     updatedOn: "2026-07-09",
     assignedAdvocate: "Adv. Priya Nambiar",
-    latestUpdate: "Cognizance taken — summons to issue",
+    latestUpdate: "Cognizance taken, summons to issue",
     stage: "cognizance",
     longPending: false,
     bookmarked: false,
@@ -971,7 +971,7 @@ function tw(seed: TwSeed, index: number): CaseRecord {
     filedOn: seed.filedOn,
     updatedOn: "2026-08-25",
     latestUpdate: seed.substage
-      ? `Listed — ${seed.substage.toLowerCase()}`
+      ? `Listed for ${seed.substage.toLowerCase()}`
       : "Listed for the next posting",
     stage: seed.stage,
     substage: seed.substage,

@@ -988,6 +988,30 @@ export function causeListOn(
   return rows;
 }
 
+/** Where a scheduled matter stands in its court's queue today. */
+export type HearingQueue = {
+  /** Matters still waiting before it in the same court (not the one being heard). */
+  ahead: number;
+};
+
+/**
+ * How many matters are still to be called before this one in its court's
+ * cause list. Only matters waiting count; the one being heard now does not, so
+ * "0 ahead" reads as "next". Counted on the whole docket, not just the viewer's.
+ */
+export function queueOf(
+  world: World,
+  court: string,
+  dayKey: string,
+  item: number,
+  now: number = Date.now()
+): HearingQueue {
+  const docket = docketHearingsOn(world, court, dayKey, now);
+  return {
+    ahead: docket.filter((h) => h.status === "upcoming" && h.item < item).length,
+  };
+}
+
 /** Total listed matters on a day across every court — the greeting's number. */
 export function matterCountOn(
   world: World,

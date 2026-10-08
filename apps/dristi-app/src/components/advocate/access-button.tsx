@@ -54,10 +54,22 @@ export function VakalatnamaIcon(props: SVGProps<SVGSVGElement>) {
       </g>
       {/* A solid round seal with a thin tick cut out of it: large enough that the
           tick reads at 16px. */}
-      <circle cx="17" cy="17" r="6.8" fill="var(--color-success)" stroke="none" mask={`url(#${id}-seal)`} />
+      {/* System blue, the access chip's colour (owner, Oct 8; was green). */}
+      <circle cx="17" cy="17" r="6.8" fill="var(--color-info-ink)" stroke="none" mask={`url(#${id}-seal)`} />
     </svg>
   );
 }
+
+/**
+ * The button reads as a tag, not an action (lead designer, Oct 8): a soft fill
+ * with a light hairline in its own tone. System blue when the viewer is on the Vakalatnama, so their own
+ * matters stand out down the list; grey when they reach it by office access
+ * only. Green stays the primary action colour, so it is not used here.
+ */
+const VAKALAT_CHIP =
+  "border-info-ink/20 bg-info-muted text-info-ink hover:bg-info-muted-hover hover:text-info-ink data-[state=open]:bg-info-muted-hover data-[state=open]:text-info-ink";
+const OFFICE_CHIP =
+  "border-hairline bg-surface-sunken text-muted-foreground hover:bg-accent-strong hover:text-foreground data-[state=open]:bg-accent-strong";
 
 /**
  * How the viewer reaches this matter, as one quiet icon button beside the
@@ -100,8 +112,10 @@ export function AccessButton({
               aria-label={name}
               onClick={(event) => event.stopPropagation()}
               className={cn(
-                "relative z-10 gap-2 text-muted-foreground hover:text-foreground data-[state=open]:bg-accent-strong data-[state=open]:text-foreground",
-                className
+                "relative z-10 gap-2",
+                className,
+                // Last, so the tone wins over a call site's outline colours.
+                access.office ? OFFICE_CHIP : VAKALAT_CHIP
               )}
             >
               <Icon aria-hidden="true" className={cn("size-4", iconClassName)} />
