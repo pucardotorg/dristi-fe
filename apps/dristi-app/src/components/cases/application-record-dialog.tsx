@@ -718,7 +718,7 @@ function LinkedRecord({
 }
 
 /** One skimmable group of facts; the wrapper's hairline parts it from the next. */
-function FactGroup({
+export function FactGroup({
   columns = 1,
   children,
 }: {
@@ -737,7 +737,7 @@ function FactGroup({
   );
 }
 
-function Fact({ label, children }: { label: ReactNode; children: ReactNode }) {
+export function Fact({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-caption font-medium text-muted-foreground">
@@ -750,7 +750,7 @@ function Fact({ label, children }: { label: ReactNode; children: ReactNode }) {
   );
 }
 
-function Muted({ children }: { children: ReactNode }) {
+export function Muted({ children }: { children: ReactNode }) {
   return (
     <span className="text-body-compact font-normal text-muted-foreground">
       {children}
