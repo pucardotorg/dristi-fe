@@ -96,18 +96,18 @@ export const APPLICATION_TYPES: {
   { id: "advancement-reschedule", label: "Advance (prepone)" },
   { id: "bail", label: "Bail" },
   { id: "certified-copy", label: "Certified copy" },
-  { id: "condonation-of-delay", label: "Condonation of delay" },
+  { id: "condonation-of-delay", label: "Delay condonation" },
   { id: "edit-litigant-details", label: "Edit litigant details" },
   { id: "poa-change", label: "PoA change" },
   { id: "postpone", label: "Postpone" },
   { id: "production-of-documents", label: "Production of documents" },
   { id: "reopen-evidence", label: "Reopen evidence" },
-  { id: "settlement", label: "Settlement" },
-  { id: "transfer", label: "Transfer" },
+  { id: "settlement", label: "Case settlement" },
+  { id: "transfer", label: "Case transfer" },
   { id: "warrant-by-hand", label: "Warrant by hand" },
   { id: "warrant-recall", label: "Warrant recall" },
-  { id: "withdrawal", label: "Withdrawal" },
-  { id: "application-others", label: "Others" },
+  { id: "withdrawal", label: "Case withdrawal" },
+  { id: "application-others", label: "Generic" },
   { id: "objection", label: "Objection" },
 ];
 
@@ -257,7 +257,7 @@ export function othersTitle(
 ): string | null {
   if (submission.type !== "application-others") return null;
   const title = submission.title.trim();
-  if (!title || title.toLowerCase() === "others") return null;
+  if (!title || ["others", "generic"].includes(title.toLowerCase())) return null;
   return title;
 }
 

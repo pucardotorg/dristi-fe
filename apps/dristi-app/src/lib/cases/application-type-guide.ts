@@ -189,7 +189,7 @@ const GUIDES: ApplicationTypeGuide[] = [
   },
   {
     id: "condonation-of-delay",
-    label: "Condonation of delay",
+    label: "Delay condonation",
     // "Sufficient cause" is the standard the court actually applies to a delay
     // beyond the limitation period, and the form asks for exactly that reason.
     description:
@@ -249,7 +249,7 @@ const GUIDES: ApplicationTypeGuide[] = [
   },
   {
     id: "settlement",
-    label: "Settlement",
+    label: "Case settlement",
     // The offence is compoundable at any stage, so the parties may settle and
     // close the case. The form places the settlement on record; the compounding
     // is the court's, which is why the line says "can be". It is the offence
@@ -273,7 +273,7 @@ const GUIDES: ApplicationTypeGuide[] = [
   },
   {
     id: "transfer",
-    label: "Transfer",
+    label: "Case transfer",
     description:
       "Ask for the case to be moved to a different court, with your grounds.",
     icon: LandmarkIcon,
@@ -320,7 +320,7 @@ const GUIDES: ApplicationTypeGuide[] = [
   },
   {
     id: "withdrawal",
-    label: "Withdrawal",
+    label: "Case withdrawal",
     /* The PRD's "Case withdrawal": the complaint itself, which is what the
        generated document and the order template already said. */
     description: "Ask to withdraw the complaint, with your reason.",
@@ -336,7 +336,7 @@ const GUIDES: ApplicationTypeGuide[] = [
   },
   {
     id: "application-others",
-    label: "Others",
+    label: "Generic",
     // Never "the types above": this same line is read on the second step, where
     // there is no grid, and aloud from the card's aria-label.
     description:

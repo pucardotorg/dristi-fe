@@ -181,7 +181,7 @@ export const APPLICATION_TYPE_OPTIONS: { value: string; label: string }[] = [
     )
     .map((item) => ({ value: item.id as string, label: item.label }))
     .sort((a, b) => a.label.localeCompare(b.label)),
-  { value: OTHERS, label: "Others" },
+  { value: OTHERS, label: "Generic" },
 ];
 
 export type ApplicationPerson = { id: string; name: string; role: string };

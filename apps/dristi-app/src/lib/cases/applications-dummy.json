@@ -51,7 +51,7 @@
     {
       "id": "sub-1001-exemption",
       "kind": "Application",
-      "type": "Others",
+      "type": "Generic",
       "title": "Exemption from personal appearance",
       "status": "Accepted",
       "addedOn": "2026-07-29",
@@ -102,7 +102,7 @@
     {
       "id": "sub-1001-clerk-draft",
       "kind": "Application",
-      "type": "Others",
+      "type": "Generic",
       "title": "Exemption from personal appearance on 19 August",
       "status": "Draft",
       "addedOn": "2026-08-11",
@@ -210,7 +210,7 @@
     {
       "id": "sub-1001-draft",
       "kind": "Application",
-      "type": "Others",
+      "type": "Generic",
       "title": "Application for adding witnesses",
       "status": "Pending review",
       "addedOn": "2026-08-10",
@@ -276,8 +276,8 @@
     {
       "id": "sub-1001-withdrawal",
       "kind": "Application",
-      "type": "Withdrawal",
-      "title": "Withdrawal",
+      "type": "Case withdrawal",
+      "title": "Case withdrawal",
       "status": "Dismissed",
       "addedOn": "2026-07-15",
       "decisionOn": "2026-07-17",
@@ -430,8 +430,8 @@
     {
       "id": "sub-1001-settlement-draft",
       "kind": "Application",
-      "type": "Settlement",
-      "title": "Settlement",
+      "type": "Case settlement",
+      "title": "Case settlement",
       "status": "Draft",
       "addedOn": "2026-08-05",
       "submittedById": "ADV-A-001",
@@ -493,7 +493,7 @@
     {
       "id": "sub-1001-accused-video",
       "kind": "Application",
-      "type": "Others",
+      "type": "Generic",
       "title": "Cross-examination of PW-1 over video link",
       "status": "Pending decision",
       "addedOn": "2026-08-09",
@@ -517,7 +517,7 @@
     {
       "id": "sub-1001-accused-review",
       "kind": "Application",
-      "type": "Others",
+      "type": "Generic",
       "title": "Exemption from appearance of the accused",
       "status": "Pending review",
       "addedOn": "2026-08-10",
@@ -537,7 +537,7 @@
     {
       "id": "sub-1001-accused-dismissed",
       "kind": "Application",
-      "type": "Others",
+      "type": "Generic",
       "title": "Return of the seized cheque book",
       "status": "Dismissed",
       "addedOn": "2026-07-20",
@@ -666,8 +666,8 @@
       {
         "id": "sub-1005-condonation",
         "kind": "Application",
-        "type": "Condonation of delay",
-        "title": "Condonation of delay",
+        "type": "Delay condonation",
+        "title": "Delay condonation",
         "status": "Accepted",
         "addedOn": "2023-02-14",
         "decisionOn": "2023-03-02",
@@ -861,8 +861,8 @@
       {
         "id": "sub-tw1102-condonation",
         "kind": "Application",
-        "type": "Condonation of delay",
-        "title": "Condonation of delay",
+        "type": "Delay condonation",
+        "title": "Delay condonation",
         "status": "Accepted",
         "addedOn": "2026-03-18",
         "decisionOn": "2026-04-06",
@@ -909,7 +909,7 @@
       {
         "id": "sub-lt-2201-draft",
         "kind": "Application",
-        "type": "Others",
+        "type": "Generic",
         "title": "Exemption from personal appearance on 20 August",
         "status": "Draft",
         "addedOn": "2026-08-11",
@@ -967,7 +967,7 @@
       {
         "id": "sub-lt-2201-review",
         "kind": "Application",
-        "type": "Others",
+        "type": "Generic",
         "title": "Permission to file the notice's delivery receipt",
         "status": "Pending review",
         "addedOn": "2026-08-10",
@@ -1010,7 +1010,7 @@
       {
         "id": "sub-lt-2201-accused-transfer",
         "kind": "Application",
-        "type": "Transfer",
+        "type": "Case transfer",
         "title": "Transfer to JMFC-I, Kollam",
         "status": "Pending decision",
         "addedOn": "2026-08-06",
@@ -1034,7 +1034,7 @@
       {
         "id": "sub-lt-2201-accused-review",
         "kind": "Application",
-        "type": "Others",
+        "type": "Generic",
         "title": "Exemption from appearance of the accused",
         "status": "Pending review",
         "addedOn": "2026-08-10",
@@ -1077,7 +1077,7 @@
       {
         "id": "sub-lt-2202-draft",
         "kind": "Application",
-        "type": "Others",
+        "type": "Generic",
         "title": "Exemption from personal appearance",
         "status": "Draft",
         "addedOn": "2026-08-11",
@@ -1138,7 +1138,7 @@
       {
         "id": "sub-lt-2202-complainant-witness",
         "kind": "Application",
-        "type": "Others",
+        "type": "Generic",
         "title": "Addition of the firm's accountant as a witness",
         "status": "Pending decision",
         "addedOn": "2026-08-05",
@@ -1162,8 +1162,8 @@
       {
         "id": "sub-lt-2202-complainant-review",
         "kind": "Application",
-        "type": "Condonation of delay",
-        "title": "Condonation of delay",
+        "type": "Delay condonation",
+        "title": "Delay condonation",
         "status": "Pending review",
         "addedOn": "2026-08-10",
         "submittedById": "lt-2202-counsel-c-0",
@@ -1182,7 +1182,7 @@
       {
         "id": "sub-lt-2202-rejected",
         "kind": "Application",
-        "type": "Others",
+        "type": "Generic",
         "title": "Return of the original cheque",
         "status": "Rejected",
         "addedOn": "2026-07-12",
@@ -1230,7 +1230,7 @@
       {
         "id": "sub-lt-2203-sign",
         "kind": "Application",
-        "type": "Others",
+        "type": "Generic",
         "title": "Substituted service on the accused",
         "status": "Pending signature",
         "addedOn": "2026-08-09",
@@ -1250,8 +1250,8 @@
       {
         "id": "sub-lt-2203-accepted",
         "kind": "Application",
-        "type": "Condonation of delay",
-        "title": "Condonation of delay",
+        "type": "Delay condonation",
+        "title": "Delay condonation",
         "status": "Accepted",
         "addedOn": "2026-06-03",
         "submittedById": "lt-2203-counsel-c-0",
@@ -1274,7 +1274,7 @@
       {
         "id": "sub-lt-2203-dismissed",
         "kind": "Application",
-        "type": "Others",
+        "type": "Generic",
         "title": "Early listing of the complaint",
         "status": "Dismissed",
         "addedOn": "2026-06-20",

@@ -105,7 +105,7 @@ export function ApplicationTypePicker({
         <>
           {typed ? (
             <p className="text-body-compact text-muted-foreground">
-              Nothing matched that. Pick a type below. Others takes anything the
+              Nothing matched that. Pick a type below. Generic takes anything the
               rest do not cover.
             </p>
           ) : null}
