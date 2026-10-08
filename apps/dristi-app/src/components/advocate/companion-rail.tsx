@@ -45,7 +45,7 @@ import {
   type RailGroup,
 } from "@/lib/advocate/home";
 import { dueCueOf } from "@/lib/tasks/format";
-import { summaryOf, type World } from "@/lib/tasks/selectors";
+import { caseOf, summaryOf, type World } from "@/lib/tasks/selectors";
 import type { Task, TaskKind } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import "./mobile-hearing.css";
@@ -281,6 +281,13 @@ function WhenBlock({
   );
 }
 
+/** The case's number as the hearing card shows it: the CNR, else the ST. */
+function caseNumberOf(world: World, task: Task | undefined): string | undefined {
+  if (!task) return undefined;
+  const found = caseOf(world, task);
+  return found?.cnr || found?.stNumber || undefined;
+}
+
 function groupLabel(locale: Locale, group: TaskPanelGroup): string {
   if (group.key === "related") return pick({ en: "Other tasks for this case", ml: "ഈ കേസിന്റെ മറ്റ് ജോലികൾ" }, locale);
   if (group.key === "hearing") return pick({ en: "For this case", ml: "ഈ കേസിന്" }, locale);
@@ -333,10 +340,13 @@ function PanelHeader({
  */
 function BucketTrigger({
   label,
+  sub,
   count,
   lead,
 }: {
   label: string;
+  /** A quieter line under the label: the case "For this case" means. */
+  sub?: string;
   count: number;
   /** The nearest bucket, whose header carries the warning ink. */
   lead?: boolean;
@@ -350,22 +360,32 @@ function BucketTrigger({
           : "border-hairline bg-surface-sunken hover:bg-accent-strong"
       )}
     >
-      <span
-        className={cn(
-          /* Sentence case, as every heading in the product (owner, Oct 8). */
-          "text-caption font-semibold",
-          lead ? "text-warning-ink" : "text-muted-foreground"
-        )}
-      >
-        {label}
-      </span>
-      <span
-        className={cn(
-          "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-caption font-semibold tabular-nums",
-          lead ? "bg-warning-muted text-warning-ink" : "bg-accent-strong text-muted-foreground"
-        )}
-      >
-        {count}
+      <span className={cn("flex min-w-0 flex-col items-start", sub && "py-2")}>
+        <span className="flex items-center gap-2">
+          <span
+            className={cn(
+              /* Sentence case, as every heading in the product (owner, Oct 8). */
+              "text-caption font-semibold",
+              lead ? "text-warning-ink" : "text-muted-foreground"
+            )}
+          >
+            {label}
+          </span>
+          <span
+            className={cn(
+              "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-caption font-semibold tabular-nums",
+              lead ? "bg-warning-muted text-warning-ink" : "bg-accent-strong text-muted-foreground"
+            )}
+          >
+            {count}
+          </span>
+        </span>
+        {/* Which case "this case" is, at a note's weight (owner, Oct 8). */}
+        {sub ? (
+          <span className="truncate font-mono text-caption font-normal text-muted-foreground">
+            {sub}
+          </span>
+        ) : null}
       </span>
       <ChevronDown
         aria-hidden="true"
@@ -608,6 +628,7 @@ function TaskBucket({
     >
       <BucketTrigger
         label={groupLabel(locale, group)}
+        sub={group.key === "hearing" ? caseNumberOf(world, group.tasks[0]) : undefined}
         count={group.tasks.length}
         lead={group.key === "today"}
       />
