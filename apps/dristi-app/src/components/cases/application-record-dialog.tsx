@@ -513,11 +513,10 @@ function RecordBody({
           ) : null}
         </footer>
       ) : null}
+      {/* Only the step: the badge and the button say what it is, so no line
+          restates it (owner, Oct 8). */}
       {application.step ? (
-        <footer className="flex shrink-0 flex-col gap-3 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-body-compact text-muted-foreground">
-            {STEP_NOTE[application.step]}
-          </p>
+        <footer className="flex shrink-0 flex-col border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:justify-end">
           {application.step === "continue" && draftHref ? (
             <Button asChild className="w-full sm:w-auto">
               <Link href={draftHref}>Continue draft</Link>
@@ -603,12 +602,6 @@ export function composedApplication(
     signedBy: signed ? application.filedBy : undefined,
   };
 }
-
-const STEP_NOTE = {
-  continue: "A draft. Finish it, then sign and pay to file it.",
-  sign: "Read it through, then sign it. Edit it first if anything needs changing.",
-  pay: "Signed. Pay the court fee to submit it to the court.",
-} as const;
 
 /** An objection or a document has no application number; unfiled, no ID either. */
 function hasNumberFacts(application: ApplicationRecord): boolean {

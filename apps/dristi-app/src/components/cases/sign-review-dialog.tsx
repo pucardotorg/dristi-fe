@@ -154,7 +154,7 @@ function ReviewBody({
                       </span>
                       <span className="text-caption text-muted-foreground tabular-nums">
                         Created {item.createdShort}
-                        {item.draftedBy ? ` (drafted by ${item.draftedBy})` : null}
+                        {item.draftedBy ? ` · Drafted by ${item.draftedBy}` : null}
                       </span>
                     </span>
                   </button>
@@ -208,10 +208,9 @@ function ReviewBody({
         </div>
       </div>
 
-      <footer className="flex shrink-0 flex-col gap-3 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-body-compact text-muted-foreground">
-          One signature covers all {count}. Edit any application that needs changing first.
-        </p>
+      {/* Only the actions: "Sign all 3" already says one signature covers
+          them, and Edit says itself (owner, Oct 8: no restating copy). */}
+      <footer className="flex shrink-0 flex-col border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:justify-end">
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
           {editable ? (
             <Button

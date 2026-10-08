@@ -740,7 +740,7 @@ function groupExpiryText(applications: ApplicationRecord[]): string | null {
 /** Who raised it, when the list is not only the viewer's own filings. */
 function filedLine(application: ApplicationRecord): string {
   return application.draftedBy
-    ? `${application.filedBy} ${bracketed(`Drafted by ${application.draftedBy}`)}`
+    ? `${application.filedBy} · Drafted by ${application.draftedBy}`
     : application.filedBy;
 }
 
@@ -1173,7 +1173,7 @@ function ObjectionDue({ task }: { task: ObjectionTask }) {
       )}
     >
       {urgent ? <ClockIcon className="size-3.5 shrink-0" aria-hidden /> : null}
-      {task.canFile ? "Object" : "Due"} {when} (by {task.due})
+      {task.canFile ? "Object" : "Due"} {when}, by {task.due}
     </span>
   );
 }
@@ -1283,25 +1283,25 @@ function TouchObjectionCard({
  * waiting on. Nothing when the badge says it all.
  */
 function statusNote(item: ApplicationRecord): string | undefined {
-  if (item.waitingOn) return bracketed(item.waitingOn);
+  if (item.waitingOn) return sideNote(item.waitingOn);
   /* The other side's application the viewer may still object to: the date
      that matters to them is the objection's, not the decision's. */
   if (item.objectionInvite) {
-    return bracketed(`Object by ${item.objectionInvite.dueShort}`);
+    return `Object by ${item.objectionInvite.dueShort}`;
   }
   if (item.status === "pending-decision" && item.decisionShort) {
-    return bracketed(`Decision on ${item.decisionShort}`);
+    return `Decision on ${item.decisionShort}`;
   }
   return undefined;
 }
 
 /**
- * Every side note in this register reads the way the forms mark "(optional)":
- * in brackets, lower case at the front, muted (owner, Sept 24). "(temporary)",
- * "(drafted by Vinod Kumar)", "(waiting for Anjali Nair to sign)".
+ * Every side note in this register is a plain muted line, no brackets (owner,
+ * Oct 8; they were bracketed from Sept 24): "Temporary", "Drafted by Vinod
+ * Kumar", "Waiting for Anjali Nair to sign". Inline, a middot parts it.
  */
-function bracketed(note: string): string {
-  return `(${note.charAt(0).toLowerCase()}${note.slice(1)})`;
+function sideNote(note: string): string {
+  return `${note.charAt(0).toUpperCase()}${note.slice(1)}`;
 }
 
 /**
@@ -1311,7 +1311,7 @@ function bracketed(note: string): string {
 function objectionTarget(item: ApplicationRecord): string | null {
   if (!item.objectionTo) return null;
   const target = item.objectionTo.number ?? item.objectionTo.typeLabel;
-  return bracketed(`To ${target}`);
+  return `Objects to ${target}`;
 }
 
 /**
@@ -1358,15 +1358,15 @@ function ApplicationNumber({
   }
   if (item.temporaryId) {
     return awaitingNumber(item) ? (
-      /* "(temporary)" the way the forms write "(optional)": muted, lower
-         case. On its own line under the ID, never beside it (owner, Sept 24). */
+      /* Marked temporary on its own muted line under the ID, never beside
+         it (owner, Sept 24; brackets dropped Oct 8). */
       <span className="flex flex-col gap-0.5">
         <Identifier
           value={item.temporaryId}
           label="temporary ID"
           copyable={copyable}
         />
-        <span className="text-muted-foreground">(temporary)</span>
+        <span className="text-muted-foreground">Temporary</span>
       </span>
     ) : (
       <Identifier value={item.temporaryId} label="ID" copyable={copyable} />
@@ -1426,7 +1426,7 @@ function ApplicationsTable({
                     label="temporary ID"
                     copyable={false}
                   />
-                  {awaitingNumber(item) ? " (temporary)" : null}
+                  {awaitingNumber(item) ? " · Temporary" : null}
                 </>
               ) : objectionTarget(item) ? null : (
                 /* An objection never gets a court number; its line says what
@@ -1434,7 +1434,7 @@ function ApplicationsTable({
                 "Number not allotted yet"
               )}
               {objectionTarget(item)
-                ? `${item.temporaryId ? " " : ""}${objectionTarget(item)}`
+                ? `${item.temporaryId ? " · " : ""}${objectionTarget(item)}`
                 : null}
             </p>
             {note ? (
@@ -1447,12 +1447,12 @@ function ApplicationsTable({
                 {item.filedBy}
                 {item.fromOtherSide ? (
                   <span className="text-caption text-muted-foreground">
-                    {` ${bracketed(applicationSideLabel(item.side))}`}
+                    {` · ${applicationSideLabel(item.side)}`}
                   </span>
                 ) : null}
                 {item.draftedBy ? (
                   <span className="text-caption text-muted-foreground">
-                    {` ${bracketed(`Drafted by ${item.draftedBy}`)}`}
+                    {` · Drafted by ${item.draftedBy}`}
                   </span>
                 ) : null}
               </p>
@@ -1541,12 +1541,12 @@ function ApplicationsTable({
                     and the other side's drafts never reach them (owner, Sept 24). */}
                 {item.fromOtherSide ? (
                   <span className={noteClass()}>
-                    {bracketed(applicationSideLabel(item.side))}
+                    {applicationSideLabel(item.side)}
                   </span>
                 ) : null}
                 {item.draftedBy ? (
                   <span className={noteClass()}>
-                    {bracketed(`Drafted by ${item.draftedBy}`)}
+                    {`Drafted by ${item.draftedBy}`}
                   </span>
                 ) : null}
               </span>
