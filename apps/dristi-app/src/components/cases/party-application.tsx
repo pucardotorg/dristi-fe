@@ -290,6 +290,7 @@ export function PartySignatureDialog({
   confirmation,
   submitLabel = "Submit application",
   chooseTitle = "How is this application signed?",
+  noun = "application",
   proceed,
 }: {
   open: boolean;
@@ -302,6 +303,8 @@ export function PartySignatureDialog({
   submitLabel?: string;
   /** The first step's heading; callers signing several at once reword it. */
   chooseTitle?: string;
+  /** What is signed, for the step's note: "application" or "document". */
+  noun?: string;
   /**
    * A next step straight from the confirmation, beside a way to leave it for
    * later: the Applications register signs, then goes on to payment, as the
@@ -506,7 +509,7 @@ export function PartySignatureDialog({
                 {chooseTitle}
               </DialogTitle>
               <DialogDescription>
-                An unsigned application cannot be submitted to the court.
+                An unsigned {noun} cannot be submitted to the court.
               </DialogDescription>
             </DialogHeader>
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">

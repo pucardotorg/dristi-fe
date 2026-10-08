@@ -26,7 +26,10 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { ApplicationRecord } from "@/lib/cases/application-record";
+import {
+  filingNoun,
+  type ApplicationRecord,
+} from "@/lib/cases/application-record";
 import type { CaseRecord } from "@/lib/cases/types";
 import { cn } from "@/lib/utils";
 
@@ -106,10 +109,10 @@ function ReviewBody({
       <div className="flex shrink-0 items-center gap-2 border-b border-hairline py-3 pr-3 pl-6">
         <div className="min-w-0 flex-1">
           <DialogTitle className="text-body-compact font-semibold text-pretty sm:truncate">
-            Sign {count} applications
+            Sign {count} {filingNoun(applications)}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Read each application, then sign them together.
+            Read each one, then sign them together.
           </DialogDescription>
         </div>
         <DialogClose asChild>
@@ -125,7 +128,7 @@ function ReviewBody({
         <div className="flex min-h-0 flex-1 flex-col @3xl/review:flex-row">
           <div className="flex max-h-72 shrink-0 flex-col gap-1.5 overflow-y-auto border-b border-hairline p-4 @3xl/review:max-h-none @3xl/review:w-80 @3xl/review:border-r @3xl/review:border-b-0">
             <h3 className="text-caption font-medium text-muted-foreground">
-              Applications
+              {filingNoun(applications) === "documents" ? "Documents" : "Applications"}
             </h3>
             <ul className="-mx-2 flex flex-col gap-0.5">
               {applications.map((item) => (

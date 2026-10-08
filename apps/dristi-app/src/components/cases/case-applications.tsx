@@ -70,6 +70,7 @@ import {
   type ApplicationMove,
   type ApplicationRecord,
   type ObjectionTask,
+  filingNoun,
 } from "@/lib/cases/application-record";
 import { resolveApplicationViewer } from "@/lib/cases/application-access";
 import {
@@ -116,42 +117,7 @@ import { SignReviewDialog } from "@/components/cases/sign-review-dialog";
  * side's applications appear only once the court has onboarded them.
  */
 export function CaseApplications({ record }: { record: CaseRecord }) {
-  const { profileRole, accountName } = useProfile();
-  /* Signing and paying move a filing on for this visit (demo-session.ts):
-     it holds across tabs and pages, and a refresh restores every scenario. */
-  const movesRaw = useSessionValue(movesKey(record.id));
-  const moves = useMemo(() => parseMoves(movesRaw), [movesRaw]);
-  const viewer = useMemo(() => {
-    try {
-      return resolveApplicationViewer({
-        file: applicationsFile(record),
-        profile: profileRole,
-        accountName,
-        isSignedInAdvocate: isViewer,
-        fallbackSide: viewerRepresentation(record)[0] ?? "complainant",
-      });
-    } catch {
-      return null;
-    }
-  }, [record, profileRole, accountName]);
-  /* What the Raise application form filed during this visit. */
-  const savedRaw = useSessionValue(savedDraftsKey(record.id));
-  const saved = useMemo(
-    () => parseSavedDrafts(savedRaw).map(savedDraftSubmission),
-    [savedRaw]
-  );
-  const register = useMemo(() => {
-    try {
-      return applicationsRegister(record, {
-        viewer,
-        today: FIXTURE_TODAY,
-        moves,
-        saved,
-      });
-    } catch {
-      return null;
-    }
-  }, [record, viewer, moves, saved]);
+  const { viewer, register } = useFilingsRegister(record);
   const [types, setTypes] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [filers, setFilers] = useState<string[]>([]);
@@ -175,9 +141,6 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
   const [signing, setSigning] = useState<ApplicationRecord[]>([]);
-  /* How many are being signed, kept past the close: the dialog's wording
-     otherwise flips to "Application signed" as it animates out. */
-  const [signCount, setSignCount] = useState(0);
   const [paying, setPaying] = useState<ApplicationRecord[]>([]);
   /* Several to sign: read them all before one signature covers them. */
   const [reviewing, setReviewing] = useState<ApplicationRecord[]>([]);
@@ -248,18 +211,6 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
     viewer.role === "pip" ||
     viewer.role === "clerk";
 
-  function move(ids: string[], next: (item: ApplicationRecord) => ApplicationMove) {
-    /* Read fresh, not from this render: signing then paying writes twice
-       before the list re-renders. */
-    const key = movesKey(record.id);
-    const updated = new Map(parseMoves(readSessionValue(key)));
-    for (const id of ids) {
-      const item = register?.applications.find((entry) => entry.id === id);
-      if (item) updated.set(id, next(item));
-    }
-    writeSessionValue(key, JSON.stringify([...updated]));
-  }
-
   /** The step a filing is waiting on: a draft resumes in its form, the rest
    *  open their dialog. Signing starts from what is signed (owner, Oct 8):
    *  one application opens its record, several open Sign all's review. */
@@ -278,7 +229,6 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   /** Read, so on to the signature. One application signs as many do. */
   function sign(applications: ApplicationRecord[]) {
     setSigning(applications);
-    setSignCount(applications.length);
   }
 
   /** Back into its form, filled in, over this tab; finishing it signs it. */
@@ -437,55 +387,14 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           edit(application);
         }}
       />
-      {/* The same signing flow as Add witness and Add power of attorney; one
-          signature covers every application in the batch. */}
-      <PartySignatureDialog
-        open={signing.length > 0}
-        onClose={() => setSigning([])}
-        onComplete={() => {
-          move(
-            signing.map((item) => item.id),
-            () => ({ status: "pending-payment" })
-          );
-          setSigning([]);
-        }}
-        chooseTitle={
-          signCount > 1
-            ? `How are these ${signCount} applications signed?`
-            : undefined
-        }
-        submitLabel="Submit signed copy"
-        /* Signed goes on to the fee, as it does from the Raise application
-           form; only an advocate or party in person signs, and both may pay
-           (owner, Sept 24: signing stopped short of payment here). */
-        proceed={{
-          label: "Proceed to payment",
-          laterLabel: "Pay later",
-          onClick: () => {
-            const signed = signing;
-            move(
-              signed.map((item) => item.id),
-              () => ({ status: "pending-payment" })
-            );
-            setSigning([]);
-            setPaying(signed);
-          },
-        }}
-        confirmation={
-          signCount > 1
-            ? {
-                title: `${signCount} applications signed`,
-                description: "Pay the court fee to submit them to the court.",
-              }
-            : {
-                title: "Application signed",
-                description: "Pay the court fee to submit it to the court.",
-              }
-        }
+      <SignAndPayDialogs
+        caseId={record.id}
+        items={register.applications}
+        signing={signing}
+        onSigningChange={setSigning}
+        paying={paying}
+        onPayingChange={setPaying}
       />
-      {/* Paid means submitted (ALC-01): the court has it, and the court's
-          Review application task starts. An objection ends at Submitted
-          instead: it is read with the application it objects to. */}
       {formFor ? (
         <RaiseApplicationForm
           key={formFor.key}
@@ -495,10 +404,148 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           inPlace={{ onClose: () => setFormFor(null) }}
         />
       ) : null}
+    </ApplicationsPanel>
+  );
+}
+
+/**
+ * Everything this viewer may see filed on the case, with this visit's steps
+ * applied: the applications for this tab, the memos and affidavits for
+ * Documents. One source, so a step taken on either tab shows on both.
+ */
+export function useFilingsRegister(record: CaseRecord) {
+  const { profileRole, accountName } = useProfile();
+  /* Signing and paying move a filing on for this visit (demo-session.ts):
+     it holds across tabs and pages, and a refresh restores every scenario. */
+  const movesRaw = useSessionValue(movesKey(record.id));
+  const moves = useMemo(() => parseMoves(movesRaw), [movesRaw]);
+  const viewer = useMemo(() => {
+    try {
+      return resolveApplicationViewer({
+        file: applicationsFile(record),
+        profile: profileRole,
+        accountName,
+        isSignedInAdvocate: isViewer,
+        fallbackSide: viewerRepresentation(record)[0] ?? "complainant",
+      });
+    } catch {
+      return null;
+    }
+  }, [record, profileRole, accountName]);
+  /* What the Raise application form filed during this visit. */
+  const savedRaw = useSessionValue(savedDraftsKey(record.id));
+  const saved = useMemo(
+    () => parseSavedDrafts(savedRaw).map(savedDraftSubmission),
+    [savedRaw]
+  );
+  const register = useMemo(() => {
+    try {
+      return applicationsRegister(record, {
+        viewer,
+        today: FIXTURE_TODAY,
+        moves,
+        saved,
+      });
+    } catch {
+      return null;
+    }
+  }, [record, viewer, moves, saved]);
+  return { viewer, register };
+}
+
+/**
+ * Signing and paying, shared by Applications and Documents: the same signing
+ * flow as Add witness and Add power of attorney, one signature for the whole
+ * batch, then the court fee. Each step moves the filing on for this visit.
+ * Paid means submitted (ALC-01): an application goes to the court's review;
+ * an objection, a memo or an affidavit ends at Submitted.
+ */
+export function SignAndPayDialogs({
+  caseId,
+  items,
+  signing,
+  onSigningChange,
+  paying,
+  onPayingChange,
+}: {
+  caseId: string;
+  /** The rows the batch is drawn from, to look each one up when it moves. */
+  items: ApplicationRecord[];
+  signing: ApplicationRecord[];
+  onSigningChange: (next: ApplicationRecord[]) => void;
+  paying: ApplicationRecord[];
+  onPayingChange: (next: ApplicationRecord[]) => void;
+}) {
+  /* What is being signed, kept past the close: the dialog's wording
+     otherwise flips to "Application signed" as it animates out. */
+  const [signed, setSigned] = useState<ApplicationRecord[]>(signing);
+  if (signing.length > 0 && signing !== signed) setSigned(signing);
+  const count = signed.length;
+  const noun = filingNoun(signed);
+
+  function move(ids: string[], next: (item: ApplicationRecord) => ApplicationMove) {
+    /* Read fresh, not from this render: signing then paying writes twice
+       before the list re-renders. */
+    const key = movesKey(caseId);
+    const updated = new Map(parseMoves(readSessionValue(key)));
+    for (const id of ids) {
+      const item = items.find((entry) => entry.id === id);
+      if (item) updated.set(id, next(item));
+    }
+    writeSessionValue(key, JSON.stringify([...updated]));
+  }
+
+  return (
+    <>
+      <PartySignatureDialog
+        open={signing.length > 0}
+        onClose={() => onSigningChange([])}
+        onComplete={() => {
+          move(
+            signing.map((item) => item.id),
+            () => ({ status: "pending-payment" })
+          );
+          onSigningChange([]);
+        }}
+        chooseTitle={
+          count > 1
+            ? `How are these ${count} ${noun} signed?`
+            : `How is this ${noun} signed?`
+        }
+        noun={filingNoun(signed, 1)}
+        submitLabel="Submit signed copy"
+        /* Signed goes on to the fee, as it does from the Raise application
+           form; only an advocate or party in person signs, and both may pay
+           (owner, Sept 24: signing stopped short of payment here). */
+        proceed={{
+          label: "Proceed to payment",
+          laterLabel: "Pay later",
+          onClick: () => {
+            const batch = signing;
+            move(
+              batch.map((item) => item.id),
+              () => ({ status: "pending-payment" })
+            );
+            onSigningChange([]);
+            onPayingChange(batch);
+          },
+        }}
+        confirmation={
+          count > 1
+            ? {
+                title: `${count} ${noun} signed`,
+                description: "Pay the court fee to submit them to the court.",
+              }
+            : {
+                title: `${noun.charAt(0).toUpperCase()}${noun.slice(1)} signed`,
+                description: "Pay the court fee to submit it to the court.",
+              }
+        }
+      />
       <ApplicationPaymentDialog
         applications={paying}
         onOpenChange={(open) => {
-          if (!open) setPaying([]);
+          if (!open) onPayingChange([]);
         }}
         onPaid={(ids) =>
           move(ids, (item) => ({
@@ -507,7 +554,7 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           }))
         }
       />
-    </ApplicationsPanel>
+    </>
   );
 }
 
@@ -563,17 +610,18 @@ function ApplicationsPanel({
  * plain rows: the same surfaces as the rest of the page, so it reads as a
  * short to-do list rather than a warning. The only colour is the status badge.
  */
-function NeedsAction({
+export function NeedsAction({
   caseId,
   entries,
   onAct,
-  onObject,
+  onObject = () => {},
   onOpen,
 }: {
   caseId: string;
   entries: ActionEntry[];
   onAct: (applications: ApplicationRecord[]) => void;
-  onObject: (applicationId: string) => void;
+  /** Only Applications has File objection tasks. */
+  onObject?: (applicationId: string) => void;
   onOpen: (id: string) => void;
 }) {
   const count = entries.reduce(
@@ -834,9 +882,10 @@ function groupTitle(
   entry: Extract<ActionEntry, { kind: "group" }>
 ): string {
   const count = entry.applications.length;
+  const noun = filingNoun(entry.applications);
   return entry.step === "sign"
-    ? `${count} applications need a signature`
-    : `${count} applications need payment`;
+    ? `${count} ${noun} need a signature`
+    : `${count} ${noun} need payment`;
 }
 
 /**

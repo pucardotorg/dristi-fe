@@ -195,8 +195,26 @@ export type ObjectionTask = {
   canFile: boolean;
 };
 
+/**
+ * What a batch of filings is called in copy: "documents" when every one is a
+ * memo or affidavit, else "applications". Read off the rows, so a screen
+ * shared by both tabs never needs telling.
+ */
+export function filingNoun(
+  items: Pick<ApplicationRecord, "source">[],
+  count = items.length
+): string {
+  const documents =
+    items.length > 0 && items.every((item) => item.source.kind === "document");
+  const noun = documents ? "document" : "application";
+  return count === 1 ? noun : `${noun}s`;
+}
+
 export type ApplicationsRegister = {
   applications: ApplicationRecord[];
+  /** Memos and affidavits: uploads, not applications, so they live under
+   *  Documents with their sign and pay steps (PM, Oct 8). Same records. */
+  documents: ApplicationRecord[];
   /** Everyone who raised a row this viewer can see, for the Filed by filter. */
   people: ApplicationPerson[];
   /** File objection tasks for the viewer's side, soonest first. */
@@ -233,10 +251,10 @@ export function parseMoves(
 }
 
 /**
- * Everything in this section is an application, one kind (§9). The prototype
- * pack still tags some filings as document submissions (affidavits, memos);
- * they are folded in as application types rather than dropped. Whether
- * those types belong here or only under Documents is open with product.
+ * Everything the case's filers have raised, as this viewer may see it. The
+ * pack also tags some filings as document submissions (affidavits, memos):
+ * those are uploads, not applications, and come back separately as
+ * `documents` for the Documents tab (PM, Oct 8; View Case CHG-28).
  *
  * Only what `viewer` may see is returned (ALC-17 and "Users and actions").
  * A null viewer (the account is nobody on this case) sees nothing.
@@ -266,7 +284,8 @@ export function applicationsRegister(
     ].map((original) => applyMove(original, options.moves?.get(original.id))),
   };
   const { viewer, today } = options;
-  if (!viewer) return { applications: [], people: [], objectionTasks: [] };
+  if (!viewer)
+    return { applications: [], documents: [], people: [], objectionTasks: [] };
 
   const byId = new Map(file.submissions.map((item) => [item.id, item]));
   const invitations = new Map(
@@ -278,14 +297,18 @@ export function applicationsRegister(
   const toRecord = (source: Submission): ApplicationRecord =>
     recordFor(source, file, viewer, byId, today, invitations.get(source.id));
 
-  const applications = file.submissions
+  const visible = file.submissions
     .filter((source) => canSeeApplication(viewer, source, file))
     .map(toRecord)
     .sort((a, b) =>
       (b.submittedOn ?? b.createdOn).localeCompare(a.submittedOn ?? a.createdOn)
     );
+  const applications = visible.filter(
+    (item) => item.source.kind === "application"
+  );
+  const documents = visible.filter((item) => item.source.kind === "document");
 
-  const seen = new Set(applications.map((item) => item.filedById));
+  const seen = new Set(visible.map((item) => item.filedById));
   const people = file.people
     .filter((person) => seen.has(person.id))
     .map((person) => ({
@@ -301,7 +324,7 @@ export function applicationsRegister(
     canFile,
   }));
 
-  return { applications, people, objectionTasks };
+  return { applications, documents, people, objectionTasks };
 }
 
 function applyMove(
@@ -378,7 +401,12 @@ function recordFor(
     type: flatType(source.type),
     typeLabel: submissionTypeLabel(source.type),
     title: source.title,
-    name: othersTitle(source) ?? submissionTypeLabel(source.type),
+    /* A memo or affidavit goes by its own title ("Memo of calculation of
+       cheque amount and interest"), not its bucket ("Memos"). */
+    name:
+      source.kind === "document" && source.title.trim()
+        ? source.title.trim()
+        : (othersTitle(source) ?? submissionTypeLabel(source.type)),
     ownTitle: othersTitle(source) ?? undefined,
     status: source.status,
     statusLabel: filingStatusLabel(source.status),

@@ -251,7 +251,7 @@ describe("temporary IDs allotted in the session", () => {
         ids.map((id) => [id, { status: "submitted" as const, submittedOn: FIXTURE_TODAY }])
       ),
     });
-    const allotted = register.applications
+    const allotted = [...register.applications, ...register.documents]
       .filter((item) => ids.includes(item.id))
       .map((item) => item.temporaryId);
     assert.equal(allotted.length, 2);
@@ -270,5 +270,22 @@ describe("who drafted it", () => {
       register.applications.find((item) => item.id === id);
     assert.equal(byId("sub-1001-clerk-draft")?.draftedBy, "Vinod Kumar");
     assert.equal(byId("sub-1001-summon-bank")?.draftedBy, undefined);
+  });
+});
+
+describe("memos and affidavits", () => {
+  it("are documents, not applications", () => {
+    const record = findCaseRecord("c-1001")!;
+    const register = applicationsRegister(record, {
+      viewer: viewerFor("c-1001", "advocate"),
+      today: FIXTURE_TODAY,
+    });
+    assert.ok(
+      register.applications.every((item) => item.source.kind === "application")
+    );
+    const memo = register.documents.find(
+      (item) => item.id === "sub-1001-memo-signature"
+    );
+    assert.equal(memo?.step, "sign");
   });
 });
