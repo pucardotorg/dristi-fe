@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/attachment";
 import { Button } from "@/components/ui/button";
 import { DocumentSlot } from "@/components/ui/document-slot";
+import type { Locale } from "@/lib/onboarding/content";
 import {
   DocumentPreviewDialog,
   DocumentThumbnailButton,
@@ -83,19 +84,25 @@ export function UploadedDocField({
   file,
   onFileChange,
   copy,
+  locale = "en",
 }: {
   label: string;
   required?: boolean;
   file: File | null;
   onFileChange: (file: File | null) => void;
-  /** Bilingual hosts (registration) pass their own strings; the case flows'
-      English defaults stand otherwise. */
+  /** Bilingual hosts (registration, bail) pass their own strings; the case
+      flows' English defaults stand otherwise. */
   copy?: {
     changeFile?: string;
     remove?: string;
     noFile?: string;
     chooseFile?: string;
+    optional?: string;
+    previewDescription?: string;
+    previewAlt?: string;
   };
+  /** The preview's language, for a host that speaks the viewer's. */
+  locale?: Locale;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [previewOpen, setPreviewOpen] = React.useState(false);
@@ -123,7 +130,7 @@ export function UploadedDocField({
             <DocumentThumbnailButton
               file={file}
               url={url}
-              locale="en"
+              locale={locale}
               onOpen={() => setPreviewOpen(true)}
               className="size-full rounded-md"
             />
@@ -164,8 +171,12 @@ export function UploadedDocField({
           required={required}
           onChooseFile={() => inputRef.current?.click()}
           copy={
-            copy?.noFile || copy?.chooseFile
-              ? { noFile: copy.noFile, chooseFile: copy.chooseFile }
+            copy?.noFile || copy?.chooseFile || copy?.optional
+              ? {
+                  noFile: copy.noFile,
+                  chooseFile: copy.chooseFile,
+                  optional: copy.optional,
+                }
               : undefined
           }
         />
@@ -175,11 +186,13 @@ export function UploadedDocField({
         onOpenChange={setPreviewOpen}
         file={file}
         url={url}
-        locale="en"
+        locale={locale}
         copy={{
           title: label,
-          description: "Check the document is readable before continuing.",
-          alt: label,
+          description:
+            copy?.previewDescription ??
+            "Check the document is readable before continuing.",
+          alt: copy?.previewAlt ?? label,
         }}
       />
     </>

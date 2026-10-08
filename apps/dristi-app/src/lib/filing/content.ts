@@ -200,6 +200,8 @@ export const bailDialog = {
   documentTypeError: t("Enter the document type.", "രേഖയുടെ തരം നൽകുക."),
   documentTitleError: t("Enter the document title.", "രേഖയുടെ പേര് നൽകുക."),
   documentFileError: t("Upload the document.", "രേഖ അപ്‌ലോഡ് ചെയ്യുക."),
+  changeFile: t("Change file", "ഫയൽ മാറ്റുക"),
+  removeFile: t("Remove", "നീക്കം ചെയ്യുക"),
 
   /* sureties */
   suretiesTitle: t("Surety details", "ജാമ്യക്കാരുടെ വിവരങ്ങൾ"),
