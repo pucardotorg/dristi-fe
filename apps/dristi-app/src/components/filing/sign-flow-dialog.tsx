@@ -53,6 +53,7 @@ import {
   StagedOverlay,
   useStagedFlow,
 } from "@/components/chrome/staged-overlay";
+import { ADVOCATE_OATH } from "@/lib/filing/config";
 import { getRepository, storeUpload } from "@/lib/filing/data";
 import { forgetFile, formatBytes } from "@/lib/filing/files";
 import { useProfile } from "@/lib/filing/profile";
@@ -222,8 +223,8 @@ function SignFlowBody({
    * complainant; one oath covers every slot they sign in, as one signature does.
    */
   const yourAdvocateSlots = advocates.filter((s) => s.you);
-  const oathYours = yourAdvocateSlots.length > 0;
-  const oathOwed = yourAdvocateSlots.some((s) => !s.oathTaken);
+  const oathYours = ADVOCATE_OATH && yourAdvocateSlots.length > 0;
+  const oathOwed = oathYours && yourAdvocateSlots.some((s) => !s.oathTaken);
   const yourOath: OathVideoUpload | null =
     yourAdvocateSlots.map((s) => sign.oaths[s.id]?.video).find(Boolean) ?? null;
   const onPaperPath = start === "paper" || sign.mode === "upload";
@@ -696,7 +697,7 @@ function SignFlowBody({
                   ? "Your oath is next. The court fee opens once every signature and oath is in."
                   : outstanding === 0
                     ? "You can pay the court fee now."
-                    : `It waits in your pending tasks until every signature${advocates.length > 0 ? " and oath" : ""} is in.`
+                    : `It waits in your pending tasks until every signature${advocates.length > 0 ? (ADVOCATE_OATH ? " and oath" : "") : ""} is in.`
               }
             />
           </StageColumn>
@@ -733,7 +734,9 @@ function SignFlowBody({
                   ? "Your oath is next. The court fee opens once every advocate has taken theirs."
                   : outstanding === 0
                     ? "You can pay the court fee now."
-                    : "The court fee opens once every advocate has taken their oath."
+                    : ADVOCATE_OATH
+                      ? "The court fee opens once every advocate has taken their oath."
+                      : "The court fee opens once every signature is in."
               }
             />
           </StageColumn>
@@ -750,7 +753,7 @@ function SignFlowBody({
               footnote={
                 outstanding === 0
                   ? "You can pay the court fee now."
-                  : `It waits in your pending tasks until every signature${advocates.length > 0 ? " and oath" : ""} is in.`
+                  : `It waits in your pending tasks until every signature${advocates.length > 0 ? (ADVOCATE_OATH ? " and oath" : "") : ""} is in.`
               }
             />
           </StageColumn>

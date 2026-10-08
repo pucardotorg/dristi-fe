@@ -1,5 +1,6 @@
 /** Derived reads over the draft — pure functions so screens and the shell agree. */
 
+import { ADVOCATE_OATH } from "./config";
 import { addDays, addressToString, daysBetween, todayIso } from "./format";
 import {
   CHANNEL_FEE,
@@ -220,7 +221,9 @@ function sameMobile(a: string, b: string): boolean {
  */
 export function signatories(
   draft: FilingDraft,
-  profile: UserProfile | null
+  profile: UserProfile | null,
+  /** Whether advocates take the oath — the deployment's switch unless a test says otherwise. */
+  oath: boolean = ADVOCATE_OATH
 ): { complainants: Signatory[]; advocates: Signatory[] } {
   const signedOf = (id: string): Signatory["status"] =>
     draft.sign.signed[id] ? "signed" : "pending";
@@ -273,7 +276,8 @@ export function signatories(
         status: signedOf(`sig-a-${c.id}`),
         signedWith: signedWith(`sig-a-${c.id}`),
         you,
-        oathTaken: !!draft.sign.oaths?.[`sig-a-${c.id}`],
+        // No oath state at all while the oath is switched off: nothing waits on it.
+        oathTaken: oath ? !!draft.sign.oaths?.[`sig-a-${c.id}`] : undefined,
       },
     ];
   });
@@ -299,8 +303,12 @@ export function isOutstanding(s: Signatory): boolean {
  * reading, shared by the Sign step, the dashboard queues and batch payment, so none of
  * them can open the fee earlier than the others.
  */
-export function signingComplete(draft: FilingDraft, profile: UserProfile | null): boolean {
-  const { complainants, advocates } = signatories(draft, profile);
+export function signingComplete(
+  draft: FilingDraft,
+  profile: UserProfile | null,
+  oath: boolean = ADVOCATE_OATH
+): boolean {
+  const { complainants, advocates } = signatories(draft, profile, oath);
   const everyone = [...complainants, ...advocates];
   return everyone.length > 0 && !everyone.some(isOutstanding);
 }

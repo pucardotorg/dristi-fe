@@ -685,7 +685,7 @@ export function ComplainantSection() {
                   />
                 </FormField>
               </FormRow>
-              <HalfWidth>
+              <HalfWidth className="flex flex-col gap-3">
                 <FormField
                   label="CIN or PAN"
                   name="entCinPan"
@@ -705,31 +705,33 @@ export function ComplainantSection() {
                     disabled={!!c.entCinPanSkippedAt}
                   />
                 </FormField>
+                {/* Mandatory, but skippable by declaration (`LIT-18a`). The declaration is
+                    the skip — it is recorded on the filing, and it turns the field off.
+                    An option of the field, so it sits in the field's column, quietly. */}
+                <Label
+                  htmlFor={`${skipCinPanId}-${c.id}`}
+                  className="items-start gap-2 text-body-compact font-normal text-muted-foreground"
+                >
+                  <Checkbox
+                    id={`${skipCinPanId}-${c.id}`}
+                    checked={!!c.entCinPanSkippedAt}
+                    onCheckedChange={(checked) =>
+                      update((d) => {
+                        const target = d.complainants[active];
+                        target.entCinPanSkippedAt =
+                          checked === true ? new Date().toISOString() : null;
+                        if (checked === true) target.entCinPan = "";
+                      })
+                    }
+                    className="mt-0.5"
+                  />
+                  {/* Wraps to several lines — the Label's own leading-none would collide. */}
+                  <span className="leading-normal">
+                    Skip — I understand this case won&apos;t be linked to the
+                    complainant&apos;s other cases.
+                  </span>
+                </Label>
               </HalfWidth>
-              {/* Mandatory, but skippable by declaration (`LIT-18a`). The declaration is
-                  the skip — it is recorded on the filing, and it turns the field off. */}
-              <Label
-                htmlFor={`${skipCinPanId}-${c.id}`}
-                className="items-start gap-3 rounded-lg border border-hairline bg-surface-sunken p-4 font-normal text-foreground"
-              >
-                <Checkbox
-                  id={`${skipCinPanId}-${c.id}`}
-                  checked={!!c.entCinPanSkippedAt}
-                  onCheckedChange={(checked) =>
-                    update((d) => {
-                      const target = d.complainants[active];
-                      target.entCinPanSkippedAt =
-                        checked === true ? new Date().toISOString() : null;
-                      if (checked === true) target.entCinPan = "";
-                    })
-                  }
-                  className="mt-0.5"
-                />
-                <span className="leading-normal">
-                  Skip the CIN or PAN. I understand that without it, this case will not be
-                  linked to the complainant&apos;s other cases.
-                </span>
-              </Label>
             </FormCard>
 
             {/* Registered address */}

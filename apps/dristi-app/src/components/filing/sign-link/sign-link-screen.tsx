@@ -40,6 +40,7 @@ import {
 import { useStagedFlow, StagedOverlay } from "@/components/chrome/staged-overlay";
 import { BrandLockup } from "@/components/brand-lockup";
 import { SignInBlock } from "@/components/sign-in-block";
+import { ADVOCATE_OATH } from "@/lib/filing/config";
 import { money } from "@/lib/filing/format";
 import { COURT } from "@/lib/filing/options";
 import { draftTitle, signatories } from "@/lib/filing/selectors";
@@ -145,10 +146,12 @@ function SignLinkBody({ draftId, signatoryId }: { draftId: string; signatoryId: 
   const [start, setStart] = React.useState<Start>("why");
   const [opening, setOpening] = React.useState(0);
 
-  const isAdvocate = me?.oathTaken !== undefined;
+  const isAdvocate = !!me?.id.startsWith("sig-a-");
+  /** An advocate who also takes the oath — only while the oath is switched on. */
+  const sworn = isAdvocate && ADVOCATE_OATH;
   const onPaper = draft.sign.mode === "upload";
   const needsSign = !!me && !onPaper && me.status !== "signed";
-  const needsOath = !!me && isAdvocate && !me.oathTaken;
+  const needsOath = !!me && sworn && !me.oathTaken;
   const owed = needsSign || needsOath;
   const filed = draft.status === "filed";
 
@@ -244,7 +247,7 @@ function SignLinkBody({ draftId, signatoryId }: { draftId: string; signatoryId: 
           </div>
         ) : (
           <SectionNotice variant="success" announce="polite">
-            {isAdvocate
+            {sworn
               ? "You have signed and taken the oath. Nothing more is needed from you."
               : "You have signed. Nothing more is needed from you."}
           </SectionNotice>
@@ -334,6 +337,8 @@ function SignLinkWizard({
   onClose: () => void;
 }) {
   const flow = useStagedFlow<Stage>({ order: ORDER[start], scene: SCENES, arrival: "forward" });
+  /** An advocate who also takes the oath — only while the oath is switched on. */
+  const sworn = isAdvocate && ADVOCATE_OATH;
 
   const [otp, setOtp] = React.useState("");
   const [resent, setResent] = React.useState(false);
@@ -364,7 +369,7 @@ function SignLinkWizard({
   /* The steps this person has, in order — the trail and the "what happens next" list. */
   const acts: { key: "sign" | "oath"; label: string }[] = [
     ...(signsHere ? [{ key: "sign" as const, label: "E-sign" }] : []),
-    ...(isAdvocate ? [{ key: "oath" as const, label: "Oath" }] : []),
+    ...(sworn ? [{ key: "oath" as const, label: "Oath" }] : []),
   ];
   const trail = (current: "sign" | "oath"): TrailStep[] =>
     acts.map((act) => ({
@@ -407,7 +412,7 @@ function SignLinkWizard({
     dsc: "Sign with your DSC",
     signed: signedWith ? INSTRUMENT_LABEL[signedWith] : "Signature added",
     oath: "Take your oath",
-    done: isAdvocate ? "Signed and sworn" : "Signature added",
+    done: sworn ? "Signed and sworn" : "Signature added",
   }[flow.stage];
 
   const description = {
@@ -467,7 +472,7 @@ function SignLinkWizard({
         </Button>
       </>
     ),
-    signed: isAdvocate ? (
+    signed: sworn ? (
       <Button type="button" onClick={() => flow.go("oath")}>
         Continue to the oath
       </Button>
@@ -496,7 +501,7 @@ function SignLinkWizard({
   const settledRow: Signatory = {
     ...me,
     status: "signed",
-    oathTaken: isAdvocate ? !!oath || me.oathTaken : undefined,
+    oathTaken: sworn ? !!oath || me.oathTaken : undefined,
   };
 
   return (
@@ -515,7 +520,7 @@ function SignLinkWizard({
           <p className="text-body">
             {filer} is filing a cheque-bounce complaint under S-138, Negotiable Instruments
             Act, and has named you as {capacity}. It cannot be filed
-            until you have {isAdvocate ? "signed it and taken the oath" : "signed it"}.
+            until you have {sworn ? "signed it and taken the oath" : "signed it"}.
           </p>
 
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-lg border border-hairline bg-surface-sunken p-4 sm:grid-cols-2">
@@ -563,7 +568,7 @@ function SignLinkWizard({
                       text: "With an Aadhaar OTP or your DSC.",
                     }]
                   : []),
-                ...(isAdvocate && needsOath
+                ...(sworn && needsOath
                   ? [{
                       icon: VideoIcon,
                       title: "Take the oath",
@@ -597,7 +602,7 @@ function SignLinkWizard({
       ) : flow.stage === "account" ? (
         <StageColumn>
           <p className="text-body">
-            Your e-signature{isAdvocate ? " and oath are" : " is"} recorded against your
+            Your e-signature{sworn ? " and oath are" : " is"} recorded against your
             DRISTI account, so you need to be signed in.
           </p>
           <p className="text-body-compact text-muted-foreground">
@@ -636,7 +641,7 @@ function SignLinkWizard({
             headline={signedWith ? INSTRUMENT_LABEL[signedWith] : "Signature added"}
             rows={[{ ...me, status: "signed" }]}
             footnote={
-              isAdvocate
+              sworn
                 ? "Your oath is next."
                 : "Nothing more is needed from you."
             }
@@ -650,7 +655,7 @@ function SignLinkWizard({
       ) : (
         <StageColumn>
           <SettledCard
-            headline={isAdvocate ? "Signed and sworn" : "Signature added"}
+            headline={sworn ? "Signed and sworn" : "Signature added"}
             rows={[settledRow]}
             footnote="Nothing more is needed from you."
           />
