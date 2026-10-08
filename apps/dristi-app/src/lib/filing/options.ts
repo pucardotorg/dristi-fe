@@ -331,6 +331,13 @@ export type FeeLine = {
   amount: number;
   /** Charged once for every address process is served at. */
   perAddress?: boolean;
+  /**
+   * Charged once for every advocate on record, or every affidavit filed. Other states'
+   * schedules (`lib/court/fees.ts`) price lines this way; Kerala's do not.
+   */
+  per?: "advocate" | "affidavit";
+  /** Only charged when at least one advocate is on record. */
+  needsAdvocate?: boolean;
   note?: string;
 };
 

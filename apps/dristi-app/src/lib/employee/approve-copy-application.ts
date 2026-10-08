@@ -51,6 +51,8 @@ import {
   type CounselSide,
   type CourtCounsel,
 } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Which record on the file the copy is asked for.
@@ -1064,7 +1066,7 @@ export function filterCopyApplications(
   rows: CopyApplication[],
   filters: CopyApplicationFilters,
 ): CopyApplication[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   if (!query) return rows;
   return rows.filter((application) => {
     const haystack = [
@@ -1324,11 +1326,11 @@ export function downloadCopyApplicationDocument(
 ): void {
   const document = buildCopyApplicationDocument(application);
   const url = URL.createObjectURL(
-    new Blob([copyApplicationDocumentText(document)], { type: "text/plain" }),
+    new Blob([localizeForDownload(copyApplicationDocumentText(document))], { type: "text/plain" }),
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = copyApplicationDocumentFilename(application);
+  anchor.download = copyApplicationDocumentFilename(voicedForDownload(application));
   anchor.click();
   URL.revokeObjectURL(url);
 }

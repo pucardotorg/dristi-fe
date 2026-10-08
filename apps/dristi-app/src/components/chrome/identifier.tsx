@@ -4,6 +4,7 @@ import * as React from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { useCaseNumber } from "@/components/court/court-provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -82,7 +83,7 @@ function useClipboard(): boolean {
 }
 
 export function Identifier({
-  value,
+  value: stored,
   label = "identifier",
   className,
   copyable = true,
@@ -97,6 +98,10 @@ export function Identifier({
 }) {
   const [copied, setCopied] = React.useState(false);
   const timer = React.useRef<number | null>(null);
+  /* Case numbers, CNRs and filing numbers are stored in Kerala's terms and shown in the
+     selected state's (`CourtSwitch`). This is where most of them pass, so this is
+     where they are re-numbered; what is copied is what is shown. */
+  const value = useCaseNumber()(stored);
 
   React.useEffect(
     () => () => {

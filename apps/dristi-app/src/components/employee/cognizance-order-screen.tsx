@@ -131,6 +131,8 @@ import {
   type ProcessVariables,
 } from "@/lib/employee/process-variables";
 import { cn } from "@/lib/utils";
+import { useCourt, useCourtText } from "@/components/court/court-provider";
+import { localizeDeep } from "@/lib/court/localize";
 
 /**
  * The order one cognizance act draws up — the PRD's composite, opened for the judge to
@@ -169,7 +171,10 @@ export function CognizanceOrderScreen({
   act: CognizanceAct | null;
 }) {
   const arrival = useArrival();
-  const matter = cognizanceCaseById(caseId);
+  // The order is written from this record — its parties' names and places too — so it
+  // is read in the selected court's terms (`CourtSwitch`).
+  const { court } = useCourt();
+  const matter = localizeDeep(cognizanceCaseById(caseId), court);
 
   if (!matter) return <OrderMissing />;
 
@@ -195,6 +200,9 @@ function OrderBody({
   matter: CognizanceCase;
   act: CognizanceAct;
 }) {
+  // Order text is filled in the selected court's names and numbers (`CourtSwitch`).
+  const { court } = useCourt();
+  const courtText = useCourtText();
   const today = useCourtToday();
   const subject: OrderSubject = { kind: "cognizance", matter, act };
   const next = nextCognizanceCase(matter.id);
@@ -248,9 +256,9 @@ function OrderBody({
     cognizanceComposite(
       matter,
       act,
-      cognizanceTemplateFacts(matter, today, {
+      localizeDeep(cognizanceTemplateFacts(matter, today, {
         purpose: defaultNextPurposeLabel(act),
-      }),
+      }), court),
     ),
   );
 
@@ -280,12 +288,12 @@ function OrderBody({
     ? composedText(
         scheduling.template,
         matter,
-        cognizanceTemplateFacts(matter, today, {
+        localizeDeep(cognizanceTemplateFacts(matter, today, {
           date: nextDate ?? undefined,
           purpose: nextPurpose
             ? courtHearingPurposeLabel(nextPurpose)
             : undefined,
-        }),
+        }), court),
       )
     : null;
   const said = React.useRef(scheduling?.text ?? null);
@@ -302,10 +310,10 @@ function OrderBody({
     const sentence = composedText(
       scheduling.template,
       matter,
-      cognizanceTemplateFacts(matter, today, {
+      localizeDeep(cognizanceTemplateFacts(matter, today, {
         date: day ?? undefined,
         purpose: purpose ? courtHearingPurposeLabel(purpose) : undefined,
-      }),
+      }), court),
     );
     write(
       upsertRichTextSentence(body, sentence, [said.current ?? ""]),
@@ -346,10 +354,10 @@ function OrderBody({
     const text = composedText(
       id,
       matter,
-      cognizanceTemplateFacts(matter, today, {
+      localizeDeep(cognizanceTemplateFacts(matter, today, {
         date: nextDate ?? undefined,
         purpose: nextPurpose ? courtHearingPurposeLabel(nextPurpose) : undefined,
-      }),
+      }), court),
       variables,
     );
     setItems((current) => [
@@ -389,10 +397,10 @@ function OrderBody({
     const text = composedText(
       item.template,
       matter,
-      cognizanceTemplateFacts(matter, today, {
+      localizeDeep(cognizanceTemplateFacts(matter, today, {
         date: nextDate ?? undefined,
         purpose: nextPurpose ? courtHearingPurposeLabel(nextPurpose) : undefined,
-      }),
+      }), court),
       variables,
     );
     setItems((current) =>
@@ -612,7 +620,7 @@ function OrderBody({
           className="h-[85dvh] sm:max-w-4xl"
           title={signFlow.stage === "read" ? "Order" : "Add signature"}
           titleRef={signFlow.titleRef}
-          description={`${subjectCauseTitle(subject)} · ${matter.caseNumber}`}
+          description={`${subjectCauseTitle(subject)} · ${courtText(matter.caseNumber)}`}
           sceneKey={signFlow.sceneKey}
           motion={signFlow.motion}
           onCloseAutoFocus={(event) => {
@@ -665,7 +673,7 @@ function OrderBody({
           ) : (
             <SignatureStage
               noun="order"
-              subject={`You are adding your signature to the order in ${matter.caseNumber}.`}
+              subject={`You are adding your signature to the order in ${courtText(matter.caseNumber)}.`}
               warning="This records how the order is to be signed. Nothing is issued from this screen."
               choice={signature}
             />

@@ -33,6 +33,7 @@ import {
 import { type ApplicationDraft } from "@/lib/cases/application-draft";
 import { submissionTypeLabel } from "@/lib/cases/applications";
 import { formatCaseDate, type CaseRecord } from "@/lib/cases/types";
+import { useCourtLocalized } from "@/components/court/court-provider";
 
 /**
  * What Generate application produces, read before signing. The application
@@ -170,7 +171,7 @@ export function GeneratedApplicationDialog({
  * document to keep in step with the draft.
  */
 export function GeneratedApplicationDocument({
-  document,
+  document: storedDocument,
   generatedOn,
   signedBy,
 }: {
@@ -179,6 +180,7 @@ export function GeneratedApplicationDocument({
   /** Who signed it, once it is signed; the slot stays empty until then. */
   signedBy?: string;
 }) {
+  const document = useCourtLocalized(storedDocument);
   return (
     /*
       The `paper` family, not the app palette: this is a facsimile of a filed

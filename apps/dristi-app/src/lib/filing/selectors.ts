@@ -2,10 +2,9 @@
 
 import { ADVOCATE_OATH } from "./config";
 import { addDays, addressToString, daysBetween, todayIso } from "./format";
+import { KERALA_FEES, type FeeSchedule } from "@/lib/court/fees";
 import {
   CHANNEL_FEE,
-  CONDONATION_FEE,
-  COURT_FEE_LINES,
   defaultProcessRounds,
   DELIVERY_MIN_ROUNDS,
   PROCESS_OPTIONS,
@@ -605,28 +604,52 @@ function unitNote(rounds: number, addresses: number | null): string {
  * each accused's own selected addresses. Lines name the accused only when there is more
  * than one, so the ordinary single-accused bill does not repeat a name on every row.
  */
-export function feeBill(draft: FilingDraft): FeeBill {
+export function feeBill(
+  draft: FilingDraft,
+  schedule: FeeSchedule = KERALA_FEES
+): FeeBill {
   const delayed = isDelayed(draft);
+  const advocates = draft.advocates.filter(advocateNamed).length;
+  // One affidavit goes with every complaint (`draft.affidavit`).
+  const affidavits = 1;
 
-  const court: BilledLine[] = COURT_FEE_LINES.map((l) => ({
-    key: l.key,
-    label: l.label,
-    rate: l.amount,
-    units: 1,
-    // Charged once for the filing, so there is no multiplication to explain.
-    unitNote: "",
-    amount: l.amount,
-    note: l.note,
-  }));
-  if (delayed) {
+  const court: BilledLine[] = [];
+  for (const l of schedule.court) {
+    if (l.needsAdvocate && advocates === 0) continue;
+    const units =
+      l.per === "advocate" ? advocates : l.per === "affidavit" ? affidavits : 1;
+    if (units < 1) continue;
     court.push({
-      key: CONDONATION_FEE.key,
-      label: CONDONATION_FEE.label,
-      rate: CONDONATION_FEE.amount,
+      key: l.key,
+      label: l.label,
+      rate: l.amount,
+      units,
+      // Kerala's lines are charged once for the filing, so there is no multiplication to
+      // explain; other schedules price some lines per advocate or per affidavit.
+      unitNote:
+        l.per === "advocate"
+          ? units === 1
+            ? "1 advocate"
+            : `${units} advocates`
+          : l.per === "affidavit"
+            ? units === 1
+              ? "1 affidavit"
+              : `${units} affidavits`
+            : "",
+      amount: l.amount * units,
+      note: l.note,
+    });
+  }
+  if (delayed) {
+    const fee = schedule.condonation;
+    court.push({
+      key: fee.key,
+      label: fee.label,
+      rate: fee.amount,
       units: 1,
       unitNote: "",
-      amount: CONDONATION_FEE.amount,
-      note: CONDONATION_FEE.note,
+      amount: fee.amount,
+      note: fee.note,
     });
   }
 
@@ -643,13 +666,15 @@ export function feeBill(draft: FilingDraft): FeeBill {
       const n = plan.rounds[option.key] ?? 0;
       if (n < 1) continue;
       const units = option.perAddress ? n * addresses : n;
+      const fee = schedule.process?.fee ?? option.fee;
+      const name = schedule.process?.name;
       process.push({
         key: `${plan.accusedId}:${option.key}`,
-        label: `${who}${option.label}`,
-        rate: option.fee,
+        label: `${who}${option.label}${name ? ` (${name})` : ""}`,
+        rate: fee,
         units,
         unitNote: unitNote(n, option.perAddress ? addresses : null),
-        amount: option.fee * units,
+        amount: fee * units,
         note: option.billNote,
       });
     }

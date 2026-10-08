@@ -48,6 +48,7 @@ import {
   parseIsoDay,
   type CourtCounsel,
 } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
 
 /* ────────────────────────────────── the row ─────────────────────────────────── */
 
@@ -1071,7 +1072,7 @@ export function filterCognizanceCases(
   rows: CognizanceCase[],
   filters: CognizanceFilters,
 ): CognizanceCase[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   const notice = filters.notice ?? "all";
   return rows.filter((entry) => {
     if (notice === "delivered" && !entry.noticeDelivered) return false;

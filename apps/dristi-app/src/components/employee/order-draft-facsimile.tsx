@@ -16,6 +16,9 @@
  * signing queue's flat `paragraphs` this only ever has one thing to render, as the rich
  * text it already is.
  */
+
+import { useCourtLocalized } from "@/components/court/court-provider";
+
 export type DraftFacsimileDocument = {
   court: string;
   caseNumber: string;
@@ -27,10 +30,11 @@ export type DraftFacsimileDocument = {
 };
 
 export function OrderDraftFacsimile({
-  document,
+  document: storedDocument,
 }: {
   document: DraftFacsimileDocument;
 }) {
+  const document = useCourtLocalized(storedDocument);
   return (
     <article className="flex flex-col gap-6 rounded-md bg-paper p-6 text-paper-foreground">
       <header className="flex flex-col gap-2 text-center">

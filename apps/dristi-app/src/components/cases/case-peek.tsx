@@ -62,6 +62,7 @@ import { BotdText } from "@/components/cases/botd-text";
 import { CaseFlags } from "./case-identity";
 import { CASE_PEEK_ID, useCasePeek } from "./use-case-peek";
 import { Identifier } from "@/components/chrome/identifier";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * Card that owns peek state in the tree, floating variant. The panel portals to the
@@ -262,6 +263,7 @@ function CasePeekBody({
   onClose: () => void;
   mobileDrawer?: boolean;
 }) {
+  const courtText = useCourtText();
   const Title = mobileDrawer ? DrawerTitle : "h2";
   const title = partiesLabel(record);
   const extras = peekExtras(record.id);
@@ -309,7 +311,7 @@ function CasePeekBody({
             {/* A step of air and a step of weight, so the court reads as its
                 own fact and not as a third number (owner, Sept 18). */}
             <p className="mt-1.5 text-body-compact font-medium text-foreground">
-              {record.court}
+              {courtText(record.court)}
             </p>
           </div>
           <Button

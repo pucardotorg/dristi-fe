@@ -37,6 +37,8 @@
  * the trip. Where they are kept changed; what they claim did not.
  */
 
+import { caseSearchKey } from "@/lib/court/localize";
+
 export type CourtHearingStatus =
   | "scheduled"
   | "ongoing"
@@ -848,7 +850,7 @@ export function filterHearings(
   rows: CourtHearing[],
   filters: HearingFilters,
 ): CourtHearing[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   return rows.filter((hearing) => {
     if (filters.status !== "all" && hearing.status !== filters.status) {
       return false;

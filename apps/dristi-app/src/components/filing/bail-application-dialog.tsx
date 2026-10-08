@@ -82,6 +82,7 @@ import {
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
+import { useCourtText } from "@/components/court/court-provider";
 import { UploadedDocField as SharedUploadedDocField } from "@/components/cases/uploaded-doc-field";
 
 
@@ -228,6 +229,7 @@ function ApplicationDraft({
   expanded?: boolean;
   onExpand?: () => void;
 }) {
+  const courtText = useCourtText();
   return (
     <div
       className={cn(
@@ -258,7 +260,7 @@ function ApplicationDraft({
           {pick(bailDialog.draftPageLabel, locale)}
         </p>
         <p className="text-center text-body-compact font-semibold text-balance">
-          {pick(bailDialog.draftCourtLine, locale)}
+          {courtText(pick(bailDialog.draftCourtLine, locale))}
         </p>
         <p className="text-center text-body-compact font-medium tabular-nums">
           {fillCopy(bailDialog.draftCaseLine, locale, {

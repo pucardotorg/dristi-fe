@@ -55,6 +55,7 @@
 
 import { CURRENT_STAFF } from "./content";
 import { causeTitle } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
 
 /**
  * Which filed document the marking is about — the reference's "Document" column.
@@ -685,7 +686,7 @@ export function filterSignEvidence(
   rows: SignEvidence[],
   filters: SignEvidenceFilters,
 ): SignEvidence[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   if (!query) return rows;
   return rows.filter((row) => {
     const haystack = [

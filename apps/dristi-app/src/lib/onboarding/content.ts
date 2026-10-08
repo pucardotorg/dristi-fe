@@ -20,7 +20,7 @@
 
 import { LANGUAGE_NAME, SECOND_LANGUAGE } from "@/lib/locale-config";
 
-export type Locale = "en" | "ml" | "hi";
+export type Locale = "en" | "ml" | "hi" | "gu" | "pa";
 
 /** English, and the deployment's second language (`lib/locale-config.ts`). */
 export const LOCALES: { value: Locale; label: string }[] = [
@@ -51,7 +51,7 @@ export const STEP_ORDER: StepId[] = [
 ];
 
 /** English and Malayalam always; Hindi where a translation exists, else English is shown. */
-export type Copy = { en: string; ml: string; hi?: string };
+export type Copy = { en: string; ml: string; hi?: string; gu?: string; pa?: string };
 const t = (en: string, ml: string, hi?: string): Copy => (hi ? { en, ml, hi } : { en, ml });
 
 export const stepTitles: Record<StepId, Copy> = {
@@ -507,7 +507,7 @@ export const videos: Record<StepId, { title: Copy; youtubeId?: string }> = {
   join: { title: t("How do I join my case?", "കേസിൽ എങ്ങനെ ചേരും?") },
 };
 
-/** The string in this locale — English where no translation exists yet (Hindi, today). */
+/** The string in this locale — English where no translation exists yet (Hindi, Gujarati and Punjabi, today). */
 export function pick(copy: Copy, locale: Locale): string {
   return copy[locale] ?? copy.en;
 }

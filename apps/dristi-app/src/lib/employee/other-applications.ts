@@ -41,6 +41,8 @@ import {
   type CounselSide,
   type CourtCounsel,
 } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Where a case has reached, across the whole §138 journey — the widest stage list on the
@@ -802,7 +804,7 @@ export function filterOtherApplications(
   rows: OtherApplication[],
   filters: OtherApplicationFilters,
 ): OtherApplication[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   return rows.filter((entry) => {
     if (filters.stage !== "all" && entry.stage !== filters.stage) return false;
     if (filters.type !== "all" && entry.type !== filters.type) return false;
@@ -1058,11 +1060,11 @@ export function downloadOtherApplicationDocument(
 ): void {
   const document = buildOtherApplicationDocument(application);
   const url = URL.createObjectURL(
-    new Blob([otherApplicationDocumentText(document)], { type: "text/plain" }),
+    new Blob([localizeForDownload(otherApplicationDocumentText(document))], { type: "text/plain" }),
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = otherApplicationDocumentFilename(application);
+  anchor.download = otherApplicationDocumentFilename(voicedForDownload(application));
   anchor.click();
   URL.revokeObjectURL(url);
 }

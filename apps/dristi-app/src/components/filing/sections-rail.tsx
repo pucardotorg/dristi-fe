@@ -30,6 +30,7 @@ import {
   UploadedCountBadge,
   UploadedDocsDrawer,
 } from "@/components/filing/uploaded-docs-drawer";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * A row in the rail. `Button` is the DS control that already meets the 40px metric, so
@@ -70,6 +71,7 @@ function StepRow({
   active: boolean;
   onNavigate: () => void;
 }) {
+  const courtText = useCourtText();
   const { hrefFor } = useFiling();
   const blocked = useLeaveBlocked();
   const Icon = step.icon;
@@ -86,11 +88,11 @@ function StepRow({
               className={cn(ROW, ROW_PLACEHOLDER)}
             >
               <Icon aria-hidden />
-              <span className="min-w-0 truncate">{step.title}</span>
+              <span className="min-w-0 truncate">{courtText(step.title)}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            {step.title}: {PLACEHOLDER_NOTE[step.id] ?? "not a screen of its own"}
+            {courtText(step.title)}: {PLACEHOLDER_NOTE[step.id] ?? "not a screen of its own"}
           </TooltipContent>
         </Tooltip>
       </li>
@@ -115,7 +117,7 @@ function StepRow({
         aria-current={active ? "page" : undefined}
       >
         <Icon aria-hidden className={active ? undefined : "text-muted-foreground"} />
-        <span className="min-w-0 truncate">{step.title}</span>
+        <span className="min-w-0 truncate">{courtText(step.title)}</span>
       </Link>
     </Button>
   );
@@ -148,6 +150,7 @@ function StepList({
   onNavigate: () => void;
   onOpenDocs: () => void;
 }) {
+  const courtText = useCourtText();
   const active = useActiveStep();
 
   return (
@@ -161,7 +164,7 @@ function StepList({
       {stepGroups().map((g) => (
         <div key={g.group} className="flex w-full flex-col gap-1">
           <h2 className="px-2 text-caption font-medium text-muted-foreground">
-            {g.group}
+            {courtText(g.group)}
           </h2>
           <ul className="flex flex-col gap-1">
             {g.steps.map((s) => (

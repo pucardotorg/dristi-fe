@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Locale } from "@/lib/onboarding/content";
 import { Identifier } from "@/components/chrome/identifier";
+import { useCourtText } from "@/components/court/court-provider";
 import type { ProfileRole } from "@/components/shell/profile";
 
 const REQUIRED_MARK = <span className="text-destructive">*</span>;
@@ -207,6 +208,7 @@ export function ProfileSettings({ locale, profileName, idSubmitted, submittedId,
           <Button variant="outline">Set password</Button>
         </div>
       </section>
+
     </main>
   );
 }
@@ -219,7 +221,9 @@ export function ProfileSettings({ locale, profileName, idSubmitted, submittedId,
  */
 function EditableName({ value }: { value: string }) {
   const [editing, setEditing] = React.useState(false);
-  const [name, setName] = React.useState(value);
+  // The field opens on the name as the heading shows it (Settings' court switch).
+  const courtText = useCourtText();
+  const [name, setName] = React.useState(() => courtText(value));
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {

@@ -41,6 +41,7 @@ import {
 } from "@/lib/employee/sign-a-diary";
 import { Identifier } from "@/components/chrome/identifier";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * The day the bench is sitting on is the reader's, not the server's — a court in Kerala
@@ -81,6 +82,7 @@ const readToday = () => isoDay(new Date());
  * `lib/employee/sign-a-diary.ts`.
  */
 export function SignADiaryScreen() {
+  const courtText = useCourtText();
   const today = React.useSyncExternalStore(
     NEVER_CHANGES,
     readToday,
@@ -147,7 +149,7 @@ export function SignADiaryScreen() {
     );
     setOpenId(null);
     setAnnouncement(
-      `The entry in ${entry.caseNumber}, ${causeTitle(entry)}, left the A-Diary queue.`,
+      `The entry in ${courtText(entry.caseNumber)}, ${causeTitle(entry)}, left the A-Diary queue.`,
     );
   }
 
@@ -417,6 +419,7 @@ function SignADiaryItemList({
   rows: ADiaryEntry[];
   onOpen: (entry: ADiaryEntry) => void;
 }) {
+  const courtText = useCourtText();
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((entry) => (
@@ -428,7 +431,7 @@ function SignADiaryItemList({
                 className={rowOpenerClass}
           >
             <span className="sr-only">
-              Read and sign the entry in {entry.caseNumber}.{" "}
+              Read and sign the entry in {courtText(entry.caseNumber)}.{" "}
             </span>
             <span className="line-clamp-4">{entry.business}</span>
           </button>

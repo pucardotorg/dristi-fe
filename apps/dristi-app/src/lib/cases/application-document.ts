@@ -19,6 +19,7 @@ import {
   submissionTypeLabel,
 } from "./applications";
 import { counselFor, formatCaseDate, type CaseRecord } from "./types";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 export type GeneratedApplication = {
   /** "Before the …" heading line. */
@@ -445,11 +446,11 @@ export function downloadApplicationText(
   record: CaseRecord
 ): void {
   const url = URL.createObjectURL(
-    new Blob([generatedApplicationText(generated)], { type: "text/plain" })
+    new Blob([localizeForDownload(generatedApplicationText(generated))], { type: "text/plain" })
   );
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = generatedApplicationFilename(record);
+  anchor.download = generatedApplicationFilename(voicedForDownload(record));
   anchor.click();
   URL.revokeObjectURL(url);
 }

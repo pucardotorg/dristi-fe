@@ -40,6 +40,8 @@ import {
   parseIsoDay,
   type CourtCounsel,
 } from "./hearings";
+import { caseSearchKey } from "@/lib/court/localize";
+import { localizeForDownload, voicedForDownload } from "@/lib/court/browser";
 
 /**
  * Which process the form belongs to — the reference's "Process type" column.
@@ -666,7 +668,7 @@ export function filterSignForms(
   rows: SignForm[],
   filters: SignFormFilters,
 ): SignForm[] {
-  const query = filters.query.trim().toLowerCase();
+  const query = caseSearchKey(filters.query);
   return rows.filter((form) => {
     if (filters.process !== "all" && form.process !== filters.process) {
       return false;
@@ -825,11 +827,11 @@ export function signFormDocumentFilename(form: SignForm): string {
 export function downloadSignFormDocument(form: SignForm): void {
   const document = buildSignFormDocument(form);
   const url = URL.createObjectURL(
-    new Blob([signFormDocumentText(document)], { type: "text/plain" }),
+    new Blob([localizeForDownload(signFormDocumentText(document))], { type: "text/plain" }),
   );
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = signFormDocumentFilename(form);
+  anchor.download = signFormDocumentFilename(voicedForDownload(form));
   anchor.click();
   URL.revokeObjectURL(url);
 }

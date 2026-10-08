@@ -86,6 +86,7 @@ import { HomeRefreshButton } from "@/components/advocate/refresh-button";
 import type { AvatarSurface } from "@/components/tasks/person-avatar";
 import { courtIdentity, courtNumberFor } from "@/lib/advocate/courts";
 import { passedOverLabel } from "@/lib/advocate/passed-over";
+import { useCourtText } from "@/components/court/court-provider";
 
 /**
  * Clicking a hearing's pending flag opens the tasks rail and traces its tasks.
@@ -180,10 +181,11 @@ function CourtLabel({ court, label, number, className }: {
   number?: string;
   className?: string;
 }) {
+  const courtText = useCourtText();
   const identity = courtIdentity(court, courtNumberFor(court, number));
   return (
     <span title={court} className={cn("inline-flex max-w-full items-baseline gap-1 text-body-compact", className)}>
-      <span className="truncate">{identity.number ? courtIdentity(label, number).name : label}</span>
+      <span className="truncate">{courtText(identity.number ? courtIdentity(label, number).name : label)}</span>
       <span aria-hidden="true">·</span>
       <span className="shrink-0 tabular-nums">{identity.number ?? "N/A"}</span>
     </span>

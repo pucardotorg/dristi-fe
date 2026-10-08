@@ -738,10 +738,17 @@ export function AppSidebar() {
        */}
       <RailPlate vars={theme.vars as React.CSSProperties}>
       <SidebarHeader className="h-14 flex-row items-center justify-between border-b border-(--rail-seam) px-3 py-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-        {/* The glyph alone, in both states. The full lockup stacks its wordmark under
-            the mark, and at the size a 56px bar can spare, "24×7 ON COURTS" cannot be
-            read. `onDark` follows the plate, not the app's mode. */}
-        <BrandGlyph className="h-6" onDark={theme.darkPlate} />
+        {/* The ON Courts glyph alone, in both states. The full lockup stacks its
+            wordmark under the mark, and at the size a 56px bar can spare, "24×7 ON
+            COURTS" cannot be read. Gujarat's Saras is one line of text, so it is named
+            beside its mark until the rail folds. `onDark` follows the plate, not the
+            app's mode. */}
+        <BrandGlyph
+          className="h-6"
+          onDark={theme.darkPlate}
+          named
+          wordmarkClassName="group-data-[collapsible=icon]:hidden"
+        />
         <SidebarTrigger
           aria-label="Collapse main navigation"
           className={`size-8 shrink-0 group-data-[collapsible=icon]:hidden [&_svg]:size-5 ${MUTED} hover:bg-sidebar-accent hover:text-sidebar-accent-foreground`}

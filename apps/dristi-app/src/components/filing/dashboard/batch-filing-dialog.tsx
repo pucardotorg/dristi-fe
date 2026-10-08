@@ -21,6 +21,7 @@ import {
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { useCourt } from "@/components/court/court-provider";
 
 type Kind = "sign" | "pay";
 
@@ -51,6 +52,7 @@ export function BatchFilingDialog({
   /** The batch went through (however many rows actually qualified) and can be reread. */
   onFinished: () => void;
 }) {
+  const courtFees = useCourt().profile.fees;
   const [step, setStep] = React.useState<"confirm" | "success">("confirm");
   const [running, setRunning] = React.useState(false);
   const [otp, setOtp] = React.useState("");
@@ -94,7 +96,7 @@ export function BatchFilingDialog({
       } else {
         // Every signature and every advocate's oath — an oath cannot be batched.
         if (!signingComplete(draft, profile) || draft.sign.paid) continue;
-        const bill = feeBill(draft);
+        const bill = feeBill(draft, courtFees);
         draft.sign.paid = true;
         draft.sign.paidAt = now;
         draft.sign.paidAmount = bill.total;
