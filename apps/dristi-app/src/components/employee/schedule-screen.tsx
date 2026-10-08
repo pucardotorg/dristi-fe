@@ -6,7 +6,7 @@ import { CalendarCheck2Icon, SearchXIcon } from "lucide-react";
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { CourtFilters } from "@/components/employee/court-filters";
+import { CourtFilters, CourtSortSelect } from "@/components/employee/court-filters";
 import { NotBuiltDialog } from "@/components/employee/not-built-dialog";
 import { ScheduleTable } from "@/components/employee/schedule-table";
 import { QueueItemRow } from "@/components/employee/queue-item-row";
@@ -40,6 +40,20 @@ import {
   type SchedulingCase,
 } from "@/lib/employee/schedule";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  caseSorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+
+type ScheduleSort = "newest" | "oldest" | "name";
+
+/** Oldest case first: the register order, read off the case number on each row. */
+const SCHEDULE_SORTS: CourtSortSpec<SchedulingCase, ScheduleSort>[] = (() => {
+  const [newest, oldest, name] = caseSorts<SchedulingCase>();
+  return [oldest, newest, name];
+})();
 
 /**
  * Schedule hearing — the matters this court owes a date.
@@ -72,7 +86,9 @@ export function ScheduleScreen() {
      the shared not-built end state rather than a flow that is not there. */
   const [open, setOpen] = React.useState<SchedulingCase | null>(null);
 
-  const rows = filterSchedulingCases(SCHEDULING_QUEUE, filters);
+  const [sort, setSort] = React.useState<ScheduleSort>("oldest");
+
+  const rows = sortRows(filterSchedulingCases(SCHEDULING_QUEUE, filters), SCHEDULE_SORTS, sort);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -113,6 +129,17 @@ export function ScheduleScreen() {
           filters={filters}
           onChange={changeFilters}
           onClear={clearFilters}
+          trailing={
+            <CourtSortSelect
+              id="schedule-sort"
+              value={sort}
+              options={sortOptions(SCHEDULE_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
         />
 
         {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -187,10 +214,13 @@ function ScheduleFiltersRow({
   filters,
   onChange,
   onClear,
+  trailing,
 }: {
   filters: ScheduleFilters;
   onChange: (filters: ScheduleFilters) => void;
   onClear: () => void;
+  /** The list's sort control (`CourtSortSelect`), at the end of the row. */
+  trailing?: React.ReactNode;
 }) {
   return (
     <CourtFilters
@@ -215,6 +245,7 @@ function ScheduleFiltersRow({
             onChange({ ...filters, stage: value as ScheduleFilters["stage"] }),
         },
       ]}
+      trailing={trailing}
       onClearAll={onClear}
     />
   );

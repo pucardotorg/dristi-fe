@@ -108,7 +108,7 @@ export function CaseWorkbench({
 
   const { party, allFields, fieldById, historyRound } = caseData;
   const filingNo = caseData.filing.no;
-  const controller = useScrutinyState(aiOn, caseData);
+  const controller = useScrutinyState(caseData);
   const bundle = React.useRef<BundleHandle>(null);
   const fields = React.useRef<FieldsPanelHandle>(null);
   const [historyOpen, setHistoryOpen] = React.useState(false);
@@ -160,7 +160,7 @@ export function CaseWorkbench({
    *
    * It also names which surface the work is on, which matters at the widths where the
    * two share one slot: landing on a field means the fields pane, whether the officer
-   * arrived from a mark on the bundle, the history sheet or the review dialog.
+   * arrived from the history sheet or the review dialog.
    */
   const goToItem = React.useCallback(
     (fieldId: string) => {
@@ -190,18 +190,9 @@ export function CaseWorkbench({
     return () => document.removeEventListener("keydown", onKey);
   }, [controller]);
 
-  const corrections = allFields.filter(
-    (f) => controller.flags[f.id]?.correction,
-  ).length;
-  const flagged = allFields.filter(
-    (f) => controller.flags[f.id] && !controller.flags[f.id].correction,
-  ).length;
-  const raised = corrections + flagged;
+  const raised = allFields.filter((f) => controller.flags[f.id]).length;
 
-  const tally = [
-    corrections && `${corrections} correction${corrections > 1 ? "s" : ""}`,
-    flagged && `${flagged} flag${flagged > 1 ? "s" : ""}`,
-  ].filter(Boolean) as string[];
+  const tally = raised ? [`${raised} flag${raised > 1 ? "s" : ""}`] : [];
 
   return (
     /*
@@ -361,26 +352,18 @@ export function CaseWorkbench({
               ref={fields}
               controller={controller}
               aiOn={aiOn}
-              onGoToDoc={goToDoc}
               onGoToItem={goToItem}
             />
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel defaultSize="52%" minSize="22rem">
-            <BundleView
-              ref={bundle}
-              controller={controller}
-              aiOn={aiOn}
-              spot={spot}
-              onOpenFlag={goToItem}
-            />
+            <BundleView ref={bundle} aiOn={aiOn} spot={spot} />
           </ResizablePanel>
           <ResizableHandle withHandle />
           {/* A document index is a short list, so it takes a rail's width, not a pane's:
               the room it does not need goes to the bundle, which is the thing being read. */}
           <ResizablePanel defaultSize="14%" minSize="10rem" maxSize="20rem">
             <IndexRail
-              flags={controller.flags}
               relatedDocId={aiOn ? relatedDocId : null}
               onGoToDoc={goToDoc}
             />
@@ -396,17 +379,10 @@ export function CaseWorkbench({
               ref={fields}
               controller={controller}
               aiOn={aiOn}
-              onGoToDoc={showDoc}
               onGoToItem={goToItem}
             />
           ) : (
-            <BundleView
-              ref={bundle}
-              controller={controller}
-              aiOn={aiOn}
-              spot={spot}
-              onOpenFlag={goToItem}
-            />
+            <BundleView ref={bundle} aiOn={aiOn} spot={spot} />
           )}
         </div>
       )}
@@ -450,7 +426,6 @@ export function CaseWorkbench({
         <IndexSheet
           open={indexOpen}
           onOpenChange={setIndexOpen}
-          flags={controller.flags}
           relatedDocId={aiOn ? relatedDocId : null}
           onGoToDoc={(docId) => {
             setIndexOpen(false);

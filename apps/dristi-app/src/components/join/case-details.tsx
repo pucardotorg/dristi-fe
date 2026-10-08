@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CalendarIcon, InfoIcon, PhoneIcon } from "lucide-react";
+import { CircleCheckIcon, InfoIcon, PhoneIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { pick, type Locale } from "@/lib/onboarding/content";
 import { caseDetails, type JoinCase } from "@/lib/join/content";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
+import { RESOLVE_IN_PLACE } from "@/components/chrome/motion";
 
 /**
  * The one case-details block, shared by the summons modal, the join dialog, and the
@@ -28,8 +29,74 @@ import { Identifier } from "@/components/chrome/identifier";
  * and when the next hearing is, then the registry identifiers. `compact` retains the
  * case number while dropping the longer reference list. `extended` restores the full
  * registry list (CNR, filing number, court, both sides' advocates) for advocates, who
- * work by those identifiers rather than being intimidated by them.
+ * work by those identifiers rather than being intimidated by them. Court is shown to
+ * everyone (JOIN-15).
+ *
+ * It is a flat white panel on the dialog's warm canvas, so it reads as the case set on it
+ * (owner, Oct 6: the sunken box did not look like the product's other modals). The
+ * next hearing is the first row of the facts, at the facts' own size: as a 20px line
+ * under its own floating calendar icon it outranked the case title above it.
  */
+
+/**
+ * The flat white panel the join surfaces lay facts on: a light warm hairline and no
+ * lift. A shadowed card inside the dialog read as a card on a card; the white on the
+ * warm canvas, edged by the hairline, is separation enough (owner, Oct 6).
+ */
+export const JOIN_PANEL =
+  "flex flex-col gap-4 rounded-xl border border-hairline bg-card p-4 sm:p-6";
+
+/**
+ * The case's public identity — what the access-code step can show before the code
+ * is spent: a lead line, the cause title with its "1 other", and the case number
+ * and court. Shared by both join dialogs so the block reads the same in each.
+ */
+export function CaseIdentity({
+  joinCase,
+  locale,
+  lead,
+}: {
+  joinCase: JoinCase;
+  locale: Locale;
+  lead: string;
+}) {
+  /* Three facts, three rows (owner, Oct 6): run together with dots they read as one
+     long line. The same row grid as the full case details, so the step after the
+     code shows these facts where this one did. */
+  const facts: { label: keyof typeof caseDetails; value: React.ReactNode }[] = [
+    {
+      label: "caseNumber",
+      value: <Identifier value={joinCase.caseNumber} label="case number" />,
+    },
+    { label: "court", value: joinCase.court },
+    { label: "courtroom", value: joinCase.courtroom },
+  ];
+  return (
+    <div className={JOIN_PANEL}>
+      <div className="flex flex-col gap-1">
+        <p className="text-body-compact text-muted-foreground">{lead}</p>
+        <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
+      </div>
+      <DescriptionList className="border-t border-hairline">
+        {facts.map((fact) => (
+          <DescriptionRow key={fact.label} className={FACT_ROW}>
+            <DescriptionTerm>{pick(caseDetails[fact.label], locale)}</DescriptionTerm>
+            <DescriptionDetails>{fact.value}</DescriptionDetails>
+          </DescriptionRow>
+        ))}
+      </DescriptionList>
+    </div>
+  );
+}
+
+/** A label over its value on a phone: two columns there crushed the values and broke
+ *  identifiers mid-string. Shared by both fact lists in this file. */
+const FACT_ROW = "border-hairline max-sm:grid-cols-1 max-sm:gap-1";
+
+/** An advocate is on record for the accused side. */
+export function hasAccusedAdvocate(joinCase: JoinCase) {
+  return Boolean(joinCase.accusedAdvocate && joinCase.accusedAdvocate !== "Not available");
+}
 /**
  * The cause title with its "and 1 other" made explorable — the marker
  * becomes a dotted-underline trigger and the remaining accused list rides a
@@ -90,12 +157,19 @@ export function CaseDetails({
   locale,
   compact = false,
   extended = false,
+  outcome,
   className,
 }: {
   joinCase: JoinCase;
   locale: Locale;
   compact?: boolean;
   extended?: boolean;
+  /**
+   * The settled outcome, when the panel is the record of something just done — the
+   * product's settled-card pattern (the signing flow's `SettledCard`): a success band
+   * across the panel's top with a tick and the outcome line, resolving in place.
+   */
+  outcome?: string;
   className?: string;
 }) {
   /* `idLabel` marks the rows whose value is a registry identifier rather than a
@@ -104,7 +178,11 @@ export function CaseDetails({
     label: keyof typeof caseDetails;
     value: string;
     idLabel?: string;
+    emphasis?: boolean;
   }[] = [
+    /* The fact a summoned person acts on leads, in the row grid like every
+       other fact, set apart by weight alone. */
+    { label: "hearing", value: joinCase.hearingDate, emphasis: true },
     { label: "caseNumber", value: joinCase.caseNumber, idLabel: "case number" },
     ...(extended
       ? ([
@@ -117,7 +195,8 @@ export function CaseDetails({
         ] as const)
       : []),
     { label: "filingDate", value: joinCase.filingDate },
-    ...(extended ? ([{ label: "court", value: joinCase.court }] as const) : []),
+    { label: "court", value: joinCase.court },
+    { label: "courtroom", value: joinCase.courtroom },
     { label: "chequeAmount", value: joinCase.chequeAmount },
     { label: "complainant", value: joinCase.complainant },
     { label: "complainantAdvocate", value: joinCase.complainantAdvocate },
@@ -125,54 +204,30 @@ export function CaseDetails({
       label: "accusedParties",
       value: joinCase.accused.map((party) => party.name).join(", "),
     },
-    ...(extended
+    // JOIN-15: the accused's advocate shows when one is on record; advocates always
+    // see the row, "Not available" included.
+    ...(extended || hasAccusedAdvocate(joinCase)
       ? ([{ label: "accusedAdvocate", value: joinCase.accusedAdvocate }] as const)
       : []),
   ];
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-4 rounded-xl bg-surface-sunken p-6",
-        className,
-      )}
-    >
+  const shown = compact
+    ? rows.filter((row) => row.label === "hearing" || row.label === "caseNumber")
+    : rows;
+  const body = (
+    <>
       <div className="flex flex-col gap-2">
-        <Badge variant="default" className="self-start">{pick(caseDetails.caseTypeBadge, locale)}</Badge>
+        {/* Neutral: teal is the dialog's one action, not a label. */}
+        <Badge variant="secondary" className="self-start">{pick(caseDetails.caseTypeBadge, locale)}</Badge>
         <CaseTitleWithOthers joinCase={joinCase} locale={locale} />
-        {compact ? (
-          <p className="text-body-compact text-muted-foreground">
-            {pick(caseDetails.caseNumber, locale)}:{" "}
-            <Identifier value={joinCase.caseNumber} label="case number" />
-          </p>
-        ) : null}
       </div>
 
-      {/* Where and when — the two facts a summoned person acts on. */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <CalendarIcon
-            className="size-4 shrink-0 text-muted-foreground"
-            aria-hidden
-          />
-          <div className="min-w-0">
-            <p className="text-caption text-muted-foreground">
-              {pick(caseDetails.hearing, locale)}
-            </p>
-            {/* One token down on phones — at title-s the date wraps to three lines in
-                the join modal and dwarfs the case title it sits under. */}
-            <p className="text-body font-semibold text-pretty md:text-title-s">{joinCase.hearingDate}</p>
-          </div>
-        </div>
-      </div>
-
-      {compact ? null : (
-        <DescriptionList className="border-t border-border pt-1">
-          {rows.map((row) => (
+        <DescriptionList className="border-t border-hairline">
+          {shown.map((row) => (
             <DescriptionRow
               key={row.label}
               className={cn(
-                "border-hairline",
-                row.label === "complainantAdvocate" && "items-center",
+                FACT_ROW,
+                row.label === "complainantAdvocate" && "sm:items-center",
               )}
             >
               <DescriptionTerm>
@@ -213,6 +268,8 @@ export function CaseDetails({
                   </span>
                 ) : row.idLabel ? (
                   <Identifier value={row.value} label={row.idLabel} />
+                ) : row.emphasis ? (
+                  <span className="font-semibold">{row.value}</span>
                 ) : (
                   row.value
                 )}
@@ -220,7 +277,26 @@ export function CaseDetails({
             </DescriptionRow>
           ))}
         </DescriptionList>
+    </>
+  );
+
+  if (!outcome) return <div className={cn(JOIN_PANEL, className)}>{body}</div>;
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border border-hairline bg-card",
+        RESOLVE_IN_PLACE,
+        className,
       )}
+    >
+      <div className="flex items-center gap-2 bg-success-muted px-4 py-2.5 text-body-compact text-success-muted-foreground sm:px-6">
+        <CircleCheckIcon aria-hidden className="size-4 shrink-0" />
+        {/* Spoken: focus lands on the header title, which announces only itself. */}
+        <span role="status" className="font-medium">
+          {outcome}
+        </span>
+      </div>
+      <div className="flex flex-col gap-4 p-4 sm:p-6">{body}</div>
     </div>
   );
 }

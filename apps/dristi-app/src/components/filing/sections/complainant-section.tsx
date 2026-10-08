@@ -179,7 +179,8 @@ export function ComplainantSection() {
   const hasMissingCinPan = missingCinPan.length > 0 && !inCorrection;
 
   /**
-   * The field is optional, so leaving without it is allowed — but asked about first, on
+   * The field is mandatory but skippable (handover `LIT-18a`): leaving without it is
+   * allowed only through the declaration below — asked on
    * Continue and on a jump from the sections rail alike. Back is not moving on, and stays
    * a plain link.
    */
@@ -196,8 +197,16 @@ export function ComplainantSection() {
     if (continueHref && !askBeforeLeaving(continueHref)) router.push(continueHref);
   };
 
+  /** The dialog's tick is the same declaration as the field's — recorded the same way. */
   const leaveWithoutCinPan = () => {
     const href = leaveTo;
+    const at = new Date().toISOString();
+    update((d) => {
+      for (const i of missingCinPan) {
+        d.complainants[i].entCinPanSkippedAt = at;
+        d.complainants[i].entCinPan = "";
+      }
+    });
     setLeaveTo(null);
     if (href) router.push(href);
   };
@@ -676,13 +685,13 @@ export function ComplainantSection() {
                   />
                 </FormField>
               </FormRow>
-              <HalfWidth>
+              <HalfWidth className="flex flex-col gap-3">
                 <FormField
                   label="CIN or PAN"
                   name="entCinPan"
-                  optional
-                  help="Used to identify cases belonging to the same complainant."
-                  error={cinPanError}
+                  required
+                  help="This will be used to identify cases belonging to the same complainant."
+                  error={c.entCinPanSkippedAt ? undefined : cinPanError}
                 >
                   <TextField
                     ref={cinPanInput}
@@ -693,8 +702,35 @@ export function ComplainantSection() {
                     autoCapitalize="characters"
                     autoComplete="off"
                     spellCheck={false}
+                    disabled={!!c.entCinPanSkippedAt}
                   />
                 </FormField>
+                {/* Mandatory, but skippable by declaration (`LIT-18a`). The declaration is
+                    the skip — it is recorded on the filing, and it turns the field off.
+                    An option of the field, so it sits in the field's column, quietly. */}
+                <Label
+                  htmlFor={`${skipCinPanId}-${c.id}`}
+                  className="items-start gap-2 text-body-compact font-normal text-muted-foreground"
+                >
+                  <Checkbox
+                    id={`${skipCinPanId}-${c.id}`}
+                    checked={!!c.entCinPanSkippedAt}
+                    onCheckedChange={(checked) =>
+                      update((d) => {
+                        const target = d.complainants[active];
+                        target.entCinPanSkippedAt =
+                          checked === true ? new Date().toISOString() : null;
+                        if (checked === true) target.entCinPan = "";
+                      })
+                    }
+                    className="mt-0.5"
+                  />
+                  {/* Wraps to several lines — the Label's own leading-none would collide. */}
+                  <span className="leading-normal">
+                    Skip — I understand this case won&apos;t be linked to the
+                    complainant&apos;s other cases.
+                  </span>
+                </Label>
               </HalfWidth>
             </FormCard>
 

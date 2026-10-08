@@ -1,5 +1,6 @@
 /** Derived reads over the draft — pure functions so screens and the shell agree. */
 
+import { ADVOCATE_OATH } from "./config";
 import { addDays, addressToString, daysBetween, todayIso } from "./format";
 import {
   CHANNEL_FEE,
@@ -89,12 +90,19 @@ export function isCinOrPan(value: string): boolean {
 
 /**
  * Indexes of institutional complainants with no usable CIN or PAN — empty, or not in
- * either format. Individuals are never asked for one.
+ * either format — and no declaration skipping it. Individuals are never asked for one.
  */
 export function complainantsMissingCinPan(complainants: Complainant[]): number[] {
-  return complainants.flatMap((c, i) =>
-    c.type === "institution" && !isCinOrPan(c.entCinPan ?? "") ? [i] : []
-  );
+  return complainants.flatMap((c, i) => (cinPanAnswered(c) ? [] : [i]));
+}
+
+/**
+ * The CIN or PAN is mandatory for an institution, but skippable by declaration
+ * (`LIT-18a`): answered means a valid one, or the declaration on record.
+ */
+export function cinPanAnswered(c: Complainant): boolean {
+  if (c.type !== "institution") return true;
+  return isCinOrPan(c.entCinPan ?? "") || !!c.entCinPanSkippedAt;
 }
 
 /** Complainant names as the advocate multi-select shows them. */
@@ -147,7 +155,7 @@ export function accusedHasContact(a: Accused): boolean {
 export function complainantComplete(c: Complainant): boolean {
   const named = c.type === "institution" ? !!c.entName.trim() : !!c.name.trim();
   const addr = c.type === "institution" ? c.entAddr : c.res;
-  return named && !!c.mobile.trim() && !!addr.line1.trim();
+  return named && !!c.mobile.trim() && !!addr.line1.trim() && cinPanAnswered(c);
 }
 
 /* ───────────────────────────── Case details ────────────────────────── */
@@ -213,7 +221,9 @@ function sameMobile(a: string, b: string): boolean {
  */
 export function signatories(
   draft: FilingDraft,
-  profile: UserProfile | null
+  profile: UserProfile | null,
+  /** Whether advocates take the oath — the deployment's switch unless a test says otherwise. */
+  oath: boolean = ADVOCATE_OATH
 ): { complainants: Signatory[]; advocates: Signatory[] } {
   const signedOf = (id: string): Signatory["status"] =>
     draft.sign.signed[id] ? "signed" : "pending";
@@ -266,7 +276,8 @@ export function signatories(
         status: signedOf(`sig-a-${c.id}`),
         signedWith: signedWith(`sig-a-${c.id}`),
         you,
-        oathTaken: !!draft.sign.oaths?.[`sig-a-${c.id}`],
+        // No oath state at all while the oath is switched off: nothing waits on it.
+        oathTaken: oath ? !!draft.sign.oaths?.[`sig-a-${c.id}`] : undefined,
       },
     ];
   });
@@ -292,8 +303,12 @@ export function isOutstanding(s: Signatory): boolean {
  * reading, shared by the Sign step, the dashboard queues and batch payment, so none of
  * them can open the fee earlier than the others.
  */
-export function signingComplete(draft: FilingDraft, profile: UserProfile | null): boolean {
-  const { complainants, advocates } = signatories(draft, profile);
+export function signingComplete(
+  draft: FilingDraft,
+  profile: UserProfile | null,
+  oath: boolean = ADVOCATE_OATH
+): boolean {
+  const { complainants, advocates } = signatories(draft, profile, oath);
   const everyone = [...complainants, ...advocates];
   return everyone.length > 0 && !everyone.some(isOutstanding);
 }

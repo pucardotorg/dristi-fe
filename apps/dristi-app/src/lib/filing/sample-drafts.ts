@@ -18,6 +18,7 @@
 import { blankCheque, blankComplainant, createBlankDraft } from "./blank";
 import { getRepository } from "./data";
 import { addDays } from "./format";
+import { PSS_CASE_TYPE } from "./options";
 import { signatories } from "./selectors";
 import type { FilingDraft } from "./types";
 
@@ -32,6 +33,16 @@ const SEEDED_KEY = "dristi.filing.sampleDrafts.v1";
 const SIGN_SEEDED_KEY = "dristi.filing.sampleDrafts.sign.v1";
 /** The two-advocate sample, added later still — its own marker for the same reason. */
 const ADVOCATE_LINK_SEEDED_KEY = "dristi.filing.sampleDrafts.advocateLink.v1";
+/**
+ * Pending payment, reseeded after the oath moved into signing. A `pay-pending` sample
+ * seeded before that carries every signature but no oath, so the queue now reads it as
+ * Pending signature and the Pending payment tab opens empty. This marker rebuilds that
+ * sample — only if it is still there, so a discarded one stays discarded — and adds a
+ * second, so the tab and its bulk total have more than one row to show.
+ */
+const PAY_SEEDED_KEY = "dristi.filing.sampleDrafts.pay.v2";
+/** Two Section 25 (PSA) drafts, so the Case type column has more than one value. */
+const PSS_SEEDED_KEY = "dristi.filing.sampleDrafts.pss.v1";
 
 /**
  * The demand notice's service date, worked back from how many days the person should
@@ -95,6 +106,20 @@ export const ADVOCATE_LINK_SAMPLES: Sample[] = [
     savedDaysAgo: 0,
     second: { complainant: "Fathima Rasheed", mobile: "9847055610", advocate: "Thomas Kurian", barNumber: "K/2204/2015" },
   },
+];
+
+/**
+ * Section 25 of the Payment and Settlement Systems Act. There is no filing flow for it
+ * yet, so these only fill a Drafts row and open the placeholder page.
+ */
+const PSS_SAMPLES: Sample[] = [
+  { id: "sample-draft-11", complainant: "Kerala Gramin Bank", accused: "Biju Antony", daysLeft: null, reach: "parties", savedDaysAgo: 2 },
+  { id: "sample-draft-12", complainant: "Muthoot Finance Ltd", accused: "Shabna N.", daysLeft: null, reach: "parties", savedDaysAgo: 6 },
+];
+
+/** Pending payment: the stale sample above, rebuilt, and one more. */
+const PAY_SAMPLES: Sample[] = [
+  { id: "sample-draft-13", complainant: "Abdul Rasheed P.", accused: "Vinod Kumar K.", daysLeft: 6, reach: "pay-pending", savedDaysAgo: 1 },
 ];
 
 /** One sample as a draft. Exported so tests can check a fixture without IndexedDB. */
@@ -202,14 +227,32 @@ export function buildSampleDraft(sample: Sample, today: string): FilingDraft {
 let seeding: Promise<void> | null = null;
 
 /** Seed one batch of samples, by its own marker, unless it already ran. */
-async function seedOnce(key: string, samples: Sample[], today: string): Promise<void> {
+async function seedOnce(
+  key: string,
+  samples: Sample[],
+  today: string,
+  caseType: FilingDraft["caseType"] = "s138"
+): Promise<void> {
   if (window.localStorage.getItem(key)) return;
   const repo = getRepository();
   for (const sample of samples) {
     const existing = await repo.getDraft(sample.id);
-    if (!existing) await repo.putDraft(buildSampleDraft(sample, today));
+    if (!existing) await repo.putDraft({ ...buildSampleDraft(sample, today), caseType });
   }
   window.localStorage.setItem(key, new Date().toISOString());
+}
+
+/** Rebuild the samples that are already stored (never revive a discarded one), then seed the new ones. */
+async function reseedPayOnce(today: string): Promise<void> {
+  if (window.localStorage.getItem(PAY_SEEDED_KEY)) return;
+  const repo = getRepository();
+  for (const sample of SIGN_SAMPLES.filter((s) => s.reach === "pay-pending")) {
+    if (await repo.getDraft(sample.id)) await repo.putDraft(buildSampleDraft(sample, today));
+  }
+  for (const sample of PAY_SAMPLES) {
+    if (!(await repo.getDraft(sample.id))) await repo.putDraft(buildSampleDraft(sample, today));
+  }
+  window.localStorage.setItem(PAY_SEEDED_KEY, new Date().toISOString());
 }
 
 /** Seed the samples once per browser. Safe to call on every read; it does nothing after the first time. */
@@ -222,6 +265,8 @@ export function ensureSampleDrafts(): Promise<void> {
       await seedOnce(SEEDED_KEY, SAMPLES, today);
       await seedOnce(SIGN_SEEDED_KEY, SIGN_SAMPLES, today);
       await seedOnce(ADVOCATE_LINK_SEEDED_KEY, ADVOCATE_LINK_SAMPLES, today);
+      await reseedPayOnce(today);
+      await seedOnce(PSS_SEEDED_KEY, PSS_SAMPLES, today, PSS_CASE_TYPE.code);
     } catch {
       /* storage blocked — the queue simply opens empty */
     }

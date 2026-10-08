@@ -138,7 +138,7 @@ export function CourtDocument({
           <div className="flex flex-col gap-1">
             <p className="text-caption font-semibold text-paper-muted-foreground">Place · date</p>
             <p>
-              Kollam · <span className="tabular-nums">{longDate(task.completion?.at ?? new Date().toISOString())}</span>
+              Sample District · <span className="tabular-nums">{longDate(task.completion?.at ?? new Date().toISOString())}</span>
             </p>
           </div>
           <div className="flex flex-col gap-1">

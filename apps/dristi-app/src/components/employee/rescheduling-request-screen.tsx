@@ -5,7 +5,6 @@ import { FolderCheckIcon, SearchXIcon } from "lucide-react";
 
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { QueueSearchField } from "@/components/employee/queue-search-field";
 import { ReschedulingRequestDialog } from "@/components/employee/rescheduling-request-dialog";
 import { ReschedulingRequestTable } from "@/components/employee/rescheduling-request-table";
 import { Button } from "@/components/ui/button";
@@ -20,6 +19,7 @@ import {
 import {
   causeTitle,
   formatListingDate,
+  COURT_HEARING_PURPOSES,
   PAGE_SIZE,
   type HearingsPageSize,
 } from "@/lib/employee/hearings";
@@ -32,6 +32,84 @@ import {
   type ReschedulingRequest,
 } from "@/lib/employee/rescheduling-request";
 import { Identifier } from "@/components/chrome/identifier";
+import {
+  CourtFilters,
+  CourtSortSelect,
+  type CourtFilterField,
+} from "@/components/employee/court-filters";
+import {
+  compareCaseNumbers,
+  compareDays,
+  daySorts,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
+import {
+  applyColumnFilters,
+  columnFilterFields,
+  emptyColumnFilters,
+  hasColumnFilters,
+  type ColumnFilter,
+} from "@/lib/employee/court-column-filters";
+
+const RESCHEDULING_COLUMN_FILTERS: ColumnFilter<ReschedulingRequest>[] = [
+  {
+    id: "rescheduling-purpose",
+    label: "Hearing purpose",
+    allLabel: "Any purpose",
+    options: COURT_HEARING_PURPOSES.map((purpose) => ({
+      value: purpose.id,
+      label: purpose.label,
+    })),
+    test: (row, value) => row.purpose === value,
+  },
+  {
+    id: "rescheduling-consent",
+    label: "Other side",
+    allLabel: "Agreed or not",
+    options: [
+      { value: "agreed", label: "Agreed" },
+      { value: "not-agreed", label: "Not agreed" },
+    ],
+    test: (row, value) => row.partiesAgreed === (value === "agreed"),
+  },
+  {
+    id: "rescheduling-side",
+    label: "Applied for",
+    allLabel: "Either side",
+    options: [
+      { value: "complainant", label: "Complainant" },
+      { value: "accused", label: "Accused" },
+    ],
+    test: (row, value) => row.filedFor === value,
+  },
+];
+
+type ReschedulingSort = "hearing" | "oldest" | "newest";
+
+/**
+ * The hearing that would be missed comes first — Date of next hearing, soonest — because
+ * a request decided after its date is moot.
+ */
+const RESCHEDULING_SORTS: CourtSortSpec<ReschedulingRequest, ReschedulingSort>[] = [
+  {
+    id: "hearing",
+    label: "Next hearing soonest",
+    compare: (a, b) =>
+      compareDays(a.listedOn, b.listedOn) || compareCaseNumbers(a.caseNumber, b.caseNumber),
+  },
+  ...daySorts<ReschedulingRequest, ReschedulingSort>(
+    (row) => row.appliedOn,
+    { id: "oldest", label: "Oldest application first", latest: false },
+    { id: "newest", label: "Newest application first" },
+  ),
+];
 
 /**
  * Rescheduling request — applications asking this court to move a listed date.
@@ -71,13 +149,22 @@ export function ReschedulingRequestScreen() {
   const remaining = RESCHEDULING_QUEUE.filter(
     (request) => !decidedIds.has(request.id),
   );
-  const rows = filterReschedulingRequests(remaining, filters);
+  const [columns, setColumns] = React.useState(() =>
+    emptyColumnFilters(RESCHEDULING_COLUMN_FILTERS),
+  );
+  const [sort, setSort] = React.useState<ReschedulingSort>("hearing");
+
+  const rows = sortRows(
+    applyColumnFilters(filterReschedulingRequests(remaining, filters), RESCHEDULING_COLUMN_FILTERS, columns),
+    RESCHEDULING_SORTS,
+    sort,
+  );
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = filters.query !== "";
+  const isFiltered = filters.query !== "" || hasColumnFilters(columns);
 
   function changeFilters(next: ReschedulingFilters) {
     setFilters(next);
@@ -86,6 +173,7 @@ export function ReschedulingRequestScreen() {
 
   function clearFilters() {
     changeFilters(EMPTY_RESCHEDULING_FILTERS);
+    setColumns(emptyColumnFilters(RESCHEDULING_COLUMN_FILTERS));
   }
 
   function decide(request: ReschedulingRequest) {
@@ -115,6 +203,22 @@ export function ReschedulingRequestScreen() {
           filters={filters}
           searchRef={searchRef}
           onChange={changeFilters}
+          onClear={clearFilters}
+          fields={columnFilterFields(RESCHEDULING_COLUMN_FILTERS, columns, (id, value) => {
+            setColumns((current) => ({ ...current, [id]: value }));
+            setPage(1);
+          })}
+          trailing={
+            <CourtSortSelect
+              id="rescheduling-sort"
+              value={sort}
+              options={sortOptions(RESCHEDULING_SORTS)}
+              onChange={(next) => {
+                setSort(next);
+                setPage(1);
+              }}
+            />
+          }
         />
 
         {/* Mounted whatever the list is doing, including empty — see `QueueAnnouncer`. */}
@@ -170,45 +274,39 @@ export function ReschedulingRequestScreen() {
 }
 
 /**
- * One text box, filtering as it is typed — the whole filter row.
- *
- * The Search button is gone: with one control there is nothing to compose before asking,
- * so it only ever stood between the clerk and the answer. The way back to the whole queue
- * is the `×` inside the box (`QueueSearchField`), which is why there is no "Clear" beside
- * it either — on this screen the search *is* the filters. The empty state keeps its own
- * Clear, where it is the invitation out of a dead end.
- *
- * The page is left with no `bg-primary` at all, and that is right: Search was the only
- * one, and this page has no page-level act for the Ration Teal Law to spend it on. A
- * request is approved or refused inside a row's overlay, where the teal already lives.
- *
- * The form element stays so Enter in the box is swallowed rather than reloading the page:
- * a lone text input inside a `<form>` submits implicitly, and there is no submit handler
- * left to catch it.
+ * The search box, the filters a rescheduling request is triaged by — the hearing it
+ * would move, whether the other side agreed, and who asked — and the order on the end of
+ * the row: the court-side filter row (`CourtFilters`).
  */
 function ReschedulingFiltersRow({
   filters,
   searchRef,
   onChange,
+  onClear,
+  fields,
+  trailing,
 }: {
   filters: ReschedulingFilters;
   searchRef: React.RefObject<HTMLInputElement | null>;
   onChange: (filters: ReschedulingFilters) => void;
+  onClear: () => void;
+  fields: CourtFilterField[];
+  /** The list's sort control (`CourtSortSelect`). */
+  trailing: React.ReactNode;
 }) {
   return (
-    <form
-      className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <QueueSearchField
-        label="Search cases"
-        className="sm:w-80"
-        ref={searchRef}
-        value={filters.query}
-        onChange={(query) => onChange({ ...filters, query })}
-        placeholder="Case name, number or advocate"
-      />
-    </form>
+    <CourtFilters
+      search={{
+        label: "Search cases",
+        value: filters.query,
+        onChange: (query) => onChange({ ...filters, query }),
+        placeholder: "Case name, number or advocate",
+      }}
+      searchRef={searchRef}
+      fields={fields}
+      trailing={trailing}
+      onClearAll={onClear}
+    />
   );
 }
 
@@ -267,28 +365,35 @@ function ReschedulingRequestItemList({
   return (
     <ul className="flex flex-col gap-3">
       {rows.map((request) => (
-        <li key={request.id}>
+        /* The row is the target (`rowActivation`) and the title its one opener, so the
+           copyable case number sits beside the opener rather than inside a button — a
+           button in a button is invalid HTML and broke hydration. */
+        <li
+          key={request.id}
+          {...rowActivation(
+            "flex flex-col gap-2 rounded-lg bg-surface-sunken p-4 transition-colors hover:bg-accent-strong",
+          )}
+        >
           <button
             type="button"
-            className="flex w-full min-h-10 flex-col gap-2 rounded-lg bg-surface-sunken p-4 text-left transition-colors hover:bg-accent-strong focus-visible:ring-3 focus-visible:ring-focus-ring focus-visible:outline-none"
-            aria-label={`Review ${causeTitle(request)}`}
             onClick={() => onOpen(request)}
+            {...rowOpener}
+            className={rowOpenerClass}
           >
-            <p className="min-w-0 text-body-compact font-medium">
-              {causeTitle(request)}
-            </p>
-            <p className="text-caption text-muted-foreground">
-              <Identifier value={request.caseNumber} label="case number" />
-              {" · Applied "}
-              <span className="tabular-nums">
-                {formatRequestLongDate(request.appliedOn)}
-              </span>
-              {" · Listed "}
-              <span className="tabular-nums">
-                {formatListingDate(request.listedOn)}
-              </span>
-            </p>
+            <span className="sr-only">Review </span>
+            {causeTitle(request)}
           </button>
+          <p className="text-caption text-muted-foreground">
+            <Identifier value={request.caseNumber} label="case number" />
+            {" · Applied "}
+            <span className="tabular-nums">
+              {formatRequestLongDate(request.appliedOn)}
+            </span>
+            {" · Listed "}
+            <span className="tabular-nums">
+              {formatListingDate(request.listedOn)}
+            </span>
+          </p>
         </li>
       ))}
     </ul>

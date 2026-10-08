@@ -4,9 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   CheckIcon,
-  MicIcon,
   RotateCcwIcon,
-  TriangleAlertIcon,
 } from "lucide-react";
 
 import { docName } from "@/lib/employee/scrutiny/field";
@@ -27,11 +25,7 @@ import {
   StagedOverlay,
   useStagedFlow,
 } from "@/components/chrome/staged-overlay";
-import { MarkThumb } from "@/components/employee/scrutiny/mark-thumb";
-import {
-  FieldValue,
-  RecordLink,
-} from "@/components/employee/scrutiny/record-rows";
+import { RecordLink } from "@/components/employee/scrutiny/record-rows";
 import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 
 export type Decision = "send-back" | "register";
@@ -42,15 +36,9 @@ interface Item {
   where: string;
   /** The partner item this one was raised with, if any. */
   linked: FlatField | null;
-  /**
-   * A mark on an uploaded document whose own row carries no item — the one error this
-   * design knows how to detect, and the last place it can still be caught.
-   */
-  stranded: string | null;
 }
 
 const GROUP_ORDER = [
-  "Corrections — advocate confirms",
   "Flags — advocate fixes",
   "Document issues — advocate re-uploads",
 ] as const;
@@ -59,7 +47,6 @@ function group(
   flags: FlagMap,
   allFields: FlatField[],
   fieldById: Record<string, FlatField>,
-  docRow: Record<string, string>,
 ): Record<string, Item[]> {
   const out: Record<string, Item[]> = Object.fromEntries(
     GROUP_ORDER.map((g) => [g, []]),
@@ -68,21 +55,14 @@ function group(
     const flag = flags[field.id];
     if (!flag) continue;
     const partnerId = flag.linkedTo ?? flag.linkedFrom ?? null;
-    const markedDoc = flag.evidence?.doc ?? null;
-    const markedRow = markedDoc ? docRow[markedDoc] : null;
     const item: Item = {
       field,
       flag,
       where: `${field.group} · ${field.label}`,
       linked: partnerId ? (fieldById[partnerId] ?? null) : null,
-      stranded:
-        !field.docrow && markedDoc && markedRow && !flags[markedRow]
-          ? markedDoc
-          : null,
     };
-    if (field.docrow) out[GROUP_ORDER[2]].push(item);
-    else if (flag.correction) out[GROUP_ORDER[0]].push(item);
-    else out[GROUP_ORDER[1]].push(item);
+    if (field.docrow) out[GROUP_ORDER[1]].push(item);
+    else out[GROUP_ORDER[0]].push(item);
   }
   return out;
 }
@@ -138,7 +118,7 @@ export function ReviewDialog({
   /** A record you can act on: closes the dialog and lands on the item. */
   onGoToItem: (fieldId: string) => void;
 }) {
-  const { party, allFields, fieldById, docRow } = useScrutinyCase();
+  const { party, allFields, fieldById } = useScrutinyCase();
   const [ack, setAck] = React.useState(false);
 
   /* Opening the dialog for a new decision starts from a clean slate — back to the list,
@@ -157,8 +137,8 @@ export function ReviewDialog({
   });
 
   const groups = React.useMemo(
-    () => group(flags, allFields, fieldById, docRow),
-    [flags, allFields, fieldById, docRow],
+    () => group(flags, allFields, fieldById),
+    [flags, allFields, fieldById],
   );
   const total = Object.values(groups).reduce((n, v) => n + v.length, 0);
 
@@ -168,7 +148,7 @@ export function ReviewDialog({
     decision === "send-back"
       ? {
           title: "Send back to advocate",
-          body: `Goes to ${party.advocate} as recorded. Corrections need confirmation; flags get fixed. Each item unlocks what you marked.`,
+          body: `Goes to ${party.advocate} as recorded. The advocate fixes each flag. Each item unlocks what you marked.`,
         }
       : {
           title: "Register case",
@@ -388,7 +368,7 @@ export function ReviewDialog({
               {GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
                 /*
                  * **A band per kind, ruled from the next.** What the advocate has to
-                 * *do* differs by band — confirm a correction, fix a flag, re-upload a
+                 * *do* differs by band — fix a flag, or re-upload a
                  * document — and the owner asked for that boundary to be visible
                  * (2026-09-18). The rule is the band's; items inside one are separated
                  * by space alone. Two separators would have been one too many, and the
@@ -452,12 +432,11 @@ function SummaryItem({
 }) {
   const { docById, docRow } = useScrutinyCase();
   const { field, flag } = item;
-  const evidenceDoc = flag.evidence ? docById[flag.evidence.doc] : undefined;
   const reupload =
     !field.docrow && !!field.doc && !!docRow[field.doc] ? item.linked : null;
 
   /*
-   * **One item, read in one pass: where, what changed, what was said, what is attached.**
+   * **One item, read in one pass: where, what was said, what is attached.**
    *
    * This was five labelled rows — Original value, FSO's value, FSO's comment,
    * Annotation, Re-upload requested — each with its name in an 8rem gutter. On a
@@ -467,17 +446,11 @@ function SummaryItem({
    * The labels are gone because the *form* now says what each line is, which is cheaper
    * than a word and faster to scan:
    *
-   * - the **correction** is one movement, `old → new`, not two rows that the eye has to
-   *   pair up. The superseded value is struck and muted; the new one carries the weight.
    * - the **comment** is quoted by a rule down its start, the way a note is quoted
    *   anywhere else. Nothing needs to call it a comment.
-   * - **what is attached** is a row of marks, and a mark only appears when it is true.
-   *   "Re-upload requested — No" used to print on every correction that did not ask for
+   * - **what is attached** is a row of links, and a link only appears when it is true.
+   *   "Re-upload requested — No" used to print on every item that did not ask for
    *   one, which is a row spent saying nothing.
-   *
-   * The annotation shows the **crop of the marked region** rather than the words
-   * "Annotation": `MarkThumb` is the same tile the workbench uses, so the officer
-   * recognises the mark they drew instead of reading a document number back.
    *
    * ## Why this is not the workbench's `RecordList`
    *
@@ -506,33 +479,7 @@ function SummaryItem({
         <span className="font-semibold">{field.label}</span>
       </h4>
 
-      {/*
-       * **The correction is the value.** `ValueLines` in the field row settled this
-       * shape already — *"a saved correction shows the proposed value as THE value, with
-       * the filed value on one quiet line beneath — no strikethrough noise in the
-       * primary position"* — and this window kept reinventing it: first as two labelled
-       * rows, then as a struck `old → new` pair, both of which lead with the value that
-       * no longer stands (owner, 2026-09-18: *"you already solved this… why is it
-       * getting so complicated here"*).
-       *
-       * So the corrected value comes first at weight, and what was filed sits under it
-       * as one quiet line. No strike: "was" is the word that says superseded, and a rule
-       * drawn through a value the advocate still has to recognise only makes it harder
-       * to read.
-       */}
-      {flag.correction ? (
-        <>
-          <p className="font-medium">
-            <FieldValue field={field} value={flag.correction} />
-          </p>
-          <p className="text-muted-foreground">
-            was <FieldValue field={field} value={field.value} copyable={false} />
-          </p>
-        </>
-      ) : null}
-
-      {/* A document issue has no before and after — the reason *is* the finding, so it
-          takes the weight the corrected value carries above. */}
+      {/* A document issue's reason *is* the finding, so it takes the weight. */}
       {field.docrow && flag.reason ? (
         <p className="font-medium">{flag.reason}</p>
       ) : null}
@@ -540,27 +487,12 @@ function SummaryItem({
       {flag.comment ? (
         <p className="flex flex-wrap items-center gap-x-2 border-s-2 border-border ps-2.5 text-muted-foreground">
           <span className="break-words">{flag.comment}</span>
-          {flag.voice ? (
-            <span className="inline-flex items-center gap-1">
-              <MicIcon className="size-3.5" aria-hidden="true" /> voice
-            </span>
-          ) : null}
         </p>
       ) : null}
 
       {/* What is attached to the item, and only what is. */}
-      {evidenceDoc || reupload || (field.docrow && item.linked) ? (
+      {reupload || (field.docrow && item.linked) ? (
         <p className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-0.5 text-muted-foreground">
-          {evidenceDoc ? (
-            <span className="inline-flex items-center gap-2">
-              <MarkThumb evidence={flag.evidence!} />
-              <span className="min-w-0">
-                <span className="tabular-nums">Doc {evidenceDoc.no}</span> ·{" "}
-                {docName(flag.evidence!.doc, docById)}
-              </span>
-            </span>
-          ) : null}
-
           {/* No glyph of its own: `RecordLink` already ends in one, and two icons on a
               three-word line is the clutter this pass is removing. */}
           {reupload ? (
@@ -577,28 +509,6 @@ function SummaryItem({
         </p>
       ) : null}
 
-      {/*
-       * The last backstop. A mark on an uploaded document with no item on that
-       * document's own row means the advocate gets the value unlocked and no re-upload
-       * button — the exact miss this feature exists to stop, named here rather than
-       * discovered on resubmission. Icon + words + colour, never colour alone.
-       */}
-      {item.stranded ? (
-        <p className="flex flex-wrap items-center gap-2 text-warning-ink">
-          <span className="inline-flex items-center gap-1.5">
-            <TriangleAlertIcon className="size-3.5" aria-hidden="true" />
-            Marked on {docName(item.stranded, docById)} — re-upload is not unlocked.
-          </span>
-          <Button
-            variant="link"
-            size="xs"
-            className="h-auto p-0 [@media(pointer:coarse)]:h-10"
-            onClick={() => onGoToItem(field.id)}
-          >
-            Open the item
-          </Button>
-        </p>
-      ) : null}
     </li>
   );
 }

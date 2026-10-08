@@ -98,6 +98,67 @@ export const STAGE_SLIDE = {
 
 export type StageMotion = keyof typeof STAGE_SLIDE;
 
+/** Interruptible stage travel uses the same timing as the CSS stage recipe. */
+export const STAGE_SLIDE_OPTIONS: KeyframeAnimationOptions = {
+  duration: 300,
+  easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+};
+
+/** Small controls reveal a layer quickly; mirrored pairs can share a stagger. */
+export const CONTROL_REVEAL = {
+  duration: 140,
+  fadeDuration: 125,
+  stagger: 30,
+  easing: STAGE_SLIDE_OPTIONS.easing,
+} as const;
+
 /** Something inside an overlay resolving into its outcome, in place. */
 export const RESOLVE_IN_PLACE =
   "animate-in fade-in-0 slide-in-from-bottom-1 duration-500 motion-reduce:animate-none";
+
+/**
+ * One step of an overlay giving way to the next **when the steps differ in height**
+ * (owner, 2026-10-06, on Join a Case): the window fades out softly, takes the next step
+ * and its height while it is clear, and fades back in — with the content drifting a
+ * hint (8px) the way the person is going, so the fade still says *forward* or *back*.
+ *
+ * Arrived at over several rounds, each the owner's call. Anything that resized the window
+ * on screen read as janky however it was eased — a slide fighting the resize, a centred
+ * glide moving the header, a choreographed morph. So the resize is never seen: it happens
+ * in the moment the window is clear. The fade is a sine in-out at both ends, so it neither
+ * snaps out nor pops in, and the drift is small enough to read as a light swipe, not a
+ * slide. The window itself never translates, so it stays centred on the work area.
+ *
+ * `STAGE_FADE_PANEL` is the window's fade, `STAGE_FADE.scene` the step's drift inside it;
+ * `useStageFade` applies both and waits `STAGE_FADE_OUT_MS` before mounting the next
+ * step. Reduced motion swaps instantly.
+ */
+const SOFT = "ease-[cubic-bezier(0.45,0,0.55,1)]";
+
+/**
+ * The window's own fade, as values rather than classes: a dialog inside the app chrome
+ * already carries `md:ease-linear md:duration-200` for following the sidebar
+ * (`useChromePageDialog`), and those would flatten this curve. So `useStageFade` writes
+ * the transition inline, keeping the chrome's `left` transition beside it.
+ */
+export const STAGE_FADE_PANEL = {
+  outMs: 200,
+  inMs: 300,
+  ease: "cubic-bezier(0.45,0,0.55,1)",
+} as const;
+
+export const STAGE_FADE = {
+  scene: {
+    forward: {
+      out: `-translate-x-2 transition-[translate] duration-200 ${SOFT} motion-reduce:transition-none`,
+      in: `animate-in slide-in-from-right-2 duration-300 ${SOFT} motion-reduce:animate-none`,
+    },
+    back: {
+      out: `translate-x-2 transition-[translate] duration-200 ${SOFT} motion-reduce:transition-none`,
+      in: `animate-in slide-in-from-left-2 duration-300 ${SOFT} motion-reduce:animate-none`,
+    },
+  },
+} as const;
+
+/** How long the window takes to clear before the next step mounts. */
+export const STAGE_FADE_OUT_MS = STAGE_FADE_PANEL.outMs;

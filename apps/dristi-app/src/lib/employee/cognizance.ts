@@ -41,7 +41,7 @@
  * it rather than rewritten.
  */
 
-import { CURRENT_STAFF } from "./content";
+import { COURT_DISTRICT } from "./content";
 import {
   formatListingDate,
   isoDay,
@@ -104,7 +104,7 @@ export type CognizanceCase = {
  * The place this court sits, read off the one constant that already names it rather
  * than written down a second time — a second copy is a second thing to get wrong.
  */
-export const COURT_PLACE = CURRENT_STAFF.court.split(",").pop()!.trim();
+export const COURT_PLACE = COURT_DISTRICT;
 
 /** The month §142(b) allows for filing, in days. */
 export const LIMITATION_DAYS = 30;
@@ -136,7 +136,7 @@ const PRESENTED_TO_RETURN_DAYS = 2;
 /**
  * The complaints on this court's register that have not been taken cognizance of.
  *
- * Ordered longest wait first. Names are Kollam parties and the same bar as the rest of
+ * Ordered longest wait first. Names are local parties and the same bar as the rest of
  * the court side — one court, one set of advocates practising in it — and none of these
  * matters appears in another queue.
  *
@@ -170,7 +170,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    /* The payee's branch is in Ernakulam, not this court's Kollam — §142(2)(a) puts the
+    /* The payee's branch is in Ernakulam, not this court's district — §142(2)(a) puts the
        complaint where that branch lies, so the jurisdiction check fires. */
     branch: { bank: "South Indian Bank", branch: "Ernakulam South", place: "Ernakulam" },
     presentedAfterDays: 21,
@@ -189,7 +189,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Sample District" },
     presentedAfterDays: 14,
   },
   {
@@ -214,7 +214,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Exceeds arrangement",
     depositedByComplainant: true,
-    branch: { bank: "State Bank of India", branch: "Asramam", place: "Kollam" },
+    branch: { bank: "State Bank of India", branch: "Asramam", place: "Sample District" },
     presentedAfterDays: 33,
   },
   {
@@ -231,7 +231,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Sample District" },
     presentedAfterDays: 8,
   },
   {
@@ -268,7 +268,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: "Addressee moved from the address on record",
     returnReason: "Account closed",
     depositedByComplainant: true,
-    branch: { bank: "Union Bank of India", branch: "Punalur", place: "Kollam" },
+    branch: { bank: "Union Bank of India", branch: "Punalur", place: "Sample District" },
     presentedAfterDays: 27,
   },
   {
@@ -285,7 +285,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Kollam" },
+    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Sample District" },
     presentedAfterDays: 12,
   },
   {
@@ -303,7 +303,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Chinnakada", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Chinnakada", place: "Sample District" },
     presentedAfterDays: 16,
   },
   {
@@ -320,7 +320,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Exceeds arrangement",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Kottiyam", place: "Sample District" },
     presentedAfterDays: 41,
   },
   {
@@ -340,7 +340,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "State Bank of India", branch: "Asramam", place: "Kollam" },
+    branch: { bank: "State Bank of India", branch: "Asramam", place: "Sample District" },
     presentedAfterDays: 23,
   },
   {
@@ -375,7 +375,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Mundakkal", place: "Kollam" },
+    branch: { bank: "South Indian Bank", branch: "Mundakkal", place: "Sample District" },
     presentedAfterDays: 9,
   },
   {
@@ -393,7 +393,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: "Refused to accept",
     returnReason: "Payment stopped by drawer",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Punalur", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Punalur", place: "Sample District" },
     presentedAfterDays: 30,
   },
   {
@@ -410,7 +410,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Chinnakada", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Chinnakada", place: "Sample District" },
     presentedAfterDays: 11,
   },
   {
@@ -429,7 +429,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Exceeds arrangement",
     depositedByComplainant: true,
-    branch: { bank: "Union Bank of India", branch: "Kottiyam", place: "Kollam" },
+    branch: { bank: "Union Bank of India", branch: "Kottiyam", place: "Sample District" },
     presentedAfterDays: 25,
   },
   {
@@ -446,7 +446,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Kollam" },
+    branch: { bank: "South Indian Bank", branch: "Karunagappally", place: "Sample District" },
     presentedAfterDays: 6,
   },
   {
@@ -464,7 +464,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Asramam", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Asramam", place: "Sample District" },
     presentedAfterDays: 13,
   },
   {
@@ -481,7 +481,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "State Bank of India", branch: "Chathannoor", place: "Kollam" },
+    branch: { bank: "State Bank of India", branch: "Chathannoor", place: "Sample District" },
     presentedAfterDays: 20,
   },
   {
@@ -498,7 +498,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: "Door locked on three attempts",
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Mundakkal", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Mundakkal", place: "Sample District" },
     presentedAfterDays: 15,
   },
   {
@@ -516,7 +516,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Exceeds arrangement",
     depositedByComplainant: true,
-    branch: { bank: "Union Bank of India", branch: "Chinnakada", place: "Kollam" },
+    branch: { bank: "Union Bank of India", branch: "Chinnakada", place: "Sample District" },
     presentedAfterDays: 18,
   },
   {
@@ -533,7 +533,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "South Indian Bank", branch: "Kottiyam", place: "Kollam" },
+    branch: { bank: "South Indian Bank", branch: "Kottiyam", place: "Sample District" },
     presentedAfterDays: 7,
   },
   {
@@ -571,7 +571,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Kollam" },
+    branch: { bank: "Federal Bank", branch: "Kadappakada", place: "Sample District" },
     presentedAfterDays: 24,
   },
   {
@@ -588,7 +588,7 @@ export const COGNIZANCE_QUEUE: CognizanceCase[] = [
     nonDeliveryReason: null,
     returnReason: "Funds insufficient",
     depositedByComplainant: true,
-    branch: { bank: "Canara Bank", branch: "Asramam", place: "Kollam" },
+    branch: { bank: "Canara Bank", branch: "Asramam", place: "Sample District" },
     presentedAfterDays: 5,
   },
 ];
@@ -1048,22 +1048,35 @@ export function cognizanceTabCount(tab: CognizanceTab): number {
 
 /* ───────────────────────────────── the filters ──────────────────────────────── */
 
+export type CognizanceNoticeFilter = "all" | "delivered" | "returned";
+
 export type CognizanceFilters = {
   /** Free text over the cause title, both numbers and counsel. */
   query: string;
+  /** Whether the statutory demand notice reached the accused or came back. */
+  notice?: CognizanceNoticeFilter;
 };
 
 export const EMPTY_COGNIZANCE_FILTERS: CognizanceFilters = {
   query: "",
+  notice: "all",
 };
+
+export const COGNIZANCE_NOTICE_OPTIONS: { value: Exclude<CognizanceNoticeFilter, "all">; label: string }[] = [
+  { value: "delivered", label: "Notice delivered" },
+  { value: "returned", label: "Notice returned" },
+];
 
 export function filterCognizanceCases(
   rows: CognizanceCase[],
   filters: CognizanceFilters,
 ): CognizanceCase[] {
   const query = filters.query.trim().toLowerCase();
-  if (!query) return rows;
+  const notice = filters.notice ?? "all";
   return rows.filter((entry) => {
+    if (notice === "delivered" && !entry.noticeDelivered) return false;
+    if (notice === "returned" && entry.noticeDelivered) return false;
+    if (!query) return true;
     const haystack = [
       entry.parties.complainant,
       entry.parties.accused,

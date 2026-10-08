@@ -15,25 +15,36 @@ function draftWithAdvocate(): FilingDraft {
 }
 
 describe("advocate's oath", () => {
-  it("is owed by advocates only, never by complainants", () => {
-    const { complainants, advocates } = signatories(draftWithAdvocate(), null);
+  it("is off by default: advocates owe no oath, and the fee opens once everyone signs", () => {
+    const d = draftWithAdvocate();
+    const { complainants, advocates } = signatories(d, null);
+    assert.equal(complainants[0].oathTaken, undefined);
+    assert.equal(advocates[0].oathTaken, undefined);
+
+    const at = "2026-10-06T10:00:00.000Z";
+    for (const s of [...complainants, ...advocates]) d.sign.signed[s.id] = { at, with: "aadhaar" };
+    assert.equal(signingComplete(d, null), true);
+  });
+
+  it("when switched on, is owed by advocates only, never by complainants", () => {
+    const { complainants, advocates } = signatories(draftWithAdvocate(), null, true);
     assert.equal(complainants[0].oathTaken, undefined);
     assert.equal(advocates[0].oathTaken, false);
   });
 
-  it("keeps the court fee shut after every signature until the oath is in", () => {
+  it("when switched on, keeps the court fee shut after every signature until the oath is in", () => {
     const d = draftWithAdvocate();
     const at = "2026-10-06T10:00:00.000Z";
-    for (const s of Object.values(signatories(d, null)).flat()) {
+    for (const s of Object.values(signatories(d, null, true)).flat()) {
       d.sign.signed[s.id] = { at, with: "aadhaar" };
     }
-    assert.equal(signingComplete(d, null), false);
+    assert.equal(signingComplete(d, null, true), false);
 
-    const advocate = signatories(d, null).advocates[0];
+    const advocate = signatories(d, null, true).advocates[0];
     assert.equal(isOutstanding(advocate), true);
 
     d.sign.oaths[advocate.id] = { at, video: null };
-    assert.equal(signingComplete(d, null), true);
+    assert.equal(signingComplete(d, null, true), true);
   });
 
   it("moves an old draft off the retired Oath step and drops the complainant's video", () => {

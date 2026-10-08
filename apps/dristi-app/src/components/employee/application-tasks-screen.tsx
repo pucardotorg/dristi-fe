@@ -16,6 +16,7 @@ import { QueueItemRow } from "@/components/employee/queue-item-row";
 import { Badge } from "@/components/ui/badge";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -46,8 +47,84 @@ import {
   causeTitleOf,
   dueState,
 } from "@/lib/employee/application-tasks";
-import { rowActivation, rowOpener, rowOpenerClass } from "@/lib/employee/row-activation";
+import {
+  rowActivation,
+  rowOpener,
+  rowOpenerClass,
+} from "@/lib/employee/row-activation";
 import { cn } from "@/lib/utils";
+import {
+  CourtFilters,
+  CourtSortSelect,
+} from "@/components/employee/court-filters";
+import { QueueAnnouncer } from "@/components/employee/queue-announcer";
+import { Button } from "@/components/ui/button";
+import { matchesQuery } from "@/lib/employee/filter-state";
+import {
+  compareDays,
+  compareText,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
+import {
+  applyColumnFilters,
+  columnFilterFields,
+  emptyColumnFilters,
+  hasColumnFilters,
+  type ColumnFilter,
+} from "@/lib/employee/court-column-filters";
+
+type TaskSort = "due" | "oldest" | "newest";
+
+const filedOn = (task: CourtTask) =>
+  task.application.submittedOn ?? task.application.createdOn;
+
+/** Due soonest by default — the Due column, and the date the court said it would act by. */
+const TASK_SORTS: CourtSortSpec<CourtTask, TaskSort>[] = [
+  {
+    id: "due",
+    label: "Due soonest",
+    compare: (a, b) =>
+      compareDays(a.dueOn, b.dueOn) ||
+      compareText(a.application.typeLabel, b.application.typeLabel),
+  },
+  {
+    id: "oldest",
+    label: "Oldest filed first",
+    compare: (a, b) => compareDays(filedOn(a), filedOn(b)),
+  },
+  {
+    id: "newest",
+    label: "Newest filed first",
+    compare: (a, b) => compareDays(filedOn(b), filedOn(a)),
+  },
+];
+
+/** The application types on this queue, and the side that filed — what a pile is split by. */
+function taskFilters(tasks: CourtTask[]): ColumnFilter<CourtTask>[] {
+  return [
+    {
+      id: "application-type",
+      label: "Application type",
+      allLabel: "All application types",
+      options: [...new Set(tasks.map((task) => task.application.typeLabel))]
+        .sort(compareText)
+        .map((label) => ({ value: label, label })),
+      test: (task, value) => task.application.typeLabel === value,
+    },
+    {
+      id: "application-side",
+      label: "Filed for",
+      allLabel: "Either side",
+      options: [
+        { value: "complainant", label: "Complainant" },
+        { value: "accused", label: "Accused" },
+      ],
+      test: (task, value) => task.application.side === value,
+    },
+  ];
+}
 
 /**
  * The court's application queues, soonest due first.
@@ -58,7 +135,10 @@ import { cn } from "@/lib/utils";
  * their whole lifecycle, rather than a fixture — so the queue is empty until someone
  * files one, and it says how.
  */
-const VIEWS: Record<CourtTaskKind, { title: string; empty: string; one: string; many: (n: number) => string }> = {
+const VIEWS: Record<
+  CourtTaskKind,
+  { title: string; empty: string; one: string; many: (n: number) => string }
+> = {
   review: {
     title: "Onboard applications",
     empty:
@@ -85,7 +165,33 @@ export function ApplicationTasksScreen({ kind }: { kind: CourtTaskKind }) {
   const view = VIEWS[kind];
   const ready = useApplicationsReady();
   const apps = useLifecycleApplications();
-  const rows = courtTasks(apps).filter((task) => task.kind === kind);
+  const all = courtTasks(apps).filter((task) => task.kind === kind);
+  const filters = taskFilters(all);
+  const [query, setQuery] = React.useState("");
+  const [columns, setColumns] = React.useState(() =>
+    emptyColumnFilters(filters),
+  );
+  const [sort, setSort] = React.useState<TaskSort>("due");
+  const rows = sortRows(
+    applyColumnFilters(all, filters, columns).filter((task) => {
+      const record = caseOf(task.application);
+      return matchesQuery(
+        query,
+        task.application.typeLabel,
+        causeTitleOf(task.application),
+        record?.caseNumber,
+        task.application.applicationNumber,
+      );
+    }),
+    TASK_SORTS,
+    sort,
+  );
+  const isFiltered = query.trim() !== "" || hasColumnFilters(columns);
+
+  function clearFilters() {
+    setQuery("");
+    setColumns(emptyColumnFilters(filters));
+  }
   const [openId, setOpenId] = React.useState<string | null>(null);
   const open = openId ? (apps.find((app) => app.id === openId) ?? null) : null;
   const headingRef = React.useRef<HTMLHeadingElement>(null);
@@ -104,9 +210,9 @@ export function ApplicationTasksScreen({ kind }: { kind: CourtTaskKind }) {
         <p className="text-body text-muted-foreground">
           {!ready
             ? "Loading."
-            : rows.length === 1
+            : all.length === 1
               ? view.one
-              : view.many(rows.length)}
+              : view.many(all.length)}
         </p>
       </header>
 
@@ -117,7 +223,7 @@ export function ApplicationTasksScreen({ kind }: { kind: CourtTaskKind }) {
               <Skeleton key={index} className="h-10 w-full rounded-lg" />
             ))}
           </div>
-        ) : rows.length === 0 ? (
+        ) : all.length === 0 ? (
           <Empty className="border-0 p-0">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -126,30 +232,81 @@ export function ApplicationTasksScreen({ kind }: { kind: CourtTaskKind }) {
               <EmptyTitle className="text-title-s font-semibold">
                 Nothing waiting
               </EmptyTitle>
-              <EmptyDescription className="text-body">{view.empty}</EmptyDescription>
+              <EmptyDescription className="text-body">
+                {view.empty}
+              </EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
           <>
-            <div className="hidden min-w-0 overflow-x-auto md:block">
-              <TasksTable tasks={rows} on={on} onOpen={setOpenId} />
-            </div>
-            <ul className="flex flex-col gap-3 md:hidden">
-              {rows.map((task) => (
-                <QueueItemRow key={task.application.id} className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(task.application.id)}
-                    {...rowOpener}
-                    className={rowOpenerClass}
-                  >
-                    {task.application.typeLabel}
-                  </button>
-                  <p className="text-body-compact">{causeTitleOf(task.application)}</p>
-                  <DueLine task={task} on={on} />
-                </QueueItemRow>
-              ))}
-            </ul>
+            <CourtFilters
+              search={{
+                label: "Search applications",
+                value: query,
+                onChange: setQuery,
+                placeholder: "Application, case name or number",
+              }}
+              fields={columnFilterFields(filters, columns, (id, value) =>
+                setColumns((current) => ({ ...current, [id]: value })),
+              )}
+              trailing={
+                <CourtSortSelect
+                  id={`${kind}-applications-sort`}
+                  value={sort}
+                  options={sortOptions(TASK_SORTS)}
+                  onChange={setSort}
+                />
+              }
+              onClearAll={clearFilters}
+            />
+            <QueueAnnouncer from={1} to={rows.length} total={rows.length} />
+            {rows.length === 0 ? (
+              <Empty className="border-0 p-0">
+                <EmptyHeader>
+                  <EmptyTitle className="text-title-s font-semibold">
+                    No applications match
+                  </EmptyTitle>
+                  <EmptyDescription className="text-body">
+                    Nothing on this queue matches the search and filters you
+                    have applied.
+                  </EmptyDescription>
+                </EmptyHeader>
+                {isFiltered ? (
+                  <EmptyContent>
+                    <Button variant="outline" onClick={clearFilters}>
+                      Clear all
+                    </Button>
+                  </EmptyContent>
+                ) : null}
+              </Empty>
+            ) : (
+              <>
+                <div className="hidden min-w-0 overflow-x-auto md:block">
+                  <TasksTable tasks={rows} on={on} onOpen={setOpenId} />
+                </div>
+                <ul className="flex flex-col gap-3 md:hidden">
+                  {rows.map((task) => (
+                    <QueueItemRow
+                      key={task.application.id}
+                      className="flex flex-col gap-2"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOpenId(task.application.id)}
+                        {...rowOpener}
+                        className={rowOpenerClass}
+                      >
+                        {task.application.typeLabel}
+                      </button>
+                      <p className="text-body-compact">
+                        {causeTitleOf(task.application)}
+                      </p>
+                      <DueLine task={task} on={on} />
+                    </QueueItemRow>
+                  ))}
+                </ul>
+              </>
+            )}
           </>
         )}
       </section>
@@ -185,9 +342,15 @@ function TasksTable({
           <TableHead className={cn(TABLE_HEAD, "min-w-56 whitespace-normal")}>
             Case
           </TableHead>
-          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>Number</TableHead>
-          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>Filed on</TableHead>
-          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>Due</TableHead>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
+            Number
+          </TableHead>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
+            Filed on
+          </TableHead>
+          <TableHead className={cn(TABLE_HEAD, "whitespace-nowrap")}>
+            Due
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody className={tableBodyClass()}>
@@ -199,7 +362,12 @@ function TasksTable({
           const record = caseOf(app);
           return (
             <TableRow key={app.id} {...rowActivation(tableRowClass())}>
-              <TableCell className={cn(TABLE_CELL, "min-w-40 font-medium whitespace-normal")}>
+              <TableCell
+                className={cn(
+                  TABLE_CELL,
+                  "min-w-40 font-medium whitespace-normal",
+                )}
+              >
                 <button
                   type="button"
                   onClick={() => onOpen(app.id)}
@@ -214,29 +382,42 @@ function TasksTable({
                   </p>
                 ) : null}
               </TableCell>
-              <TableCell className={cn(TABLE_CELL, "min-w-56 whitespace-normal")}>
+              <TableCell
+                className={cn(TABLE_CELL, "min-w-56 whitespace-normal")}
+              >
                 <span className="flex flex-col gap-0.5">
                   <span>{causeTitleOf(app)}</span>
                   {record ? (
                     <span className="text-caption text-muted-foreground">
-                      <Identifier value={record.caseNumber} label="case number" />
+                      <Identifier
+                        value={record.caseNumber}
+                        label="case number"
+                      />
                     </span>
                   ) : null}
                 </span>
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
                 {app.applicationNumber ? (
-                  <Identifier value={app.applicationNumber} label="application number" />
+                  <Identifier
+                    value={app.applicationNumber}
+                    label="application number"
+                  />
                 ) : (
                   <span className="flex flex-col gap-0.5 text-caption text-muted-foreground">
                     {app.temporaryId ? (
-                      <Identifier value={app.temporaryId} label="temporary identifier" />
+                      <Identifier
+                        value={app.temporaryId}
+                        label="temporary identifier"
+                      />
                     ) : null}
                     <span>Temporary</span>
                   </span>
                 )}
               </TableCell>
-              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap tabular-nums")}>
+              <TableCell
+                className={cn(TABLE_CELL, "whitespace-nowrap tabular-nums")}
+              >
                 {app.submittedOn ? formatCaseDate(app.submittedOn) : "—"}
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>

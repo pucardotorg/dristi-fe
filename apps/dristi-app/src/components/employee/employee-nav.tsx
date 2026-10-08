@@ -20,6 +20,9 @@ import {
   COURT_NAV_TRAILING,
   courtNavRowsFor,
   courtNavGroupsFor,
+  courtNavGroupsForSeat,
+  courtNavItemsForSeat,
+  seatHasNarrowRail,
   isCourtNavActive,
   isCourtNavCombinedActive,
   isCourtNavCombinedRow,
@@ -816,7 +819,7 @@ function CourtNavGroupSection({
  * "an ellipsis here has nothing behind it", and every order the sign queues produce is
  * headed with the court — so it wrapped and the footer grew. This row is a fixed 56px
  * matched to the top bar, so it cannot grow, and the column here is no wider. The demo
- * value fits ("JMFC Court 1, Kollam" measures ~133px against ~152px available); a longer
+ * value fits ("JMFC Court 1" is well inside the ~152px available); a longer
  * bench truncates, and `title` is what stands behind the ellipsis that the foot had
  * nothing to offer. Folded, it goes `sr-only` rather than disappearing — the same trade
  * every other label in this rail makes when the strip takes over.
@@ -1064,9 +1067,13 @@ function CourtIdentityFooter() {
 
 export function EmployeeNav() {
   const [cognizanceLayout] = useCognizanceLayout();
-  const groups = courtNavGroupsFor(cognizanceLayout);
+  const seat = useCourtRole();
+  const groups = courtNavGroupsForSeat(courtNavGroupsFor(cognizanceLayout), seat);
   const { openId, setOpenId, currentId } = useCourtNavDisclosure(groups);
-  const [layout] = useCourtNavLayout();
+  const [savedLayout] = useCourtNavLayout();
+  /* A seat cut down to a few rows has nothing to fold into a combined row, so it shows
+     them open whatever layout is saved. */
+  const layout = seatHasNarrowRail(seat) ? "open" : savedLayout;
   const pathname = usePathname();
   return (
     /* Rows that go nowhere explain themselves on hover and on focus; at the DS default of
@@ -1085,7 +1092,7 @@ export function EmployeeNav() {
         <SidebarGroup className="gap-1">
           <SidebarMenu className={RAIL_MENU}>
             <CourtSearchRow />
-            {COURT_NAV_LINKS.map((item) => (
+            {courtNavItemsForSeat(COURT_NAV_LINKS, seat).map((item) => (
               <CourtNavRow key={item.id} item={item} />
             ))}
           </SidebarMenu>
@@ -1132,7 +1139,7 @@ export function EmployeeNav() {
               from the queues above it; without one it reads as a fifth kind of work. */}
           <CourtNavBreak />
           <SidebarMenu className={RAIL_MENU}>
-            {COURT_NAV_TRAILING.map((item) => (
+            {courtNavItemsForSeat(COURT_NAV_TRAILING, seat).map((item) => (
               <CourtNavRow key={item.id} item={item} />
             ))}
           </SidebarMenu>

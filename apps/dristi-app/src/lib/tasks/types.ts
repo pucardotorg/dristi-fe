@@ -156,50 +156,15 @@ export type DocTarget = {
 export type DefectTarget = FieldTarget | DocTarget;
 
 /**
- * A spoken remark from the officer. It never carries a defect's meaning on its own —
- * WCAG 1.2.1 wants a text alternative for prerecorded audio, so `Defect.note` is always
- * there beside it and a transcript is shown when one exists.
- */
-export type VoiceNote = {
-  id: string;
-  durationMs: number;
-  transcript?: string;
-};
-
-/** A box the officer drew on an upload — the same geometry the OCR highlight uses. */
-export type DefectAnnotation = {
-  file: StoredFileRef;
-  box: { x0: number; y0: number; x1: number; y1: number };
-  page: { width: number; height: number };
-};
-
-/** "This should read KLGB0040213, not KLGB0040231" — with the paper that says so. */
-export type Suggestion = {
-  from: string;
-  to: string;
-  evidence?: StoredFileRef;
-};
-
-/**
  * What the advocate did about it. Never a self-certified tick: the screen writes this
- * only when a value actually changed, a suggestion was actually taken, or a document was
- * actually replaced — and `defects.ts` derives "resolved" from it plus the live value.
+ * only when a value actually changed or a document was actually replaced — and
+ * `defects.ts` derives "resolved" from it plus the live value.
  */
 export type Resolution = {
-  /**
-   * `kept` is disagreement (brief D7): the filed value stands and the advocate has said
-   * why. It is a resolution, not an unresolved defect — and it is a different act from an
-   * edit, so the history must not call it one.
-   */
-  how: "accepted" | "edited" | "kept" | "replaced";
+  /** `kept`: the advocate left the filed value as it was — no reason asked for. */
+  how: "edited" | "kept" | "replaced";
   /** The value now in the filing (field defects) — for the record, not the gate. */
   value?: string;
-  /**
-   * The advocate's reason. Required when an explicit suggestion was overridden and when
-   * the filed value is being kept; available on any field defect, because that is how a
-   * disagreement reaches the Registry at all.
-   */
-  justification?: string;
   /** The upload that replaced the flagged document. */
   replacement?: StoredFileRef;
   at: string;
@@ -209,13 +174,10 @@ export type Resolution = {
 export type Defect = {
   n: number;
   target: DefectTarget;
-  /** The officer's written remark. Always present — see `VoiceNote`. */
+  /** The officer's written remark — the whole instruction. Always present. */
   note: string;
   /** The value as scrutiny saw it: the baseline "has this changed?" is measured against. */
   valueAtReturn?: string;
-  voiceNote?: VoiceNote;
-  annotation?: DefectAnnotation;
-  suggestion?: Suggestion;
   resolution?: Resolution;
 };
 

@@ -21,7 +21,6 @@ import { fixHref } from "@/lib/tasks/routes";
 
 import { addDays, daysBetween, money, toDisplayDate } from "./format";
 import {
-  draftProgress,
   draftTitle,
   feeBill,
   limitationView,
@@ -30,7 +29,8 @@ import {
   signatories,
   signingComplete,
 } from "./selectors";
-import { stepHref } from "./steps";
+import { CASE_TYPE, PSS_CASE_TYPE } from "./options";
+import { NEW_PSS_FILING, stepHref } from "./steps";
 import type { FilingDraft, Signatory, UserProfile } from "./types";
 
 export const QUEUE_TABS = [
@@ -64,8 +64,10 @@ export type QueueRow = {
   info: { lead: string; sub?: string; tone: InfoTone };
   /** A count the info column shows as a chip instead of `info.lead`. Returned rows. */
   count?: number;
-  /** How much of the form is filled in, and when it was last touched. Drafts only. */
-  progress?: { percent: number; savedOn: string };
+  /** The case type's short label — "S138 of NIA". Every tab. */
+  caseType?: string;
+  /** When the draft was last touched. Drafts only. */
+  progress?: { savedOn: string };
   /**
    * Whether the signed-in profile still has a signature to add. Pending-signature rows
    * only — this is what a bulk sign can actually act on: you cannot sign for a party who
@@ -91,53 +93,59 @@ export type QueueRow = {
   haystack: string;
 };
 
-export type ColumnId = "ref" | "parties" | "court" | "info" | "progress" | "action";
+export type ColumnId =
+  | "ref"
+  | "parties"
+  | "caseType"
+  | "court"
+  | "info"
+  | "progress"
+  | "action";
 
 /**
  * What each tab actually shows.
  *
- * Case type is gone from every tab: DRISTI files one case type, so a column repeating
- * "S-138, NI Act" down the page carried nothing. Court is gone from drafts for the same
- * reason — a draft has not chosen one. A column with a single value is a caption printed
- * once per row.
+ * Every tab carries a Case type column now that there is more than one (S138 of NIA,
+ * S25 of PSA — owner, 2026-10-08). Court is gone from drafts — a draft has not chosen one.
  *
  * Drafts split what used to be one "Time to file" cell into two questions a person asks
  * separately: by when (File by — the limitation date, or NA while the clock cannot start)
- * and how far along (Completed — the share of the form filled in, with a ring beside it).
+ * and when it was last worked on (Last saved). The share-complete ring is gone (owner,
+ * 2026-10-08).
  */
 export const TAB_LAYOUT: Record<
   QueueTab,
   { columns: ColumnId[]; ref?: string; info: string; label: string }
 > = {
   drafts: {
-    columns: ["parties", "info", "progress", "action"],
+    columns: ["parties", "caseType", "info", "progress", "action"],
     info: "File by",
     label: "Drafts you have not filed yet",
   },
   pendingSignature: {
-    columns: ["parties", "info", "action"],
+    columns: ["parties", "caseType", "info", "action"],
     info: "Signatures",
     label: "Filings sent for signature",
   },
   pendingPayment: {
-    columns: ["parties", "info", "action"],
+    columns: ["parties", "caseType", "info", "action"],
     info: "Court fee",
     label: "Filings signed and awaiting the court fee",
   },
   scrutiny: {
-    columns: ["ref", "parties", "court", "info", "action"],
+    columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "E-filing no.",
     info: "Filed",
     label: "Filings waiting on the registry's check",
   },
   returned: {
-    columns: ["ref", "parties", "court", "info", "action"],
+    columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "E-filing no.",
     info: "Defects",
     label: "Filings scrutiny returned with defects",
   },
   registered: {
-    columns: ["ref", "parties", "court", "info", "action"],
+    columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "Case no.",
     info: "Hearing",
     label: "Cases the court has numbered",
@@ -176,7 +184,7 @@ export const TAB_SORTS: Record<QueueTab, SortOption[]> = {
     { value: "recent", label: "Recently filed", key: "recencyAt", dir: "desc" },
   ],
   returned: [
-    { value: "cure", label: "Cure date first", key: "urgencyAt", dir: "asc" },
+    { value: "cure", label: "Fix-by date first", key: "urgencyAt", dir: "asc" },
     { value: "recent", label: "Recently returned", key: "recencyAt", dir: "desc" },
   ],
   registered: [
@@ -261,28 +269,37 @@ function enteredSigning(draft: FilingDraft): boolean {
   return draft.sign.requestedAt !== null || draft.sign.mode === "upload";
 }
 
+/** "S138 of NIA" / "S25 of PSA" — the Case type column, on every tab. */
+function caseTypeLabel(draft: FilingDraft): string {
+  return draft.caseType === PSS_CASE_TYPE.code ? PSS_CASE_TYPE.label : CASE_TYPE.label;
+}
+
 export function draftRows(drafts: FilingDraft[]): QueueRow[] {
   return drafts
-    .filter((draft) => !enteredSigning(draft))
+    // A returned filing is corrected from Returned post scrutiny, never continued here.
+    .filter((draft) => !enteredSigning(draft) && !draft.scrutinyReturn)
     .map((draft) => {
       const parties = draftTitle(draft);
       const { dueOn, ...info } = draftClock(draft);
+      // A PSA draft has no filing flow yet, so it opens the placeholder page.
+      const pss = draft.caseType === PSS_CASE_TYPE.code;
       return {
         id: draft.id,
         parties,
         court: "",
         info,
-        progress: {
-          percent: draftProgress(draft),
-          savedOn: toDisplayDate(draft.updatedAt.slice(0, 10)),
+        caseType: caseTypeLabel(draft),
+        progress: { savedOn: toDisplayDate(draft.updatedAt.slice(0, 10)) },
+        action: {
+          label: "Continue filing",
+          href: pss ? NEW_PSS_FILING : stepHref(draft.id, draft.lastStep),
         },
-        action: { label: "Continue filing", href: stepHref(draft.id, draft.lastStep) },
         // A draft past its window keeps its real date rather than being pushed to the end:
         // it is the most pressing row on the tab, not a finished one.
         urgencyAt: dueOn || NO_URGENCY,
         recencyAt: draft.updatedAt.slice(0, 10),
         discardable: true,
-        haystack: parties.toLowerCase(),
+        haystack: `${parties} ${pss ? PSS_CASE_TYPE.label : CASE_TYPE.label}`.toLowerCase(),
       };
     });
 }
@@ -351,6 +368,7 @@ export function pendingSignatureRows(
       urgencyAt: since,
       recencyAt: draft.updatedAt.slice(0, 10),
       youPending,
+      caseType: caseTypeLabel(draft),
       haystack: parties.toLowerCase(),
     };
     return [row];
@@ -368,6 +386,8 @@ export function pendingPaymentRows(
 ): QueueRow[] {
   return drafts.flatMap((draft) => {
     if (draft.sign.paid) return [];
+    // A returned filing re-signs and goes back to scrutiny; it is not paid for again here.
+    if (draft.scrutinyReturn) return [];
     if (!signingComplete(draft, profile)) return [];
     const parties = draftTitle(draft);
     const amount = feeBill(draft).total;
@@ -381,6 +401,7 @@ export function pendingPaymentRows(
       action: { label: "Pay court fee", href: stepHref(draft.id, "sign") },
       urgencyAt: since,
       recencyAt: draft.updatedAt.slice(0, 10),
+      caseType: caseTypeLabel(draft),
       haystack: parties.toLowerCase(),
     };
     return [row];
@@ -412,15 +433,16 @@ export function scrutinyRows(today: string, cases: CaseRecord[] = CASES): QueueR
         // most pressing — ascending order does that without a second rule.
         urgencyAt: record.filedOn,
         recencyAt: record.filedOn,
+        caseType: CASE_TYPE.label,
         haystack: `${parties} ${record.caseNumber} ${record.court}`.toLowerCase(),
       };
     });
 }
 
 /**
- * Filings scrutiny sent back. These are tasks, not cases: the defect list, the cure
+ * Filings scrutiny sent back. These are tasks, not cases: the defect list, the fix-by
  * deadline and the fix route all belong to `lib/tasks`, and the row links straight into
- * the existing cure flow rather than restating it here.
+ * the existing fix flow rather than restating it here.
  */
 export function returnedRows(tasks: Task[], cases: TaskCase[]): QueueRow[] {
   const byId = new Map(cases.map((c) => [c.id, c]));
@@ -429,6 +451,9 @@ export function returnedRows(tasks: Task[], cases: TaskCase[]): QueueRow[] {
       (task) =>
         task.kind === "returned" &&
         task.returned !== undefined &&
+        // Only filings made in DRISTI have a draft to correct. A returned application
+        // with no draft would open on a dead end, so it stays on the task list alone.
+        !!task.draftId &&
         (task.status === "open" || task.status === "draft" || task.status === "ready")
     )
     .map((task) => {
@@ -444,13 +469,14 @@ export function returnedRows(tasks: Task[], cases: TaskCase[]): QueueRow[] {
         // The column is headed Defects, so the cell is the number alone, as a chip.
         info: {
           lead: String(count),
-          sub: due ? `Cure by ${toDisplayDate(due)}` : undefined,
+          sub: due ? `Fix by ${toDisplayDate(due)}` : undefined,
           tone: "danger" as InfoTone,
         },
         count,
-        action: { label: "Cure defects", href: fixHref(task.id) },
+        action: { label: "Fix defects", href: fixHref(task.id) },
         urgencyAt: due || NO_URGENCY,
         recencyAt: task.returned?.at.slice(0, 10) ?? task.createdAt.slice(0, 10),
+        caseType: CASE_TYPE.label,
         haystack:
           `${parties} ${c?.stNumber ?? ""} ${c?.cnr ?? ""} ${c?.court ?? ""}`.toLowerCase(),
       };
@@ -494,6 +520,7 @@ export function registeredRows(today: string, cases: CaseRecord[] = CASES): Queu
         // Under the upcoming hearings sit the ones already heard; they read in the order
         // the Hearing column shows, most recently listed first.
         tieAt: on || "",
+        caseType: CASE_TYPE.label,
         haystack: `${parties} ${record.caseNumber} ${record.court}`.toLowerCase(),
       };
     });

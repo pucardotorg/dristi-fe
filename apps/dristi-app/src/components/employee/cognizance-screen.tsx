@@ -12,7 +12,7 @@ import {
 import { CounselCell } from "@/components/employee/counsel-cell";
 import { ListFooter } from "@/components/employee/list-footer";
 import { QueueAnnouncer } from "@/components/employee/queue-announcer";
-import { CourtFilters } from "@/components/employee/court-filters";
+import { CourtFilters, CourtSortSelect } from "@/components/employee/court-filters";
 import { useArrival } from "@/components/employee/use-arrival";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,9 +24,17 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { rowActivation } from "@/lib/employee/row-activation";
+import {
+  caseSorts,
+  compareCaseNumbers,
+  sortOptions,
+  sortRows,
+  type CourtSortSpec,
+} from "@/lib/employee/court-sort";
 import { useReturnedTab } from "@/components/employee/cognizance-return";
 import {
   casesOnTab,
+  COGNIZANCE_NOTICE_OPTIONS,
   COGNIZANCE_QUEUE,
   COGNIZANCE_TABS,
   cognizanceTabCount,
@@ -34,6 +42,7 @@ import {
   filterCognizanceCases,
   type CognizanceCase,
   type CognizanceFilters,
+  type CognizanceNoticeFilter,
   type CognizanceTab,
 } from "@/lib/employee/cognizance";
 import {
@@ -84,13 +93,20 @@ export function CognizanceScreen() {
   const [pageSize, setPageSize] = React.useState<HearingsPageSize>(PAGE_SIZE);
   const [page, setPage] = React.useState(1);
 
-  const rows = filterCognizanceCases(casesOnTab(COGNIZANCE_QUEUE, tab), filters);
+  const [sort, setSort] = React.useState<CognizanceSort>("oldest");
+
+  const rows = sortRows(
+    filterCognizanceCases(casesOnTab(COGNIZANCE_QUEUE, tab), filters),
+    cognizanceSorts(tab),
+    sort,
+  );
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
-  const isFiltered = filters.query !== "";
+  const isFiltered =
+    filters.query !== "" || (filters.notice ?? "all") !== "all";
 
   function changeFilters(next: CognizanceFilters) {
     setFilters(next);
@@ -105,6 +121,7 @@ export function CognizanceScreen() {
      survives the move: it is the bench's question, not the tab's. */
   function changeTab(next: CognizanceTab) {
     setTab(next);
+    if (next !== "with-delay" && sort === "delay") setSort("oldest");
     setPage(1);
   }
 
@@ -179,6 +196,12 @@ export function CognizanceScreen() {
                   filters={filters}
                   onChange={changeFilters}
                   onClear={clearFilters}
+                  tab={tab}
+                  sort={sort}
+                  onSortChange={(next) => {
+                    setSort(next);
+                    setPage(1);
+                  }}
                 />
 
                 <QueueAnnouncer
@@ -247,10 +270,16 @@ export function CognizanceFiltersRow({
   filters,
   onChange,
   onClear,
+  tab,
+  sort,
+  onSortChange,
 }: {
+  tab: CognizanceTab;
   filters: CognizanceFilters;
   onChange: (filters: CognizanceFilters) => void;
   onClear: () => void;
+  sort: CognizanceSort;
+  onSortChange: (sort: CognizanceSort) => void;
 }) {
   return (
     <CourtFilters
@@ -260,10 +289,54 @@ export function CognizanceFiltersRow({
         onChange: (query) => onChange({ ...filters, query }),
         placeholder: "Case name, number or advocate",
       }}
-      fields={[]}
+      fields={[
+        {
+          /* Whether the demand notice reached the accused decides how cause of action is
+             reckoned, so it is the one fact on the file the bench sorts a pile by. */
+          id: "cognizance-notice",
+          label: "Demand notice",
+          value: filters.notice ?? "all",
+          all: "all",
+          allLabel: "Any notice",
+          options: COGNIZANCE_NOTICE_OPTIONS,
+          onApply: (value) =>
+            onChange({ ...filters, notice: value as CognizanceNoticeFilter }),
+        },
+      ]}
+      trailing={
+        <CourtSortSelect
+          id="cognizance-sort"
+          value={sort}
+          options={sortOptions(cognizanceSorts(tab))}
+          onChange={onSortChange}
+        />
+      }
       onClearAll={onClear}
     />
   );
+}
+
+export type CognizanceSort = "oldest" | "newest" | "name" | "delay";
+
+/**
+ * Register order — oldest case first — by default, read off the case number on the row.
+ * "Longest delay first" exists only where there is a delay to read: the late tab, whose
+ * Days of delay column it sorts.
+ */
+export function cognizanceSorts(tab: CognizanceTab): CourtSortSpec<CognizanceCase, CognizanceSort>[] {
+  const [newest, oldest, name] = caseSorts<CognizanceCase>();
+  const base = [oldest, newest, name] as CourtSortSpec<CognizanceCase, CognizanceSort>[];
+  if (tab !== "with-delay") return base;
+  return [
+    ...base,
+    {
+      id: "delay",
+      label: "Longest delay first",
+      compare: (a, b) =>
+        b.filedAfterCauseDays - a.filedAfterCauseDays ||
+        compareCaseNumbers(a.caseNumber, b.caseNumber),
+    },
+  ];
 }
 
 /**

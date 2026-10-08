@@ -38,6 +38,7 @@ import {
   UploadIcon,
 } from "lucide-react";
 
+import { ADVOCATE_OATH } from "@/lib/filing/config";
 import { getRepository, newCaseFileNumber, newPaymentRef } from "@/lib/filing/data";
 import { forgetFile } from "@/lib/filing/files";
 import { money, toLongDate } from "@/lib/filing/format";
@@ -59,6 +60,8 @@ import {
 } from "@/lib/filing/selectors";
 import { FILINGS_HOME, neighbours } from "@/lib/filing/steps";
 import { useFiling } from "@/lib/filing/store";
+import { useTasks } from "@/lib/tasks/store";
+import { refile } from "@/lib/tasks/transitions";
 import type { AdvocateOath, SignInstrument, Signatory } from "@/lib/filing/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +94,7 @@ import { FilingPageHeader } from "@/components/filing/filing-page-header";
 import { FilingMain, useSourceRailSlot } from "@/components/filing/filing-shell";
 import { PANEL_CLASS } from "@/components/filing/form-card";
 import { useLeaveGuard } from "@/components/filing/leave-guard";
+import { useTaskActions } from "@/components/tasks/use-task-actions";
 import {
   SignFlowDialog,
   type SignFlowStart,
@@ -304,7 +308,7 @@ function SignatureSummary({
         oaths={oaths}
       />
       <SignatureList
-        title="Advocate signature and oath"
+        title={ADVOCATE_OATH ? "Advocate signature and oath" : "Advocate signature"}
         rows={advocates}
         requested={requested}
         notified={notified}
@@ -328,13 +332,24 @@ function FeeGroup({
   caption,
   lines,
   total,
+  summary = false,
 }: {
   title: React.ReactNode;
   caption?: string;
   lines: BilledLine[];
   total: number;
+  /** One line — the group's name and its total, no breakdown. */
+  summary?: boolean;
 }) {
   if (!lines.length) return null;
+  if (summary) {
+    return (
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-sunken p-4">
+        <h3 className="text-body-compact font-semibold text-foreground">{title}</h3>
+        <span className="text-body-compact font-semibold tabular-nums">{money(total)}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex shrink-0 flex-col gap-3 rounded-lg bg-surface-sunken p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -407,6 +422,20 @@ export function SignSection() {
 
   const filed = draft.status === "filed";
   const sign = draft.sign;
+
+  /*
+   * A filing scrutiny returned. After the corrections it comes back through this same
+   * step, signed exactly as at e-filing (handover `SIG-07`), and is sent back to
+   * scrutiny from here — no second court fee, so the footer's act is the send.
+   */
+  const returned = !!draft.scrutinyReturn;
+  const resubmitted = !!draft.scrutinyReturn?.resubmittedAt;
+  const { tasks } = useTasks();
+  const { act, busy, online } = useTaskActions();
+  const returnTask = returned
+    ? tasks.find((t) => t.kind === "returned" && t.draftId === draft.id)
+    : undefined;
+  const [sendOpen, setSendOpen] = React.useState(false);
   /**
    * The one question the whole step turns on: has this complaint been sent for
    * signature? Until it has, nothing has left the building and everything here is still
@@ -439,7 +468,7 @@ export function SignSection() {
   const anySigned = everyone.some((s) => s.status === "signed");
   const pending = everyone.filter((s) => s.status === "pending").length;
   /** Advocates who have signed and not yet sworn. */
-  const oathsOwed = advocates.filter((s) => s.status === "signed" && !s.oathTaken);
+  const oathsOwed = advocates.filter((s) => s.status === "signed" && s.oathTaken === false);
   const yourOathOwed = oathsOwed.some((s) => s.you);
   /** You sign as an advocate, so your oath follows your signature — one act, one CTA. */
   const yourOathAhead = yous.some((s) => s.oathTaken === false);
@@ -451,14 +480,16 @@ export function SignSection() {
     otherSigners === 1 ? "The other party" : `The other ${otherSigners} parties`;
   const have = otherSigners === 1 ? "has" : "have";
 
+  /** What the footer's act waits on — the court fee, or the send back to scrutiny. */
+  const opens = returned ? "Sending back opens" : "The court fee opens";
   /** Why the court fee is not open yet — said on the button that is shut, not beside it. */
   const payGate = allSigned
-    ? `The court fee opens once ${oathsOwed.length === 1 ? "the advocate's oath is" : "every advocate's oath is"} in.`
+    ? `${opens} once ${oathsOwed.length === 1 ? "the advocate's oath is" : "every advocate's oath is"} in.`
     : onPaper
-      ? "The court fee opens once the signed copy is in."
+      ? `${opens} once the signed copy is in.`
       : requested
-        ? `The court fee opens once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in${advocates.length > 0 ? ", with the advocate's oath" : ""}.`
-        : `The court fee opens once every signature${advocates.length > 0 ? " and the advocate's oath is" : " is"} in.`;
+        ? `${opens} once ${pending === 1 ? "the last signature is" : `all ${everyone.length} signatures are`} in${ADVOCATE_OATH && advocates.length > 0 ? ", with the advocate's oath" : ""}.`
+        : `${opens} once every signature${ADVOCATE_OATH && advocates.length > 0 ? " and the advocate's oath is" : " is"} in.`;
 
   /**
    * Every signature on this screen belongs to *this* version of the complaint. Going back
@@ -546,42 +577,28 @@ export function SignSection() {
    * - it only asks while nothing has been decided (`requestedAt === null`, still digital)
    *   and there is somebody to ask about, so a signed or paper-bound complaint is never
    *   interrupted;
-   * - closing it is remembered for this draft for the rest of the session, so a reader
-   *   who wanted to read the complaint first is not asked again on every return;
+   * - it asks once per visit to this step: closing it lets the reader read the complaint
+   *   undisturbed, and arriving again asks again until a mode is chosen (owner,
+   *   2026-10-08 — remembering a close for the whole session read as the popup vanishing);
    * - and the window itself sends nothing until a card is pressed, so dismissing it
    *   costs nothing.
    *
    * The short delay is the point of it: the screen paints, the reader sees where they
    * are, and then the question arrives over it.
    */
-  const askedKey = `dristi:sign-intro:${draft.id}`;
   const shouldAsk =
     !filed && !requested && !onPaper && everyone.length > 0 && !allSigned;
+  /** Asked already on this visit — a close is not undone by a re-render. */
+  const askedThisVisit = React.useRef(false);
   React.useEffect(() => {
-    if (!shouldAsk) return;
-    try {
-      if (sessionStorage.getItem(askedKey)) return;
-    } catch {
-      /* private mode — ask, and let the close below fail just as quietly */
-    }
+    if (!shouldAsk || askedThisVisit.current) return;
     const timer = window.setTimeout(() => {
+      askedThisVisit.current = true;
       setFlowStart("choose");
       setFlowOpen(true);
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [shouldAsk, askedKey]);
-
-  /** Closing the window is an answer of its own: do not ask again this session. */
-  const setFlowOpenRemembering = (next: boolean) => {
-    if (!next) {
-      try {
-        sessionStorage.setItem(askedKey, "1");
-      } catch {
-        /* private mode; the worst case is being asked again on the next visit */
-      }
-    }
-    setFlowOpen(next);
-  };
+  }, [shouldAsk]);
 
   /** Ask again, for everyone still waiting. The link itself does not change. */
   const remindAll = () => {
@@ -865,8 +882,8 @@ export function SignSection() {
       <SectionNotice variant="success" announce="polite">
         {onPaper ? "The uploaded copy carries every signature" : "Every party has signed"}
         {/* No advocate on the complaint means no oath — so say nothing about one. */}
-        {advocates.length > 0 ? ", and every advocate has taken the oath." : "."}{" "}
-        You can pay the court fee now.
+        {ADVOCATE_OATH && advocates.length > 0 ? ", and every advocate has taken the oath." : "."}{" "}
+        {returned ? "You can send the corrections to scrutiny now." : "You can pay the court fee now."}
       </SectionNotice>
       {onPaper ? (
         <Button
@@ -999,7 +1016,29 @@ export function SignSection() {
     </section>
   );
 
-  const backHref = filed ? hrefFor("preview") : prev ? hrefFor(prev) : hrefFor("preview");
+  const fixHref = returnTask ? `/tasks/${encodeURIComponent(returnTask.id)}/fix` : null;
+  const backHref = filed
+    ? hrefFor("preview")
+    : fixHref
+      ? fixHref
+      : prev
+        ? hrefFor(prev)
+        : hrefFor("preview");
+
+  /** Send the re-signed corrections to scrutiny — the act `refile` records on the task. */
+  const sendBack = async () => {
+    setSendOpen(false);
+    if (!returnTask) {
+      toast.error("The scrutiny return for this filing could not be found.");
+      return;
+    }
+    const done = await act(returnTask.id, refile, "Corrections sent to scrutiny");
+    if (!done) return;
+    update((d) => {
+      d.scrutinyReturn = { resubmittedAt: new Date().toISOString() };
+    });
+    router.push(`/tasks?task=${encodeURIComponent(returnTask.id)}`);
+  };
 
   return (
     <>
@@ -1007,11 +1046,21 @@ export function SignSection() {
 
       <FilingMain width="wide" sourceOpen={docked}>
         <FilingPageHeader
-          title={filed ? "Complaint filed" : "Sign the complaint"}
+          title={
+            filed
+              ? "Complaint filed"
+              : returned
+                ? "Sign the corrected complaint"
+                : "Sign the complaint"
+          }
           description={
             filed
               ? `Filed in the ${COURT.name} under S-138, Negotiable Instruments Act.`
-              : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${COURT.name}.`
+              : resubmitted
+                ? "The corrections have been sent back to scrutiny."
+                : returned
+                  ? "Scrutiny returned this complaint. Everyone signs the corrected version again, the same way as when it was filed, before it goes back."
+                  : `You are filing a criminal complaint under S-138, Negotiable Instruments Act in the ${COURT.name}.`
           }
         />
 
@@ -1069,7 +1118,7 @@ export function SignSection() {
           onBack={() => {
             if (!guardLeaving(backHref)) router.push(backHref);
           }}
-          continueLabel="Continue to pay fees"
+          continueLabel={returned ? "Send corrections to scrutiny" : "Continue to pay fees"}
           /*
            * Nothing to pay for until the sheet is signed, so the step's one real action
            * stays dead until it is — and then it is the focal teal, as on every other
@@ -1077,12 +1126,20 @@ export function SignSection() {
            * instead of as a sentence taking a row of the footer beside it (owner,
            * 2026-09-24); pressing it says the same thing, for a reader who cannot hover.
            */
-          continueBlocked={!complete}
+          continueBlocked={!complete || resubmitted || (returned && (!online || !!busy))}
           continueHint={complete ? undefined : payGate}
           showSaveState={false}
           onContinue={() => {
+            if (resubmitted) {
+              toast("These corrections have already been sent to scrutiny.");
+              return;
+            }
             if (!complete) {
               toast(payGate);
+              return;
+            }
+            if (returned) {
+              setSendOpen(true);
               return;
             }
             setModal("payment");
@@ -1098,7 +1155,7 @@ export function SignSection() {
       <SignFlowDialog
         open={flowOpen}
         start={flowStart}
-        onOpenChange={setFlowOpenRemembering}
+        onOpenChange={setFlowOpen}
         onPrint={printFile}
       />
 
@@ -1360,20 +1417,20 @@ export function SignSection() {
               total={bill.courtTotal}
             />
 
-            {/* Why warrants are on the bill before anyone has failed to appear. The lines
-                below already say what and how many, so the caption does not repeat them. */}
+            {/* One line, not itemised (owner, 2026-10-08): what was chosen per process is
+                on Change process & address, below, for anyone who wants the detail. */}
             <FeeGroup
               title="Process fees"
-              caption="Paid upfront, so each is issued without a second payment."
               lines={bill.process}
               total={bill.processTotal}
+              summary
             />
 
             <FeeGroup
               title={`Delivery of summons · ${DELIVERY_CHANNEL}`}
-              caption="Charged by the post office, not the court."
               lines={bill.delivery}
               total={bill.deliveryTotal}
+              summary
             />
           </div>
 
@@ -1525,6 +1582,18 @@ export function SignSection() {
         confirmLabel={anySigned ? "Go back and re-sign" : "Go back and recall"}
         cancelLabel="Stay here"
         onConfirm={confirmLeave}
+      />
+
+      {/* ── Sending re-signed corrections back to scrutiny ── */}
+      <ConfirmDialog
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        title="Send these corrections to scrutiny?"
+        description="The re-signed complaint goes back to the Registry. A re-submission cannot be recalled, and limitation runs from the Registry's receipt."
+        confirmLabel="Send to scrutiny"
+        cancelLabel="Not yet"
+        destructive={false}
+        onConfirm={() => void sendBack()}
       />
 
       {/* ── And back the other way ── */}
