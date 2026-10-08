@@ -66,23 +66,22 @@ export type Case = {
 };
 
 /**
- * What the task asks for. Each kind is one overview card:
+ * What the task asks for — decides the verb and the flow it opens:
  * sign · pay · file (a document or application due) · returned (scrutiny sent a filing
  * back: fix the defects and re-file) · review (a request addressed to this advocate
  * that needs their decision — a consent to a removal, and whatever review-type asks
  * follow) · hearing (court-initiated, anchored to a posting: the plea, a deposition,
  * the sworn statement, arguments) · draft (a filing or application someone started and
- * left in draft).
+ * left in draft). The pills group these into a `TaskCategory`.
  */
 export type TaskKind = "sign" | "pay" | "file" | "returned" | "review" | "hearing" | "draft";
 
 /**
- * The six kind pills. Every pill names an act, and `draft` is a state rather than an
- * act, so it is not one of them — `cardKindOf` files a started filing under the act it
- * will become. Excluding it here is what stops a seventh label, filter value or count
- * from being written for a pill that cannot exist (2026-09-15).
+ * The category pills — the four citizen-side categories of the Pending Tasks PRD
+ * (attribute 6, "Category") and the Coda task catalogue: Pay · Sign · File/Submit ·
+ * Others. `categoryOf` maps each `TaskKind` onto one (2026-10-08).
  */
-export type PillKind = Exclude<TaskKind, "draft">;
+export type TaskCategory = "pay" | "sign" | "file" | "others";
 
 /** What set the deadline; decides how the due cue is worded and how it moves. */
 export type DueKind = "statutory" | "court-set" | "before-hearing" | "none";
