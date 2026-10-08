@@ -76,6 +76,8 @@ import {
 } from "@/lib/cases/application-access";
 import {
   applicationsFile,
+  filingStatusLabel,
+  filingStatusVariant,
   quotedOthersTitle,
   submissionTypeLabel,
 } from "@/lib/cases/applications";
@@ -609,9 +611,14 @@ export function RaiseApplicationForm({
               <DialogTitle className="text-title-s font-semibold text-balance">
                 {formTitle}
               </DialogTitle>
-              {/* The same Draft chip the register uses, so the row you clicked
-                  and the dialog you landed in are recognisably one filing. */}
-              {resume ? <Badge variant="warning">Draft</Badge> : null}
+              {/* The same status chip the register uses, so the row you clicked
+                  and the dialog you landed in are recognisably one filing: a
+                  draft, or one reopened before signing (owner, Oct 8). */}
+              {resume ? (
+                <Badge variant={filingStatusVariant(resume.status)}>
+                  {filingStatusLabel(resume.status)}
+                </Badge>
+              ) : null}
             </div>
             <DialogDescription className="text-pretty">
               {formDescription}

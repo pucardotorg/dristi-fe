@@ -104,6 +104,7 @@ import {
 } from "@/components/cases/register-layout";
 import { COLLAPSE_MOTION } from "@/components/cases/motion";
 import { Identifier } from "@/components/chrome/identifier";
+import { SignReviewDialog } from "@/components/cases/sign-review-dialog";
 
 /**
  * Applications (§9). One kind of thing, many types. What the viewer still has
@@ -178,6 +179,8 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
      otherwise flips to "Application signed" as it animates out. */
   const [signCount, setSignCount] = useState(0);
   const [paying, setPaying] = useState<ApplicationRecord[]>([]);
+  /* Several to sign: read them all before one signature covers them. */
+  const [reviewing, setReviewing] = useState<ApplicationRecord[]>([]);
   /* The Raise application form, opened over this tab for a draft or an
      objection: the page under it never changes (owner, Sept 24). */
   const [formFor, setFormFor] = useState<{
@@ -258,7 +261,8 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
   }
 
   /** The step a filing is waiting on: a draft resumes in its form, the rest
-   *  open their dialog. One application signs through the same flow as many. */
+   *  open their dialog. Signing starts from what is signed (owner, Oct 8):
+   *  one application opens its record, several open Sign all's review. */
   function act(applications: ApplicationRecord[]) {
     const [lead] = applications;
     if (lead.step === "continue" && lead.source.kind === "application") {
@@ -266,9 +270,21 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
     } else if (lead.step === "pay") {
       setPaying(applications);
     } else if (lead.step === "sign") {
-      setSigning(applications);
-      setSignCount(applications.length);
+      if (applications.length === 1) setRecordOpen(lead.id);
+      else setReviewing(applications);
     }
+  }
+
+  /** Read, so on to the signature. One application signs as many do. */
+  function sign(applications: ApplicationRecord[]) {
+    setSigning(applications);
+    setSignCount(applications.length);
+  }
+
+  /** Back into its form, filled in, over this tab; finishing it signs it. */
+  function edit(application: ApplicationRecord) {
+    if (application.source.kind !== "application") return;
+    setFormFor({ key: `edit-${application.id}`, resume: application.source });
   }
 
   /** File objection, over this tab. */
@@ -386,7 +402,13 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           // The record steps aside for the signing or payment dialog.
           openedHere.current = false;
           setRecordOpen(null);
-          act([application]);
+          if (application.step === "sign") sign([application]);
+          else act([application]);
+        }}
+        onEdit={(application) => {
+          openedHere.current = false;
+          setRecordOpen(null);
+          edit(application);
         }}
         onObject={(applicationId) => {
           openedHere.current = false;
@@ -398,6 +420,21 @@ export function CaseApplications({ record }: { record: CaseRecord }) {
           if (recordOpen && !openedHere.current) markRecent(recordOpen);
           openedHere.current = false;
           setRecordOpen(null);
+        }}
+      />
+      <SignReviewDialog
+        record={record}
+        applications={reviewing}
+        onOpenChange={(open) => {
+          if (!open) setReviewing([]);
+        }}
+        onSign={(applications) => {
+          setReviewing([]);
+          sign(applications);
+        }}
+        onEdit={(application) => {
+          setReviewing([]);
+          edit(application);
         }}
       />
       {/* The same signing flow as Add witness and Add power of attorney; one

@@ -66,6 +66,7 @@ export function ApplicationRecordDialog({
   onOpenChange,
   onOpenLinked,
   onAct,
+  onEdit,
   onObject,
 }: {
   caseId: string;
@@ -77,23 +78,30 @@ export function ApplicationRecordDialog({
   onOpenLinked?: (id: string) => void;
   /** Take the viewer's step on it (continue, sign, pay) from the record itself. */
   onAct?: (application: ApplicationRecord) => void;
+  /** Reopen it in its form before signing: the signer reads it here first. */
+  onEdit?: (application: ApplicationRecord) => void;
   /** File an objection to it, over the page the record was opened on. */
   onObject?: (applicationId: string) => void;
 }) {
+  /* What was open stays drawn while the dialog animates out (to a signing
+     or payment step, or closed); emptied, it flashed a blank panel. */
+  const [shown, setShown] = useState(application);
+  if (application && application !== shown) setShown(application);
   return (
     <Dialog open={application !== null} onOpenChange={onOpenChange}>
       <FlowDialogContent
         showCloseButton={false}
         className="flex h-[calc(100dvh---spacing(12))] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
       >
-        {application ? (
+        {shown ? (
           <RecordBody
-            key={application.id}
+            key={shown.id}
             caseId={caseId}
             record={record}
-            application={application}
+            application={shown}
             onOpenLinked={onOpenLinked}
             onAct={onAct}
+            onEdit={onEdit}
             onObject={onObject}
           />
         ) : null}
@@ -108,6 +116,7 @@ function RecordBody({
   application,
   onOpenLinked,
   onAct,
+  onEdit,
   onObject,
 }: {
   caseId: string;
@@ -115,6 +124,7 @@ function RecordBody({
   application: ApplicationRecord;
   onOpenLinked?: (id: string) => void;
   onAct?: (application: ApplicationRecord) => void;
+  onEdit?: (application: ApplicationRecord) => void;
   onObject?: (applicationId: string) => void;
 }) {
   /* An application draft reopens over this page (onAct); only a document
@@ -394,8 +404,8 @@ function RecordBody({
                         aria-pressed={key === openSrc}
                         onClick={() => setOpenSrc(key)}
                         className={cn(
-                          "flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-body-compact outline-none transition-colors hover:bg-surface-sunken focus-visible:ring-3 focus-visible:ring-ring/50",
-                          key === openSrc && "bg-accent font-medium"
+                          "flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-body-compact outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+                          key === openSrc && "bg-accent-strong font-medium"
                         )}
                       >
                         <FileTextIcon
@@ -512,6 +522,30 @@ function RecordBody({
             <Button asChild className="w-full sm:w-auto">
               <Link href={draftHref}>Continue draft</Link>
             </Button>
+          ) : application.step === "sign" &&
+            application.source.kind === "application" &&
+            onAct &&
+            onEdit ? (
+            /* What is signed is read first, here, and can still be changed:
+               a clerk's hand-off is ready, not locked (owner, Oct 8). Stacked
+               on a phone with the signature on top, as the form's footer. */
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => onEdit(application)}
+              >
+                Edit
+              </Button>
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                onClick={() => onAct(application)}
+              >
+                Add signature
+              </Button>
+            </div>
           ) : onAct ? (
             <Button
               type="button"
@@ -540,7 +574,7 @@ const COMPOSED = "composed-application";
  * Pending payment on, by the advocate or party in person who raised it.
  * Null for a document submission (affidavit, memo), which has no such page.
  */
-function composedApplication(
+export function composedApplication(
   application: ApplicationRecord,
   record: CaseRecord
 ) {
@@ -572,7 +606,7 @@ function composedApplication(
 
 const STEP_NOTE = {
   continue: "A draft. Finish it, then sign and pay to file it.",
-  sign: "Needs your signature before it can go to the court.",
+  sign: "Read it through, then sign it. Edit it first if anything needs changing.",
   pay: "Signed. Pay the court fee to submit it to the court.",
 } as const;
 
