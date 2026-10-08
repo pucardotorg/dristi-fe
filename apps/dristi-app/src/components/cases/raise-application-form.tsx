@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { HourglassIcon, UserIcon } from "lucide-react";
+import { useId, useMemo, useRef, useState } from "react";
+import { FilePenLineIcon, HourglassIcon, UsersIcon } from "lucide-react";
 
 import { AddSignatureDialog } from "@/components/cases/add-signature-dialog";
 import {
@@ -19,7 +18,9 @@ import {
   useDraftExit,
 } from "@/components/cases/filing-form-shared";
 import { GeneratedApplicationDialog } from "@/components/cases/generated-application-dialog";
+import { BailApplicationDialog } from "@/components/filing/bail-application-dialog";
 import { Identifier } from "@/components/chrome/identifier";
+import { useLocale } from "@/components/shell/locale";
 import { FlowDialogContent } from "@/components/chrome/flow-dialog";
 import { useBackCloses, useFlowWindow } from "@/components/chrome/flow-window";
 import {
@@ -29,8 +30,6 @@ import {
 } from "@/components/shell/page-back-button";
 import { PAGE_TITLE } from "@/components/shell/page-frame";
 import { Badge } from "@/components/ui/badge";
-import { Banner } from "@/components/ui/banner";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -53,6 +53,7 @@ import {
   EMPTY_APPLICATION_DRAFT,
   EMPTY_APPLICATION_ERRORS,
   applicationDraftFrom,
+  draftRequestText,
   hasApplicationErrors,
   isApplicationDirty,
   validateApplication,
@@ -60,42 +61,39 @@ import {
   type ApplicationErrors,
 } from "@/lib/cases/application-draft";
 import {
+  isRaisedFromParties,
   isUnbuiltApplicationType,
   type ApplicationTypeId,
+  type FilingStatus,
   type Submission,
 } from "@/lib/cases/applications";
+import { AddWitnessDialog } from "@/components/cases/add-witness-form";
+import Link from "next/link";
 import { caseSectionHref } from "@/lib/cases/sections";
 import {
-  attachedFileNames,
-  decodeDraft,
-  encodeDraft,
-  lostAttachments,
-} from "@/lib/applications/form-codec";
+  objectionDeadline,
+  resolveApplicationViewer,
+} from "@/lib/cases/application-access";
 import {
-  canCreate,
-  canSign,
-  pay,
-  proceedToSign,
-  sign,
-  typeAvailable,
-  type FilerSeat,
-  type LifecycleApplication,
-} from "@/lib/applications/lifecycle";
+  applicationsFile,
+  filingStatusLabel,
+  filingStatusVariant,
+  quotedOthersTitle,
+  submissionTypeLabel,
+} from "@/lib/cases/applications";
+import { displayName } from "@/lib/cases/names";
+import { isViewer, viewerRepresentation } from "@/lib/cases/viewer";
+import { useProfile } from "@/components/shell/profile";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { useSessionValue } from "@/lib/cases/demo-session";
 import {
-  allotTemporaryId,
-  applyStep,
-  createDraft,
-  liveFormOf,
-  linkObjection,
-  saveForm,
-  seatOnCase,
-  today,
-  useApplicationsReady,
-  useLifecycleApplications,
-  useSandboxSeat,
-} from "@/lib/applications/store";
-import { seatPersonName } from "@/lib/applications/seat-names";
-import { viewerRepresentation } from "@/lib/cases/viewer";
+  newSavedDraftId,
+  parseSavedDrafts,
+  saveApplicationDraft,
+  savedDraftSubmission,
+  savedDraftsKey,
+} from "@/lib/cases/saved-application-drafts";
 import {
   formatCaseDate,
   partiesLabel,
@@ -128,168 +126,161 @@ import { cn } from "@/lib/utils";
 export function RaiseApplicationForm({
   record,
   resume = null,
-  liveDraftId,
-  objectionToId,
   backHref,
+  objectTo,
+  inPlace,
 }: {
   record: CaseRecord;
   /** A saved draft reopened from the register; null starts a new filing. */
   resume?: Submission | null;
-  /** A draft raised in this browser, from the applications store. */
-  liveDraftId?: string;
-  /** Filing an objection from a File objection task: the application it answers. */
-  objectionToId?: string;
   /** Set when the filer came from the rail's case list; absent, back is the case. */
   backHref?: string;
+  /**
+   * The other side's application a File objection task points at. Opens
+   * straight on an Objection against it: Objection is never offered in the
+   * picker (ALC-12), so this is its only way in.
+   */
+  objectTo?: string;
+  /**
+   * Opened over the page the filer is already on (the case's Applications
+   * tab: Continue draft, File objection) rather than on its own page. Only
+   * the dialogs render, and every way out calls `onClose`, so the page under
+   * the dialog never changes (owner, Sept 24: "a dialog box shouldn't change
+   * the page underneath").
+   */
+  inPlace?: { onClose: () => void };
 }) {
-  const apps = useLifecycleApplications();
-  const ready = useApplicationsReady();
-  const seat = seatOnCase(useSandboxSeat(), viewerRepresentation(record)[0]);
-  /* The store is this browser's, so the server cannot resolve a live draft. Wait
-     for the client's read rather than opening a blank form over a saved one. */
-  if ((liveDraftId || objectionToId) && !ready) {
-    return (
-      <div className="flex flex-col gap-4" aria-busy>
-        <span className="sr-only" role="status">
-          Loading the application
-        </span>
-        <Skeleton className="h-8 w-64 rounded-lg" />
-        <Skeleton className="h-40 w-full rounded-xl" />
-      </div>
-    );
-  }
-  const live = liveDraftId
-    ? apps.find((app) => app.id === liveDraftId && app.caseId === record.id)
-    : undefined;
-  const objectionTo = objectionToId
-    ? apps.find((app) => app.id === objectionToId && app.caseId === record.id)
-    : undefined;
-  return (
-    <RaiseApplicationFlow
-      key={`${live?.id ?? "new"}-${objectionTo?.id ?? ""}-${seat.side}-${seat.role}`}
-      record={record}
-      resume={resume}
-      live={live?.status === "draft" ? live : undefined}
-      objectionTo={objectionTo}
-      seat={seat}
-      backHref={backHref}
-    />
-  );
-}
-
-function RaiseApplicationFlow({
-  record,
-  resume,
-  live,
-  objectionTo,
-  seat,
-  backHref,
-}: {
-  record: CaseRecord;
-  resume: Submission | null;
-  live?: LifecycleApplication;
-  objectionTo?: LifecycleApplication;
-  seat: FilerSeat;
-  backHref?: string;
-}) {
-  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const formId = useId();
+  const router = useRouter();
+  const { profileRole, accountName } = useProfile();
+  /* Who is filing decides two things here (PRD "Users and actions"): a
+     litigant or PoA holder does not raise applications at all, and a clerk
+     drafts but never signs, so their chain ends on the hand-off. */
+  const seat = useMemo(() => {
+    try {
+      const file = applicationsFile(record);
+      const viewer = resolveApplicationViewer({
+        file,
+        profile: profileRole,
+        accountName,
+        isSignedInAdvocate: isViewer,
+        fallbackSide: viewerRepresentation(record)[0] ?? "complainant",
+      });
+      const self = viewer?.personId
+        ? file.people.find((person) => person.id === viewer.personId)
+        : undefined;
+      const advocate = self?.officeOf
+        ? file.people.find((person) => person.id === self.officeOf)
+        : undefined;
+      const party = file.people.find(
+        (person) => person.kind === "party" && person.side === viewer?.side
+      );
+      return {
+        role: viewer?.role ?? null,
+        side: viewer?.side,
+        signer: advocate ? displayName(advocate.name) : undefined,
+        /* Who a saved draft is drafted by, raised by and filed for. */
+        personId: viewer?.personId,
+        signerId: advocate?.id ?? viewer?.personId,
+        partyId: viewer?.partyId ?? party?.id,
+      };
+    } catch {
+      return {
+        role: null,
+        side: undefined,
+        signer: undefined,
+        personId: undefined,
+        signerId: undefined,
+        partyId: undefined,
+      };
+    }
+  }, [record, profileRole, accountName]);
+  const filedForSide: ApplicationDraft["filedForSide"] = seat.side ?? "";
+  const handoffTo =
+    seat.role === "clerk" ? (seat.signer ?? "your advocate") : undefined;
+  const canRaise =
+    seat.role === "advocate" || seat.role === "pip" || seat.role === "clerk";
   /*
     A resumed draft arrives with its type already chosen, so it opens on the
     fields — asking someone to re-pick the type they picked yesterday is the
     whole reason "Continue draft" was worth wiring. The picker is still one
     click away on the Change type button.
   */
-  const [draft, setDraft] = useState<ApplicationDraft>(() => {
-    if (live) {
-      return (liveFormOf(live.id) as ApplicationDraft | undefined) ?? decodeDraft(live.form);
-    }
-    if (objectionTo) return { ...EMPTY_APPLICATION_DRAFT, type: "objection" };
-    return resume ? applicationDraftFrom(resume) : EMPTY_APPLICATION_DRAFT;
-  });
-  /* The application in the store this form writes to — created on the first save. */
-  const [liveId, setLiveId] = useState<string | null>(live?.id ?? null);
-  const [savedNote, setSavedNote] = useState<string | null>(null);
-  const filesLost = Boolean(live && !liveFormOf(live.id) && lostAttachments(live.form));
+  const [draft, setDraft] = useState<ApplicationDraft>(() => ({
+    ...(resume
+      ? applicationDraftFrom(resume)
+      : objectTo
+        ? { ...EMPTY_APPLICATION_DRAFT, type: "objection", objectionToId: objectTo }
+        : EMPTY_APPLICATION_DRAFT),
+    filedForSide,
+  }));
+  /* The side is read from who is filing at render time, not frozen into
+     the draft, because the profile settles only after hydration. */
+  const filedDraft = useMemo<ApplicationDraft>(
+    () => ({ ...draft, filedForSide }),
+    [draft, filedForSide]
+  );
+  /* Addition of witness has its own application flow (the Parties tab's),
+     which only needs the case; it opens over the chooser as bail does. */
+  const [witnessOpen, setWitnessOpen] = useState(false);
   const [errors, setErrors] = useState<ApplicationErrors>(
     EMPTY_APPLICATION_ERRORS
   );
   /** Choosing the type is step one; its fields are step two. */
   const [stage, setStage] = useState<"type" | "details">(
-    (resume || live || objectionTo) && draft.type ? "details" : "type"
+    (resume || objectTo) && draft.type ? "details" : "type"
   );
+  const objecting = draft.type === "objection";
+  /* The application an objection answers, for the dialog's header. */
+  const objectionTarget = useMemo(() => {
+    if (!objecting) return null;
+    const target = applicationsFile(record).submissions.find(
+      (item) => item.id === draft.objectionToId
+    );
+    if (!target) return null;
+    return {
+      label: [
+        submissionTypeLabel(target.type),
+        target.applicationNumber ?? target.temporaryId,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      typeLabel:
+        quotedOthersTitle(target) ??
+        `${submissionTypeLabel(target.type)} application`,
+      /* How a sentence names it: "the other side's bail application", or an
+         Others application by its own title, never re-cased. */
+      inSentence: quotedOthersTitle(target)
+        ? `application ${quotedOthersTitle(target)}`
+        : `${submissionTypeLabel(target.type).toLowerCase()} application`,
+      decision: target.decisionOn ? formatCaseDate(target.decisionOn) : undefined,
+      due: target.decisionOn
+        ? formatCaseDate(objectionDeadline(target.decisionOn))
+        : undefined,
+    };
+  }, [objecting, record, draft.objectionToId]);
   const [generatedOpen, setGeneratedOpen] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
   /** What the filer typed into the header search; it re-orders the cards. */
   const [query, setQuery] = useState("");
+  /*
+    Bail keeps its own staged dialog (petitioner, sureties, review, sign, pay):
+    it opens over the chooser rather than as a second page, and it is told the
+    type, so it never asks for one.
+  */
+  const { locale } = useLocale();
+  const [bailOpen, setBailOpen] = useState(false);
   /* Some types are cards without a form yet: the details step shows a notice,
      never the fields, and never a Generate button. */
   const unbuilt = draft.type !== "" && isUnbuiltApplicationType(draft.type);
+  /* Edit litigant details and PoA change act on one party, chosen on the
+     Parties tab; the chooser lists them and points there. */
+  const elsewhere = draft.type !== "" && isRaisedFromParties(draft.type);
   const chosen = applicationTypeGuide(
     draft.type || "application-others"
   );
   const caseHref = caseSectionHref(record.id, "applications");
-  const filerName = seatPersonName(record, seat);
-  const hearingScheduled = Boolean(record.nextHearing) && !record.disposal;
-  const available = useCallback(
-    (type: ApplicationTypeId) =>
-      typeAvailable(type, { side: seat.side, hearingScheduled }),
-    [seat.side, hearingScheduled]
-  );
-
-  /**
-   * Write the form to the store: a new draft on the first save, the same one after.
-   * Every later step — sign, pay — acts on the id this returns.
-   */
-  function persist(current: ApplicationDraft = draft): string {
-    const typeLabel = applicationTypeGuide(
-      (current.type || "application-others") as ApplicationTypeId
-    ).label;
-    const patch = {
-      form: encodeDraft(current),
-      documents: attachedFileNames(current),
-      type: current.type || "application-others",
-      typeLabel,
-    };
-    if (liveId) {
-      saveForm(liveId, patch, current);
-      return liveId;
-    }
-    const id = createDraft(
-      {
-        ...patch,
-        caseId: record.id,
-        side: seat.side,
-        createdBy: seat.role,
-        createdByName: filerName,
-        onBehalfOf: record.parties[seat.side],
-        objectionToId: objectionTo?.id,
-      },
-      current
-    );
-    setLiveId(id);
-    return id;
-  }
-
-  function saveDraft() {
-    persist();
-    setSavedNote(`Draft saved ${formatCaseDate(new Date().toISOString())}`);
-  }
-
-  const onSigned = useCallback(() => {
-    if (!liveId) return;
-    applyStep(liveId, (app) => sign(app, seat, filerName, today()));
-  }, [liveId, seat, filerName]);
-
-  function onPay(): string | null {
-    if (!liveId) return null;
-    const temporaryId = allotTemporaryId(record.caseNumber);
-    const result = applyStep(liveId, (app) => pay(app, seat, temporaryId, today()));
-    if (!result.ok) return null;
-    if (objectionTo) linkObjection(liveId, objectionTo.id);
-    return temporaryId;
-  }
   /* Anything typed, the chosen type aside: opening a form and closing it
      again untouched should not ask whether to throw work away. */
   const typedAnything = useMemo(
@@ -361,6 +352,14 @@ function RaiseApplicationFlow({
    * cost the work you did in the first.
    */
   function chooseType(type: ApplicationTypeId) {
+    if (type === "bail") {
+      setBailOpen(true);
+      return;
+    }
+    if (type === "addition-of-witness") {
+      setWitnessOpen(true);
+      return;
+    }
     actions.update("type", type);
     setStage("details");
   }
@@ -386,27 +385,80 @@ function RaiseApplicationFlow({
 
   const [discardOpen, setDiscardOpen] = useState(false);
 
-  /** Back to the chooser with a clean slate. */
+  /**
+   * Keep what was typed as a Draft the filer can continue from the
+   * Applications register (owner, Sept 24). Kept for this visit only; see
+   * `saved-application-drafts.ts`. A resumed draft keeps its id, so saving it
+   * again replaces it rather than adding a second row.
+   */
+  function saveDraft() {
+    if (recordFiling({ status: "draft" })) {
+      toast("Saved as a draft", {
+        description: "Finish it later from Applications.",
+      });
+    }
+    closeForm();
+  }
+
+  /**
+   * Put the filing in the Applications register (this browser only), at the
+   * status it stopped at: a draft, waiting for a signature (the advocate's,
+   * for a clerk), waiting for payment, or paid and with the court. Keeps a
+   * resumed draft's id, so it moves on rather than appearing twice.
+   * Returns whether it could be recorded (the filer must be someone on the
+   * case).
+   */
+  function recordFiling(
+    stop:
+      | { status: "draft" | "pending-signature" | "pending-payment" }
+      | { status: "paid"; temporaryId: string }
+  ): boolean {
+    if (!draft.type || !seat.personId || !seat.signerId) return false;
+    const paid = stop.status === "paid";
+    saveApplicationDraft(record.id, {
+        id: resume?.id ?? newSavedDraftId(),
+        type: draft.type,
+        title:
+          draft.type === "application-others" && draft.title.trim()
+            ? draft.title.trim()
+            : submissionTypeLabel(draft.type),
+        request: draftRequestText(draft),
+        objectionToId: draft.objectionToId || null,
+        createdById: resume?.createdById ?? seat.personId,
+        submittedById: resume?.submittedById ?? seat.signerId,
+        onBehalfOfId: resume?.onBehalfOfId ?? seat.partyId ?? seat.personId,
+        addedOn: resume?.addedOn ?? new Date().toISOString(),
+        status: paid
+          ? objecting
+            ? "submitted"
+            : "pending-review"
+          : (stop.status as FilingStatus),
+        submittedOn: paid ? new Date().toISOString().slice(0, 10) : undefined,
+        temporaryId: paid && "temporaryId" in stop ? stop.temporaryId : undefined,
+      });
+    return true;
+  }
+
+  /** Back to the chooser with a clean slate. An objection has no chooser to
+   *  return to (it is never picked there), so it goes back to the case's
+   *  Applications, where its task lives. */
   function closeForm() {
-    /* An objection has no chooser to return to — it was opened from its task. */
-    if (objectionTo) {
+    setDiscardOpen(false);
+    if (inPlace) {
+      inPlace.onClose();
+      return;
+    }
+    if (objecting) {
       router.push(caseHref);
       return;
     }
-    setLiveId(null);
-    setSavedNote(null);
-    setDiscardOpen(false);
-    setDraft(EMPTY_APPLICATION_DRAFT);
+    setDraft({ ...EMPTY_APPLICATION_DRAFT, filedForSide });
     setErrors(EMPTY_APPLICATION_ERRORS);
     setStage("type");
   }
 
-  /* A saved draft is kept, not discarded: closing it saves what is on screen. */
   function requestCloseForm() {
-    if (liveId) {
-      persist();
-      closeForm();
-    } else if (typedAnything) setDiscardOpen(true);
+    if (typedAnything) setDiscardOpen(true);
     else closeForm();
   }
 
@@ -426,17 +478,69 @@ function RaiseApplicationFlow({
     } else if (generatedOpen) setGeneratedOpen(false);
     else requestCloseForm();
   });
-  const formTitle =
-    draft.type === "objection"
-      ? "Objection"
-      : draft.type === "application-others"
+  const formTitle = objecting
+    ? "Objection"
+    : draft.type === "application-others"
       ? "Other application"
       : /application$/i.test(chosen.label)
         ? chosen.label
         : `${chosen.label} application`;
+  const formDescription = objecting
+    ? objectionTarget?.due
+      ? `Object to the other side's ${objectionTarget.inSentence}. File it by the end of ${objectionTarget.due}.`
+      : "Object to the other side's application."
+    : chosen.description;
+
+  if (!canRaise) {
+    return (
+      <div className="flex w-full flex-col gap-6">
+        <div className={PAGE_BACK_ROW}>
+          <div className={PAGE_BACK_COLUMN}>
+            <PageBackButton
+              href={backHref ?? caseHref}
+              label={backHref ? "Back to cases list" : "Back to case"}
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className={cn(PAGE_TITLE, "flex min-h-8 items-center")}>
+              Raise application
+            </h1>
+            <p className="text-body-compact text-muted-foreground">
+              <Identifier value={record.caseNumber} label="case number" />
+              <span aria-hidden> · </span>
+              {partiesLabel(record)}
+            </p>
+          </div>
+        </div>
+        {/* The copy the owner kept; only the look changed (Sept 24): no
+            dashed box, a larger brand tile, a real heading, and the way to
+            the Applications tab the description points at. */}
+        <Empty className="py-12 sm:py-16">
+          <EmptyHeader className="gap-3">
+            <EmptyMedia className="mb-1 size-14 rounded-2xl bg-brand-muted text-brand-muted-foreground">
+              <FilePenLineIcon className="size-7" aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle className="text-title-s font-semibold text-foreground">
+              Your advocate raises applications for you
+            </EmptyTitle>
+            <EmptyDescription className="text-body-compact">
+              When one is filed on your behalf, you can pay its court fee from
+              the case&apos;s Applications tab.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" asChild>
+              <Link href={caseHref}>Go to Applications</Link>
+            </Button>
+          </EmptyContent>
+        </Empty>
+      </div>
+    );
+  }
 
   return (
     <>
+      {inPlace ? null : (
       <div className="flex w-full flex-col gap-6">
         {/* Keyed to the column, not the viewport: on a portrait tablet the rail
             is still open, and a viewport rule put the search beside a heading
@@ -467,44 +571,27 @@ function RaiseApplicationFlow({
                 </p>
               </div>
             </div>
-            <div className="w-full @2xl:w-80 @2xl:shrink-0">
-              <ApplicationTypeSearch query={query} onQueryChange={setQuery} />
-            </div>
           </div>
         </header>
 
-        {canCreate(seat) ? (
-          <ApplicationTypePicker
-            value=""
-            query={query}
-            suggested={suggestedApplicationTypes(
-              record.stage,
-              record.disposal !== undefined
-            )}
-            stageName={stageLabel(record.stage)}
-            onChoose={chooseType}
-            available={available}
-          />
-        ) : (
-          /* "Users and actions": the advocate or party-in-person raises an
-             application, or a clerk drafts it for them. A litigant or PoA holder
-             pays for what is raised on their behalf. */
-          <Empty className="border border-dashed border-border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <UserIcon aria-hidden />
-              </EmptyMedia>
-              <EmptyTitle className="text-body font-semibold">
-                Your advocate raises applications
-              </EmptyTitle>
-              <EmptyDescription>
-                Anything raised on your behalf appears in the case&apos;s
-                Applications tab, where you can pay its court fee.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        )}
+        {/* A step clear of the heading above and the types below, so it
+            stands alone as the way in (owner, Oct 8). */}
+        <div className="mx-auto w-full max-w-2xl pt-6 pb-6">
+          <ApplicationTypeSearch query={query} onQueryChange={setQuery} />
+        </div>
+
+        <ApplicationTypePicker
+          value=""
+          query={query}
+          suggested={suggestedApplicationTypes(
+            record.stage,
+            record.disposal !== undefined
+          )}
+          stageName={stageLabel(record.stage)}
+          onChoose={chooseType}
+        />
       </div>
+      )}
 
       {/*
         Every type files from a dialog over the chooser, in the shell the bail
@@ -527,34 +614,48 @@ function RaiseApplicationFlow({
               <DialogTitle className="text-title-s font-semibold text-balance">
                 {formTitle}
               </DialogTitle>
-              {/* The same Draft chip the register uses, so the row you clicked
-                  and the dialog you landed in are recognisably one filing. */}
-              {resume || liveId ? <Badge variant="warning">Draft</Badge> : null}
+              {/* The same status chip the register uses, so the row you clicked
+                  and the dialog you landed in are recognisably one filing: a
+                  draft, or one reopened before signing (owner, Oct 8). */}
+              {resume ? (
+                <Badge variant={filingStatusVariant(resume.status)}>
+                  {filingStatusLabel(resume.status)}
+                </Badge>
+              ) : null}
             </div>
             <DialogDescription className="text-pretty">
-              {chosen.description}
+              {formDescription}
             </DialogDescription>
             <p className="text-caption text-muted-foreground">
               <Identifier value={record.caseNumber} label="case number" />
               <span aria-hidden> · </span>
               {partiesLabel(record)}
               {resume ? ` · Started ${formatCaseDate(resume.addedOn)}` : null}
-              {live ? ` · Started ${formatCaseDate(live.createdOn)}` : null}
             </p>
-            {objectionTo ? (
-              <p className="text-body-compact text-foreground">
-                Objecting to {objectionTo.typeLabel.toLowerCase()} application{" "}
-                {objectionTo.applicationNumber ? (
-                  <Identifier
-                    value={objectionTo.applicationNumber}
-                    label="application number"
-                  />
-                ) : null}
-              </p>
-            ) : null}
           </DialogHeader>
 
-          {unbuilt ? (
+          {elsewhere ? (
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <UsersIcon aria-hidden />
+                  </EmptyMedia>
+                  <EmptyTitle>Raised from the Parties tab</EmptyTitle>
+                  <EmptyDescription>
+                    {draft.type === "poa-change"
+                      ? "Open Parties, choose the litigant, and change their power of attorney holder there."
+                      : "Open Parties, choose the litigant, and edit their details there."}
+                  </EmptyDescription>
+                </EmptyHeader>
+                <Button asChild>
+                  <Link href={caseSectionHref(record.id, "parties")}>
+                    Go to Parties
+                  </Link>
+                </Button>
+              </Empty>
+            </div>
+          ) : unbuilt ? (
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
               <Empty>
                 <EmptyHeader>
@@ -576,42 +677,26 @@ function RaiseApplicationFlow({
               onSubmit={generate}
               className="min-h-0 flex-1 overflow-y-auto px-6 py-6"
             >
-              {filesLost ? (
-                <Banner variant="warning" className="mb-6">
-                  Attachments are not kept between visits in this prototype.
-                  Add them again before you generate the application.
-                </Banner>
-              ) : null}
               <ApplicationTypeFields
                 draft={draft}
                 errors={errors}
                 record={record}
                 actions={actions}
+                filedFor={
+                  filedForSide ? record.parties[filedForSide] : undefined
+                }
               />
             </form>
           )}
 
           <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-sunken px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <Button type="button" variant="outline" onClick={requestCloseForm}>
-              {unbuilt ? "Close" : "Cancel"}
+              {unbuilt || elsewhere ? "Close" : "Cancel"}
             </Button>
-            {unbuilt ? null : (
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-                {savedNote ? (
-                  <p
-                    role="status"
-                    className="text-caption text-muted-foreground tabular-nums sm:mr-2"
-                  >
-                    {savedNote}
-                  </p>
-                ) : null}
-                <Button type="button" variant="outline" onClick={saveDraft}>
-                  Save draft
-                </Button>
-                <Button type="submit" form={formId}>
-                  {draft.type === "objection" ? "Generate objection" : "Generate application"}
-                </Button>
-              </div>
+            {unbuilt || elsewhere ? null : (
+              <Button type="submit" form={formId}>
+                {objecting ? "Generate objection" : "Generate application"}
+              </Button>
             )}
           </footer>
         </FlowDialogContent>
@@ -620,30 +705,21 @@ function RaiseApplicationFlow({
       <GeneratedApplicationDialog
         open={generatedOpen}
         onOpenChange={setGeneratedOpen}
-        draft={draft}
+        draft={filedDraft}
         record={record}
-        side={seat.side}
         onAddSignature={() => {
-          // Draft → Pending signature: the form is final from here.
-          const id = persist();
-          applyStep(id, (app) =>
-            app.status === "draft" ? proceedToSign(app, today()) : app
-          );
           setGeneratedOpen(false);
           setSignatureOpen(true);
         }}
         onReturnFocus={returnFocusToGenerate}
+        signLabel={handoffTo ? "Send for signature" : undefined}
       />
 
       <AddSignatureDialog
         open={signatureOpen}
         onOpenChange={setSignatureOpen}
-        draft={draft}
+        draft={filedDraft}
         record={record}
-        side={seat.side}
-        canSign={canSign(seat)}
-        onSigned={onSigned}
-        onPay={onPay}
         onBack={() => {
           setSignatureOpen(false);
           setGeneratedOpen(true);
@@ -651,19 +727,86 @@ function RaiseApplicationFlow({
         // Finishing returns to the chooser, not the case (owner, Sept 21):
         // someone filing several applications files the next from here, and
         // the confirmation has already said where this one waits.
-        onComplete={() => {
+        onComplete={(outcome) => {
           setSignatureOpen(false);
+          // Into the register at the status the chain stopped at; a resumed
+          // draft moves on under the same id.
+          recordFiling(outcome);
           closeForm();
         }}
         onReturnFocus={returnFocusToGenerate}
+        handoffTo={handoffTo}
+        objection={
+          objecting && objectionTarget
+            ? {
+                target: objectionTarget.typeLabel,
+                inSentence: objectionTarget.inSentence,
+                decision: objectionTarget.decision,
+              }
+            : undefined
+        }
+      />
+
+      <BailApplicationDialog
+        open={bailOpen}
+        // Closing, filed or not, stays on the chooser like every other type.
+        onOpenChange={setBailOpen}
+        accessCase={{
+          id: record.id,
+          title: partiesLabel(record),
+          caseNumber: record.caseNumber,
+          court: record.court,
+          nextHearing: record.nextHearing?.on ?? "",
+        }}
+        locale={locale}
+      />
+
+      <AddWitnessDialog
+        open={witnessOpen}
+        onOpenChange={setWitnessOpen}
+        caseRef={{
+          title: partiesLabel(record),
+          caseNumber: record.caseNumber,
+          court: record.court,
+        }}
       />
 
       <DiscardFilingDialog
         open={discardOpen}
         onOpenChange={setDiscardOpen}
         onDiscard={closeForm}
+        onSaveDraft={seat.personId ? saveDraft : undefined}
+        noun={objecting ? "objection" : "application"}
       />
     </>
+  );
+}
+
+/**
+ * The page's entry point. A draft saved during this visit is not known to
+ * the server, so `?draft=` that the server could not resolve is looked up
+ * here, in the visit's memory, and the form remounts on it.
+ */
+export function RaiseApplicationEntry({
+  draftId,
+  resume = null,
+  ...props
+}: Omit<React.ComponentProps<typeof RaiseApplicationForm>, "resume"> & {
+  draftId?: string;
+  resume?: Submission | null;
+}) {
+  const savedRaw = useSessionValue(savedDraftsKey(props.record.id));
+  const saved =
+    !resume && draftId
+      ? parseSavedDrafts(savedRaw).find((item) => item.id === draftId)
+      : undefined;
+  const resumed = resume ?? (saved ? savedDraftSubmission(saved) : null);
+  return (
+    <RaiseApplicationForm
+      key={resumed?.id ?? "new"}
+      {...props}
+      resume={resumed}
+    />
   );
 }
 

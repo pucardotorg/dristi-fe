@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronRightIcon } from "lucide-react";
 
 import { Identifier } from "@/components/chrome/identifier";
 import type { PastCaseNumber } from "@/lib/cases/header";
@@ -58,9 +57,11 @@ export function CaseNumberLine({
 }
 
 /**
- * The main stage and any sub stages, each naming what it is on hover. The
- * "Stage" label above already says it without a pointer, so the tooltip only
- * tells the two kinds apart.
+ * The main stage and any secondary stages, each naming what it is on hover.
+ * Secondary stages are not inside the main one: there is no hierarchy, and
+ * several can be active at once (PM, Oct 8). So no pointer between them; the
+ * main stage's fill against the secondary stages' outline is the only
+ * difference, and the tooltip names it.
  */
 export function CaseStageBadges({
   stage,
@@ -78,20 +79,12 @@ export function CaseStageBadges({
           </TooltipTrigger>
           <TooltipContent side="bottom">Case stage</TooltipContent>
         </Tooltip>
-        {/* A chevron, not a slash: a slash reads as "either", a chevron as
-            "inside". One is enough; the sub stages after it are siblings. */}
-        {subStages.length > 0 ? (
-          <ChevronRightIcon
-            aria-hidden
-            className="size-3.5 shrink-0 text-muted-foreground"
-          />
-        ) : null}
         {subStages.map((label) => (
           <Tooltip key={label}>
             <TooltipTrigger asChild>
               <Badge variant="outline">{label}</Badge>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Case sub stage</TooltipContent>
+            <TooltipContent side="bottom">Secondary stage</TooltipContent>
           </Tooltip>
         ))}
       </span>

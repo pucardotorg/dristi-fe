@@ -153,26 +153,36 @@ export function CaseHeader({
             </span>
           </HeaderFact>
         ) : null}
-        {complainantCounsel.length > 0 ? (
-          <HeaderFact label={COUNSEL_LABEL.complainant}>
+        {/* A side with no advocate still gets its row (owner, Sept 24): with the
+            complainant's row simply missing, a party in person read their own
+            case as having only an accused side. The complaint is the
+            complainant's own filing, so no advocate there means they appear in
+            person; the accused may simply not have appeared yet, so theirs
+            says only that none is on record. */}
+        <HeaderFact label={COUNSEL_LABEL.complainant}>
+          {complainantCounsel.length > 0 ? (
             <CaseAdvocates
               record={record}
               side="complainant"
               more="text"
               className="font-medium"
             />
-          </HeaderFact>
-        ) : null}
-        {accusedCounsel.length > 0 ? (
-          <HeaderFact label={COUNSEL_LABEL.accused}>
+          ) : (
+            <span className="text-muted-foreground">Party in person</span>
+          )}
+        </HeaderFact>
+        <HeaderFact label={COUNSEL_LABEL.accused}>
+          {accusedCounsel.length > 0 ? (
             <CaseAdvocates
               record={record}
               side="accused"
               more="text"
               className="font-medium"
             />
-          </HeaderFact>
-        ) : null}
+          ) : (
+            <span className="text-muted-foreground">None on record</span>
+          )}
+        </HeaderFact>
       </dl>
     </header>
   );

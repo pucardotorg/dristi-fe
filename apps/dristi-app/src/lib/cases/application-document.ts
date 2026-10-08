@@ -13,6 +13,11 @@
  * the last place to guess one.
  */
 import { type ApplicationDraft } from "./application-draft";
+import {
+  applicationsFile,
+  quotedOthersTitle,
+  submissionTypeLabel,
+} from "./applications";
 import { counselFor, formatCaseDate, type CaseRecord } from "./types";
 
 export type GeneratedApplication = {
@@ -61,19 +66,40 @@ const DATED_TYPES = new Set([
 ]);
 
 export function buildGeneratedApplication(
-  draft: ApplicationDraft,
+  given: ApplicationDraft,
   record: CaseRecord,
-  /** The side filing it. Absent, bail is the accused's and the rest the complainant's. */
+  /** The side filing it, where the draft does not say (the court's task
+   *  screens pass it). The draft's own side wins. */
   side?: "complainant" | "accused"
 ): GeneratedApplication | null {
+  const draft =
+    side && !given.filedForSide ? { ...given, filedForSide: side } : given;
   if (!draft.type) return null;
 
   const complainant = record.parties.complainant;
   const accused = record.parties.accused;
-  const filedFor =
-    (side ?? (draft.type === "bail" ? "accused" : "complainant")) === "accused"
-      ? accused
-      : complainant;
+  /* An objection answers the other side's application, so it is filed for
+     whichever side did not raise that one. */
+  const objectionTarget =
+    draft.type === "objection"
+      ? applicationsFile(record).submissions.find(
+          (item) => item.id === draft.objectionToId
+        )
+      : undefined;
+  const targetFiler = objectionTarget
+    ? applicationsFile(record).people.find(
+        (person) => person.id === objectionTarget.submittedById
+      )
+    : undefined;
+  const filedFor = objectionTarget
+    ? targetFiler?.side === "accused"
+      ? complainant
+      : accused
+    : draft.filedForSide
+      ? record.parties[draft.filedForSide]
+      : draft.type === "bail"
+        ? accused
+        : complainant;
 
   const facts: { term: string; value: string }[] = [
     { term: "Complainant", value: complainant },
@@ -113,10 +139,10 @@ export function buildGeneratedApplication(
   switch (draft.type) {
     case "advancement-reschedule":
     case "postpone": {
-      title =
-        draft.type === "postpone"
-          ? "Application to postpone the hearing"
-          : "Application to advance the hearing";
+      const later = draft.type === "postpone";
+      title = later
+        ? "Application for postponement of hearing"
+        : "Application for advancement of hearing";
       paragraphs.push(
         record.nextHearing
           ? `This case is listed before this court on ${formatCaseDate(
@@ -125,29 +151,39 @@ export function buildGeneratedApplication(
           : "No hearing is currently listed in this case."
       );
       paragraphs.push(
-        trimmed(draft.requestReason)
-          ? `The applicant seeks a change of the hearing date for the following reason: ${trimmed(
-              draft.requestReason
-            )}`
-          : "The applicant seeks a change of the hearing date."
+        draft.rescheduleReason
+          ? `The applicant seeks ${
+              later ? "a later" : "an earlier"
+            } date for the hearing. Reason: ${draft.rescheduleReason.toLowerCase()}.`
+          : `The applicant seeks ${later ? "a later" : "an earlier"} date for the hearing.`
       );
-      if (draft.availabilityDates.length) {
+      if (trimmed(draft.requestReason)) {
+        paragraphs.push(trimmed(draft.requestReason));
+      }
+      if (draft.rescheduleFrom) {
         paragraphs.push(
-          `The party is available to attend on ${draft.availabilityDates
-            .map((date) => formatCaseDate(date.toISOString()))
-            .join(", ")}.`
+          `The hearing can be held on or after ${formatCaseDate(
+            draft.rescheduleFrom.toISOString()
+          )}.`
         );
       }
       paragraphs.push(
         draft.partiesAgreed === "yes"
-          ? "The other parties in the case have agreed to the proposed dates."
-          : "The other parties in the case have not yet agreed to the proposed dates."
+          ? "The other parties in the case have agreed to this date."
+          : "The other parties in the case have not yet agreed to this date."
       );
       if (draft.supportingFiles.length) {
         paragraphs.push(fileCount(draft.supportingFiles.length));
       }
-      prayer =
-        "It is therefore prayed that this court may advance or reschedule the hearing of this case to one of the dates proposed above.";
+      prayer = draft.rescheduleFrom
+        ? `It is therefore prayed that this court may ${
+            later ? "postpone" : "advance"
+          } the hearing of this case to a date on or after ${formatCaseDate(
+            draft.rescheduleFrom.toISOString()
+          )}.`
+        : `It is therefore prayed that this court may ${
+            later ? "postpone" : "advance"
+          } the hearing of this case.`;
       break;
     }
 
@@ -204,26 +240,13 @@ export function buildGeneratedApplication(
       break;
     }
 
-    case "objection": {
-      title = "Objection";
-      if (trimmed(draft.details.text)) {
-        paragraphs.push(trimmed(draft.details.text));
-      }
-      if (draft.supportingFiles.length) {
-        paragraphs.push(fileCount(draft.supportingFiles.length));
-      }
-      prayer =
-        "It is therefore prayed that this court reject the application objected to.";
-      break;
-    }
-
     case "application-others": {
       title = trimmed(draft.title) || "Application";
       if (trimmed(draft.details.text)) {
         paragraphs.push(trimmed(draft.details.text));
       }
-      if (draft.supportingFiles.length) {
-        paragraphs.push(fileCount(draft.supportingFiles.length));
+      if (draft.otherDocuments.length) {
+        paragraphs.push(fileCount(draft.otherDocuments.length));
       }
       prayer =
         "It is therefore prayed that this court grant the relief sought in this application.";
@@ -293,6 +316,9 @@ export function buildGeneratedApplication(
 
     case "withdrawal": {
       title = "Application for withdrawal";
+      if (draft.withdrawalReasonCode) {
+        facts.push({ term: "Reason", value: draft.withdrawalReasonCode });
+      }
       if (trimmed(draft.withdrawalReason.text)) {
         paragraphs.push(
           `The complainant seeks permission to withdraw the complaint for the following reason: ${trimmed(
@@ -309,6 +335,46 @@ export function buildGeneratedApplication(
       }
       prayer =
         "It is therefore prayed that the complainant be permitted to withdraw the complaint.";
+      break;
+    }
+
+    case "objection": {
+      /* An Others application is named by its own title, quoted as typed;
+         "for others" would name nothing. */
+      const quoted = objectionTarget ? quotedOthersTitle(objectionTarget) : null;
+      const target = objectionTarget
+        ? [
+            `application ${
+              objectionTarget.applicationNumber ??
+              objectionTarget.temporaryId ??
+              ""
+            }`.trim(),
+            quoted ??
+              `for ${submissionTypeLabel(objectionTarget.type).toLowerCase()}`,
+          ].join(quoted ? ", " : " ")
+        : "the application";
+      const objector = filedFor === accused ? "The accused" : "The complainant";
+      title = "Objection";
+      facts.push({ term: "Objection to", value: target });
+      paragraphs.push(`${objector} objects to ${target}.`);
+      if (trimmed(draft.objectionGrounds.text)) {
+        paragraphs.push(
+          `The grounds of objection are as follows: ${trimmed(
+            draft.objectionGrounds.text
+          )}`
+        );
+      }
+      const documents = draft.objectionDocuments.filter(
+        (row) => row.files.length > 0
+      ).length;
+      if (documents) {
+        paragraphs.push(
+          documents === 1
+            ? "1 document relied on accompanies this objection."
+            : `${documents} documents relied on accompany this objection.`
+        );
+      }
+      prayer = `It is therefore prayed that ${target} be rejected.`;
       break;
     }
   }
@@ -370,7 +436,14 @@ export function downloadGeneratedApplication(
   side?: "complainant" | "accused"
 ): void {
   const generated = buildGeneratedApplication(draft, record, side);
-  if (!generated) return;
+  if (generated) downloadApplicationText(generated, record);
+}
+
+/** The same text copy, for an application already set out (the detail view). */
+export function downloadApplicationText(
+  generated: GeneratedApplication,
+  record: CaseRecord
+): void {
   const url = URL.createObjectURL(
     new Blob([generatedApplicationText(generated)], { type: "text/plain" })
   );

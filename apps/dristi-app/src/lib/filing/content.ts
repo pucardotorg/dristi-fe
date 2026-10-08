@@ -177,6 +177,30 @@ export const bailDialog = {
   groundsError: t("Set out the grounds for bail.", "ജാമ്യത്തിനുള്ള കാരണങ്ങൾ നൽകുക."),
   commentsLabel: t("Comments", "അഭിപ്രായങ്ങൾ"),
   optional: t("Optional", "നിർബന്ധമല്ല"),
+  /* prayer and supporting documents (Application Lifecycle PRD, Bail) */
+  prayerLabel: t("Prayer", "പ്രാർത്ഥന"),
+  prayerDefault: t(
+    "That the petitioner be released on bail on such terms as this court considers fit.",
+    "ഈ കോടതിക്ക് ഉചിതമെന്ന് തോന്നുന്ന വ്യവസ്ഥകളിൽ ഹർജിക്കാരനെ ജാമ്യത്തിൽ വിട്ടയക്കണമെന്ന്.",
+  ),
+  prayerHint: t(
+    "What you ask the court to order. Change it if you need to.",
+    "കോടതി ഉത്തരവിടണമെന്ന് നിങ്ങൾ ആവശ്യപ്പെടുന്നത്. ആവശ്യമെങ്കിൽ മാറ്റുക.",
+  ),
+  prayerError: t("Enter the prayer.", "പ്രാർത്ഥന നൽകുക."),
+  documentsHeading: t("Supporting documents", "അനുബന്ധ രേഖകൾ"),
+  documentsAdd: t("Add a document", "രേഖ ചേർക്കുക"),
+  documentsAddAnother: t("Add another document", "മറ്റൊരു രേഖ ചേർക്കുക"),
+  documentTitleN: t("Document {n}", "രേഖ {n}"),
+  removeDocument: t("Remove document {n}", "രേഖ {n} നീക്കം ചെയ്യുക"),
+  documentType: t("Document type", "രേഖയുടെ തരം"),
+  documentTitle: t("Document title", "രേഖയുടെ പേര്"),
+  documentFile: t("File", "ഫയൽ"),
+  documentTypeError: t("Enter the document type.", "രേഖയുടെ തരം നൽകുക."),
+  documentTitleError: t("Enter the document title.", "രേഖയുടെ പേര് നൽകുക."),
+  documentFileError: t("Upload the document.", "രേഖ അപ്‌ലോഡ് ചെയ്യുക."),
+  changeFile: t("Change file", "ഫയൽ മാറ്റുക"),
+  removeFile: t("Remove", "നീക്കം ചെയ്യുക"),
 
   /* sureties */
   suretiesTitle: t("Surety details", "ജാമ്യക്കാരുടെ വിവരങ്ങൾ"),
