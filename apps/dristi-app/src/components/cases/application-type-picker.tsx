@@ -174,10 +174,13 @@ export function ApplicationTypeSearch({
       <InputGroupAddon>
         <SearchIcon aria-hidden />
       </InputGroupAddon>
+      {/* Text, not search: the browser's own clear button doubled ours. */}
       <InputGroupInput
-        type="search"
-        aria-label="Search application types"
-        placeholder="Search application types"
+        type="text"
+        role="searchbox"
+        enterKeyHint="search"
+        aria-label="Search application types in your own words"
+        placeholder="Search in your own words, like “my client can’t attend”"
         autoComplete="off"
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}

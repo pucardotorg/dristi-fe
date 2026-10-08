@@ -82,7 +82,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "unable to attend",
       "not present",
       "personal appearance",
-      "leave of absence",
+      "leave of absence", "sick", "ill", "unwell", "hospital", "medical", "travel", "travelling", "abroad", "out of station", "attend", "cant", "cannot come", "not come", "unavailable",
     ],
   },
   /* The PRD splits what was one Advancement/reschedule card into two asks.
@@ -101,7 +101,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "hearing",
       "earlier date",
       "sooner",
-      "change the date",
+      "change the date", "earlier", "urgent", "bring forward",
     ],
   },
   {
@@ -119,7 +119,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "hearing",
       "later date",
       "another date",
-      "next date",
+      "next date", "later", "push", "delay the hearing", "not ready",
     ],
   },
   {
@@ -141,7 +141,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "copy",
       "attested",
       "appeal",
-      "revision",
+      "revision", "order copy", "copy of order", "judgment copy",
     ],
   },
   {
@@ -156,7 +156,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "change name",
       "address",
       "details",
-      "litigant",
+      "litigant", "wrong", "mistake", "spelling", "phone number",
     ],
   },
   {
@@ -184,7 +184,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "custody",
       "arrest",
       "warrant",
-      "bail bond",
+      "bail bond", "jail", "prison", "remand", "get out",
     ],
   },
   {
@@ -227,7 +227,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "bank records",
       "account records",
       "documents from",
-      "bring the documents",
+      "bring the documents", "bank", "statements", "bring",
     ],
   },
   {
@@ -283,7 +283,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "another court",
       "different court",
       "move the case",
-      "jurisdiction",
+      "jurisdiction", "move", "different judge",
     ],
   },
   {
@@ -315,7 +315,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "cancel warrant",
       "withdraw warrant",
       "quash warrant",
-      "set aside warrant",
+      "set aside warrant", "recall", "cancel", "quash",
     ],
   },
   {
@@ -331,7 +331,7 @@ const GUIDES: ApplicationTypeGuide[] = [
       "take back",
       "drop",
       "do not pursue",
-      "cancel the filing",
+      "cancel the filing", "drop the case", "stop the case", "end the case",
     ],
   },
   {
@@ -505,20 +505,34 @@ function scoreGuide(
   words: string[]
 ): number {
   let score = 0;
+  /* The sentence with its filler gone, so "cancel the warrant" meets the
+     phrase "cancel warrant". */
+  const gist = words.join(" ");
+  /* Only the last word can be half typed; an earlier "set" is a word. */
+  const typing = words.at(-1) ?? "";
 
   for (const keyword of guide.keywords) {
     if (keyword.includes(" ")) {
       // A phrase has to appear as one, or "call for" matches every "for".
-      if (normalized.includes(keyword)) score += 4;
+      const keywordGist = meaningfulWords(normalize(keyword)).join(" ");
+      if (
+        normalized.includes(keyword) ||
+        (keywordGist.includes(" ") && gist.includes(keywordGist))
+      ) {
+        score += 4;
+      }
       continue;
     }
     for (const word of words) {
       if (word === keyword) score += 3;
-      else if (
-        word.length > 3 &&
-        (word.startsWith(keyword) || keyword.startsWith(word))
-      ) {
+      else if (sameWordInflected(word, keyword)) {
         // "settling" and "settle" are the same ask typed differently.
+        score += 2;
+      } else if (word === typing && word.length >= 3 && keyword.startsWith(word)) {
+        // Still being typed: "adjou" is on its way to "adjourn".
+        score += 2;
+      } else if (word.length >= 5 && withinOneEdit(word, keyword)) {
+        // One slip of the finger: "certfied", "postpne".
         score += 2;
       }
     }
@@ -528,8 +542,46 @@ function scoreGuide(
   const description = meaningfulWords(normalize(guide.description));
   for (const word of words) {
     if (label.includes(word)) score += 2;
-    else if (word.length > 4 && description.includes(word)) score += 1;
+    else if (
+      word.length >= 3 &&
+      label.some(
+        (part) =>
+          (word === typing && part.startsWith(word)) || withinOneEdit(word, part)
+      )
+    ) {
+      score += 2;
+    } else if (word.length > 4 && description.includes(word)) score += 1;
   }
 
   return score;
+}
+
+/** The endings an ask takes when typed in a sentence: "settling", "delayed". */
+const INFLECTIONS = ["s", "es", "ed", "d", "ing", "ment", "ments", "ion", "al"];
+
+function sameWordInflected(word: string, keyword: string): boolean {
+  if (keyword.length < 4) return false;
+  const [longer, shorter] =
+    word.length >= keyword.length ? [word, keyword] : [keyword, word];
+  if (!longer.startsWith(shorter.replace(/e$/, ""))) return false;
+  const rest = longer.slice(shorter.replace(/e$/, "").length);
+  return rest === "" || rest === "e" || INFLECTIONS.some((end) => rest === end || rest === `e${end}`);
+}
+
+/** Whether two words are one insertion, deletion or swap of letters apart. */
+function withinOneEdit(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1 || Math.min(a.length, b.length) < 4) {
+    return false;
+  }
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (a.length === b.length) {
+    if (a.slice(i + 1) === b.slice(i + 1)) return true;
+    // Two neighbouring letters swapped.
+    return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
+  }
+  return a.length > b.length
+    ? a.slice(i + 1) === b.slice(i)
+    : a.slice(i) === b.slice(i + 1);
 }

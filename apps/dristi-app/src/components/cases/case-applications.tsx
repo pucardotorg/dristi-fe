@@ -1403,7 +1403,9 @@ function objectionTarget(item: ApplicationRecord): string | null {
  */
 function noteClass(keepWhole = false): string {
   return cn(
-    "text-caption text-muted-foreground tabular-nums",
+    /* The Type column's subline weight: a note, never a second label
+       (owner, Oct 8). The cells around it are medium, so it says normal. */
+    "text-caption font-normal text-muted-foreground tabular-nums",
     keepWhole && "whitespace-nowrap"
   );
 }
@@ -1449,7 +1451,7 @@ function ApplicationNumber({
           label="temporary ID"
           copyable={copyable}
         />
-        <span className="text-muted-foreground">Temporary</span>
+        <span className="font-normal text-muted-foreground">Temporary</span>
       </span>
     ) : (
       <Identifier value={item.temporaryId} label="ID" copyable={copyable} />

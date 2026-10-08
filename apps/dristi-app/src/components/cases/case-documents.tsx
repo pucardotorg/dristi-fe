@@ -840,7 +840,9 @@ function DocumentsTable({
           >
             <TableCell className={cn(cellClass, "min-w-0 whitespace-normal")}>
               <p className="font-medium text-foreground">{document.title}</p>
-              <p className="text-caption font-medium text-muted-foreground">
+              {/* A step below the title, at a note's weight (owner, Oct 8:
+                  the two lines ran together). */}
+              <p className="mt-1 text-caption font-normal text-muted-foreground">
                 {documentSourceLabel(document.source)}
                 {/* The id the register's search matches — shown so a found
                     row identifies itself. A filing not yet submitted has
