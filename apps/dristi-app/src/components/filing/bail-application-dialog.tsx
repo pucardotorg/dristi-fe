@@ -88,8 +88,7 @@ import {
 import { ADVOCATE_PROFILE_NAME } from "@/lib/advocate/content";
 import { cn } from "@/lib/utils";
 import { Identifier } from "@/components/chrome/identifier";
-import { DocumentRowsSection } from "@/components/cases/application-type-fields";
-import type { DocumentRowDraft } from "@/lib/cases/application-draft";
+
 
 /**
  * Raise an application → bail. Staged dialog, same shell as the join flows:
@@ -218,6 +217,16 @@ type SuretyDraft = {
   other: File | null;
 };
 
+/** One supporting document (PRD Bail): its type, its title and its file. */
+type BailDocument = { id: number; type: string; title: string; file: File | null };
+type BailDocumentErrors = { type?: string; title?: string; file?: string };
+
+let nextDocumentId = 0;
+function blankDocument(): BailDocument {
+  nextDocumentId += 1;
+  return { id: nextDocumentId, type: "", title: "", file: null };
+}
+
 let suretySeq = 0;
 function blankSurety(): SuretyDraft {
   suretySeq += 1;
@@ -272,7 +281,7 @@ function ApplicationDraft({
   /** Rich text, so the generated draft keeps the filer's emphasis and lists. */
   grounds: RichTextValue;
   prayer: string;
-  documents: DocumentRowDraft[];
+  documents: BailDocument[];
   locale: Locale;
   expanded?: boolean;
   onExpand?: () => void;
@@ -382,9 +391,9 @@ export function BailApplicationDialog({
   const [prayerPrefilled, setPrayerPrefilled] = React.useState(true);
   /* Until the advocate types, the offered wording follows the language. */
   const prayer = prayerPrefilled ? pick(bailDialog.prayerDefault, locale) : typedPrayer;
-  const [documents, setDocuments] = React.useState<DocumentRowDraft[]>([]);
+  const [documents, setDocuments] = React.useState<BailDocument[]>([]);
   const [documentErrors, setDocumentErrors] = React.useState<
-    Record<string, { type?: string; title?: string; files?: string }>
+    Record<number, BailDocumentErrors>
   >({});
   const [detailsTouched, setDetailsTouched] = React.useState(false);
 
@@ -515,9 +524,9 @@ export function BailApplicationDialog({
       const errors = {
         type: row.type.trim() ? undefined : pick(bailDialog.documentTypeError, locale),
         title: row.title.trim() ? undefined : pick(bailDialog.documentTitleError, locale),
-        files: row.files.length ? undefined : pick(bailDialog.documentFilesError, locale),
+        file: row.file ? undefined : pick(bailDialog.documentFileError, locale),
       };
-      if (errors.type || errors.title || errors.files) rowErrors[row.id] = errors;
+      if (errors.type || errors.title || errors.file) rowErrors[row.id] = errors;
     }
     setDocumentErrors(rowErrors);
     if (
@@ -723,43 +732,114 @@ export function BailApplicationDialog({
                     </FieldError>
                   </Field>
 
-                  <DocumentRowsSection
-                    heading={pick(bailDialog.documentsHeading, locale)}
-                    optional
-                    addLabel={pick(bailDialog.documentsAdd, locale)}
-                    rowLabel={pick(bailDialog.documentRow, locale)}
-                    rows={documents}
-                    rowErrors={documentErrors}
-                    onRowsChange={setDocuments}
-                    onRowChange={(id, patch) => {
-                      setDocuments((rows) =>
-                        rows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+                  {/* The PRD's supporting documents list, in this dialog's own
+                      grammar: a sunken well per document as per surety, and
+                      the dialog's upload slot (thumbnail preview, change,
+                      remove). One file to a document. */}
+                  <section
+                    aria-labelledby="bail-documents-heading"
+                    className="flex flex-col gap-4"
+                  >
+                    <h3 id="bail-documents-heading" className="text-body-compact font-medium">
+                      {pick(bailDialog.documentsHeading, locale)}{" "}
+                      <span className="font-normal text-muted-foreground">
+                        ({pick(bailDialog.optional, locale)})
+                      </span>
+                    </h3>
+                    {documents.map((doc, index) => {
+                      const n = String(index + 1);
+                      const errors = documentErrors[doc.id] ?? {};
+                      const update = (patch: Partial<Omit<BailDocument, "id">>) => {
+                        setDocuments((rows) =>
+                          rows.map((row) => (row.id === doc.id ? { ...row, ...patch } : row)),
+                        );
+                        setDocumentErrors((all) => {
+                          if (!all[doc.id]) return all;
+                          const next = { ...all[doc.id] };
+                          for (const key of Object.keys(patch) as (keyof BailDocumentErrors)[]) {
+                            next[key] = undefined;
+                          }
+                          return { ...all, [doc.id]: next };
+                        });
+                      };
+                      return (
+                        <fieldset
+                          key={doc.id}
+                          className="flex min-w-0 flex-col gap-4 rounded-lg bg-surface-sunken p-4"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <legend className="float-left text-body font-semibold">
+                              {fillCopy(bailDialog.documentTitleN, locale, { n })}
+                            </legend>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive-ink hover:text-destructive-ink"
+                              aria-label={fillCopy(bailDialog.removeDocument, locale, { n })}
+                              onClick={() =>
+                                setDocuments((rows) => rows.filter((row) => row.id !== doc.id))
+                              }
+                            >
+                              <Trash2Icon aria-hidden />
+                            </Button>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <Field data-invalid={Boolean(errors.type)}>
+                              <FieldLabel htmlFor={`bail-doc-${doc.id}-type`}>
+                                {pick(bailDialog.documentType, locale)}
+                              </FieldLabel>
+                              <Input
+                                id={`bail-doc-${doc.id}-type`}
+                                value={doc.type}
+                                onChange={(event) => update({ type: event.target.value })}
+                              />
+                              <FieldError>{errors.type}</FieldError>
+                            </Field>
+                            <Field data-invalid={Boolean(errors.title)}>
+                              <FieldLabel htmlFor={`bail-doc-${doc.id}-title`}>
+                                {pick(bailDialog.documentTitle, locale)}
+                              </FieldLabel>
+                              <Input
+                                id={`bail-doc-${doc.id}-title`}
+                                value={doc.title}
+                                onChange={(event) => update({ title: event.target.value })}
+                              />
+                              <FieldError>{errors.title}</FieldError>
+                            </Field>
+                          </div>
+                          <Field data-invalid={Boolean(errors.file)}>
+                            <div className="flex flex-col gap-2">
+                              <UploadedDocField
+                                label={pick(bailDialog.documentFile, locale)}
+                                required
+                                file={doc.file}
+                                onFileChange={(file) => update({ file })}
+                                locale={locale}
+                              />
+                              {!doc.file ? (
+                                <FieldDescription>{pick(bailDialog.docHelp, locale)}</FieldDescription>
+                              ) : null}
+                            </div>
+                            <FieldError>{errors.file}</FieldError>
+                          </Field>
+                        </fieldset>
                       );
-                      setDocumentErrors((errors) => {
-                        if (!errors[id]) return errors;
-                        const next = { ...errors[id] };
-                        for (const key of Object.keys(patch) as (keyof typeof next)[]) {
-                          next[key] = undefined;
-                        }
-                        return { ...errors, [id]: next };
-                      });
-                    }}
-                    onRowError={(id, field, error) =>
-                      setDocumentErrors((errors) => ({
-                        ...errors,
-                        [id]: { ...errors[id], [field]: error },
-                      }))
-                    }
-                    labels={{
-                      type: pick(bailDialog.documentType, locale),
-                      title: pick(bailDialog.documentTitle, locale),
-                      files: pick(bailDialog.documentFiles, locale),
-                      filesHint: pick(bailDialog.documentFilesHint, locale),
-                      remove: pick(bailDialog.documentRemove, locale),
-                      optional: pick(bailDialog.optional, locale),
-                      none: () => pick(bailDialog.documentsNone, locale),
-                    }}
-                  />
+                    })}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="self-start"
+                      data-icon="inline-start"
+                      onClick={() => setDocuments((rows) => [...rows, blankDocument()])}
+                    >
+                      <PlusIcon aria-hidden />
+                      {pick(
+                        documents.length ? bailDialog.documentsAddAnother : bailDialog.documentsAdd,
+                        locale,
+                      )}
+                    </Button>
+                  </section>
 
                   <Field>
                     <FieldLabel htmlFor="bail-comments">
