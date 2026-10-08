@@ -576,7 +576,7 @@ export function RaiseApplicationForm({
 
         {/* A step clear of the heading above and the types below, so it
             stands alone as the way in (owner, Oct 8). */}
-        <div className="mx-auto w-full max-w-2xl pt-2 pb-4">
+        <div className="mx-auto w-full max-w-2xl pt-6 pb-6">
           <ApplicationTypeSearch query={query} onQueryChange={setQuery} />
         </div>
 

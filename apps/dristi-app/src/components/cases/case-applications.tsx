@@ -798,7 +798,7 @@ function whenIn(days: number): string {
  *  it is a deadline, just the lower one (owner, Sept 24). */
 function ExpiryNote({ text }: { text: string }) {
   return (
-    <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums">
+    <span className="inline-flex items-center gap-1 font-medium whitespace-nowrap tabular-nums">
       <ClockIcon className="size-3.5 shrink-0" aria-hidden />
       {text}
     </span>
@@ -899,7 +899,7 @@ function TouchActionCard({
       {/* Two caption lines, 4px apart: who, then when. The clock is the
           separator on the second line, so it can wrap without stranding a
           middot (owner, Sept 24). Short dates keep it to one line. */}
-      <div className="-mt-1 flex flex-col gap-1 text-caption text-muted-foreground">
+      <div className="-mt-1 flex flex-col gap-1 text-caption font-normal text-muted-foreground">
         <span>{filedLine(application)}</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
           <span>Created {application.createdShort}</span>
@@ -1014,7 +1014,7 @@ function GroupMemberCard({
         <p className="text-body-compact font-semibold text-foreground">
           {application.name}
         </p>
-        <div className="flex flex-col gap-1 text-caption text-muted-foreground">
+        <div className="flex flex-col gap-1 text-caption font-normal text-muted-foreground">
           <span>{filedLine(application)}</span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
             <span>Created {application.createdShort}</span>
@@ -1080,7 +1080,9 @@ function ActionRow({
             </Badge>
           )}
         </div>
-        <p className="flex flex-wrap items-center gap-x-1 gap-y-1 text-caption font-medium text-muted-foreground">
+        {/* Who and when, at a note's weight; only the deadline keeps medium
+            (owner, Oct 8). */}
+        <p className="flex flex-wrap items-center gap-x-1 gap-y-1 text-caption font-normal text-muted-foreground">
           <span>{`${filedLine(application)} ·`}</span>
           <span className="tabular-nums">Created {application.created}</span>
           {expiryText(application) ? (
@@ -1251,7 +1253,7 @@ function ObjectionDue({ task }: { task: ObjectionTask }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap tabular-nums",
+        "inline-flex items-center gap-1 font-medium whitespace-nowrap tabular-nums",
         urgent && "font-medium text-warning-ink"
       )}
     >
@@ -1282,7 +1284,7 @@ function ObjectionRow({
             {objectionTitle(task)}
           </button>
         </div>
-        <p className="flex flex-wrap items-center gap-x-1 gap-y-1 text-caption font-medium text-muted-foreground tabular-nums">
+        <p className="flex flex-wrap items-center gap-x-1 gap-y-1 text-caption font-normal text-muted-foreground tabular-nums">
           <span>{objectionLine(task)} ·</span>
           <ObjectionDue task={task} />
         </p>
@@ -1352,7 +1354,7 @@ function TouchObjectionCard({
         </>
       }
     >
-      <div className="-mt-1 flex flex-col items-start gap-1 text-caption text-muted-foreground tabular-nums">
+      <div className="-mt-1 flex flex-col items-start gap-1 text-caption font-normal text-muted-foreground tabular-nums">
         <span>{objectionLine(task)}</span>
         <ObjectionDue task={task} />
       </div>
