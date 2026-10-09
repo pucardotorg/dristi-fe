@@ -91,7 +91,7 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
         </div>
       </CardHeader>
 
-      <CardContent className="mt-auto flex flex-col gap-4 pt-4">
+      <CardContent className="flex flex-col gap-4 pt-4">
         {batch === null ? (
           <Empty className="items-start gap-0 border-0 p-0 text-left text-wrap">
             <EmptyHeader className="max-w-none items-start">
