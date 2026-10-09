@@ -45,7 +45,7 @@ function CaseTypeRow({
       >
         <span
           aria-hidden
-          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-muted-foreground"
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-muted-foreground transition-colors group-hover:bg-card group-hover:text-foreground"
         >
           <Icon className="size-5" />
         </span>

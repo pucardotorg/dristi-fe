@@ -87,7 +87,7 @@ export function FilingsDashboard() {
           {firstName ? `File a case, ${firstName}` : "File a case"}
         </h1>
         <p className={PAGE_SUBTITLE}>
-          Start a new filing, or track what you have filed.
+          Start a new filing, import many cases at once, or track what you have filed.
         </p>
       </header>
 
