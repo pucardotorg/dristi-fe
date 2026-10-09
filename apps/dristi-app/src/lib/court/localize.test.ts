@@ -44,8 +44,11 @@ test("Punjab and Haryana run as ON Courts, in either case", () => {
   assert.equal(localizeCourtText("24×7 ON Court, Ahmedabad", "haryana"), "24×7 ON Court");
 });
 
-test("a bench names its state", () => {
-  assert.equal(localizeCourtText("Before the JMFC Court 1", "gujarat"), "Before the JMFC Court 1, Gujarat");
+test("a bench names its state, and Gujarat's are SARAS courts", () => {
+  assert.equal(localizeCourtText("Before the JMFC Court 1", "haryana"), "Before the JMFC Court 1, Haryana");
+  assert.equal(localizeCourtText("Before the JMFC Court 1", "gujarat"), "Before the SARAS Court 1");
+  assert.equal(localizeCourtText("JMFC-II", "gujarat"), "SARAS Court 2");
+  assert.equal(localizeCourtText("JMFC Court 1", "kerala"), "JMFC Court 1");
 });
 
 test("re-voicing is idempotent, so a value shown twice never doubles up", () => {

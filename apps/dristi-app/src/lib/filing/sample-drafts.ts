@@ -217,7 +217,7 @@ export function buildSampleDraft(sample: Sample, today: string): FilingDraft {
       }
       // Everyone not at this keyboard was sent their link when the filer sent it out.
       if (!s.you) d.sign.notified[s.id] = sentAt;
-      // Only the fee is left on `pay-pending`, so its advocates have sworn too. There is
+      // Only the fee is left on `pay-pending`, so everyone has sworn too. There is
       // no sample video, which the roster states rather than hides.
       if (sample.reach === "pay-pending" && s.oathTaken === false) {
         d.sign.oaths[s.id] = { at: sentAt, video: null };

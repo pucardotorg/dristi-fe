@@ -56,6 +56,11 @@ export type CourtProfile = {
    * complaint with. `null` keeps ON Court; Kerala, Punjab and Haryana run as ON Courts.
    */
   courtName: string | null;
+  /**
+   * What the state calls a numbered bench, where it is not a JMFC court: Gujarat's are
+   * "SARAS Court 1, 2, 3…" (owner, 2026-10-09). `null` keeps "JMFC Court N".
+   */
+  benchName: string | null;
   /** Whether the filing's signing step carries an oath — Punjab's does not. */
   signWithOath: boolean;
   fees: FeeSchedule;
@@ -69,6 +74,7 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     cnrPrefix: "KLKM52",
     brandName: null,
     courtName: null,
+    benchName: null,
     signWithOath: true,
     fees: KERALA_FEES,
   },
@@ -82,6 +88,7 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     // 2026-10-09). The exact court wording is still to be confirmed with Gujarat.
     brandName: "SARAS 2.0",
     courtName: "SARAS Court",
+    benchName: "SARAS Court",
     signWithOath: true,
     fees: GUJARAT_FEES,
   },
@@ -95,6 +102,7 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     cnrPrefix: "PBLD03",
     brandName: null,
     courtName: null,
+    benchName: null,
     signWithOath: false,
     fees: PUNJAB_HARYANA_FEES,
   },
@@ -106,6 +114,7 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     cnrPrefix: "HRPK03",
     brandName: null,
     courtName: null,
+    benchName: null,
     signWithOath: true,
     fees: PUNJAB_HARYANA_FEES,
   },

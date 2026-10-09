@@ -1,7 +1,7 @@
 /** Derived reads over the draft — pure functions so screens and the shell agree. */
 
 import { ADVOCATE_OATH } from "./config";
-import { addDays, addressToString, daysBetween, plural, toLongDate, todayIso } from "./format";
+import { addDays, addressToString, daysBetween, nameList, plural, toLongDate, todayIso } from "./format";
 import { KERALA_FEES, type FeeSchedule } from "@/lib/court/fees";
 import {
   CHANNEL_FEE,
@@ -207,21 +207,17 @@ function sameMobile(a: string, b: string): boolean {
 }
 
 /**
- * Everyone who signs the complaint: each complainant (or the person acting for one), and
- * one advocate signature per complainant who has an advocate.
- *
- * The advocate half is a slot per litigant, not a row per advocate: a complainant may
- * have several advocates on record but only one of them signs for them, so the row is
- * "Advocate for Complainant 1" and the names beneath it say who may fill it. A
- * complainant appearing as a party in person has no advocate row at all.
+ * Everyone who signs the complaint and takes the oath: each complainant (or the person
+ * acting for one), and every advocate on record for them. A complainant appearing as a
+ * party in person brings no advocate.
  *
  * "You" is whoever matches the profile — by bar number for advocates, by mobile for
- * complainants — else the first advocate slot, else the first complainant.
+ * complainants — else the first advocate, else the first complainant.
  */
 export function signatories(
   draft: FilingDraft,
   profile: UserProfile | null,
-  /** Whether advocates take the oath — the deployment's switch unless a test says otherwise. */
+  /** Whether signatories take the oath — the deployment's switch unless a test says otherwise. */
   oath: boolean = ADVOCATE_OATH
 ): { complainants: Signatory[]; advocates: Signatory[] } {
   const signedOf = (id: string): Signatory["status"] =>
@@ -251,32 +247,38 @@ export function signatories(
       status: signedOf(`sig-c-${c.id}`),
       signedWith: signedWith(`sig-c-${c.id}`),
       you,
+      // Complainants take the oath as advocates do (owner, 2026-10-09).
+      oathTaken: oath ? !!draft.sign.oaths?.[`sig-c-${c.id}`] : undefined,
     };
   });
 
   const myBar = profile?.barNumber.trim().toUpperCase() ?? "";
 
-  const advocates: Signatory[] = draft.complainants.flatMap((c, i) => {
-    if (isPartyInPerson(c)) return [];
-    const acting = advocatesForComplainant(draft.advocates, i);
-    if (!acting.length) return [];
-    // The system does not know which specific advocate will sign — any one of those on
-    // record may. So the row names the slot only; no individual name is shown.
-    const role =
-      acting.length === 1
-        ? "Advocate on record"
-        : `Any one of ${acting.length} advocates on record`;
-    const you = !!myBar && acting.some((a) => a.barNumber.trim().toUpperCase() === myBar);
+  /*
+   * Every advocate on record signs and takes the oath themselves, and each gets their own
+   * link (owner, 2026-10-09). It used to be one slot per complainant that any one of
+   * their advocates could fill; with several advocates, all of them sign now.
+   */
+  const represented = draft.complainants
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => !isPartyInPerson(c));
+  const advocates: Signatory[] = draft.advocates.flatMap((a, n) => {
+    if (!advocateNamed(a)) return [];
+    const forWhom = represented.filter(({ i }) => a.forComplainants.includes(i));
+    if (!forWhom.length) return [];
+    const id = `sig-a-${a.id}`;
+    const names = forWhom.map(({ c, i }) => complainantLabel(c, i));
+    const you = !!myBar && a.barNumber.trim().toUpperCase() === myBar;
     return [
       {
-        id: `sig-a-${c.id}`,
-        name: `Advocate for Complainant ${i + 1}`,
-        role,
-        status: signedOf(`sig-a-${c.id}`),
-        signedWith: signedWith(`sig-a-${c.id}`),
+        id,
+        name: a.name.trim() || `Advocate ${n + 1}`,
+        role: `Advocate for ${nameList(names)}`,
+        status: signedOf(id),
+        signedWith: signedWith(id),
         you,
         // No oath state at all while the oath is switched off: nothing waits on it.
-        oathTaken: oath ? !!draft.sign.oaths?.[`sig-a-${c.id}`] : undefined,
+        oathTaken: oath ? !!draft.sign.oaths?.[id] : undefined,
       },
     ];
   });
@@ -287,6 +289,23 @@ export function signatories(
     else if (complainants[0]) complainants[0].you = true;
   }
   return { complainants, advocates };
+}
+
+/**
+ * The person who reads the oath for a signatory slot, by name — it is in the words they
+ * read. A complainant reads it themselves, or through their PoA holder or the
+ * representative who answers for an institution; each advocate reads it in their own.
+ */
+export function oathTakerName(draft: FilingDraft, signatoryId: string, fallback = ""): string {
+  const ref = signatoryId.replace(/^sig-[ca]-/, "");
+  if (signatoryId.startsWith("sig-a-")) {
+    return draft.advocates.find((a) => a.id === ref)?.name.trim() || fallback;
+  }
+  const c = draft.complainants.find((x) => x.id === ref);
+  if (!c) return fallback;
+  if (c.type === "institution") return c.rep.name.trim() || c.entName.trim() || fallback;
+  if (c.poa === "yes" && c.poaHolder.name.trim()) return c.poaHolder.name.trim();
+  return c.name.trim() || fallback;
 }
 
 /**

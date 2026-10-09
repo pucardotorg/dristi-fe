@@ -602,6 +602,7 @@ export function migrateDraft(draft: FilingDraft): FilingDraft {
   // none, and none is invented for it: the window asks before the upload reopens.
   draft.sign.paperFallback ??= null;
   migrateSignMode(draft);
+  migrateAdvocateSignatures(draft);
   draft.version = 7;
   return draft;
 }
@@ -678,4 +679,26 @@ function migrateAdr(draft: FilingDraft) {
 
   /* The step it was last on may be an id this branch's router does not have. */
   if ((draft.lastStep as string) === "settlement") draft.lastStep = "adr-prayer";
+}
+
+/**
+ * Advocates used to sign in one slot per complainant (`sig-a-<complainant id>`); every
+ * advocate now signs as themselves (`sig-a-<advocate id>`, owner 2026-10-09). A draft
+ * saved under the old key gives what was recorded to each advocate who was on record
+ * for that complainant, so nothing already signed or sworn is lost.
+ */
+function migrateAdvocateSignatures(draft: FilingDraft) {
+  const maps = [draft.sign.signed, draft.sign.oaths, draft.sign.notified] as Record<
+    string,
+    unknown
+  >[];
+  draft.complainants.forEach((c, i) => {
+    const old = `sig-a-${c.id}`;
+    const acting = draft.advocates.filter((a) => a.forComplainants.includes(i));
+    for (const map of maps) {
+      if (!map || !(old in map)) continue;
+      for (const a of acting) map[`sig-a-${a.id}`] ??= map[old];
+      delete map[old];
+    }
+  });
 }

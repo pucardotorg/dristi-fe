@@ -199,6 +199,23 @@ const NUMBER_RULES: Rule[] = [
   ],
 ];
 
+const ROMAN: Record<string, number> = {
+  I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10,
+};
+
+/**
+ * A numbered bench, for a state that does not call it a JMFC court — Gujarat's are
+ * "SARAS Court 1, 2, 3…" (owner, 2026-10-09). Applied before the name rules, so the
+ * bench is renamed before any of them would add the state to it. The fixtures' district
+ * suffix goes with it: the state's bench is named by its number alone.
+ */
+const BENCH_RULES: Rule[] = [
+  [/\bJMFC Court (\d+)(?:, (?:Gujarat|Sample District))?/g, (p, n) => `${p.benchName} ${n}`],
+  [/\bJMFC COURT (\d+)(?:, (?:GUJARAT|SAMPLE DISTRICT))?/g, (p, n) => `${p.benchName?.toUpperCase()} ${n}`],
+  [/\bJMFC-(X|IX|VIII|VII|VI|V|IV|III|II|I)\b/g, (p, r) => `${p.benchName} ${ROMAN[r] ?? r}`],
+  [/\bJMFC Court\b/g, (p) => p.benchName ?? "JMFC Court"],
+];
+
 function apply(text: string, rules: Rule[], profile: CourtProfile): string {
   let out = text;
   for (const [pattern, to] of rules) {
@@ -223,8 +240,9 @@ export function localizeCaseNumber(value: string, court: CourtId): string {
 export function localizeCourtText(text: string, court: CourtId): string {
   const profile = courtProfile(court);
   if (profile.numbering.kind === "kerala") return text;
+  const benched = profile.benchName ? apply(text, BENCH_RULES, profile) : text;
   return apply(
-    voiceNames(apply(apply(text, NAME_RULES, profile), PLACE_RULES, profile), court),
+    voiceNames(apply(apply(benched, NAME_RULES, profile), PLACE_RULES, profile), court),
     NUMBER_RULES,
     profile,
   );

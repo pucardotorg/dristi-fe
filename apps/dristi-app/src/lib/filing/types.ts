@@ -372,8 +372,8 @@ export type Signatory = {
   signedWith?: SignInstrument;
   you?: boolean;
   /**
-   * Advocates only: whether the oath is in. Advocates sign *and* take the oath; a
-   * complainant only signs, so this is absent on their rows.
+   * Whether the oath is in. Complainants and advocates both sign *and* take the oath;
+   * absent while the oath is switched off, when nothing waits on it.
    */
   oathTaken?: boolean;
 };
