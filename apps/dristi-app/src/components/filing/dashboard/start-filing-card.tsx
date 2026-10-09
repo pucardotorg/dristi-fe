@@ -2,50 +2,76 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeftRightIcon, ChevronRightIcon, CreditCardIcon, FilePlusIcon } from "lucide-react";
+import { ArrowLeftRightIcon, CreditCardIcon, FilePlusIcon } from "lucide-react";
 
 import { CASE_TYPE, PSS_CASE_TYPE } from "@/lib/filing/options";
 import { NEW_FILING, NEW_PSS_FILING } from "@/lib/filing/steps";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PANEL_CLASS } from "@/components/filing/form-card";
 
 /**
- * One row per case type DRISTI lists. The row and its icon tile carry 12px of their own
- * padding; pulled out by the same 12px, their icon and label stand on the header icon's
- * edge.
+ * One case type a filing can start from: what it is on the left, a real Start button on
+ * the right. The rows used to be tinted links with a chevron, which read as notices
+ * rather than as the way in (owner, 2026-10-09: "it's not very apparent to me that those
+ * are the buttons to start a new filing"). Rows are ruled apart, not filled, so the
+ * button is the only thing on them asking to be pressed.
  */
 function CaseTypeRow({
   href,
   icon: Icon,
   title,
   caption,
+  soon,
+  primary,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   caption: React.ReactNode;
+  soon?: boolean;
+  primary?: boolean;
 }) {
+  const id = React.useId();
   return (
-    <Link
-      href={href}
-      className="group -mx-3 flex items-center gap-3 rounded-lg bg-brand-muted/50 p-3 ring-1 ring-transparent transition-[background-color,box-shadow] ring-inset hover:bg-brand-muted/75 hover:ring-primary/40 active:bg-brand-muted/75 active:ring-primary/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
-      <span
-        aria-hidden
-        className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-card text-brand-muted-foreground"
-      >
-        <Icon className="size-5" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-body font-semibold">{title}</span>
-        <span className="text-caption text-muted-foreground">{caption}</span>
-      </span>
-      <ChevronRightIcon
-        aria-hidden
-        className="size-4.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-      />
-    </Link>
+    <Item variant="outline" role="listitem" className="hover:bg-card">
+      <ItemMedia variant="icon" className="text-muted-foreground">
+        <Icon aria-hidden />
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle
+          id={id}
+          className="line-clamp-none flex-wrap text-body-compact font-semibold break-words"
+        >
+          {title}
+          {soon ? <Badge variant="secondary">Coming soon</Badge> : null}
+        </ItemTitle>
+        <ItemDescription className="text-body-compact">{caption}</ItemDescription>
+      </ItemContent>
+      <ItemActions className="w-full sm:w-auto">
+        <Button
+          asChild
+          size="sm"
+          variant={primary ? "default" : "outline"}
+          className="w-full sm:w-auto"
+        >
+          <Link href={href} aria-describedby={id}>
+            Start filing
+          </Link>
+        </Button>
+      </ItemActions>
+    </Item>
   );
 }
 
@@ -75,20 +101,22 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-2 pt-4">
+      <CardContent className="pt-4">
+        <ItemGroup role="list" className="gap-2">
         <CaseTypeRow
           href={NEW_FILING}
           icon={CreditCardIcon}
           title={CASE_TYPE.title}
+          primary
           caption={
             /* A zero here is noise — "0 filed by you" tells nobody anything. */
             filedCount ? (
               <>
-                <span className="tabular-nums">{filedCount}</span> filed by you · takes about
-                40 minutes
+                Dishonoured cheques · <span className="tabular-nums">{filedCount}</span>{" "}
+                filed by you · about 40 minutes
               </>
             ) : (
-              "Takes about 40 minutes"
+              "Dishonoured cheques · about 40 minutes"
             )
           }
         />
@@ -96,8 +124,10 @@ export function StartFilingCard({ filedCount }: { filedCount: number | null }) {
           href={NEW_PSS_FILING}
           icon={ArrowLeftRightIcon}
           title={PSS_CASE_TYPE.title}
-          caption="Coming soon"
+          caption="Dishonoured electronic transfers"
+          soon
         />
+        </ItemGroup>
       </CardContent>
     </Card>
   );

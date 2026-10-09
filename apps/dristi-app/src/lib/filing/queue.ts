@@ -35,12 +35,18 @@ import { NEW_PSS_FILING, stepHref } from "./steps";
 import type { FilingDraft, Signatory, UserProfile } from "./types";
 import { caseSearchKey } from "@/lib/court/localize";
 
+/**
+ * Tab names say what the filing is waiting on, in the advocate's words (owner,
+ * 2026-10-09): "Pending payment" names the blocking act; scrutiny is "Pending with
+ * scrutiny" (waiting on the officer, not the advocate) and "Returned from scrutiny"
+ * (back with defects). Each tab's `hint` under the bar says what it means and what to do.
+ */
 export const QUEUE_TABS = [
   { id: "drafts", label: "Drafts" },
   { id: "pendingSignature", label: "Pending signature" },
   { id: "pendingPayment", label: "Pending payment" },
-  { id: "scrutiny", label: "Pending scrutiny" },
-  { id: "returned", label: "Returned post scrutiny" },
+  { id: "scrutiny", label: "Pending with scrutiny" },
+  { id: "returned", label: "Returned from scrutiny" },
   { id: "registered", label: "Registered" },
 ] as const;
 
@@ -117,40 +123,46 @@ export type ColumnId =
  */
 export const TAB_LAYOUT: Record<
   QueueTab,
-  { columns: ColumnId[]; ref?: string; info: string; label: string }
+  { columns: ColumnId[]; ref?: string; info: string; label: string; hint: string }
 > = {
   drafts: {
     columns: ["parties", "caseType", "info", "progress", "action"],
     info: "File by",
     label: "Drafts you have not filed yet",
+    hint: "Not filed yet. Finish each draft and send it for signature.",
   },
   pendingSignature: {
     columns: ["parties", "caseType", "info", "action"],
     info: "Signatures",
     label: "Filings sent for signature",
+    hint: "Waiting for signatures. Sign yours here; the rest are with the parties.",
   },
   pendingPayment: {
     columns: ["parties", "caseType", "info", "action"],
     info: "Court fee",
     label: "Filings signed and awaiting the court fee",
+    hint: "Signed. Pay the court fee to send each one to the court.",
   },
   scrutiny: {
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "E-filing no.",
     info: "Filed",
-    label: "Filings waiting on the registry's check",
+    label: "Filings with the scrutiny officer",
+    hint: "With the scrutiny officer. Nothing to do until they register it or send it back.",
   },
   returned: {
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "E-filing no.",
     info: "Defects",
-    label: "Filings scrutiny returned with defects",
+    label: "Filings to correct after scrutiny",
+    hint: "Sent back with defects. Correct what the scrutiny officer marked, then file it again.",
   },
   registered: {
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "Case no.",
     info: "Hearing",
     label: "Cases the court has numbered",
+    hint: "Registered by the court, with a case number and a hearing date.",
   },
 };
 
@@ -278,7 +290,7 @@ function caseTypeLabel(draft: FilingDraft): string {
 
 export function draftRows(drafts: FilingDraft[]): QueueRow[] {
   return drafts
-    // A returned filing is corrected from Returned post scrutiny, never continued here.
+    // A returned filing is corrected from Returned from scrutiny, never continued here.
     .filter((draft) => !enteredSigning(draft) && !draft.scrutinyReturn)
     .map((draft) => {
       const parties = draftTitle(draft);
