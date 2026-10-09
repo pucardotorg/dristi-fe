@@ -94,3 +94,38 @@ html[data-court-pending] body {
   -webkit-box-shadow: 0 0 0 1000px var(--surface-sunken) inset !important;
   box-shadow: 0 0 0 1000px var(--surface-sunken) inset !important;
 }
+
+/*
+  Autofilled inputs keep their own corners.
+
+  The synced autofill rule in `globals.css` sets `border-radius: inherit`, so an
+  autofilled field takes its parent's radius, usually 0, and turns into a square box
+  (owner, Oct 9: Full name and every other plain field). That rule is unlayered, so it
+  beats the field's own `rounded-lg` utility. `revert-layer` hands the radius back to
+  the layered value, which is the field's own: 10px on a plain input, none on a group
+  control (the group clips it, above). Measured: 10px → 0px under the DS rule → 10px
+  with this. DS request: drop `border-radius: inherit` from the autofill rule.
+*/
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  border-radius: revert-layer;
+}
+
+/*
+  In dark mode a field's fill is `input` at 30% over the page (`dark:bg-input/30` on
+  Input and InputGroup), not the page itself. The autofill paint follows that fill, so
+  an autofilled field does not read as a darker patch among its neighbours.
+*/
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active,
+.dark [data-slot="input-group"] input:-webkit-autofill,
+.dark [data-slot="input-group"] input:-webkit-autofill:hover,
+.dark [data-slot="input-group"] input:-webkit-autofill:focus,
+.dark [data-slot="input-group"] input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px color-mix(in srgb, var(--input) 30%, var(--background)) inset !important;
+  box-shadow: 0 0 0 1000px color-mix(in srgb, var(--input) 30%, var(--background)) inset !important;
+}
