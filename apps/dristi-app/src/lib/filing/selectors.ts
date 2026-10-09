@@ -1,7 +1,7 @@
 /** Derived reads over the draft — pure functions so screens and the shell agree. */
 
 import { ADVOCATE_OATH } from "./config";
-import { addDays, addressToString, daysBetween, todayIso } from "./format";
+import { addDays, addressToString, daysBetween, plural, toLongDate, todayIso } from "./format";
 import { KERALA_FEES, type FeeSchedule } from "@/lib/court/fees";
 import {
   CHANNEL_FEE,
@@ -392,12 +392,23 @@ export function sectionComplete(draft: FilingDraft, step: StepId): boolean {
     case "cheque":
       return draft.cheques.length > 0 && draft.cheques.every(chequeFullyComplete);
     case "demand-notice":
-      return draft.notices.length > 0 && draft.notices.every(noticeComplete);
-    case "jurisdiction":
       return (
-        !!draft.jurisdiction.causeDate &&
+        draft.notices.length > 0 &&
+        draft.notices.every(
+          (n, i) =>
+            noticeComplete(n) && !noticeDispatchIssue(draft, i) && !noticeServiceIssue(n)
+        )
+      );
+    case "jurisdiction": {
+      const lim = limitationView(draft);
+      return (
+        !!lim.causeDate &&
+        !lim.causeIssue &&
+        !lim.filingIssue &&
+        (lim.withinLimit || !!draft.jurisdiction.condonationReason.trim()) &&
         (draft.jurisdiction.deposited === "no" || !!draft.jurisdiction.payeeBankName.trim())
       );
+    }
     case "adr-prayer":
       return !!draft.adr.finalRelief.trim();
     case "witnesses":
@@ -536,10 +547,14 @@ export type FeeBill = {
   total: number;
 };
 
-/** Is this filing past the limitation period, so a condonation application applies? */
+/**
+ * Is this filing past the limitation period, so a condonation application applies?
+ * Read from the same dates the form shows — derived ones included — so the fee and the
+ * warning can never disagree.
+ */
 export function isDelayed(draft: FilingDraft): boolean {
-  const delay = daysBetween(draft.jurisdiction.causeDate, draft.jurisdiction.filingDate);
-  return delay !== null && delay > LIMITATION_DAYS;
+  const { elapsed } = limitationView(draft);
+  return elapsed !== null && elapsed > LIMITATION_DAYS;
 }
 
 /** One address of one accused, as the choosing screen and the bill both need it. */
@@ -758,6 +773,33 @@ export function feeBill(
 export const PAYMENT_WINDOW_DAYS = 15;
 /** Days from the cause of action within which the complaint must be filed. */
 export const LIMITATION_DAYS = 30;
+/** Days from the cheque's return within which the demand notice must be sent. */
+export const NOTICE_WINDOW_DAYS = 30;
+
+/**
+ * What is wrong with notice `index`'s dispatch date against its cheque's return memo,
+ * if anything: it cannot predate the return, and must be within 30 days of it.
+ */
+export function noticeDispatchIssue(draft: FilingDraft, index: number): string | undefined {
+  const dispatch = draft.notices[index]?.dispatchDate;
+  const returned = draft.cheques[index]?.returnDate;
+  if (!dispatch || !returned) return undefined;
+  if (dispatch < returned) {
+    return `Cannot be before the cheque was returned on ${toLongDate(returned)}.`;
+  }
+  const late = daysBetween(returned, dispatch);
+  if (late !== null && late > NOTICE_WINDOW_DAYS) {
+    return `${plural(late, "day")} after the cheque was returned on ${toLongDate(returned)}. The notice must be sent within ${NOTICE_WINDOW_DAYS} days.`;
+  }
+  return undefined;
+}
+
+/** What is wrong with a notice's delivery or return date, if anything. */
+export function noticeServiceIssue(n: DemandNotice): string | undefined {
+  const served = noticeServiceDate(n);
+  if (!served || !n.dispatchDate || served >= n.dispatchDate) return undefined;
+  return `Cannot be before the notice was dispatched on ${toLongDate(n.dispatchDate)}.`;
+}
 
 /**
  * The date the notice started the clock — when it reached the accused, or when it came
@@ -815,12 +857,29 @@ export type LimitationView = {
   overBy: number;
   /** True when the dates came from the notices rather than being typed. */
   causeDerived: boolean;
+  /** The date the notices give — what a typed date is checked against. */
+  derivedCause: ISODate;
+  /** A typed cause date earlier than the payment window allows. */
+  causeIssue?: string;
+  /** A filing date before the cause of action — a complaint cannot be filed yet. */
+  filingIssue?: string;
 };
 
 export function limitationView(draft: FilingDraft): LimitationView {
   const causeDate = causeOfActionDate(draft);
   const filingDate = complaintFilingDate(draft);
-  const elapsed = daysBetween(causeDate, filingDate);
+  const derivedCause = derivedCauseDate(draft);
+  // The cause of action cannot arise before the drawer's 15 days to pay have run out.
+  const causeIssue =
+    draft.jurisdiction.causeDate && derivedCause && draft.jurisdiction.causeDate < derivedCause
+      ? `Cannot be before ${toLongDate(derivedCause)}, ${PAYMENT_WINDOW_DAYS} days after the demand notice was served.`
+      : undefined;
+  const filingIssue =
+    causeDate && filingDate && filingDate < causeDate
+      ? `The complaint can only be filed once the cause of action arises, on ${toLongDate(causeDate)}.`
+      : undefined;
+  // With either date wrong there is no delay to count; the error says what is wrong.
+  const elapsed = filingIssue || causeIssue ? null : daysBetween(causeDate, filingDate);
   return {
     causeDate,
     filingDate,
@@ -828,5 +887,8 @@ export function limitationView(draft: FilingDraft): LimitationView {
     withinLimit: elapsed !== null && elapsed <= LIMITATION_DAYS,
     overBy: elapsed === null ? 0 : Math.max(0, elapsed - LIMITATION_DAYS),
     causeDerived: !draft.jurisdiction.causeDate && !!causeDate,
+    derivedCause,
+    causeIssue,
+    filingIssue,
   };
 }
