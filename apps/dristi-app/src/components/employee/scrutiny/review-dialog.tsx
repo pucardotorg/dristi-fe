@@ -2,12 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import {
-  CheckIcon,
-  RotateCcwIcon,
-} from "lucide-react";
+import { CheckIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
 
-import { docName } from "@/lib/employee/scrutiny/field";
 import type {
   Filing,
   Flag,
@@ -17,6 +13,7 @@ import type {
 import { markArrival } from "@/components/employee/use-arrival";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -25,7 +22,6 @@ import {
   StagedOverlay,
   useStagedFlow,
 } from "@/components/chrome/staged-overlay";
-import { RecordLink } from "@/components/employee/scrutiny/record-rows";
 import { useScrutinyCase } from "@/components/employee/scrutiny/scrutiny-case-context";
 
 export type Decision = "send-back" | "register";
@@ -38,10 +34,9 @@ interface Item {
   linked: FlatField | null;
 }
 
-const GROUP_ORDER = [
-  "Flags — advocate fixes",
-  "Document issues — advocate re-uploads",
-] as const;
+/* Named for what the advocate has to do with each, since that is what differs between
+   them (owner, 2026-10-09: "have proper sections for flagged, then document issue"). */
+const GROUP_ORDER = ["Fields to correct", "Documents to re-upload"] as const;
 
 function group(
   flags: FlagMap,
@@ -148,7 +143,7 @@ export function ReviewDialog({
     decision === "send-back"
       ? {
           title: "Send back to advocate",
-          body: `Goes to ${party.advocate} as recorded. The advocate fixes each flag. Each item unlocks what you marked.`,
+          body: `Goes to ${party.advocate}.`,
         }
       : {
           title: "Register case",
@@ -239,7 +234,7 @@ export function ReviewDialog({
            restated). The stage is the overlay's own white, framed by the header and
            footer hairlines, and the insets belong to this file because the confirmation
            centres itself while the list does not. */
-        surface="card"
+        surface={done || !total ? "card" : "canvas"}
         padded={false}
         title={done ? settled.title : head.title}
         titleRef={flow.titleRef}
@@ -365,47 +360,54 @@ export function ReviewDialog({
              here rather than on the frame because the confirmation above centres itself
              and this does not. */
           <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-              {GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
-                /*
-                 * **A band per kind, ruled from the next.** What the advocate has to
-                 * *do* differs by band — fix a flag, or re-upload a
-                 * document — and the owner asked for that boundary to be visible
-                 * (2026-09-18). The rule is the band's; items inside one are separated
-                 * by space alone. Two separators would have been one too many, and the
-                 * line that means "a different kind of work" should not look like the
-                 * line that means "the next row".
-                 */
-                <section
-                  key={g}
-                  className="-mx-4 border-t border-hairline px-4 pt-6 first:border-t-0 first:pt-0 sm:-mx-6 sm:px-6"
+            {GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
+              /*
+               * A section per kind of work, on the overlay's tinted stage, its items in
+               * lifted white cards — the registrations overlay's layering (owner,
+               * 2026-10-09: "it reads too flat"). Fields are carded by party, so the
+               * party is said once over its rows rather than under every field.
+               */
+              <section
+                key={g}
+                aria-labelledby={`rv-${g}`}
+                className="flex flex-col gap-2 not-first:mt-6"
+              >
+                <h3
+                  id={`rv-${g}`}
+                  className="flex items-baseline gap-1.5 text-caption font-semibold text-muted-foreground"
                 >
-                  {/*
-                   * The band's name, at the same 14px as everything under it and
-                   * carrying its weight instead of a size of its own. Sticky, because on
-                   * a send-back with twenty items the kind of work you are reading is
-                   * what scrolls away first; it needs the stage's fill behind it, and it
-                   * bleeds to the scroller's insets so its rule runs the full width.
-                   */}
-                  <h3 className="sticky top-0 z-10 -mx-4 bg-card px-4 pb-3 text-body-compact font-semibold text-foreground sm:-mx-6 sm:px-6">
-                    {g.split(" — ")[0]}{" "}
-                    <span className="font-normal text-muted-foreground tabular-nums">
-                      ({groups[g].length})
-                    </span>
-                  </h3>
-                  <ul className="flex flex-col gap-6">
-                    {groups[g].map((item) => (
-                      <SummaryItem
-                        key={item.field.id}
-                        item={item}
-                        onGoToItem={(fieldId) => {
-                          onOpenChange(false);
-                          onGoToItem(fieldId);
-                        }}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              ))}
+                  {g}
+                  <span className="font-normal tabular-nums">
+                    {groups[g].length}
+                  </span>
+                </h3>
+                {byOwner(groups[g]).map(([owner, list]) => (
+                  <Card
+                    key={owner || g}
+                    size="sm"
+                    className="gap-0 border-hairline py-0 shadow-raised"
+                  >
+                    {owner ? (
+                      <p className="border-b border-hairline px-4 py-3 text-body-compact font-semibold text-muted-foreground">
+                        {owner}
+                      </p>
+                    ) : null}
+                    <ul className="flex flex-col divide-y divide-hairline">
+                      {list.map((item) => (
+                        <SummaryItem
+                          key={item.field.id}
+                          item={item}
+                          onGoToItem={(fieldId) => {
+                            onOpenChange(false);
+                            onGoToItem(fieldId);
+                          }}
+                        />
+                      ))}
+                    </ul>
+                  </Card>
+                ))}
+              </section>
+            ))}
           </div>
         ) : (
           /* Nothing raised, which is a state and not an absence: said in the middle of
@@ -423,6 +425,26 @@ export function ReviewDialog({
   );
 }
 
+/**
+ * One correction as a row: the item and whose it is, what the officer said (nothing when
+ * they left no note), what a document was raised with, and a way to it.
+ */
+/** Items under the party they belong to, in file order. Document rows share one card. */
+function byOwner(items: Item[]): [string, Item[]][] {
+  const out = new Map<string, Item[]>();
+  for (const item of items) {
+    const owner = item.field.docrow
+      ? ""
+      : item.field.group.replace(/ Details$/, "");
+    out.set(owner, [...(out.get(owner) ?? []), item]);
+  }
+  return [...out];
+}
+
+/**
+ * One correction: the row is the way to it (the chevron says so, quietly), the field's
+ * name leads, and what the officer said follows it.
+ */
 function SummaryItem({
   item,
   onGoToItem,
@@ -430,85 +452,52 @@ function SummaryItem({
   item: Item;
   onGoToItem: (fieldId: string) => void;
 }) {
-  const { docById, docRow } = useScrutinyCase();
   const { field, flag } = item;
-  const reupload =
-    !field.docrow && !!field.doc && !!docRow[field.doc] ? item.linked : null;
+  /* Labelled, so the officer's words read as theirs (owner, 2026-10-09). */
+  const said = [
+    field.docrow && flag.reason ? ["Issue", flag.reason] : null,
+    flag.comment ? ["Comment", flag.comment] : null,
+  ].filter((line): line is [string, string] => line !== null);
+  const also =
+    field.docrow && item.linked
+      ? `Raised with ${item.linked.group.replace(/ Details$/, "").toLowerCase()} ${item.linked.label.toLowerCase()}`
+      : null;
 
-  /*
-   * **One item, read in one pass: where, what was said, what is attached.**
-   *
-   * This was five labelled rows — Original value, FSO's value, FSO's comment,
-   * Annotation, Re-upload requested — each with its name in an 8rem gutter. On a
-   * send-back of twenty items that is a hundred rows of left-column text weighing more
-   * than the facts beside it, and the owner read it as exactly that (2026-09-18).
-   *
-   * The labels are gone because the *form* now says what each line is, which is cheaper
-   * than a word and faster to scan:
-   *
-   * - the **comment** is quoted by a rule down its start, the way a note is quoted
-   *   anywhere else. Nothing needs to call it a comment.
-   * - **what is attached** is a row of links, and a link only appears when it is true.
-   *   "Re-upload requested — No" used to print on every item that did not ask for
-   *   one, which is a row spent saying nothing.
-   *
-   * ## Why this is not the workbench's `RecordList`
-   *
-   * It was, and the two are still one *vocabulary* — the same facts under the same
-   * names. What differs is the task. The workbench examines one item in a narrow pane,
-   * where a label column is the fastest way to find a value. This window is read the
-   * other way round: twenty items at once, looking for the one that is wrong. A layout
-   * tuned for the first is what made the second a wall.
-   */
   return (
-    <li className="@container flex flex-col gap-1.5 text-body-compact">
-      {/*
-       * **`Complainant: Full name`** — the party, then the field, at one size.
-       *
-       * Naming the group on every item was noise; hiding it left five labels that exist
-       * under two parties reading identically; a chevroned path was a third face in a
-       * list that already had too many (owner, 2026-09-17 and 2026-09-18). A colon
-       * carries containment for two characters and reads as a prefix rather than a
-       * second heading. The trailing " Details" comes off: "Complainant Details: Full
-       * name" says Details twice.
-       */}
-      <h4>
-        <span className="text-muted-foreground">
-          {field.group.replace(/ Details$/, "")}:{" "}
+    <li>
+      <button
+        type="button"
+        onClick={() => onGoToItem(field.id)}
+        className="group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:gap-6">
+          <span className="text-body-compact font-medium break-words sm:w-48 sm:shrink-0">
+            {field.label}
+          </span>
+          {said.length || also ? (
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              {said.map(([label, text]) => (
+                <span key={label} className="text-body-compact break-words">
+                  <span className="text-muted-foreground">{label}: </span>
+                  {text}
+                </span>
+              ))}
+              {also ? (
+                <span className="text-body-compact text-muted-foreground">
+                  {also}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
         </span>
-        <span className="font-semibold">{field.label}</span>
-      </h4>
-
-      {/* A document issue's reason *is* the finding, so it takes the weight. */}
-      {field.docrow && flag.reason ? (
-        <p className="font-medium">{flag.reason}</p>
-      ) : null}
-
-      {flag.comment ? (
-        <p className="flex flex-wrap items-center gap-x-2 border-s-2 border-border ps-2.5 text-muted-foreground">
-          <span className="break-words">{flag.comment}</span>
-        </p>
-      ) : null}
-
-      {/* What is attached to the item, and only what is. */}
-      {reupload || (field.docrow && item.linked) ? (
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-0.5 text-muted-foreground">
-          {/* No glyph of its own: `RecordLink` already ends in one, and two icons on a
-              three-word line is the clutter this pass is removing. */}
-          {reupload ? (
-            <RecordLink onClick={() => onGoToItem(reupload.id)}>
-              Re-upload {docName(reupload.docrow ?? "", docById)}
-            </RecordLink>
-          ) : null}
-
-          {field.docrow && item.linked ? (
-            <RecordLink onClick={() => onGoToItem(item.linked!.id)}>
-              Raised with {item.linked.label}
-            </RecordLink>
-          ) : null}
-        </p>
-      ) : null}
-
+        <ChevronRightIcon
+          aria-hidden
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+        />
+        <span className="sr-only">
+          {field.docrow ? "Go to the document" : "Go to the field"}
+        </span>
+      </button>
     </li>
   );
 }

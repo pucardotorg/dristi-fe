@@ -35,12 +35,13 @@ import { NEW_PSS_FILING, stepHref } from "./steps";
 import type { FilingDraft, Signatory, UserProfile } from "./types";
 import { caseSearchKey } from "@/lib/court/localize";
 
+/** Tab names say what the filing is waiting on, in the advocate's words (owner, 2026-10-09). */
 export const QUEUE_TABS = [
   { id: "drafts", label: "Drafts" },
   { id: "pendingSignature", label: "Pending signature" },
   { id: "pendingPayment", label: "Pending payment" },
-  { id: "scrutiny", label: "Pending scrutiny" },
-  { id: "returned", label: "Returned post scrutiny" },
+  { id: "scrutiny", label: "Pending with scrutiny" },
+  { id: "returned", label: "Returned from scrutiny" },
   { id: "registered", label: "Registered" },
 ] as const;
 
@@ -138,13 +139,13 @@ export const TAB_LAYOUT: Record<
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "E-filing no.",
     info: "Filed",
-    label: "Filings waiting on the registry's check",
+    label: "Filings with the scrutiny officer",
   },
   returned: {
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "E-filing no.",
     info: "Defects",
-    label: "Filings scrutiny returned with defects",
+    label: "Filings to correct after scrutiny",
   },
   registered: {
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
@@ -278,7 +279,7 @@ function caseTypeLabel(draft: FilingDraft): string {
 
 export function draftRows(drafts: FilingDraft[]): QueueRow[] {
   return drafts
-    // A returned filing is corrected from Returned post scrutiny, never continued here.
+    // A returned filing is corrected from Returned from scrutiny, never continued here.
     .filter((draft) => !enteredSigning(draft) && !draft.scrutinyReturn)
     .map((draft) => {
       const parties = draftTitle(draft);

@@ -53,7 +53,7 @@ export function FilingsDashboard() {
   const courtFees = useCourt().profile.fees;
   const mounted = useMounted();
   const { profile } = useProfile();
-  const { ready, error, readAt, drafts, filed, discard, reload } = useDrafts();
+  const { ready, error, readAt, drafts, discard, reload } = useDrafts();
   const { tasks, cases: taskCases } = useTasks();
   // The drafts awaiting a discard confirmation — one from a row's bin, several from
   // the selection. Empty means the dialog is closed.
@@ -94,7 +94,7 @@ export function FilingsDashboard() {
       {error ? <p className="text-body text-destructive-ink">{error}</p> : null}
 
       <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-        <StartFilingCard filedCount={showData ? filed.length : null} />
+        <StartFilingCard />
         <BulkImportCard batch={BATCH} />
       </div>
 
