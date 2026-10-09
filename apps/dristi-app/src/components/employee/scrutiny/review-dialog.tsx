@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckIcon, RotateCcwIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
 
 import type {
   Filing,
@@ -13,6 +13,7 @@ import type {
 import { markArrival } from "@/components/employee/use-arrival";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -233,7 +234,7 @@ export function ReviewDialog({
            restated). The stage is the overlay's own white, framed by the header and
            footer hairlines, and the insets belong to this file because the confirmation
            centres itself while the list does not. */
-        surface="card"
+        surface={done || !total ? "card" : "canvas"}
         padded={false}
         title={done ? settled.title : head.title}
         titleRef={flow.titleRef}
@@ -361,36 +362,50 @@ export function ReviewDialog({
           <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
             {GROUP_ORDER.filter((g) => groups[g].length).map((g) => (
               /*
-               * A section per kind of work, each a ruled list. Every row has the same
-               * three parts in the same places — what, why, and the way to it — so a
-               * send-back with twenty items is scanned down one column, not read.
+               * A section per kind of work, on the overlay's tinted stage, its items in
+               * lifted white cards — the registrations overlay's layering (owner,
+               * 2026-10-09: "it reads too flat"). Fields are carded by party, so the
+               * party is said once over its rows rather than under every field.
                */
               <section
                 key={g}
                 aria-labelledby={`rv-${g}`}
-                className="flex flex-col gap-2 not-first:mt-8"
+                className="flex flex-col gap-3 not-first:mt-8"
               >
                 <h3
                   id={`rv-${g}`}
-                  className="sticky top-0 z-10 -mx-4 flex items-baseline gap-3 bg-card px-4 py-2 text-body-compact font-semibold sm:-mx-6 sm:px-6"
+                  className="flex items-baseline gap-2 text-body font-semibold"
                 >
                   {g}
-                  <span className="font-normal text-muted-foreground tabular-nums">
+                  <span className="text-body-compact font-normal text-muted-foreground tabular-nums">
                     {groups[g].length}
                   </span>
                 </h3>
-                <ul className="flex flex-col divide-y divide-hairline">
-                  {groups[g].map((item) => (
-                    <SummaryItem
-                      key={item.field.id}
-                      item={item}
-                      onGoToItem={(fieldId) => {
-                        onOpenChange(false);
-                        onGoToItem(fieldId);
-                      }}
-                    />
-                  ))}
-                </ul>
+                {byOwner(groups[g]).map(([owner, list]) => (
+                  <Card
+                    key={owner || g}
+                    size="sm"
+                    className="gap-0 border-hairline py-0 shadow-raised"
+                  >
+                    {owner ? (
+                      <p className="border-b border-hairline px-4 py-3 text-body-compact font-semibold text-muted-foreground">
+                        {owner}
+                      </p>
+                    ) : null}
+                    <ul className="flex flex-col divide-y divide-hairline">
+                      {list.map((item) => (
+                        <SummaryItem
+                          key={item.field.id}
+                          item={item}
+                          onGoToItem={(fieldId) => {
+                            onOpenChange(false);
+                            onGoToItem(fieldId);
+                          }}
+                        />
+                      ))}
+                    </ul>
+                  </Card>
+                ))}
               </section>
             ))}
           </div>
@@ -414,6 +429,22 @@ export function ReviewDialog({
  * One correction as a row: the item and whose it is, what the officer said (nothing when
  * they left no note), what a document was raised with, and a way to it.
  */
+/** Items under the party they belong to, in file order. Document rows share one card. */
+function byOwner(items: Item[]): [string, Item[]][] {
+  const out = new Map<string, Item[]>();
+  for (const item of items) {
+    const owner = item.field.docrow
+      ? ""
+      : item.field.group.replace(/ Details$/, "");
+    out.set(owner, [...(out.get(owner) ?? []), item]);
+  }
+  return [...out];
+}
+
+/**
+ * One correction: the row is the way to it (the chevron says so, quietly), the field's
+ * name leads, and what the officer said follows it.
+ */
 function SummaryItem({
   item,
   onGoToItem,
@@ -422,8 +453,6 @@ function SummaryItem({
   onGoToItem: (fieldId: string) => void;
 }) {
   const { field, flag } = item;
-  /* A document row's group is just "Documents", which the section already says. */
-  const owner = field.docrow ? "" : field.group.replace(/ Details$/, "");
   const said = [field.docrow ? flag.reason : null, flag.comment].filter(
     Boolean,
   );
@@ -433,40 +462,39 @@ function SummaryItem({
       : null;
 
   return (
-    <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:gap-6">
-      <div className="flex min-w-0 flex-col gap-0.5 sm:w-56 sm:shrink-0">
-        <p className="text-body-compact font-semibold break-words">
-          {field.label}
-        </p>
-        {owner ? (
-          <p className="text-body-compact text-muted-foreground">{owner}</p>
-        ) : null}
-      </div>
-      {said.length || also ? (
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {said.map((line, i) => (
-            <p key={i} className="text-body-compact break-words">
-              {line}
-            </p>
-          ))}
-          {also ? (
-            <p className="text-body-compact text-muted-foreground">{also}</p>
-          ) : null}
-        </div>
-      ) : null}
-      {/* Ghost, so its label lines up with the text column on a phone (pulled out by its
-          own inset) and centres on the row's first line beside it on a wider screen. */}
-      <Button
+    <li>
+      <button
         type="button"
-        variant="ghost"
-        className="-ml-4 self-start sm:-my-2.5 sm:ml-auto"
         onClick={() => onGoToItem(field.id)}
+        className="group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
       >
-        {field.docrow ? "Go to document" : "Go to field"}
-        <span className="sr-only">
-          : {owner} {field.label}
+        <span className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:gap-6">
+          <span className="text-body-compact font-medium break-words sm:w-48 sm:shrink-0">
+            {field.label}
+          </span>
+          {said.length || also ? (
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              {said.map((line, i) => (
+                <span key={i} className="text-body-compact break-words">
+                  {line}
+                </span>
+              ))}
+              {also ? (
+                <span className="text-body-compact text-muted-foreground">
+                  {also}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
         </span>
-      </Button>
+        <ChevronRightIcon
+          aria-hidden
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+        />
+        <span className="sr-only">
+          {field.docrow ? "Go to the document" : "Go to the field"}
+        </span>
+      </button>
     </li>
   );
 }
