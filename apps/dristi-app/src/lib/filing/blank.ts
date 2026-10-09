@@ -424,6 +424,7 @@ export function createBlankDraft(id: string, profile?: UserProfile | null): Fili
     caseType: "s138",
     status: "draft",
     lastStep: "upload",
+    visited: [],
     intake: {
       cheques: [intakeChequeGroup(1)],
       parties: [intakePartyGroup(1)],

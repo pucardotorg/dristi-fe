@@ -125,6 +125,9 @@ const PAY_SAMPLES: Sample[] = [
 /** One sample as a draft. Exported so tests can check a fixture without IndexedDB. */
 export function buildSampleDraft(sample: Sample, today: string): FilingDraft {
   const d = createBlankDraft(sample.id);
+  // A sample was walked as far as it reaches; it carries no record of opened sections,
+  // which reads as every one of them seen (`FilingDraft.visited`).
+  delete d.visited;
   const savedOn = addDays(today, -sample.savedDaysAgo);
   d.createdAt = `${addDays(savedOn, -2)}T10:00:00.000Z`;
   d.updatedAt = `${savedOn}T15:30:00.000Z`;

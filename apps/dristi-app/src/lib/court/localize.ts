@@ -12,8 +12,8 @@
  *
  * What changes, and from which source (owner's documents, 2026-10-08):
  *
- * - **Court and product names.** "24×7 ON Court(s)" becomes the state's placeholder,
- *   "Gujarat Court(s)", until the states send their own; a bench gains its state
+ * - **Court and product names.** In Gujarat "24×7 ON Courts" becomes SARAS 2.0 and
+ *   "24×7 ON Court" the SARAS Court, and DRISTI is never named (owner, 2026-10-09); a bench gains its state
  *   ("JMFC Court 1, Gujarat") where Kerala's demo left the district out.
  * - **Filing number.** Kerala's `KL-000049-2025` — Gujarat's e-filing number keeps the
  *   platform's shape with its own tenant; Punjab & Haryana's is `NACT/49/2025`.
@@ -73,15 +73,15 @@ type Rule = [RegExp, (profile: CourtProfile, ...groups: string[]) => string];
 
 /**
  * The product, "24×7 ON Courts", and the court it runs, "24×7 ON Court". Punjab and
- * Haryana run as ON Courts, so both stay as they are. Gujarat's product is Saras; its
- * court keeps the state's placeholder name until Gujarat gives one (owner, 2026-10-08).
+ * Haryana run as ON Courts, so both stay as they are. Gujarat's product is SARAS 2.0; its
+ * court is the SARAS Court (owner, 2026-10-09).
  */
 function productName(p: CourtProfile, short = false): string {
   return p.brandName ?? (short ? "ON Courts" : "24×7 ON Courts");
 }
 
 function courtName(p: CourtProfile, short = false): string {
-  return p.brandName ? `${p.state} Court` : short ? "ON Court" : "24×7 ON Court";
+  return p.courtName ?? (short ? "ON Court" : "24×7 ON Court");
 }
 
 const NAME_RULES: Rule[] = [
@@ -94,14 +94,13 @@ const NAME_RULES: Rule[] = [
   [/24[×x]7 ON COURTS/g, (p) => productName(p).toUpperCase()],
   [/24[×x]7 ON COURT/g, (p) => courtName(p).toUpperCase()],
   [/\bON Courts\b/g, (p) => productName(p, true)],
+  // The platform's own name, where a state ships it as its own product: Gujarat's
+  // screens never say DRISTI (owner, 2026-10-09). Elsewhere it stays as it is.
+  [/\bDRISTI\b/g, (p) => p.brandName ?? "DRISTI"],
+  [/\bDristi\b/g, (p) => p.brandName ?? "Dristi"],
   [/\bON Court\b/g, (p) => courtName(p, true)],
   // Punjab's filing is signed, not sworn: its step is "Sign" (owner, 2026-10-08).
   [/\bSign and oath\b/g, (p) => (p.signWithOath ? "Sign and oath" : "Sign")],
-  // The complaint's own label for its registration number, before one is allotted.
-  [
-    /Criminal Complaint \(CMP\) No\./g,
-    (p) => `Criminal Complaint (${p.numbering.kind === "nact" ? "NACT" : "eCC"}) No.`,
-  ],
   // A bench names its state; one that already names a place is left alone.
   [/\bJMFC Court (\d+)\b(?!,)/g, (p, n) => `JMFC Court ${n}, ${p.state}`],
   [/\bJMFC COURT (\d+)\b(?!,)/g, (p, n) => `JMFC COURT ${n}, ${p.state.toUpperCase()}`],

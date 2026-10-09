@@ -415,12 +415,53 @@ export function sectionComplete(draft: FilingDraft, step: StepId): boolean {
   }
 }
 
-/** 0–100: share of the walkable steps that are complete. */
+/**
+ * Whether the person has opened this section (`FilingDraft.visited`). A draft saved
+ * before that was recorded is read as walked in order up to where it was left.
+ */
+export function sectionOpened(draft: FilingDraft, step: StepId): boolean {
+  if (draft.visited) return draft.visited.includes(step);
+  const reached = WALK_ORDER.indexOf(draft.lastStep);
+  return WALK_ORDER.indexOf(step) <= reached;
+}
+
+/**
+ * Where a section stands in the rail: `done` once it is complete and has been opened,
+ * `started` once opened but not complete, and `untouched` before anyone opens it — a
+ * section that happens to be complete by default (the pre-written prayer, the optional
+ * witnesses) is not done until the person has seen it.
+ */
+export type SectionState = "done" | "started" | "untouched";
+
+export function sectionState(draft: FilingDraft, step: StepId): SectionState {
+  if (step === "sign" && draft.status === "filed") return "done";
+  if (!sectionOpened(draft, step)) return "untouched";
+  return sectionComplete(draft, step) ? "done" : "started";
+}
+
+/**
+ * The sections progress is counted over: the ones that ask the person for something.
+ * Left out are the intake upload (a shortcut the person may skip — the Documents section
+ * holds the same requirements), witnesses (optional), the affidavit (composed for them),
+ * and the preview (a reading of everything else, so counting it would count twice).
+ */
+export const PROGRESS_STEPS: StepId[] = [
+  "complainant",
+  "advocate",
+  "accused",
+  "cheque",
+  "demand-notice",
+  "jurisdiction",
+  "adr-prayer",
+  "documents",
+  "sign",
+];
+
+/** 0–100: share of the sections that ask for input which are done. */
 export function draftProgress(draft: FilingDraft): number {
   if (draft.status === "filed") return 100;
-  const steps = WALK_ORDER;
-  const done = steps.filter((s) => sectionComplete(draft, s)).length;
-  return Math.round((done / steps.length) * 100);
+  const done = PROGRESS_STEPS.filter((s) => sectionState(draft, s) === "done").length;
+  return Math.round((done / PROGRESS_STEPS.length) * 100);
 }
 
 /* ───────────────────────────── Source documents ────────────────────── */

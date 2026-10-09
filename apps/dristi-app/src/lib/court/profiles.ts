@@ -15,8 +15,8 @@
  * Sources: "Case Numbering System" sheets for Kerala, Gujarat and Punjab & Haryana, and
  * "Payment Logic" (schedule 1 Kerala, 2 Gujarat, 3 Punjab and Haryana), shared in the
  * owner's chat on 2026-10-08. Punjab and Haryana run as 24×7 ON Courts, like Kerala;
- * Gujarat's product is Saras, with a placeholder logo until it sends its own (owner,
- * 2026-10-08).
+ * Gujarat's product is SARAS 2.0, with a placeholder logo until it sends its own (owner,
+ * 2026-10-08, renamed 2026-10-09).
  */
 
 import type { FeeSchedule } from "./fees";
@@ -51,6 +51,11 @@ export type CourtProfile = {
    * and name; a name is shown beside a placeholder logo, and replaces "ON Courts" in text.
    */
   brandName: string | null;
+  /**
+   * The court's own name where it is not "24×7 ON Court" — what "In the …" heads a
+   * complaint with. `null` keeps ON Court; Kerala, Punjab and Haryana run as ON Courts.
+   */
+  courtName: string | null;
   /** Whether the filing's signing step carries an oath — Punjab's does not. */
   signWithOath: boolean;
   fees: FeeSchedule;
@@ -63,6 +68,7 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     numbering: { kind: "kerala" },
     cnrPrefix: "KLKM52",
     brandName: null,
+    courtName: null,
     signWithOath: true,
     fees: KERALA_FEES,
   },
@@ -72,7 +78,10 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     numbering: { kind: "gujarat" },
     // GJAH + 2-digit court ID, per the Gujarat sheet's example (GJAH010001252026).
     cnrPrefix: "GJAH01",
-    brandName: "Saras",
+    // Gujarat's product is SARAS 2.0 and its court is the SARAS Court (owner,
+    // 2026-10-09). The exact court wording is still to be confirmed with Gujarat.
+    brandName: "SARAS 2.0",
+    courtName: "SARAS Court",
     signWithOath: true,
     fees: GUJARAT_FEES,
   },
@@ -85,6 +94,7 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     // the establishment code mirrors Panchkula's until Punjab supplies its own.
     cnrPrefix: "PBLD03",
     brandName: null,
+    courtName: null,
     signWithOath: false,
     fees: PUNJAB_HARYANA_FEES,
   },
@@ -95,6 +105,7 @@ export const COURT_PROFILES: Record<CourtId, CourtProfile> = {
     // Panchkula Special NI Act Court, per the Punjab & Haryana sheet.
     cnrPrefix: "HRPK03",
     brandName: null,
+    courtName: null,
     signWithOath: true,
     fees: PUNJAB_HARYANA_FEES,
   },
