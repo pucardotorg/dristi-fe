@@ -370,14 +370,14 @@ export function ReviewDialog({
               <section
                 key={g}
                 aria-labelledby={`rv-${g}`}
-                className="flex flex-col gap-3 not-first:mt-8"
+                className="flex flex-col gap-2 not-first:mt-6"
               >
                 <h3
                   id={`rv-${g}`}
-                  className="flex items-baseline gap-2 text-body font-semibold"
+                  className="flex items-baseline gap-1.5 text-caption font-semibold text-muted-foreground"
                 >
                   {g}
-                  <span className="text-body-compact font-normal text-muted-foreground tabular-nums">
+                  <span className="font-normal tabular-nums">
                     {groups[g].length}
                   </span>
                 </h3>
@@ -453,9 +453,11 @@ function SummaryItem({
   onGoToItem: (fieldId: string) => void;
 }) {
   const { field, flag } = item;
-  const said = [field.docrow ? flag.reason : null, flag.comment].filter(
-    Boolean,
-  );
+  /* Labelled, so the officer's words read as theirs (owner, 2026-10-09). */
+  const said = [
+    field.docrow && flag.reason ? ["Issue", flag.reason] : null,
+    flag.comment ? ["Comment", flag.comment] : null,
+  ].filter((line): line is [string, string] => line !== null);
   const also =
     field.docrow && item.linked
       ? `Raised with ${item.linked.group.replace(/ Details$/, "").toLowerCase()} ${item.linked.label.toLowerCase()}`
@@ -474,9 +476,10 @@ function SummaryItem({
           </span>
           {said.length || also ? (
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              {said.map((line, i) => (
-                <span key={i} className="text-body-compact break-words">
-                  {line}
+              {said.map(([label, text]) => (
+                <span key={label} className="text-body-compact break-words">
+                  <span className="text-muted-foreground">{label}: </span>
+                  {text}
                 </span>
               ))}
               {also ? (
