@@ -35,12 +35,7 @@ import { NEW_PSS_FILING, stepHref } from "./steps";
 import type { FilingDraft, Signatory, UserProfile } from "./types";
 import { caseSearchKey } from "@/lib/court/localize";
 
-/**
- * Tab names say what the filing is waiting on, in the advocate's words (owner,
- * 2026-10-09): "Pending payment" names the blocking act; scrutiny is "Pending with
- * scrutiny" (waiting on the officer, not the advocate) and "Returned from scrutiny"
- * (back with defects). Each tab's `hint` under the bar says what it means and what to do.
- */
+/** Tab names say what the filing is waiting on, in the advocate's words (owner, 2026-10-09). */
 export const QUEUE_TABS = [
   { id: "drafts", label: "Drafts" },
   { id: "pendingSignature", label: "Pending signature" },
@@ -123,46 +118,40 @@ export type ColumnId =
  */
 export const TAB_LAYOUT: Record<
   QueueTab,
-  { columns: ColumnId[]; ref?: string; info: string; label: string; hint: string }
+  { columns: ColumnId[]; ref?: string; info: string; label: string }
 > = {
   drafts: {
     columns: ["parties", "caseType", "info", "progress", "action"],
     info: "File by",
     label: "Drafts you have not filed yet",
-    hint: "Not filed yet. Finish each draft and send it for signature.",
   },
   pendingSignature: {
     columns: ["parties", "caseType", "info", "action"],
     info: "Signatures",
     label: "Filings sent for signature",
-    hint: "Waiting for signatures. Sign yours here; the rest are with the parties.",
   },
   pendingPayment: {
     columns: ["parties", "caseType", "info", "action"],
     info: "Court fee",
     label: "Filings signed and awaiting the court fee",
-    hint: "Signed. Pay the court fee to send each one to the court.",
   },
   scrutiny: {
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "E-filing no.",
     info: "Filed",
     label: "Filings with the scrutiny officer",
-    hint: "With the scrutiny officer. Nothing to do until they register it or send it back.",
   },
   returned: {
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "E-filing no.",
     info: "Defects",
     label: "Filings to correct after scrutiny",
-    hint: "Sent back with defects. Correct what the scrutiny officer marked, then file it again.",
   },
   registered: {
     columns: ["ref", "parties", "caseType", "court", "info", "action"],
     ref: "Case no.",
     info: "Hearing",
     label: "Cases the court has numbered",
-    hint: "Registered by the court, with a case number and a hearing date.",
   },
 };
 

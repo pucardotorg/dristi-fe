@@ -266,7 +266,6 @@ export function FilingsQueue({
 
   const body = (
     <>
-      <p className="px-4 pt-4 text-body-compact text-muted-foreground md:pointer-fine:px-6 md:landscape:px-6">{layout.hint}</p>
       <div className={cn("grid grid-cols-2 items-center gap-2 px-4 py-4", DESK_TOOLBAR)}>
         {bulkKind === "discard" && selectedIds.length > 0 && !cards ? (
           <Button

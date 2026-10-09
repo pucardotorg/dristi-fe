@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRightIcon, DownloadIcon, PlusIcon } from "lucide-react";
+import { ArrowRightIcon, DownloadIcon } from "lucide-react";
 
 import { FILINGS_HOME } from "@/lib/filing/steps";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { PANEL_CLASS } from "@/components/filing/form-card";
 
 /**
@@ -25,7 +30,12 @@ export type BulkBatch = {
   what: string;
   receivedOn: string;
   via: string;
-  counts: { registered: number; scrutiny: number; defect: number; notFiled: number };
+  counts: {
+    registered: number;
+    scrutiny: number;
+    defect: number;
+    notFiled: number;
+  };
 };
 
 const LEGEND = [
@@ -48,7 +58,10 @@ export function BatchProgress({ counts }: { counts: BulkBatch["counts"] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div aria-hidden className="flex h-2 overflow-hidden rounded-full bg-track">
+      <div
+        aria-hidden
+        className="flex h-2 overflow-hidden rounded-full bg-track"
+      >
         {LEGEND.map((seg) =>
           counts[seg.key] > 0 ? (
             <span
@@ -56,15 +69,23 @@ export function BatchProgress({ counts }: { counts: BulkBatch["counts"] }) {
               className={seg.fill}
               style={{ width: `${(counts[seg.key] / total) * 100}%` }}
             />
-          ) : null
+          ) : null,
         )}
       </div>
       <ul className="flex flex-wrap gap-x-4 gap-y-2">
         {LEGEND.map((seg) => (
-          <li key={seg.key} className="flex items-center gap-1.5 text-caption text-muted-foreground">
-            <span aria-hidden className={cn("size-2 shrink-0 rounded-full", seg.fill)} />
+          <li
+            key={seg.key}
+            className="flex items-center gap-1.5 text-caption text-muted-foreground"
+          >
+            <span
+              aria-hidden
+              className={cn("size-2 shrink-0 rounded-full", seg.fill)}
+            />
             {seg.label}{" "}
-            <span className="font-medium tabular-nums text-foreground">{counts[seg.key]}</span>
+            <span className="font-medium tabular-nums text-foreground">
+              {counts[seg.key]}
+            </span>
           </li>
         ))}
       </ul>
@@ -73,35 +94,34 @@ export function BatchProgress({ counts }: { counts: BulkBatch["counts"] }) {
 }
 
 /** Cases a client's system pushed across for filing, as one batch. */
+/**
+ * Bulk filing is not built yet, so the card says so and steps back (owner, 2026-10-09:
+ * "subdue bulk filing… it's distracting more than helping"). Neutral mark, muted words,
+ * no actions. A batch, when one exists, still shows its progress.
+ */
 export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
   return (
     <Card className={cn(PANEL_CLASS, "gap-0")}>
       <CardHeader className="flex flex-row items-start gap-3">
         <span
           aria-hidden
-          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-info-muted text-info-muted-foreground"
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-muted-foreground"
         >
           <DownloadIcon className="size-5" />
         </span>
         <div className="flex min-w-0 flex-col gap-0.5">
-          <CardTitle className="text-body font-semibold">Bulk filing</CardTitle>
+          <CardTitle className="text-body font-semibold text-muted-foreground">
+            Bulk filing
+          </CardTitle>
           <CardDescription className="text-body-compact">
-            Bring in many cases from your client&apos;s system and file them together.
+            Coming soon: file many cases from your client&apos;s system
+            together.
           </CardDescription>
         </div>
       </CardHeader>
 
-      <CardContent className="mt-auto flex flex-col gap-4 pt-4">
-        {batch === null ? (
-          <Empty className="items-start gap-0 border-0 p-0 text-left text-wrap">
-            <EmptyHeader className="max-w-none items-start">
-              <EmptyTitle className="text-body font-semibold">No imports yet</EmptyTitle>
-              <EmptyDescription className="text-body-compact text-wrap">
-                When a client sends cases, they appear here with their progress.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
+      {batch ? (
+        <CardContent className="mt-auto flex flex-col gap-4 pt-4">
           <div className="flex flex-col gap-3 rounded-lg bg-surface-sunken p-4">
             <p className="text-caption font-semibold text-muted-foreground uppercase">
               Most recent import
@@ -114,26 +134,14 @@ export function BulkImportCard({ batch }: { batch: BulkBatch | null }) {
             </div>
             <BatchProgress counts={batch.counts} />
           </div>
-        )}
-
-        {/* The pair shares the row half and half at every width (owner, Sept 22). */}
-        <div className="flex flex-wrap items-center gap-2 [&>*]:flex-1">
           <Button asChild variant="outline">
             <Link href={`${FILINGS_HOME}/bulk`}>
-              {batch ? "Review batch" : "About bulk filing"}
+              Review batch
               <ArrowRightIcon data-icon="inline-end" aria-hidden />
             </Link>
           </Button>
-          {/* Outline, not ghost: sharing a row half and half, a button with no edge read
-              as a stray label beside a real one. */}
-          <Button asChild variant="outline">
-            <Link href={`${FILINGS_HOME}/bulk`}>
-              <PlusIcon data-icon="inline-start" aria-hidden />
-              New import
-            </Link>
-          </Button>
-        </div>
-      </CardContent>
+        </CardContent>
+      ) : null}
     </Card>
   );
 }

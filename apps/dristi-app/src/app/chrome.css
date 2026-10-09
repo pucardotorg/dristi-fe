@@ -69,23 +69,28 @@ html[data-court-pending] body {
 }
 
 /*
-  Autofill inside an input group must not paint over the group's border.
+  Autofill inside an input group keeps the group's border and corners.
 
-  `globals.css` (synced from the DS) covers an autofilled value with an opaque inset
-  shadow in the page colour, so the browser's pale-blue highlight does not show. A
-  plain input owns its border, so that is fine. Inside an `InputGroup` the border
-  belongs to the group, and the control is the group's full 40px height, so it sits
-  over that 1px border. Once autofill paints the control, the group loses its top,
-  bottom and corners wherever the control runs: the phone number beside +91, the
-  password beside its eye or tick (owner, Oct 9). Inside a group the control stays
-  transparent instead. The group's own `bg-card` shows through, and the DS rule's
-  long background transition still keeps the browser's highlight from appearing.
-  DS request: the group control should be inset inside the group's border.
+  `globals.css` (synced from the DS) hides the browser's pale-blue autofill tint with an
+  opaque inset shadow in the page colour. Inside an `InputGroup` the border belongs to
+  the group, and the control is the group's full 40px height, so it sits over that 1px
+  border. Painted, it broke the group's top, bottom and corners; left unpainted, the
+  browser's tint showed as a square box inside the rounded field (owner, Oct 9). So
+  while a control is autofilled, the group clips its content to inside its own border.
+  The control is then painted in the group's own fill: `card`, or the sunken fill of the
+  locked mobile number. DS request: inset the group control inside the group's border.
 */
+[data-slot="input-group"]:has(input:-webkit-autofill) {
+  overflow: hidden;
+}
 [data-slot="input-group"] input:-webkit-autofill,
 [data-slot="input-group"] input:-webkit-autofill:hover,
 [data-slot="input-group"] input:-webkit-autofill:focus,
 [data-slot="input-group"] input:-webkit-autofill:active {
-  -webkit-box-shadow: none !important;
-  box-shadow: none !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--card) inset !important;
+  box-shadow: 0 0 0 1000px var(--card) inset !important;
+}
+[data-slot="input-group"] input:-webkit-autofill:disabled {
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-sunken) inset !important;
+  box-shadow: 0 0 0 1000px var(--surface-sunken) inset !important;
 }

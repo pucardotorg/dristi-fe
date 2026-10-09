@@ -262,7 +262,7 @@ export function RegistrationFlow({ locale, summoned, initialMobile = "", onFinis
                 )}
               </div>
               {otpVerified ? (
-                <p className="flex items-center gap-1.5 text-body-compact text-success"><CheckCircle2Icon className="size-4" aria-hidden />{pick(contactStep.verified, locale)}</p>
+                <p className="flex items-center gap-1.5 text-body-compact text-success-ink"><CheckCircle2Icon className="size-4" aria-hidden />{pick(contactStep.verified, locale)}</p>
               ) : (
                 <FieldDescription>{pick(contactStep.mobileHint, locale)}</FieldDescription>
               )}

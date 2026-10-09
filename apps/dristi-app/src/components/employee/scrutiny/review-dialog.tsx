@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { CheckIcon, RotateCcwIcon } from "lucide-react";
 
-import { docName } from "@/lib/employee/scrutiny/field";
 import type {
   Filing,
   Flag,
@@ -143,11 +142,7 @@ export function ReviewDialog({
     decision === "send-back"
       ? {
           title: "Send back to advocate",
-          body: sendBackLine(
-            party.advocate,
-            groups[GROUP_ORDER[0]].length,
-            groups[GROUP_ORDER[1]].length,
-          ),
+          body: `Goes to ${party.advocate}.`,
         }
       : {
           title: "Register case",
@@ -377,14 +372,14 @@ export function ReviewDialog({
               >
                 <h3
                   id={`rv-${g}`}
-                  className="sticky top-0 z-10 -mx-4 flex items-baseline justify-between gap-3 bg-card px-4 py-2 text-body-compact font-semibold sm:-mx-6 sm:px-6"
+                  className="sticky top-0 z-10 -mx-4 flex items-baseline gap-3 bg-card px-4 py-2 text-body-compact font-semibold sm:-mx-6 sm:px-6"
                 >
                   {g}
                   <span className="font-normal text-muted-foreground tabular-nums">
                     {groups[g].length}
                   </span>
                 </h3>
-                <ul className="flex flex-col divide-y divide-hairline rounded-lg border border-hairline">
+                <ul className="flex flex-col divide-y divide-hairline">
                   {groups[g].map((item) => (
                     <SummaryItem
                       key={item.field.id}
@@ -415,20 +410,9 @@ export function ReviewDialog({
   );
 }
 
-/** The header's one line: who it goes to, and the work it hands them, counted. */
-function sendBackLine(advocate: string, fields: number, docs: number): string {
-  const work = [
-    fields ? `correct ${fields} ${fields === 1 ? "field" : "fields"}` : "",
-    docs ? `re-upload ${docs} ${docs === 1 ? "document" : "documents"}` : "",
-  ].filter(Boolean);
-  return work.length
-    ? `Goes to ${advocate}. They ${work.join(" and ")}, then file it again.`
-    : `Goes to ${advocate}.`;
-}
-
 /**
- * One correction as a row: the item and whose it is, what the officer said, what else
- * goes with it, and a way to it. The same three places on every row.
+ * One correction as a row: the item and whose it is, what the officer said (nothing when
+ * they left no note), what a document was raised with, and a way to it.
  */
 function SummaryItem({
   item,
@@ -437,23 +421,19 @@ function SummaryItem({
   item: Item;
   onGoToItem: (fieldId: string) => void;
 }) {
-  const { docById, docRow } = useScrutinyCase();
   const { field, flag } = item;
-  const reupload =
-    !field.docrow && !!field.doc && !!docRow[field.doc] ? item.linked : null;
   /* A document row's group is just "Documents", which the section already says. */
   const owner = field.docrow ? "" : field.group.replace(/ Details$/, "");
   const said = [field.docrow ? flag.reason : null, flag.comment].filter(
     Boolean,
   );
-  const also = reupload
-    ? `Also re-upload ${docName(reupload.docrow ?? "", docById)}`
-    : field.docrow && item.linked
+  const also =
+    field.docrow && item.linked
       ? `Raised with ${item.linked.group.replace(/ Details$/, "").toLowerCase()} ${item.linked.label.toLowerCase()}`
       : null;
 
   return (
-    <li className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-6">
+    <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:gap-6">
       <div className="flex min-w-0 flex-col gap-0.5 sm:w-56 sm:shrink-0">
         <p className="text-body-compact font-semibold break-words">
           {field.label}
@@ -462,28 +442,27 @@ function SummaryItem({
           <p className="text-body-compact text-muted-foreground">{owner}</p>
         ) : null}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {said.length ? (
-          said.map((line, i) => (
+      {said.length || also ? (
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {said.map((line, i) => (
             <p key={i} className="text-body-compact break-words">
               {line}
             </p>
-          ))
-        ) : (
-          <p className="text-body-compact text-muted-foreground">No note</p>
-        )}
-        {also ? (
-          <p className="text-body-compact text-muted-foreground">{also}</p>
-        ) : null}
-      </div>
+          ))}
+          {also ? (
+            <p className="text-body-compact text-muted-foreground">{also}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {/* Ghost, so its label lines up with the text column on a phone (pulled out by its
+          own inset) and centres on the row's first line beside it on a wider screen. */}
       <Button
         type="button"
         variant="ghost"
-        size="sm"
-        className="-ml-3 self-start sm:-my-1.5 sm:ml-0"
+        className="-ml-4 self-start sm:-my-2.5 sm:ml-auto"
         onClick={() => onGoToItem(field.id)}
       >
-        Go to it
+        {field.docrow ? "Go to document" : "Go to field"}
         <span className="sr-only">
           : {owner} {field.label}
         </span>
